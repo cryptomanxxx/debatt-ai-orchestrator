@@ -1,0 +1,13 @@
+{
+  "name": "debatt-ai-orchestrator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "start": "node src/server.ts",
+    "test": "node --test tests/*.test.ts"
+  }
+}
