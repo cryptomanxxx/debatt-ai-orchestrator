@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { loadConfig } from './config.ts';
 import type { Config } from './config.ts';
+import { CalculationError } from './tools/calculator.ts';
 import { orchestrate } from './orchestrator.ts';
 export function createApp(config: Config) {
   return createServer(async (req, res) => {
@@ -30,13 +31,16 @@ export function createApp(config: Config) {
     let input;
     try { input = JSON.parse(body); } catch { return send(400, { error: 'invalid_json' }); }
     if (!input || typeof input.message !== 'string' || !input.message.trim() || input.message.length > 8000
-      || (input.mode !== undefined && !['default', 'reasoning'].includes(input.mode)))
+      || (input.mode !== undefined && !['default', 'reasoning', 'auto'].includes(input.mode)))
       return send(400, { error: 'invalid_request' });
     const mode = input.mode ?? 'default';
     if (mode === 'reasoning' && config.provider !== 'mock' && !config.reasoningModel)
       return send(400, { error: 'reasoning_not_configured' });
     try { send(200, await orchestrate(input.message.trim(), mode, config)); }
-    catch { send(502, { error: 'model_request_failed' }); }
+    catch (error) {
+      if (error instanceof CalculationError) return send(400, { error: error.message });
+      send(502, { error: 'model_request_failed' });
+    }
   });
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

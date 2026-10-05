@@ -28,6 +28,14 @@ test('HTTP endpoints and validation', async () => {
     assert.equal(data.mode, 'reasoning');
     assert.match(data.answer, /Testläge/);
     assert.ok(data.id);
+    assert.equal(data.verification.status, 'not_verified');
+    const arithmetic = await query(JSON.stringify({ message: 'räkna: (2+3)*4', mode: 'auto' }));
+    assert.equal(arithmetic.status, 200);
+    const result = await arithmetic.json();
+    assert.equal(result.answer, '20');
+    assert.equal(result.verification.scope, 'arithmetic_consistency');
+    assert.equal((await query(JSON.stringify({ message: 'calc: 1/0', mode: 'auto' }))).status, 400);
+    assert.equal((await query(JSON.stringify({ message: 'calc: process.exit()', mode: 'auto' }))).status, 400);
   } finally { await new Promise<void>((resolve, reject) => app.close(err => err ? reject(err) : resolve())); }
 });
 test('real provider sends selected model and handles upstream failures', async () => {
