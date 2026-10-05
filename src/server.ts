@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { loadConfig } from './config.ts';
 import type { Config } from './config.ts';
 import { executeQuery } from './query.ts';
+import { executeBootLoopsPython } from './tools/bootloops-node.ts';
 export function createApp(config: Config) {
   return createServer(async (req, res) => {
     const send = (status: number, data: unknown) => {
@@ -29,7 +30,7 @@ export function createApp(config: Config) {
     } catch { return send(400, { error: 'invalid_body' }); }
     let input;
     try { input = JSON.parse(body); } catch { return send(400, { error: 'invalid_json' }); }
-    const result = await executeQuery(input, config);
+    const result = await executeQuery(input, config, executeBootLoopsPython);
     send(result.status, result.data);
   });
 }

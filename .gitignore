@@ -154,4 +154,5 @@ vite.config.ts.timestamp-*
 !.dev.vars.example
 .wrangler/
 .worker-build/
-
+__pycache__/
+*.pyc
