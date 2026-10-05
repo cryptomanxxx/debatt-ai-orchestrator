@@ -1,4 +1,5 @@
 # Copy to .dev.vars for local Workers development. Never commit real secrets.
 ORCHESTRATOR_API_KEY=replace-with-a-long-random-secret
-# MODEL_PROVIDER defaults to mock in wrangler.jsonc.
-# Add MODEL_API_KEY here only when testing a real provider locally.
+# Override the deployed Groq provider for local development without model credits.
+MODEL_PROVIDER=mock
+# To test Groq locally, change MODEL_PROVIDER to openai and add MODEL_API_KEY.

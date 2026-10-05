@@ -38,6 +38,7 @@ Local development and validation:
 npm ci
 cp .dev.vars.example .dev.vars
 # Set a random ORCHESTRATOR_API_KEY of at least 24 characters in .dev.vars.
+# Keep MODEL_PROVIDER=mock from the example for local testing without Groq credentials.
 npm run dev:workers
 ```
 
@@ -50,7 +51,7 @@ npm run dev:workers
 3. After the first deployment, open the Worker **Settings → Runtime variables and secrets → Production**, create a **Secret** named `ORCHESTRATOR_API_KEY` with a random value of at least 24 characters and a **Secret** named `MODEL_API_KEY` containing your Groq API key, then deploy the settings change. Until both secrets exist, the service intentionally returns `503 service_not_configured`. These are runtime secrets, not the similarly named settings under **Builds**.
 4. Open the dashboard's Worker URL followed by `/health`; expect HTTP 200. Test an authenticated `/v1/query` request from a backend or API client; `{"message":"räkna: (2+3)*4","mode":"auto"}` returns `20` without inference costs. To test the Groq connection, send `{"message":"Svara bara med ordet Hej.","mode":"default"}` and expect HTTP 200, a nonempty `answer`, `mock: false` and `model: "openai/gpt-oss-120b"`. Health and calculator success alone do not verify the Groq connection.
 
-For a CLI deployment, run `npx wrangler login`, `npm run deploy:workers`, then `npx wrangler secret put ORCHESTRATOR_API_KEY` in an authenticated environment. No Cloudflare token, account ID or real secret belongs in Git. This repository only prepares the code; creating a PR does not publish a Worker or connect the Debatt-AI website.
+For a CLI deployment, run `npx wrangler login`, `npm run deploy:workers`, then both `npx wrangler secret put ORCHESTRATOR_API_KEY` and `npx wrangler secret put MODEL_API_KEY` in an authenticated environment. Enter the orchestrator key and Groq API key respectively at the prompts. The Worker returns 503 until both runtime secrets are present. No Cloudflare token, account ID or real secret belongs in Git. This repository only prepares the code; creating a PR does not publish a Worker or connect the Debatt-AI website.
 
 ### Enable real model inference
 
