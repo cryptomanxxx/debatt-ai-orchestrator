@@ -71,7 +71,7 @@ For an existing mock deployment, add and deploy the `MODEL_API_KEY` runtime Secr
 
 Groq references: [OpenAI compatibility](https://console.groq.com/docs/openai), [supported models](https://console.groq.com/docs/models), [token-limit parameter](https://console.groq.com/docs/api-reference).
 
-Workers Free limits CPU time per request; awaiting an external model API is not CPU time, but JSON processing and local tools are. These tests verify runtime compatibility, not production CPU-budget compliance. This Worker uses no paid containers, databases, queues or Workers AI. External model providers can still charge for inference. BootLoops is not implemented here: a Python subprocess, Julia or Docker cannot run inside this Worker; a future BootLoops adapter needs a compatible external execution service.
+Workers Free limits CPU time per request; awaiting an external model API is not CPU time, but JSON processing and local tools are. These tests verify runtime compatibility, not production CPU-budget compliance. This Worker uses no paid containers, databases, queues or Workers AI. External model providers can still charge for inference. The BootLoops tool below runs in the Node/Python transport and GitHub Actions; Cloudflare returns `503 bootloops_runtime_unavailable` for that tool until a separate Python execution service is connected.
 
 References: [GitHub integration](https://developers.cloudflare.com/workers/ci-cd/builds/git-integration/github-integration/), [runtime secrets](https://developers.cloudflare.com/workers/configuration/secrets/), [Workers limits](https://developers.cloudflare.com/workers/platform/limits/).
 
@@ -99,6 +99,71 @@ Example request:
 Returns `answer: "20"`, `provider: "local"`, `model: null`, `mock: false`, an arithmetic plan and `verification.scope: "arithmetic_consistency"`. No model credits are spent. Arithmetic supports decimal points, parentheses, unary signs and `+ - * /`. It uses JavaScript floating-point numbers, not exact financial arithmetic. Limits: 512 characters, 256 tokens, nesting depth 32. Invalid explicit calculations return HTTP 400 without falling back to paid inference. No `eval`, shell or arbitrary code execution.
 
 **Verification limits:** calculator results are replayed with the same parser and checked against the answer, which is a consistency check, not an independent mathematical proof. Model answers only receive a nonempty-text check (`scope: "response_shape"`, `factualityChecked: false`). Mock text reports `not_verified`. A passed check never means a model's factual claims were confirmed. Plans contain one execution step and one verification step, not open-ended task decomposition. Tool/network integrations can be added through the registry and planner later.
+
+## BootLoops trial: exact rational reconstruction
+
+The registered `bootloops_ratfit` tool executes BootLoops' **real, unmodified**
+Ratfit `thiele_gate` module, vendored at commit
+`66b680ce742e654cfe86da4f072a69061fe182b1` with its MIT license and a checked
+SHA-256 fingerprint. This first trial covers one tool, not the entire toolkit.
+See [upstream Ratfit](https://bootloops.ai/tools/ratfit.html) and
+[provenance](vendor/bootloops/PROVENANCE.md).
+
+Requires Linux with Python 3.12 and Node 24. No Python packages, new server,
+AI credentials or model credits are needed for the test:
+
+```sh
+npm run test:bootloops
+```
+
+The CI workflow runs the `bootloops` job automatically on pushes and PRs.
+It executes the actual Python code, checks a planted `(x+1)/(x+2)` function
+against separately withheld exact values, checks a constant function, and
+requires a deliberately corrupted holdout to fail. A local authenticated Node
+HTTP test verifies the full transport-to-Python path. This test does not call
+the deployed Cloudflare URL or Groq. Existing `npm test` remains Python-free,
+so the Cloudflare build command can stay as configured.
+
+Send the following to the **Node** server's authenticated `POST /v1/query`:
+
+```json
+{
+  "tool": "bootloops_ratfit",
+  "input": {
+    "banked": [["0","1/2"],["1","2/3"],["2","3/4"],["3","4/5"],["6","7/8"],["7","8/9"]],
+    "holdout": [["4","5/6"],["5","6/7"]]
+  }
+}
+```
+
+Every value must be an exact integer or fraction **string**; decimals,
+floating-point JSON numbers, commands and code are rejected. `banked` has
+4–12 points, `holdout` 2–8, each numerator/denominator at most 24 digits.
+All x coordinates must be distinct across both sets, including equivalent
+fractions. The fit uses at most eight banked points; other banked points and
+all holdouts must match exactly. Input origins remain the caller's responsibility.
+
+HTTP 200 means every held-out value matched. Changing `5/6` to `0` produces
+HTTP 422 with `verification.status: "failed"`. Invalid data returns 400;
+execution failures return a generic 502. Neither refusal nor unavailability
+falls back to a model. Output includes provenance, continued-fraction depth,
+checked/failed counts, plan and trace; it does not return an executable formula.
+`exact_rational_holdout` verifies consistency with the supplied held-out data,
+not the scientific truth of that data or a universal proof of the function.
+
+The bridge uses a fixed Python script and standard-library rational arithmetic;
+it accepts JSON on stdin and allows no expression evaluation, paths or shell
+commands. The process inherits only PATH, has a five-second wall timeout,
+four-second CPU cap, 256 MiB address-space cap and 16 KiB input/output bounds.
+At most two tool processes can run concurrently per Node process. This is a
+bounded tool adapter, not a general sandbox for arbitrary Python programs.
+
+**Cloudflare deployment:** Workers cannot run this Python subprocess. A valid
+tool request currently returns 503 with `bootloops_runtime_unavailable`, as
+verified in Miniflare. Groq, health and calculator routes continue to work.
+Connecting BootLoops to the deployed Worker needs a separate authenticated
+Python execution service; no such service is deployed by this PR. GitHub Actions
+is sufficient for this first reproducible trial.
 
 ## Token-limit compatibility
 

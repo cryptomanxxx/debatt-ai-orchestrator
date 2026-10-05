@@ -1,4 +1,6 @@
 import { calculate } from './calculator.ts';
+export { BOOTLOOPS_TOOL, validateRatfitInput, runBootLoops } from './bootloops.ts';
+export type { BootLoopsExecutor } from './bootloops.ts';
 export type ToolResult = { tool: 'calculator'; expression: string; value: number };
 // Only registered tools can execute. No user-defined names, URLs or shell commands.
 export function executeTool(name: string, expression: string): ToolResult {

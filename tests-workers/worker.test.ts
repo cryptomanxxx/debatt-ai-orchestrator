@@ -33,6 +33,12 @@ test('Workers runtime serves health, authenticated mock and calculator queries',
     assert.equal(result.answer, '20');
     assert.equal(result.provider, 'local');
     assert.equal(result.verification.scope, 'arithmetic_consistency');
+    const bootloops = await request(runtime, JSON.stringify({ tool: 'bootloops_ratfit', input: {
+      banked: [['0', '1/2'], ['1', '2/3'], ['2', '3/4'], ['3', '4/5']],
+      holdout: [['4', '5/6'], ['5', '6/7']]
+    } }));
+    assert.equal(bootloops.status, 503);
+    assert.deepEqual(await bootloops.json(), { error: 'bootloops_runtime_unavailable' });
     assert.equal((await request(runtime, '{"message":"calc: 1/0","mode":"auto"}')).status, 400);
   } finally { await runtime.dispose(); }
 });
