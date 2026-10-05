@@ -1,6 +1,9 @@
-import type { Config } from './config.ts';
-export function route(mode: 'default' | 'reasoning', config: Config) {
-  if (mode === 'reasoning' && !config.reasoningModel && config.provider !== 'mock')
-    throw new Error('Reasoning model is not configured');
-  return mode === 'reasoning' ? (config.reasoningModel || 'mock') : config.defaultModel;
+export { selectModel as route } from './models/registry.ts';
+export type Mode = 'default' | 'reasoning' | 'auto';
+// Conservative routing: only pure arithmetic or explicit calc:/räkna: commands.
+export function arithmeticExpression(message: string): string | null {
+  const explicit = /^(?:calc|räkna)\s*:\s*(.*)$/is.exec(message.trim());
+  if (explicit) return explicit[1].trim();
+  const text = message.trim();
+  return /^[\d.\s()+*/-]+$/.test(text) && /\d/.test(text) ? text : null;
 }

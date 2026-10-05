@@ -1,6 +1,6 @@
 # Debatt-AI Orchestrator
 
-Independent orchestration service for Debatt-AI AI 1.0. First milestone: HTTP → model selection → provider → structured response. Planning, tools, memory and verification are future work.
+Independent orchestration service for Debatt-AI AI 1.0. Working pipeline: HTTP → rule-based plan → model or registered tool → verification → structured response. Memory, retrieval, web search and general multi-step agent planning remain future work.
 
 ## Run
 
@@ -24,7 +24,7 @@ node --env-file=.env src/server.ts
 {"message":"Förklara alternativkostnad på svenska.","mode":"default"}
 ```
 
-Response fields: `id`, `answer`, `model`, `provider`, `mode`, `mock`. Default provider is `mock`, which returns an explicitly labelled test response, not an AI answer. `reasoning` selects the optional configured reasoning model; no automatic classification yet.
+Response fields: `id`, `answer`, `model`, `provider`, `mode`, `mock`, `plan`, `trace`, `verification` and, for arithmetic, `toolResult`. Default provider is `mock`, which returns an explicitly labelled test response, not an AI answer. `reasoning` selects the optional configured reasoning model. Existing `default` and `reasoning` modes keep their model paths. New `auto` mode routes pure arithmetic and explicit `calc:` / `räkna:` commands to the local calculator; other text uses the default model.
 
 For real inference set `MODEL_PROVIDER=openai`, `MODEL_BASE_URL` (HTTPS URL ending in `/v1`), `MODEL_API_KEY` and `MODEL_DEFAULT` to values supplied by your chosen OpenAI-compatible provider. `MODEL_REASONING` is optional. No particular model or provider availability is assumed.
 
@@ -33,3 +33,22 @@ For real inference set `MODEL_PROVIDER=openai`, `MODEL_BASE_URL` (HTTPS URL endi
 Create a Node web service from this repository. Build command: `node --version`. Start command: `npm start`. Set environment variables in Render, not in Git. Render provides `PORT`. Use `/health` as health-check path. This repository does not create or deploy a Render service automatically.
 
 Keep the orchestrator key on the Debatt-AI backend, never in browser code. No CORS is enabled: this initial service is designed for backend-to-backend calls. Before public production use add per-user quotas/rate limiting and monitoring. Requests are limited to 32 KiB, messages to 8,000 characters, and output to 1,024 tokens; upstream calls time out after 45 seconds. There is no persistent local state, retry loop or arbitrary code execution.
+
+## Modules and planning
+
+- `src/models/registry.ts`: configured default/reasoning model selection.
+- `src/tools/`: allowlisted tool registry and arithmetic parser.
+- `src/planning/planner.ts`: a bounded two-step plan (model or calculator, then verification).
+- `src/verification/verifier.ts`: output format and arithmetic consistency checks.
+- `src/router.ts`: conservative rules for automatic arithmetic routing.
+- `src/orchestrator.ts`: executes the plan and exposes a trace.
+
+Example request:
+
+```json
+{"message":"räkna: (2 + 3) * 4","mode":"auto"}
+```
+
+Returns `answer: "20"`, `provider: "local"`, `model: null`, `mock: false`, an arithmetic plan and `verification.scope: "arithmetic_consistency"`. No model credits are spent. Arithmetic supports decimal points, parentheses, unary signs and `+ - * /`. It uses JavaScript floating-point numbers, not exact financial arithmetic. Limits: 512 characters, 256 tokens, nesting depth 32. Invalid explicit calculations return HTTP 400 without falling back to paid inference. No `eval`, shell or arbitrary code execution.
+
+**Verification limits:** calculator results are replayed with the same parser and checked against the answer, which is a consistency check, not an independent mathematical proof. Model answers only receive a nonempty-text check (`scope: "response_shape"`, `factualityChecked: false`). Mock text reports `not_verified`. A passed check never means a model's factual claims were confirmed. Plans contain one execution step and one verification step, not open-ended task decomposition. Tool/network integrations can be added through the registry and planner later.
