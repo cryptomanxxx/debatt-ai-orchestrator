@@ -1,0 +1,4 @@
+# Copy to .dev.vars for local Workers development. Never commit real secrets.
+ORCHESTRATOR_API_KEY=replace-with-a-long-random-secret
+# MODEL_PROVIDER defaults to mock in wrangler.jsonc.
+# Add MODEL_API_KEY here only when testing a real provider locally.
