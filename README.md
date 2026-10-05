@@ -4,7 +4,7 @@ Independent orchestration service for Debatt-AI AI 1.0. Working pipeline: HTTP �
 
 ## Run
 
-Requires Node.js 24. No external dependencies or build step. TypeScript files run with Node's built-in type stripping; this is not a static type check.
+Requires Node.js 24. The Node server has no runtime dependencies or build step. TypeScript files run with Node's built-in type stripping; this is not a static type check. Workers development uses the pinned Wrangler and Miniflare dev dependencies.
 
 ```sh
 cp .env.example .env
@@ -28,7 +28,39 @@ Response fields: `id`, `answer`, `model`, `provider`, `mode`, `mock`, `plan`, `t
 
 For real inference set `MODEL_PROVIDER=openai`, `MODEL_BASE_URL` (HTTPS URL ending in `/v1`), `MODEL_API_KEY` and `MODEL_DEFAULT` to values supplied by your chosen OpenAI-compatible provider. `MODEL_REASONING` is optional. No particular model or provider availability is assumed.
 
-## Render setup (next milestone)
+## Cloudflare Workers
+
+`src/worker.ts` exposes the same API in Cloudflare's Workers runtime. It shares request validation, planning, tools and inference with the Node server. Configuration is read from each request's environment bindings. Invalid configuration returns a generic HTTP 503, including on `/health`; health does not test upstream model availability.
+
+Local development and validation:
+
+```sh
+npm ci
+cp .dev.vars.example .dev.vars
+# Set a random ORCHESTRATOR_API_KEY of at least 24 characters in .dev.vars.
+npm run dev:workers
+```
+
+`npm run check:workers` bundles the Worker without publishing it. Run `npm run test:workers` after that to test the bundle in Miniflare/workerd, with mocked outbound inference and no model credits. CI requires both the existing Node tests and these Workers checks in the `test` job.
+
+### Deploy from GitHub (no local computer required)
+
+1. In the [Cloudflare dashboard](https://dash.cloudflare.com/), open **Workers & Pages → Create application**, choose the GitHub repository integration and select `cryptomanxxx/debatt-ai-orchestrator`. Create a **Worker**, not a static Pages site.
+2. Use Worker name `debatt-ai-orchestrator` (matching `wrangler.jsonc`), production branch `main` and repository root `/`. Set build command `npm test && npm run check:workers && npm run test:workers` and deploy command `npm run deploy:workers`. Cloudflare installs the npm dependencies. Choose the Workers Free plan for this trial.
+3. After the first deployment, open the Worker **Settings → Variables and Secrets → Add**, create a **Secret** named `ORCHESTRATOR_API_KEY` with a random value of at least 24 characters, then deploy the settings change. Until this secret exists, the service intentionally returns `503 service_not_configured`.
+4. Open the dashboard's Worker URL followed by `/health`; expect HTTP 200. The mock provider in `wrangler.jsonc` needs no model API key. Test an authenticated `/v1/query` request from a backend or API client; `{"message":"räkna: (2+3)*4","mode":"auto"}` returns `20` without inference costs. `{"message":"Hej"}` returns labelled mock text.
+
+For a CLI deployment, run `npx wrangler login`, `npm run deploy:workers`, then `npx wrangler secret put ORCHESTRATOR_API_KEY` in an authenticated environment. No Cloudflare token, account ID or real secret belongs in Git. This repository only prepares the code; creating a PR does not publish a Worker or connect the Debatt-AI website.
+
+### Enable real model inference
+
+Keep `ORCHESTRATOR_API_KEY` and `MODEL_API_KEY` as runtime **Secrets**. Nonsecret model settings are managed by `wrangler.jsonc`: change `MODEL_PROVIDER` to `openai`, add `MODEL_BASE_URL`, `MODEL_DEFAULT` and optionally `MODEL_REASONING`, then deploy. Wrangler's `vars` are the source of truth and later deployments can overwrite dashboard edits to ordinary variables. Runtime secrets are different from build environment variables; the Worker reads runtime bindings, not build-time credentials. The backend calling the Worker must hold the orchestrator key; never send it to browser code.
+
+Workers Free limits CPU time per request; awaiting an external model API is not CPU time, but JSON processing and local tools are. These tests verify runtime compatibility, not production CPU-budget compliance. This Worker uses no paid containers, databases, queues or Workers AI. External model providers can still charge for inference. BootLoops is not implemented here: a Python subprocess, Julia or Docker cannot run inside this Worker; a future BootLoops adapter needs a compatible external execution service.
+
+References: [GitHub integration](https://developers.cloudflare.com/workers/ci-cd/builds/git-integration/github-integration/), [runtime secrets](https://developers.cloudflare.com/workers/configuration/secrets/), [Workers limits](https://developers.cloudflare.com/workers/platform/limits/).
+
+## Alternative Node hosting: Render
 
 Create a Node web service from this repository. Build command: `node --version`. Start command: `npm start`. Set environment variables in Render, not in Git. Render provides `PORT`. Use `/health` as health-check path. This repository does not create or deploy a Render service automatically.
 

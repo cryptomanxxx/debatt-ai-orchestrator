@@ -1,4 +1,4 @@
-export function loadConfig(env = process.env) {
+export function loadConfig(env: Record<string, string | undefined> = process.env) {
   const provider = env.MODEL_PROVIDER ?? 'mock';
   if (!['mock', 'openai'].includes(provider)) throw new Error('Invalid MODEL_PROVIDER');
   if (!env.ORCHESTRATOR_API_KEY || env.ORCHESTRATOR_API_KEY.length < 24)
