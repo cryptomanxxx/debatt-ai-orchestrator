@@ -1,6 +1,9 @@
 import { timingSafeEqual } from 'node:crypto';
 import { loadConfig } from './config.ts';
 import { executeQuery } from './query.ts';
+import { serviceExecutor } from './tools/bootloops-service.ts';
+import type { BootLoopsService } from './tools/bootloops-service.ts';
+type WorkerEnv = { BOOTLOOPS?: BootLoopsService; [key: string]: string | BootLoopsService | undefined };
 
 const MAX_BODY_BYTES = 32768;
 const encoder = new TextEncoder();
@@ -9,10 +12,10 @@ const json = (status: number, data: unknown) => Response.json(data, {
 });
 
 export default {
-  async fetch(request: Request, env: Record<string, string | undefined>): Promise<Response> {
+  async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     // Configuration comes from this request's bindings, never process.env or cached globals.
     let config;
-    try { config = loadConfig(env); }
+    try { config = loadConfig(Object.fromEntries(Object.entries(env).filter(([, value]) => typeof value === 'string')) as Record<string, string>); }
     catch { return json(503, { error: 'service_not_configured' }); }
     const { pathname, search } = new URL(request.url);
     if (request.method === 'GET' && pathname === '/health' && !search)
@@ -50,7 +53,7 @@ export default {
     let input: unknown;
     try { input = JSON.parse(body); }
     catch { return json(400, { error: 'invalid_json' }); }
-    const result = await executeQuery(input, config);
+    const result = await executeQuery(input, config, env.BOOTLOOPS && typeof env.BOOTLOOPS !== 'string' ? serviceExecutor(env.BOOTLOOPS) : undefined);
     return json(result.status, result.data);
   }
 };

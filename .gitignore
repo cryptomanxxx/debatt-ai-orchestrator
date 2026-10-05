@@ -156,3 +156,11 @@ vite.config.ts.timestamp-*
 .worker-build/
 __pycache__/
 *.pyc
+
+bootloops-worker/src/thiele_gate.py
+bootloops-worker/src/ratfit_core.py
+bootloops-worker/python_modules/
+bootloops-worker/.venv*/
+bootloops-worker/.worker-build/
+bootloops-worker/.wrangler/
+.worker-build-bootloops/

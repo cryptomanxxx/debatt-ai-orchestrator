@@ -27,3 +27,22 @@ jobs:
           python-version: '3.12'
       - run: npm run test:bootloops
 
+  bootloops-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.19'
+      - run: npm ci
+      - run: npm run check:workers
+      - run: npm run check:workers:bootloops
+      - run: npm run check:bootloops:worker
+      - run: npm run test:bootloops:worker
