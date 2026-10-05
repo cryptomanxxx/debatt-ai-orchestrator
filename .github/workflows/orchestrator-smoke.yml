@@ -1,0 +1,113 @@
+name: Testa driftsatt orchestrator
+
+on:
+  workflow_dispatch:
+  # Initial connection test on this dedicated branch; no scheduled/PR/main runs.
+  push:
+    branches: [codex/orchestrator-action-test]
+    paths: [.github/workflows/orchestrator-smoke.yml]
+
+permissions: {}
+
+concurrency:
+  group: orchestrator-smoke-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  orchestrator-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Kontrollera health, autentisering, kalkylator och Groq
+        env:
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
+          ORCHESTRATOR_URL: https://debatt-ai-orchestrator.xx8031126.workers.dev
+          EXPECTED_MODEL: openai/gpt-oss-120b
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.request
+
+          def require(condition, message):
+              if not condition:
+                  print(f"::error::{message}")
+                  sys.exit(1)
+
+          key = os.environ.get("ORCHESTRATOR_API_KEY", "")
+          require(bool(key), "Repository secret ORCHESTRATOR_API_KEY saknas.")
+          require(len(key) >= 24, "ORCHESTRATOR_API_KEY måste innehålla minst 24 tecken.")
+          base = os.environ["ORCHESTRATOR_URL"]
+          expected_model = os.environ["EXPECTED_MODEL"]
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          opener = urllib.request.build_opener(NoRedirect())
+
+          def request(path, payload=None, authenticated=False):
+              headers = {"Accept": "application/json"}
+              body = None
+              if payload is not None:
+                  body = json.dumps(payload).encode("utf-8")
+                  headers["Content-Type"] = "application/json"
+              if authenticated:
+                  headers["Authorization"] = "Bearer " + key
+              req = urllib.request.Request(base + path, data=body, headers=headers)
+              try:
+                  with opener.open(req, timeout=60) as response:
+                      status = response.status
+                      raw = response.read(65537)
+              except urllib.error.HTTPError as error:
+                  status = error.code
+                  error.close()
+                  return status, None
+              except (urllib.error.URLError, TimeoutError, OSError):
+                  require(False, "Anslutningen till orchestratorn misslyckades eller tog för lång tid.")
+              require(len(raw) <= 65536, "Orchestratorns svar överstiger testets storleksgräns.")
+              try:
+                  result = json.loads(raw)
+              except (ValueError, UnicodeError):
+                  require(False, "Orchestratorn returnerade ogiltig JSON.")
+              require(isinstance(result, dict), "Orchestratorns svar måste vara ett JSON-objekt.")
+              return status, result
+
+          status, health = request("/health")
+          require(status == 200, f"Health misslyckades: HTTP {status}.")
+          require(health.get("status") == "ok" and health.get("service") == "debatt-ai-orchestrator", "Oväntat health-svar.")
+          print("Health: 200 OK")
+
+          status, _ = request("/v1/query", {"message": "Hej"})
+          require(status == 401, f"Anrop utan nyckel ska avvisas med 401; fick HTTP {status}.")
+          print("Autentisering: anrop utan nyckel avvisades med 401")
+
+          status, calculation = request("/v1/query", {"message": "räkna: (2+3)*4", "mode": "auto"}, True)
+          require(status == 200, f"Kalkylatoranrop misslyckades: HTTP {status}.")
+          require(calculation.get("answer") == "20" and calculation.get("provider") == "local" and calculation.get("mock") is False, "Kalkylatorn gav inte det förväntade lokala svaret 20.")
+          verification = calculation.get("verification")
+          require(isinstance(verification, dict) and verification.get("status") == "passed" and verification.get("scope") == "arithmetic_consistency", "Kalkylatorns verifiering misslyckades.")
+          print("Kalkylator: 200 OK, svar 20, lokal beräkning verifierad")
+
+          # One short inference call, no retries and no application/data writes.
+          status, model = request("/v1/query", {"message": "Svara bara med ordet Hej.", "mode": "default"}, True)
+          require(status == 200, f"AI-anrop misslyckades: HTTP {status}.")
+          require(model.get("mock") is False and model.get("provider") == "openai" and model.get("model") == expected_model, "AI-svaret kommer inte från den förväntade konfigurerade modellen.")
+          answer = model.get("answer")
+          require(isinstance(answer, str) and bool(answer.strip()), "AI-modellen gav inget text-svar.")
+          verification = model.get("verification")
+          require(isinstance(verification, dict) and verification.get("status") == "passed" and verification.get("scope") == "response_shape" and verification.get("factualityChecked") is False, "Oväntad verifiering av AI-svarets format.")
+          print("Groq: 200 OK, GPT-OSS 120B, mock=false, textsvar mottaget")
+
+          summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary:
+              with open(summary, "a", encoding="utf-8") as output:
+                  output.write("### Orchestratorns anslutningstest\n\n")
+                  output.write("| Kontroll | Resultat |\n| --- | --- |\n")
+                  output.write("| Health | 200 OK |\n| Utan API-nyckel | 401, avvisad |\n")
+                  output.write("| Kalkylator | 20, lokal beräkning |\n| Groq | GPT-OSS 120B, riktigt textsvar |\n\n")
+                  output.write("AI-kontrollen verifierar anslutning och svarsformat; den kontrollerar inte faktainnehållet. Inga nycklar eller råa API-svar skrivs till loggen.\n")
+          PY
