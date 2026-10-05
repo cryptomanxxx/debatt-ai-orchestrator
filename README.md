@@ -38,6 +38,7 @@ Local development and validation:
 npm ci
 cp .dev.vars.example .dev.vars
 # Set a random ORCHESTRATOR_API_KEY of at least 24 characters in .dev.vars.
+# Keep MODEL_PROVIDER=mock from the example for local testing without Groq credentials.
 npm run dev:workers
 ```
 
@@ -47,14 +48,28 @@ npm run dev:workers
 
 1. In the [Cloudflare dashboard](https://dash.cloudflare.com/), open **Workers & Pages → Create application**, choose the GitHub repository integration and select `cryptomanxxx/debatt-ai-orchestrator`. Create a **Worker**, not a static Pages site.
 2. Use Worker name `debatt-ai-orchestrator` (matching `wrangler.jsonc`), production branch `main` and repository root `/`. Set build command `npm test && npm run check:workers && npm run test:workers` and deploy command `npm run deploy:workers`. Cloudflare installs the npm dependencies. Choose the Workers Free plan for this trial.
-3. After the first deployment, open the Worker **Settings → Variables and Secrets → Add**, create a **Secret** named `ORCHESTRATOR_API_KEY` with a random value of at least 24 characters, then deploy the settings change. Until this secret exists, the service intentionally returns `503 service_not_configured`.
-4. Open the dashboard's Worker URL followed by `/health`; expect HTTP 200. The mock provider in `wrangler.jsonc` needs no model API key. Test an authenticated `/v1/query` request from a backend or API client; `{"message":"räkna: (2+3)*4","mode":"auto"}` returns `20` without inference costs. `{"message":"Hej"}` returns labelled mock text.
+3. After the first deployment, open the Worker **Settings → Runtime variables and secrets → Production**, create a **Secret** named `ORCHESTRATOR_API_KEY` with a random value of at least 24 characters and a **Secret** named `MODEL_API_KEY` containing your Groq API key, then deploy the settings change. Until both secrets exist, the service intentionally returns `503 service_not_configured`. These are runtime secrets, not the similarly named settings under **Builds**.
+4. Open the dashboard's Worker URL followed by `/health`; expect HTTP 200. Test an authenticated `/v1/query` request from a backend or API client; `{"message":"räkna: (2+3)*4","mode":"auto"}` returns `20` without inference costs. To test the Groq connection, send `{"message":"Svara bara med ordet Hej.","mode":"default"}` and expect HTTP 200, a nonempty `answer`, `mock: false` and `model: "openai/gpt-oss-120b"`. Health and calculator success alone do not verify the Groq connection.
 
-For a CLI deployment, run `npx wrangler login`, `npm run deploy:workers`, then `npx wrangler secret put ORCHESTRATOR_API_KEY` in an authenticated environment. No Cloudflare token, account ID or real secret belongs in Git. This repository only prepares the code; creating a PR does not publish a Worker or connect the Debatt-AI website.
+For a CLI deployment, run `npx wrangler login`, `npm run deploy:workers`, then both `npx wrangler secret put ORCHESTRATOR_API_KEY` and `npx wrangler secret put MODEL_API_KEY` in an authenticated environment. Enter the orchestrator key and Groq API key respectively at the prompts. The Worker returns 503 until both runtime secrets are present. No Cloudflare token, account ID or real secret belongs in Git. This repository only prepares the code; creating a PR does not publish a Worker or connect the Debatt-AI website.
 
 ### Enable real model inference
 
 Keep `ORCHESTRATOR_API_KEY` and `MODEL_API_KEY` as runtime **Secrets**. Nonsecret model settings are managed by `wrangler.jsonc`: change `MODEL_PROVIDER` to `openai`, add `MODEL_BASE_URL`, `MODEL_DEFAULT` and optionally `MODEL_REASONING`, then deploy. Wrangler's `vars` are the source of truth and later deployments can overwrite dashboard edits to ordinary variables. Runtime secrets are different from build environment variables; the Worker reads runtime bindings, not build-time credentials. The backend calling the Worker must hold the orchestrator key; never send it to browser code.
+
+The Workers deployment is configured for Groq's OpenAI-compatible Chat Completions API:
+
+| Runtime setting | Value |
+| --- | --- |
+| `MODEL_PROVIDER` | `openai` (the API compatibility adapter, not the inference host) |
+| `MODEL_BASE_URL` | `https://api.groq.com/openai/v1` |
+| `MODEL_DEFAULT` | `openai/gpt-oss-120b` |
+| `MODEL_TOKEN_LIMIT_FIELD` | `max_completion_tokens` |
+| `MODEL_API_KEY` | Your Groq API key, stored as a runtime Secret |
+
+For an existing mock deployment, add and deploy the `MODEL_API_KEY` runtime Secret **before** deploying the Groq configuration. Keep the existing `ORCHESTRATOR_API_KEY`. A GitHub Actions secret does not automatically become a Cloudflare runtime secret. The Node server still defaults to mock when `MODEL_PROVIDER` is unset. The Workers `reasoning` mode remains unavailable until `MODEL_REASONING` is configured; the default GPT-OSS model can reason regardless of that routing label. Inference uses the existing 1,024-token completion budget, including reasoning tokens, so use a short prompt for the first connection test. Groq availability, model permissions and free-tier limits depend on your Groq account.
+
+Groq references: [OpenAI compatibility](https://console.groq.com/docs/openai), [supported models](https://console.groq.com/docs/models), [token-limit parameter](https://console.groq.com/docs/api-reference).
 
 Workers Free limits CPU time per request; awaiting an external model API is not CPU time, but JSON processing and local tools are. These tests verify runtime compatibility, not production CPU-budget compliance. This Worker uses no paid containers, databases, queues or Workers AI. External model providers can still charge for inference. BootLoops is not implemented here: a Python subprocess, Julia or Docker cannot run inside this Worker; a future BootLoops adapter needs a compatible external execution service.
 
