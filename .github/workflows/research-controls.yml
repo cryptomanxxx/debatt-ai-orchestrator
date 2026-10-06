@@ -1,0 +1,21 @@
+name: Testa forskningsdatans BootLoops-kontroller
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: research-controls
+  cancel-in-progress: false
+jobs:
+  controls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Kontrollera sex fasta forskningskontroller utan modell eller databas
+        env:
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
+        run: node tests-live/research_controls.mjs

@@ -22,7 +22,7 @@ test('provider/model is locked across planner, proposals and corrections', async
   const propose = lockModel(async () => ({ text: '{}', provider: 'groq', model }));
   await propose([]); await propose([]);
   model = 'two';
-  await assert.rejects(propose([]), /ändrades/);
+  await assert.rejects(propose([]), /model_changed/);
 });
 
 test('baseline locks first proposal and never sends correction feedback', async () => {

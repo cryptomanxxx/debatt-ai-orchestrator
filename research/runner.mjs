@@ -1,3 +1,4 @@
+import { ResearchError, diagnostic } from './errors.mjs';
 import { mkdir, writeFile, appendFile } from 'node:fs/promises';
 import { randomUUID, createHash } from 'node:crypto';
 import { CATALOG, choosePlan, lockModel } from './catalog.mjs';
@@ -37,21 +38,39 @@ if (!Array.isArray(history) || history.length > 10) throw new Error('Ogiltig his
 
 let modelCalls = 0, toolCalls = 0;
 async function query(body) {
-  const response = await fetch(API, {
-    method: 'POST', redirect: 'error', signal: AbortSignal.timeout(55000),
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  return { status: response.status, data: await readJson(response) };
+  const kind = body.tool ? 'tool' : 'model';
+  try {
+    const response = await fetch(API, {
+      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(55000),
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!(body.tool ? [200, 422] : [200]).includes(response.status)) {
+      let code = `${kind}_http_error`, upstreamStatus;
+      try {
+        const data = await readJson(response);
+        if (kind === 'model' && ['model_upstream_http_error', 'model_output_truncated',
+          'model_empty_response', 'model_invalid_response', 'model_transport_error'].includes(data?.error)) {
+          code = data.error;
+          upstreamStatus = data.upstreamStatus;
+        }
+      } catch { /* An untrusted body never becomes public diagnostic text. */ }
+      throw new ResearchError(code, { httpStatus: response.status, upstreamStatus });
+    }
+    return { status: response.status, data: await readJson(response) };
+  } catch (error) {
+    if (error instanceof ResearchError) throw error;
+    throw new ResearchError(`${kind}_transport_error`);
+  }
 }
 const propose = lockModel(async messages => {
-  if (++modelCalls > 7) throw new Error('Modellbudgeten är förbrukad');
+  if (++modelCalls > 7) throw new ResearchError('model_budget_exceeded');
   const result = await query({ message: JSON.stringify({ instruction: 'Följ denna konversation och svara endast med begärd JSON.', messages }), mode: 'default' });
-  if (result.status !== 200 || result.data.mock !== false) throw new Error('Modellanropet misslyckades');
+  if (result.status !== 200 || result.data.mock !== false) throw new ResearchError('invalid_model_response');
   return { text: result.data.answer, provider: result.data.provider, model: result.data.model };
 });
 const callTool = async input => {
-  if (++toolCalls > 6) throw new Error('Verktygsbudgeten är förbrukad');
+  if (++toolCalls > 6) throw new ResearchError('tool_budget_exceeded');
   return query({ tool: 'bootloops_ratfit', input });
 };
 
@@ -61,10 +80,11 @@ const reportId = randomUUID();
 const metadata = { createdAt: new Date().toISOString(), codeCommit: process.env.GITHUB_SHA || null,
   runUrl: /^\d+$/.test(process.env.GITHUB_RUN_ID || '')
     ? `https://github.com/cryptomanxxx/debatt-ai-orchestrator/actions/runs/${process.env.GITHUB_RUN_ID}` : null };
-let plan, report, executionFailed = false, stage = 'planning';
+let completedCases = [];
+let plan, planCommitment, report, executionFailed = false, stage = 'planning';
 try {
   plan = await choosePlan(selection, seed, history, propose);
-  const planCommitment = createHash('sha256').update(JSON.stringify(plan)).digest('hex');
+  planCommitment = createHash('sha256').update(JSON.stringify(plan)).digest('hex');
   await writeFile(`${directory}/plan.json`, JSON.stringify({ plan, planCommitment, ...metadata }, null, 2));
   console.log('Experimentplanens SHA-256 före körning:', planCommitment);
   stage = 'experiment';
@@ -72,9 +92,14 @@ try {
   report = await runExperiment(plan.seed, propose, callTool, async commitments => {
     await writeFile(`${directory}/commitments.json`, JSON.stringify(commitments, null, 2));
     console.log('Datans SHA-256 före modellförslagen:', JSON.stringify(commitments));
-  }, { feedback: entry.feedback });
+  }, { feedback: entry.feedback, onProgress: async cases => {
+    completedCases = cases;
+    await writeFile(`${directory}/progress.json`, JSON.stringify({ cases, ...metadata }, null, 2));
+  } });
   Object.assign(report, { experimentId: plan.experimentId, plan, planCommitment });
-} catch {
+} catch (error) {
+  const failure = diagnostic(error);
+  console.error('Experimentets felkod:', JSON.stringify(failure));
   executionFailed = true;
   // No raw upstream responses, credentials or exception strings in public reports.
   report = { schemaVersion: 2, researcher: 'Professor Oraklet', title: 'Oraklets experiment kunde inte slutföras',
@@ -82,7 +107,7 @@ try {
     method: 'Avbruten körning; detta är ett driftfel, inte ett underkänt vetenskapligt resultat.',
     limitations: 'Kontrollera körningens status. Ingen slutsats om modellens förmåga kan dras.',
     status: 'failed', executionStatus: 'error', experimentId: plan?.experimentId || null,
-    seed: plan?.seed || seed, plan: plan || null, failedStage: stage, cases: [] };
+    seed: plan?.seed || seed, plan: plan || null, planCommitment: planCommitment || null, failedStage: stage, failure, cases: completedCases };
 }
 Object.assign(report, metadata, { reportId, modelCalls, toolCalls,
   executionStatus: executionFailed ? 'error' : 'completed' });
@@ -90,7 +115,7 @@ await writeFile(`${directory}/report.json`, JSON.stringify(report, null, 2));
 const markdown = `# ${report.title}\n\n${report.question}\n\nExperiment: ${report.experimentId || 'planering'}. Seed: ${report.seed}.\n\n` +
   (report.cases.length ? '| Fall | Första förslag | Korrigering | Slutligt förslag | Samma modell |\n| --- | --- | --- | --- | --- |\n' +
     report.cases.map(c => `| ${c.case} | ${c.initialPassed ? 'Godkänt' : 'Underkänt'} | ${c.correctionAttempted ? 'Ja' : 'Nej'} | ${c.passed ? 'Godkänt' : 'Underkänt'} | ${c.sameModel ? 'Ja' : 'Nej'} |`).join('\n') : report.method) +
-  `\n\n${report.limitations}\n\nModellanrop: ${modelCalls}/7. Verktygsanrop: ${toolCalls}/6. Fullständig plan och rapport finns i artefakten.\n`;
+  `\n\n${executionFailed ? 'Driftfel: ' + JSON.stringify(report.failure) + '. Slutförda fall är delresultat; experimentet är avbrutet.\n\n' : ''}${report.limitations}\n\nModellanrop: ${modelCalls}/7. Verktygsanrop: ${toolCalls}/6. Fullständig plan och rapport finns i artefakten.\n`;
 await writeFile(`${directory}/report.md`, markdown);
 if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown);
 const saved = await fetch(DB, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
