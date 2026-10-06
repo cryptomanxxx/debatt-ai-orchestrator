@@ -48,6 +48,12 @@ jobs:
       - name: Installera låst PyMC-miljö för manuell BNP-uppföljning
         if: inputs.experiment == 'pymc-gdp-ar1'
         run: python3 -m pip install -r research/pymc-requirements.lock
+      - name: Installera och kontrollera SymPy
+        if: inputs.experiment != 'catalog-only'
+        run: |
+          python3 -m pip install -r research/sympy-requirements.lock
+          python3 -m pip check
+          python3 scripts/check_sympy.py
       - name: Planera, kör och spara forskning
         if: inputs.experiment != 'catalog-only'
         env:

@@ -2,6 +2,7 @@ import { ResearchError } from './errors.mjs';
 import inventory from './bootloops-inventory.json' with { type: 'json' };
 import toolchain from './toolchain.json' with { type: 'json' };
 import pymcToolchain from './pymc-toolchain.json' with { type: 'json' };
+import sympyToolchain from './sympy-toolchain.json' with { type: 'json' };
 export const TOOLS = Object.freeze(inventory.packages.map(id => Object.freeze({
   id, upstreamCommit: inventory.upstreamCommit,
   source: `https://github.com/BootLoops-ai/bootloops/tree/${inventory.upstreamCommit}/tools/${id}`,
@@ -20,8 +21,8 @@ export const EXTERNAL_TOOLS = Object.freeze([{ id: 'statsmodels', integration: '
     scope: 'Konjugat bayesiansk AR(1), låsta priorer, fyra MCMC-kedjor, kvalitetsgränser och oberoende analytisk posterior' },
   { id: 'dowhy', integration: 'pending', version: null, runtime: null, source: 'https://www.pywhy.org/dowhy/v0.14/',
     scope: 'Kandidat: kausal inferens med explicita antaganden och robusthetskontroller; ej integrerat' },
-  { id: 'sympy', integration: 'pending', version: null, runtime: null, source: 'https://www.sympy.org/en/index.html',
-    scope: 'Kandidat: symbolisk algebra och kontroll av matematiska samband; ej integrerat' },
+  { id: 'sympy', integration: 'installed', version: sympyToolchain.packages.sympy, runtime: 'github-actions-python', source: 'https://www.sympy.org/en/index.html',
+    scope: 'Installerat med låst mpmath; fasta algebra-/derivatkontroller. Forskningsadapter och experiment återstår' },
 ]);
 export const ALL_RESEARCH_TOOLS = Object.freeze([...TOOLS, ...EXTERNAL_TOOLS]);
 export const CATALOG = Object.freeze([
@@ -52,7 +53,7 @@ export function catalogMarkdown() {
     + '| Metod/paket | Status hos oss | Omfattning eller nästa steg | Körmiljö |\n| --- | --- | --- | --- |\n'
     + TOOLS.map(t => `| [${t.id}](${t.source}) | ${t.integration === 'pending' ? 'Saknar integration' : 'Verifierad delintegration'} | ${t.scope} | ${t.runtime || 'Ej körbart'} |`).join('\n')
     + '\n\n## Verktyg utanför BootLoops\n\n| Verktyg | Version | Status | Omfattning | Körmiljö |\n| --- | --- | --- | --- | --- |\n'
-    + EXTERNAL_TOOLS.map(t => `| [${t.id}](${t.source}) | ${t.version || 'Ej låst'} | ${t.integration === 'pending' ? 'Saknar integration' : 'Verifierad delintegration'} | ${t.scope} | ${t.runtime || 'Ej körbart'} |`).join('\n')
+    + EXTERNAL_TOOLS.map(t => `| [${t.id}](${t.source}) | ${t.version || 'Ej låst'} | ${t.integration === 'pending' ? 'Saknar integration' : t.integration === 'installed' ? 'Installerat; saknar experimentintegration' : 'Verifierad delintegration'} | ${t.scope} | ${t.runtime || 'Ej körbart'} |`).join('\n')
     + '\n\nNya integrationer kräver låst källversion och licens, begränsad adapter, angiven körmiljö, positiva och negativa kontroller samt verifiering av rapportkedjan. Först därefter läggs experimentet till i körmenyn och den automatiska planeringen.\n';
 }
 

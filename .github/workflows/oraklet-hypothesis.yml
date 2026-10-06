@@ -22,6 +22,11 @@ jobs:
           python-version: '3.12'
       - name: Installera låsta forskningsberoenden
         run: python3 -m pip install -r research/requirements.lock
+      - name: Installera och kontrollera SymPy
+        run: |
+          python3 -m pip install -r research/sympy-requirements.lock
+          python3 -m pip check
+          python3 scripts/check_sympy.py
       - name: Verifiera hypoteskedjan innan liveförsöket
         run: node --test tests-research/hypothesis-pilot.test.mjs tests-research-python/hypothesis-pilot.test.mjs
       - name: Lås hypotes, analysera och spara resultat
