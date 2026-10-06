@@ -1,0 +1,18 @@
+name: Mät BootLoops steg i Cloudflare
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: bootloops-diagnostics
+  cancel-in-progress: false
+jobs:
+  bootloops-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Kör tre omgångar med fem fasta mätsteg
+        env:
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
+        run: python3 tests-live/bootloops_diagnostics.py

@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { loadConfig } from './config.ts';
 import { executeQuery } from './query.ts';
 import { serviceExecutor } from './tools/bootloops-service.ts';
+import { diagnoseBootLoops } from './tools/bootloops-diagnostics.ts';
 import type { BootLoopsService } from './tools/bootloops-service.ts';
 type WorkerEnv = { BOOTLOOPS?: BootLoopsService; [key: string]: string | BootLoopsService | undefined };
 
@@ -20,7 +21,8 @@ export default {
     const { pathname, search } = new URL(request.url);
     if (request.method === 'GET' && pathname === '/health' && !search)
       return json(200, { status: 'ok', service: 'debatt-ai-orchestrator' });
-    if (request.method !== 'POST' || pathname !== '/v1/query' || search)
+    const diagnostic = pathname === '/v1/diagnostics/bootloops';
+    if (request.method !== 'POST' || (!diagnostic && pathname !== '/v1/query') || search)
       return json(404, { error: 'not_found' });
     const actual = encoder.encode(request.headers.get('Authorization') ?? '');
     const expected = encoder.encode(`Bearer ${config.apiKey}`);
@@ -53,7 +55,9 @@ export default {
     let input: unknown;
     try { input = JSON.parse(body); }
     catch { return json(400, { error: 'invalid_json' }); }
-    const result = await executeQuery(input, config, env.BOOTLOOPS && typeof env.BOOTLOOPS !== 'string' ? serviceExecutor(env.BOOTLOOPS) : undefined);
+    const service = env.BOOTLOOPS && typeof env.BOOTLOOPS !== 'string' ? env.BOOTLOOPS : undefined;
+    const result = diagnostic ? await diagnoseBootLoops(input, service)
+      : await executeQuery(input, config, service ? serviceExecutor(service) : undefined);
     return json(result.status, result.data);
   }
 };

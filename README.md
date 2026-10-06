@@ -251,6 +251,40 @@ Cloudflare** and compare the Python Worker's CPU time with the earlier 23–26 m
 observations; an improvement or a successful test alone does not certify that
 all allowed inputs stay below 10 ms.
 
+### Measure the Python runtime separately
+
+After **both** Workers have deployed the diagnostic routes, manually run the
+GitHub workflow **Mät BootLoops steg i Cloudflare**. It uses the existing
+`ORCHESTRATOR_API_KEY` secret and makes 15 sequential requests (three rounds,
+varying stage order). No model calls, paid services or extra secrets are needed.
+The public `POST /v1/diagnostics/bootloops` route requires the same Bearer key
+and accepts only `{"stage":"transport|json|validate|fit|full"}` with one actual
+stage name. It never accepts caller-provided samples, code or a repeat count.
+
+Each request forwards the same fixed fixture body to a distinct internal path
+`/v1/diagnostics/bootloops/{stage}`. All stages drain the bounded request body
+and send a small JSON diagnostic marker; they do not report a verified tool result.
+
+| Stage | Work added after draining the body |
+|---|---|
+| transport | Return the diagnostic marker |
+| json | Decode JSON and compare with the fixed fixture |
+| validate | Also validate and construct exact fractions |
+| fit | Also reconstruct and validate all banked points |
+| full | Run the normal compute function, including both holdout checks |
+
+The workflow records stage names and UTC request timestamps, **not CPU time**.
+In Cloudflare, open **debatt-ai-bootloops → Observability**, match the paths and
+timestamps, and read `$workers.cpuTimeMs`. Confirm the `scriptVersion.id` matches
+the newly deployed Python Worker (also shown in the GitHub Workers Builds check).
+Compare the repeated readings for each stage. These totals include runtime,
+transport, response and potentially startup costs. Different isolates, scheduling
+and stage-control overhead make subtraction only an approximate comparison;
+this is not a precise in-process CPU profiler. High transport readings would
+suggest a runtime/transport floor; higher full readings would suggest additional
+computation cost. The existing **Testa BootLoops i Cloudflare** workflow remains
+the functional positive/corrupted/authentication test.
+
 References: [Python Workers](https://developers.cloudflare.com/workers/languages/python/),
 [Service Bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/),
 [build image](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/),

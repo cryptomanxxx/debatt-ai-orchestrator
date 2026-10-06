@@ -58,14 +58,24 @@ test('real Python Worker runs behind an authenticated orchestrator service bindi
     assert.equal((await direct(input, 'application/json', '/other')).status, 404);
     assert.equal((await direct(input, 'application/json', '/v1/ratfit?x=1')).status, 404);
     assert.equal((await direct({ extra: 'x'.repeat(17000) })).status, 413);
+    for (const stage of ['transport','json','validate','fit','full']) {
+      const diagnostic = await direct(input, 'application/json', '/v1/diagnostics/bootloops/' + stage);
+      assert.equal(diagnostic.status, 200);
+      assert.deepEqual(await diagnostic.json(), { diagnostic: true, stage, fixture: 'rational-v1' });
+    }
+    assert.equal((await direct(corrupt, 'application/json', '/v1/diagnostics/bootloops/full')).status, 400);
+    assert.equal((await direct(input, 'application/json', '/v1/diagnostics/bootloops/unknown')).status, 404);
+    assert.equal((await direct(input, 'application/json', '/v1/diagnostics/bootloops/full?x=1')).status, 404);
+    assert.equal((await direct({ extra: 'x'.repeat(17000) }, 'application/json', '/v1/diagnostics/bootloops/transport')).status, 413);
     runtime = new Miniflare(convertV4MiniflareOptions({
       modules: true, scriptPath: '.worker-build/worker.js', compatibilityDate: '2026-10-05',
       compatibilityFlags: ['nodejs_compat'],
       bindings: { ORCHESTRATOR_API_KEY: key, MODEL_PROVIDER: 'mock' },
       serviceBindings: { BOOTLOOPS: async (request: Request) => {
-        assert.equal(request.url, 'https://bootloops.internal/v1/ratfit');
         assert.equal(request.headers.has('Authorization'), false);
-        return direct(await request.json());
+        const path = new URL(request.url).pathname;
+        assert.ok(path === '/v1/ratfit' || path.startsWith('/v1/diagnostics/bootloops/'));
+        return direct(await request.json(), 'application/json', path);
       } }
     }));
     const query = (args: unknown, auth = key) => runtime!.dispatchFetch('https://orchestrator.test/v1/query', {
@@ -78,7 +88,17 @@ test('real Python Worker runs behind an authenticated orchestrator service bindi
     const rejected = await query(corrupt);
     assert.equal(rejected.status, 422);
     assert.equal((await rejected.json()).verification.status, 'failed');
+    const diagnosticRequest = (stage: string, auth = key) => runtime!.dispatchFetch('https://orchestrator.test/v1/diagnostics/bootloops', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + auth, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage }) });
+    assert.equal((await diagnosticRequest('full', 'wrong')).status, 401);
+    for (const stage of ['transport','json','validate','fit','full']) {
+      const result = await diagnosticRequest(stage);
+      assert.equal(result.status, 200);
+      assert.deepEqual(await result.json(), { diagnostic: true, stage, fixture: 'rational-v1' });
+    }
     console.log('Real Python Worker: truth, constant, degeneracy and bounded large fractions passed; corruption and invalid input refused; service binding passed.');
+    console.log('Real Python Worker diagnostics: all five fixed-fixture stages and authenticated service binding passed.');
   } finally {
     if (runtime) await runtime.dispose();
     if (child.pid) {

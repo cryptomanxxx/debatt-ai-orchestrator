@@ -16,6 +16,43 @@ const request = (runtime: Miniflare, body: string, auth = key, contentType = 'ap
     method: 'POST', headers: { Authorization: `Bearer ${auth}`, 'Content-Type': contentType }, body
   });
 
+test('Workers diagnostics authenticates before dispatch and only accepts fixed stages', async () => {
+  let calls = 0;
+  const runtime = createRuntime({ serviceBindings: { BOOTLOOPS: async (request: Request) => {
+    calls++;
+    const stage = new URL(request.url).pathname.split('/').at(-1);
+    assert.equal(request.headers.has('Authorization'), false);
+    assert.equal((await request.json()).banked.length, 6);
+    return Response.json({ diagnostic: true, stage, fixture: 'rational-v1' });
+  } }, outboundService: async () => { throw new Error('Diagnostics must not call a model'); } });
+  const diagnostic = (body: string, auth = key, suffix = '') =>
+    runtime.dispatchFetch('https://worker.test/v1/diagnostics/bootloops' + suffix, {
+      method: 'POST', headers: { Authorization: 'Bearer ' + auth, 'Content-Type': 'application/json' }, body
+    });
+  try {
+    assert.equal((await diagnostic('{"stage":"full"}', 'wrong')).status, 401);
+    assert.equal((await diagnostic('{"stage":"full"}', key, '?extra=1')).status, 404);
+    assert.equal((await diagnostic('{"stage":"full","input":{}}')).status, 400);
+    assert.equal((await diagnostic('{"stage":"unknown"}')).status, 400);
+    assert.equal((await diagnostic('{')).status, 400);
+    assert.equal((await diagnostic(' '.repeat(32769))).status, 413);
+    assert.equal(calls, 0);
+    for (const stage of ['transport','json','validate','fit','full']) {
+      const response = await diagnostic(JSON.stringify({ stage }));
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('Cache-Control'), 'no-store');
+      assert.deepEqual(await response.json(), { diagnostic: true, stage, fixture: 'rational-v1' });
+    }
+    assert.equal(calls, 5);
+  } finally { await runtime.dispose(); }
+  const missing = createRuntime();
+  try {
+    assert.equal((await missing.dispatchFetch('https://worker.test/v1/diagnostics/bootloops', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
+      body: '{"stage":"full"}' })).status, 503);
+  } finally { await missing.dispose(); }
+});
+
 test('Workers runtime serves health, authenticated mock and calculator queries', async () => {
   const runtime = createRuntime();
   try {
