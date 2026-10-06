@@ -138,9 +138,14 @@ Lokalt:
 ```sh
 python3 -m venv .research-venv
 .research-venv/bin/python -m pip install -r research/requirements.lock
-PATH="$PWD/.research-venv/bin:$PATH" npm test
+npm test
+PATH="$PWD/.research-venv/bin:$PATH" npm run test:science
 PATH="$PWD/.research-venv/bin:$PATH" npm run test:bootloops
 ```
+
+`npm test` kräver inte de låsta vetenskapspaketen och används i Cloudflare-bygget.
+`npm run test:science` kör de verkliga vetenskapliga Python-adaptrarna och
+rapporttesterna; CI kör alltid detta steg efter installation av låsfilen.
 
 `RESEARCH_PYTHON` kan ange en absolut sökväg till Python för de nya adaptrarna.
 Använd annars samma Python 3.12 som installerat låsfilen. Ingen ny modellnyckel,
