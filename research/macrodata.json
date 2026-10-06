@@ -1,0 +1,1235 @@
+{
+  "metadata": {
+    "id": "statsmodels-macrodata-0.15.0",
+    "source": "https://www.statsmodels.org/stable/datasets/generated/macrodata.html",
+    "upstreamCsv": "https://github.com/statsmodels/statsmodels/blob/v0.15.0/statsmodels/datasets/macrodata/macrodata.csv",
+    "originalSource": "FRED, Federal Reserve Bank of St. Louis",
+    "originalAccessDate": "2009-12-15",
+    "license": "Public domain per Statsmodels dataset metadata",
+    "upstreamCsvSha256": "d93c0d3a7a77ef83c3af14e46032bb1d02ae3a512b22ab94159a8ca226fcf708",
+    "observations": 203,
+    "periodStart": "1959Q1",
+    "periodEnd": "2009Q3",
+    "units": "Billions of chained 2005 US dollars, seasonally adjusted annual rate"
+  },
+  "rows": [
+    {
+      "period": "1959Q1",
+      "realgdp": "2710.349",
+      "realcons": "1707.4",
+      "realinv": "286.898"
+    },
+    {
+      "period": "1959Q2",
+      "realgdp": "2778.801",
+      "realcons": "1733.7",
+      "realinv": "310.859"
+    },
+    {
+      "period": "1959Q3",
+      "realgdp": "2775.488",
+      "realcons": "1751.8",
+      "realinv": "289.226"
+    },
+    {
+      "period": "1959Q4",
+      "realgdp": "2785.204",
+      "realcons": "1753.7",
+      "realinv": "299.356"
+    },
+    {
+      "period": "1960Q1",
+      "realgdp": "2847.699",
+      "realcons": "1770.5",
+      "realinv": "331.722"
+    },
+    {
+      "period": "1960Q2",
+      "realgdp": "2834.390",
+      "realcons": "1792.9",
+      "realinv": "298.152"
+    },
+    {
+      "period": "1960Q3",
+      "realgdp": "2839.022",
+      "realcons": "1785.8",
+      "realinv": "296.375"
+    },
+    {
+      "period": "1960Q4",
+      "realgdp": "2802.616",
+      "realcons": "1788.2",
+      "realinv": "259.764"
+    },
+    {
+      "period": "1961Q1",
+      "realgdp": "2819.264",
+      "realcons": "1787.7",
+      "realinv": "266.405"
+    },
+    {
+      "period": "1961Q2",
+      "realgdp": "2872.005",
+      "realcons": "1814.3",
+      "realinv": "286.246"
+    },
+    {
+      "period": "1961Q3",
+      "realgdp": "2918.419",
+      "realcons": "1823.1",
+      "realinv": "310.227"
+    },
+    {
+      "period": "1961Q4",
+      "realgdp": "2977.830",
+      "realcons": "1859.6",
+      "realinv": "315.463"
+    },
+    {
+      "period": "1962Q1",
+      "realgdp": "3031.241",
+      "realcons": "1879.4",
+      "realinv": "334.271"
+    },
+    {
+      "period": "1962Q2",
+      "realgdp": "3064.709",
+      "realcons": "1902.5",
+      "realinv": "331.039"
+    },
+    {
+      "period": "1962Q3",
+      "realgdp": "3093.047",
+      "realcons": "1917.9",
+      "realinv": "336.962"
+    },
+    {
+      "period": "1962Q4",
+      "realgdp": "3100.563",
+      "realcons": "1945.1",
+      "realinv": "325.650"
+    },
+    {
+      "period": "1963Q1",
+      "realgdp": "3141.087",
+      "realcons": "1958.2",
+      "realinv": "343.721"
+    },
+    {
+      "period": "1963Q2",
+      "realgdp": "3180.447",
+      "realcons": "1976.9",
+      "realinv": "348.730"
+    },
+    {
+      "period": "1963Q3",
+      "realgdp": "3240.332",
+      "realcons": "2003.8",
+      "realinv": "360.102"
+    },
+    {
+      "period": "1963Q4",
+      "realgdp": "3264.967",
+      "realcons": "2020.6",
+      "realinv": "364.534"
+    },
+    {
+      "period": "1964Q1",
+      "realgdp": "3338.246",
+      "realcons": "2060.5",
+      "realinv": "379.523"
+    },
+    {
+      "period": "1964Q2",
+      "realgdp": "3376.587",
+      "realcons": "2096.7",
+      "realinv": "377.778"
+    },
+    {
+      "period": "1964Q3",
+      "realgdp": "3422.469",
+      "realcons": "2135.2",
+      "realinv": "386.754"
+    },
+    {
+      "period": "1964Q4",
+      "realgdp": "3431.957",
+      "realcons": "2141.2",
+      "realinv": "389.910"
+    },
+    {
+      "period": "1965Q1",
+      "realgdp": "3516.251",
+      "realcons": "2188.8",
+      "realinv": "429.145"
+    },
+    {
+      "period": "1965Q2",
+      "realgdp": "3563.960",
+      "realcons": "2213.0",
+      "realinv": "429.119"
+    },
+    {
+      "period": "1965Q3",
+      "realgdp": "3636.285",
+      "realcons": "2251.0",
+      "realinv": "444.444"
+    },
+    {
+      "period": "1965Q4",
+      "realgdp": "3724.014",
+      "realcons": "2314.3",
+      "realinv": "446.493"
+    },
+    {
+      "period": "1966Q1",
+      "realgdp": "3815.423",
+      "realcons": "2348.5",
+      "realinv": "484.244"
+    },
+    {
+      "period": "1966Q2",
+      "realgdp": "3828.124",
+      "realcons": "2354.5",
+      "realinv": "475.408"
+    },
+    {
+      "period": "1966Q3",
+      "realgdp": "3853.301",
+      "realcons": "2381.5",
+      "realinv": "470.697"
+    },
+    {
+      "period": "1966Q4",
+      "realgdp": "3884.520",
+      "realcons": "2391.4",
+      "realinv": "472.957"
+    },
+    {
+      "period": "1967Q1",
+      "realgdp": "3918.740",
+      "realcons": "2405.3",
+      "realinv": "460.007"
+    },
+    {
+      "period": "1967Q2",
+      "realgdp": "3919.556",
+      "realcons": "2438.1",
+      "realinv": "440.393"
+    },
+    {
+      "period": "1967Q3",
+      "realgdp": "3950.826",
+      "realcons": "2450.6",
+      "realinv": "453.033"
+    },
+    {
+      "period": "1967Q4",
+      "realgdp": "3980.970",
+      "realcons": "2465.7",
+      "realinv": "462.834"
+    },
+    {
+      "period": "1968Q1",
+      "realgdp": "4063.013",
+      "realcons": "2524.6",
+      "realinv": "472.907"
+    },
+    {
+      "period": "1968Q2",
+      "realgdp": "4131.998",
+      "realcons": "2563.3",
+      "realinv": "492.026"
+    },
+    {
+      "period": "1968Q3",
+      "realgdp": "4160.267",
+      "realcons": "2611.5",
+      "realinv": "476.053"
+    },
+    {
+      "period": "1968Q4",
+      "realgdp": "4178.293",
+      "realcons": "2623.5",
+      "realinv": "480.998"
+    },
+    {
+      "period": "1969Q1",
+      "realgdp": "4244.100",
+      "realcons": "2652.9",
+      "realinv": "512.686"
+    },
+    {
+      "period": "1969Q2",
+      "realgdp": "4256.460",
+      "realcons": "2669.8",
+      "realinv": "508.601"
+    },
+    {
+      "period": "1969Q3",
+      "realgdp": "4283.378",
+      "realcons": "2682.7",
+      "realinv": "520.360"
+    },
+    {
+      "period": "1969Q4",
+      "realgdp": "4263.261",
+      "realcons": "2704.1",
+      "realinv": "492.334"
+    },
+    {
+      "period": "1970Q1",
+      "realgdp": "4256.573",
+      "realcons": "2720.7",
+      "realinv": "476.925"
+    },
+    {
+      "period": "1970Q2",
+      "realgdp": "4264.289",
+      "realcons": "2733.2",
+      "realinv": "478.419"
+    },
+    {
+      "period": "1970Q3",
+      "realgdp": "4302.259",
+      "realcons": "2757.1",
+      "realinv": "486.594"
+    },
+    {
+      "period": "1970Q4",
+      "realgdp": "4256.637",
+      "realcons": "2749.6",
+      "realinv": "458.406"
+    },
+    {
+      "period": "1971Q1",
+      "realgdp": "4374.016",
+      "realcons": "2802.2",
+      "realinv": "517.935"
+    },
+    {
+      "period": "1971Q2",
+      "realgdp": "4398.829",
+      "realcons": "2827.9",
+      "realinv": "533.986"
+    },
+    {
+      "period": "1971Q3",
+      "realgdp": "4433.943",
+      "realcons": "2850.4",
+      "realinv": "541.010"
+    },
+    {
+      "period": "1971Q4",
+      "realgdp": "4446.264",
+      "realcons": "2897.8",
+      "realinv": "524.085"
+    },
+    {
+      "period": "1972Q1",
+      "realgdp": "4525.769",
+      "realcons": "2936.5",
+      "realinv": "561.147"
+    },
+    {
+      "period": "1972Q2",
+      "realgdp": "4633.101",
+      "realcons": "2992.6",
+      "realinv": "595.495"
+    },
+    {
+      "period": "1972Q3",
+      "realgdp": "4677.503",
+      "realcons": "3038.8",
+      "realinv": "603.970"
+    },
+    {
+      "period": "1972Q4",
+      "realgdp": "4754.546",
+      "realcons": "3110.1",
+      "realinv": "607.104"
+    },
+    {
+      "period": "1973Q1",
+      "realgdp": "4876.166",
+      "realcons": "3167.0",
+      "realinv": "645.654"
+    },
+    {
+      "period": "1973Q2",
+      "realgdp": "4932.571",
+      "realcons": "3165.4",
+      "realinv": "675.837"
+    },
+    {
+      "period": "1973Q3",
+      "realgdp": "4906.252",
+      "realcons": "3176.7",
+      "realinv": "649.412"
+    },
+    {
+      "period": "1973Q4",
+      "realgdp": "4953.050",
+      "realcons": "3167.4",
+      "realinv": "674.253"
+    },
+    {
+      "period": "1974Q1",
+      "realgdp": "4909.617",
+      "realcons": "3139.7",
+      "realinv": "631.230"
+    },
+    {
+      "period": "1974Q2",
+      "realgdp": "4922.188",
+      "realcons": "3150.6",
+      "realinv": "628.102"
+    },
+    {
+      "period": "1974Q3",
+      "realgdp": "4873.520",
+      "realcons": "3163.6",
+      "realinv": "592.672"
+    },
+    {
+      "period": "1974Q4",
+      "realgdp": "4854.340",
+      "realcons": "3117.3",
+      "realinv": "598.306"
+    },
+    {
+      "period": "1975Q1",
+      "realgdp": "4795.295",
+      "realcons": "3143.4",
+      "realinv": "493.212"
+    },
+    {
+      "period": "1975Q2",
+      "realgdp": "4831.942",
+      "realcons": "3195.8",
+      "realinv": "476.085"
+    },
+    {
+      "period": "1975Q3",
+      "realgdp": "4913.328",
+      "realcons": "3241.4",
+      "realinv": "516.402"
+    },
+    {
+      "period": "1975Q4",
+      "realgdp": "4977.511",
+      "realcons": "3275.7",
+      "realinv": "530.596"
+    },
+    {
+      "period": "1976Q1",
+      "realgdp": "5090.663",
+      "realcons": "3341.2",
+      "realinv": "585.541"
+    },
+    {
+      "period": "1976Q2",
+      "realgdp": "5128.947",
+      "realcons": "3371.8",
+      "realinv": "610.513"
+    },
+    {
+      "period": "1976Q3",
+      "realgdp": "5154.072",
+      "realcons": "3407.5",
+      "realinv": "611.646"
+    },
+    {
+      "period": "1976Q4",
+      "realgdp": "5191.499",
+      "realcons": "3451.8",
+      "realinv": "615.898"
+    },
+    {
+      "period": "1977Q1",
+      "realgdp": "5251.762",
+      "realcons": "3491.3",
+      "realinv": "646.198"
+    },
+    {
+      "period": "1977Q2",
+      "realgdp": "5356.131",
+      "realcons": "3510.6",
+      "realinv": "696.141"
+    },
+    {
+      "period": "1977Q3",
+      "realgdp": "5451.921",
+      "realcons": "3544.1",
+      "realinv": "734.078"
+    },
+    {
+      "period": "1977Q4",
+      "realgdp": "5450.793",
+      "realcons": "3597.5",
+      "realinv": "713.356"
+    },
+    {
+      "period": "1978Q1",
+      "realgdp": "5469.405",
+      "realcons": "3618.5",
+      "realinv": "727.504"
+    },
+    {
+      "period": "1978Q2",
+      "realgdp": "5684.569",
+      "realcons": "3695.9",
+      "realinv": "777.454"
+    },
+    {
+      "period": "1978Q3",
+      "realgdp": "5740.300",
+      "realcons": "3711.4",
+      "realinv": "801.452"
+    },
+    {
+      "period": "1978Q4",
+      "realgdp": "5816.222",
+      "realcons": "3741.3",
+      "realinv": "819.689"
+    },
+    {
+      "period": "1979Q1",
+      "realgdp": "5825.949",
+      "realcons": "3760.2",
+      "realinv": "819.556"
+    },
+    {
+      "period": "1979Q2",
+      "realgdp": "5831.418",
+      "realcons": "3758.0",
+      "realinv": "817.660"
+    },
+    {
+      "period": "1979Q3",
+      "realgdp": "5873.335",
+      "realcons": "3794.9",
+      "realinv": "801.742"
+    },
+    {
+      "period": "1979Q4",
+      "realgdp": "5889.495",
+      "realcons": "3805.0",
+      "realinv": "786.817"
+    },
+    {
+      "period": "1980Q1",
+      "realgdp": "5908.467",
+      "realcons": "3798.4",
+      "realinv": "781.114"
+    },
+    {
+      "period": "1980Q2",
+      "realgdp": "5787.373",
+      "realcons": "3712.2",
+      "realinv": "710.640"
+    },
+    {
+      "period": "1980Q3",
+      "realgdp": "5776.617",
+      "realcons": "3752.0",
+      "realinv": "656.477"
+    },
+    {
+      "period": "1980Q4",
+      "realgdp": "5883.460",
+      "realcons": "3802.0",
+      "realinv": "723.220"
+    },
+    {
+      "period": "1981Q1",
+      "realgdp": "6005.717",
+      "realcons": "3822.8",
+      "realinv": "795.091"
+    },
+    {
+      "period": "1981Q2",
+      "realgdp": "5957.795",
+      "realcons": "3822.8",
+      "realinv": "757.240"
+    },
+    {
+      "period": "1981Q3",
+      "realgdp": "6030.184",
+      "realcons": "3838.3",
+      "realinv": "804.242"
+    },
+    {
+      "period": "1981Q4",
+      "realgdp": "5955.062",
+      "realcons": "3809.3",
+      "realinv": "773.053"
+    },
+    {
+      "period": "1982Q1",
+      "realgdp": "5857.333",
+      "realcons": "3833.9",
+      "realinv": "692.514"
+    },
+    {
+      "period": "1982Q2",
+      "realgdp": "5889.074",
+      "realcons": "3847.7",
+      "realinv": "691.900"
+    },
+    {
+      "period": "1982Q3",
+      "realgdp": "5866.370",
+      "realcons": "3877.2",
+      "realinv": "683.825"
+    },
+    {
+      "period": "1982Q4",
+      "realgdp": "5871.001",
+      "realcons": "3947.9",
+      "realinv": "622.930"
+    },
+    {
+      "period": "1983Q1",
+      "realgdp": "5944.020",
+      "realcons": "3986.6",
+      "realinv": "645.110"
+    },
+    {
+      "period": "1983Q2",
+      "realgdp": "6077.619",
+      "realcons": "4065.7",
+      "realinv": "707.372"
+    },
+    {
+      "period": "1983Q3",
+      "realgdp": "6197.468",
+      "realcons": "4137.6",
+      "realinv": "754.937"
+    },
+    {
+      "period": "1983Q4",
+      "realgdp": "6325.574",
+      "realcons": "4203.2",
+      "realinv": "834.427"
+    },
+    {
+      "period": "1984Q1",
+      "realgdp": "6448.264",
+      "realcons": "4239.2",
+      "realinv": "921.763"
+    },
+    {
+      "period": "1984Q2",
+      "realgdp": "6559.594",
+      "realcons": "4299.9",
+      "realinv": "952.841"
+    },
+    {
+      "period": "1984Q3",
+      "realgdp": "6623.343",
+      "realcons": "4333.0",
+      "realinv": "974.989"
+    },
+    {
+      "period": "1984Q4",
+      "realgdp": "6677.264",
+      "realcons": "4390.1",
+      "realinv": "958.993"
+    },
+    {
+      "period": "1985Q1",
+      "realgdp": "6740.275",
+      "realcons": "4464.6",
+      "realinv": "927.375"
+    },
+    {
+      "period": "1985Q2",
+      "realgdp": "6797.344",
+      "realcons": "4505.2",
+      "realinv": "943.383"
+    },
+    {
+      "period": "1985Q3",
+      "realgdp": "6903.523",
+      "realcons": "4590.8",
+      "realinv": "932.959"
+    },
+    {
+      "period": "1985Q4",
+      "realgdp": "6955.918",
+      "realcons": "4600.9",
+      "realinv": "969.434"
+    },
+    {
+      "period": "1986Q1",
+      "realgdp": "7022.757",
+      "realcons": "4639.3",
+      "realinv": "967.442"
+    },
+    {
+      "period": "1986Q2",
+      "realgdp": "7050.969",
+      "realcons": "4688.7",
+      "realinv": "945.972"
+    },
+    {
+      "period": "1986Q3",
+      "realgdp": "7118.950",
+      "realcons": "4770.7",
+      "realinv": "916.315"
+    },
+    {
+      "period": "1986Q4",
+      "realgdp": "7153.359",
+      "realcons": "4799.4",
+      "realinv": "917.736"
+    },
+    {
+      "period": "1987Q1",
+      "realgdp": "7193.019",
+      "realcons": "4792.1",
+      "realinv": "945.776"
+    },
+    {
+      "period": "1987Q2",
+      "realgdp": "7269.510",
+      "realcons": "4856.3",
+      "realinv": "947.100"
+    },
+    {
+      "period": "1987Q3",
+      "realgdp": "7332.558",
+      "realcons": "4910.4",
+      "realinv": "948.055"
+    },
+    {
+      "period": "1987Q4",
+      "realgdp": "7458.022",
+      "realcons": "4922.2",
+      "realinv": "1021.980"
+    },
+    {
+      "period": "1988Q1",
+      "realgdp": "7496.600",
+      "realcons": "5004.4",
+      "realinv": "964.398"
+    },
+    {
+      "period": "1988Q2",
+      "realgdp": "7592.881",
+      "realcons": "5040.8",
+      "realinv": "987.858"
+    },
+    {
+      "period": "1988Q3",
+      "realgdp": "7632.082",
+      "realcons": "5080.6",
+      "realinv": "994.204"
+    },
+    {
+      "period": "1988Q4",
+      "realgdp": "7733.991",
+      "realcons": "5140.4",
+      "realinv": "1007.371"
+    },
+    {
+      "period": "1989Q1",
+      "realgdp": "7806.603",
+      "realcons": "5159.3",
+      "realinv": "1045.975"
+    },
+    {
+      "period": "1989Q2",
+      "realgdp": "7865.016",
+      "realcons": "5182.4",
+      "realinv": "1033.753"
+    },
+    {
+      "period": "1989Q3",
+      "realgdp": "7927.393",
+      "realcons": "5236.1",
+      "realinv": "1021.604"
+    },
+    {
+      "period": "1989Q4",
+      "realgdp": "7944.697",
+      "realcons": "5261.7",
+      "realinv": "1011.119"
+    },
+    {
+      "period": "1990Q1",
+      "realgdp": "8027.693",
+      "realcons": "5303.3",
+      "realinv": "1021.070"
+    },
+    {
+      "period": "1990Q2",
+      "realgdp": "8059.598",
+      "realcons": "5320.8",
+      "realinv": "1021.360"
+    },
+    {
+      "period": "1990Q3",
+      "realgdp": "8059.476",
+      "realcons": "5341.0",
+      "realinv": "997.319"
+    },
+    {
+      "period": "1990Q4",
+      "realgdp": "7988.864",
+      "realcons": "5299.5",
+      "realinv": "934.248"
+    },
+    {
+      "period": "1991Q1",
+      "realgdp": "7950.164",
+      "realcons": "5284.4",
+      "realinv": "896.210"
+    },
+    {
+      "period": "1991Q2",
+      "realgdp": "8003.822",
+      "realcons": "5324.7",
+      "realinv": "891.704"
+    },
+    {
+      "period": "1991Q3",
+      "realgdp": "8037.538",
+      "realcons": "5345.0",
+      "realinv": "913.904"
+    },
+    {
+      "period": "1991Q4",
+      "realgdp": "8069.046",
+      "realcons": "5342.6",
+      "realinv": "948.891"
+    },
+    {
+      "period": "1992Q1",
+      "realgdp": "8157.616",
+      "realcons": "5434.5",
+      "realinv": "927.796"
+    },
+    {
+      "period": "1992Q2",
+      "realgdp": "8244.294",
+      "realcons": "5466.7",
+      "realinv": "988.912"
+    },
+    {
+      "period": "1992Q3",
+      "realgdp": "8329.361",
+      "realcons": "5527.1",
+      "realinv": "999.135"
+    },
+    {
+      "period": "1992Q4",
+      "realgdp": "8417.016",
+      "realcons": "5594.6",
+      "realinv": "1030.758"
+    },
+    {
+      "period": "1993Q1",
+      "realgdp": "8432.485",
+      "realcons": "5617.2",
+      "realinv": "1054.979"
+    },
+    {
+      "period": "1993Q2",
+      "realgdp": "8486.435",
+      "realcons": "5671.1",
+      "realinv": "1063.263"
+    },
+    {
+      "period": "1993Q3",
+      "realgdp": "8531.108",
+      "realcons": "5732.7",
+      "realinv": "1062.514"
+    },
+    {
+      "period": "1993Q4",
+      "realgdp": "8643.769",
+      "realcons": "5783.7",
+      "realinv": "1118.583"
+    },
+    {
+      "period": "1994Q1",
+      "realgdp": "8727.919",
+      "realcons": "5848.1",
+      "realinv": "1166.845"
+    },
+    {
+      "period": "1994Q2",
+      "realgdp": "8847.303",
+      "realcons": "5891.5",
+      "realinv": "1234.855"
+    },
+    {
+      "period": "1994Q3",
+      "realgdp": "8904.289",
+      "realcons": "5938.7",
+      "realinv": "1212.655"
+    },
+    {
+      "period": "1994Q4",
+      "realgdp": "9003.180",
+      "realcons": "5997.3",
+      "realinv": "1269.190"
+    },
+    {
+      "period": "1995Q1",
+      "realgdp": "9025.267",
+      "realcons": "6004.3",
+      "realinv": "1282.090"
+    },
+    {
+      "period": "1995Q2",
+      "realgdp": "9044.668",
+      "realcons": "6053.5",
+      "realinv": "1247.610"
+    },
+    {
+      "period": "1995Q3",
+      "realgdp": "9120.684",
+      "realcons": "6107.6",
+      "realinv": "1235.601"
+    },
+    {
+      "period": "1995Q4",
+      "realgdp": "9184.275",
+      "realcons": "6150.6",
+      "realinv": "1270.392"
+    },
+    {
+      "period": "1996Q1",
+      "realgdp": "9247.188",
+      "realcons": "6206.9",
+      "realinv": "1287.128"
+    },
+    {
+      "period": "1996Q2",
+      "realgdp": "9407.052",
+      "realcons": "6277.1",
+      "realinv": "1353.795"
+    },
+    {
+      "period": "1996Q3",
+      "realgdp": "9488.879",
+      "realcons": "6314.6",
+      "realinv": "1422.059"
+    },
+    {
+      "period": "1996Q4",
+      "realgdp": "9592.458",
+      "realcons": "6366.1",
+      "realinv": "1418.193"
+    },
+    {
+      "period": "1997Q1",
+      "realgdp": "9666.235",
+      "realcons": "6430.2",
+      "realinv": "1451.304"
+    },
+    {
+      "period": "1997Q2",
+      "realgdp": "9809.551",
+      "realcons": "6456.2",
+      "realinv": "1543.976"
+    },
+    {
+      "period": "1997Q3",
+      "realgdp": "9932.672",
+      "realcons": "6566.0",
+      "realinv": "1571.426"
+    },
+    {
+      "period": "1997Q4",
+      "realgdp": "10008.874",
+      "realcons": "6641.1",
+      "realinv": "1596.523"
+    },
+    {
+      "period": "1998Q1",
+      "realgdp": "10103.425",
+      "realcons": "6707.2",
+      "realinv": "1672.732"
+    },
+    {
+      "period": "1998Q2",
+      "realgdp": "10194.277",
+      "realcons": "6822.6",
+      "realinv": "1652.716"
+    },
+    {
+      "period": "1998Q3",
+      "realgdp": "10328.787",
+      "realcons": "6913.1",
+      "realinv": "1700.071"
+    },
+    {
+      "period": "1998Q4",
+      "realgdp": "10507.575",
+      "realcons": "7019.1",
+      "realinv": "1754.743"
+    },
+    {
+      "period": "1999Q1",
+      "realgdp": "10601.179",
+      "realcons": "7088.3",
+      "realinv": "1809.993"
+    },
+    {
+      "period": "1999Q2",
+      "realgdp": "10684.049",
+      "realcons": "7199.9",
+      "realinv": "1803.674"
+    },
+    {
+      "period": "1999Q3",
+      "realgdp": "10819.914",
+      "realcons": "7286.4",
+      "realinv": "1848.949"
+    },
+    {
+      "period": "1999Q4",
+      "realgdp": "11014.254",
+      "realcons": "7389.2",
+      "realinv": "1914.567"
+    },
+    {
+      "period": "2000Q1",
+      "realgdp": "11043.044",
+      "realcons": "7501.3",
+      "realinv": "1887.836"
+    },
+    {
+      "period": "2000Q2",
+      "realgdp": "11258.454",
+      "realcons": "7571.8",
+      "realinv": "2018.529"
+    },
+    {
+      "period": "2000Q3",
+      "realgdp": "11267.867",
+      "realcons": "7645.9",
+      "realinv": "1986.956"
+    },
+    {
+      "period": "2000Q4",
+      "realgdp": "11334.544",
+      "realcons": "7713.5",
+      "realinv": "1987.845"
+    },
+    {
+      "period": "2001Q1",
+      "realgdp": "11297.171",
+      "realcons": "7744.3",
+      "realinv": "1882.691"
+    },
+    {
+      "period": "2001Q2",
+      "realgdp": "11371.251",
+      "realcons": "7773.5",
+      "realinv": "1876.650"
+    },
+    {
+      "period": "2001Q3",
+      "realgdp": "11340.075",
+      "realcons": "7807.7",
+      "realinv": "1837.074"
+    },
+    {
+      "period": "2001Q4",
+      "realgdp": "11380.128",
+      "realcons": "7930.0",
+      "realinv": "1731.189"
+    },
+    {
+      "period": "2002Q1",
+      "realgdp": "11477.868",
+      "realcons": "7957.3",
+      "realinv": "1789.327"
+    },
+    {
+      "period": "2002Q2",
+      "realgdp": "11538.770",
+      "realcons": "7997.8",
+      "realinv": "1810.779"
+    },
+    {
+      "period": "2002Q3",
+      "realgdp": "11596.430",
+      "realcons": "8052.0",
+      "realinv": "1814.531"
+    },
+    {
+      "period": "2002Q4",
+      "realgdp": "11598.824",
+      "realcons": "8080.6",
+      "realinv": "1813.219"
+    },
+    {
+      "period": "2003Q1",
+      "realgdp": "11645.819",
+      "realcons": "8122.3",
+      "realinv": "1813.141"
+    },
+    {
+      "period": "2003Q2",
+      "realgdp": "11738.706",
+      "realcons": "8197.8",
+      "realinv": "1823.698"
+    },
+    {
+      "period": "2003Q3",
+      "realgdp": "11935.461",
+      "realcons": "8312.1",
+      "realinv": "1889.883"
+    },
+    {
+      "period": "2003Q4",
+      "realgdp": "12042.817",
+      "realcons": "8358.0",
+      "realinv": "1959.783"
+    },
+    {
+      "period": "2004Q1",
+      "realgdp": "12127.623",
+      "realcons": "8437.6",
+      "realinv": "1970.015"
+    },
+    {
+      "period": "2004Q2",
+      "realgdp": "12213.818",
+      "realcons": "8483.2",
+      "realinv": "2055.580"
+    },
+    {
+      "period": "2004Q3",
+      "realgdp": "12303.533",
+      "realcons": "8555.8",
+      "realinv": "2082.231"
+    },
+    {
+      "period": "2004Q4",
+      "realgdp": "12410.282",
+      "realcons": "8654.2",
+      "realinv": "2125.152"
+    },
+    {
+      "period": "2005Q1",
+      "realgdp": "12534.113",
+      "realcons": "8719.0",
+      "realinv": "2170.299"
+    },
+    {
+      "period": "2005Q2",
+      "realgdp": "12587.535",
+      "realcons": "8802.9",
+      "realinv": "2131.468"
+    },
+    {
+      "period": "2005Q3",
+      "realgdp": "12683.153",
+      "realcons": "8865.6",
+      "realinv": "2154.949"
+    },
+    {
+      "period": "2005Q4",
+      "realgdp": "12748.699",
+      "realcons": "8888.5",
+      "realinv": "2232.193"
+    },
+    {
+      "period": "2006Q1",
+      "realgdp": "12915.938",
+      "realcons": "8986.6",
+      "realinv": "2264.721"
+    },
+    {
+      "period": "2006Q2",
+      "realgdp": "12962.462",
+      "realcons": "9035.0",
+      "realinv": "2261.247"
+    },
+    {
+      "period": "2006Q3",
+      "realgdp": "12965.916",
+      "realcons": "9090.7",
+      "realinv": "2229.636"
+    },
+    {
+      "period": "2006Q4",
+      "realgdp": "13060.679",
+      "realcons": "9181.6",
+      "realinv": "2165.966"
+    },
+    {
+      "period": "2007Q1",
+      "realgdp": "13099.901",
+      "realcons": "9265.1",
+      "realinv": "2132.609"
+    },
+    {
+      "period": "2007Q2",
+      "realgdp": "13203.977",
+      "realcons": "9291.5",
+      "realinv": "2162.214"
+    },
+    {
+      "period": "2007Q3",
+      "realgdp": "13321.109",
+      "realcons": "9335.6",
+      "realinv": "2166.491"
+    },
+    {
+      "period": "2007Q4",
+      "realgdp": "13391.249",
+      "realcons": "9363.6",
+      "realinv": "2123.426"
+    },
+    {
+      "period": "2008Q1",
+      "realgdp": "13366.865",
+      "realcons": "9349.6",
+      "realinv": "2082.886"
+    },
+    {
+      "period": "2008Q2",
+      "realgdp": "13415.266",
+      "realcons": "9351.0",
+      "realinv": "2026.518"
+    },
+    {
+      "period": "2008Q3",
+      "realgdp": "13324.600",
+      "realcons": "9267.7",
+      "realinv": "1990.693"
+    },
+    {
+      "period": "2008Q4",
+      "realgdp": "13141.920",
+      "realcons": "9195.3",
+      "realinv": "1857.661"
+    },
+    {
+      "period": "2009Q1",
+      "realgdp": "12925.410",
+      "realcons": "9209.2",
+      "realinv": "1558.494"
+    },
+    {
+      "period": "2009Q2",
+      "realgdp": "12901.504",
+      "realcons": "9189.0",
+      "realinv": "1456.678"
+    },
+    {
+      "period": "2009Q3",
+      "realgdp": "12990.341",
+      "realcons": "9256.0",
+      "realinv": "1486.398"
+    }
+  ]
+}
