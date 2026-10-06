@@ -7,10 +7,11 @@ export const PROTOCOLS = Object.freeze({
     alternative: 'Ingen sådan rekursion stöds av de undanhållna termerna.',
     rule: 'Passa endast träningsprefixet vid två primtal, rekonstruera exakt och kontrollera sex externa holdouttermer.',
     limitations: 'Ändligt många exakta termer bevisar inte en universell lag. Syntetiska data; verktyget söker en begränsad formelklass.' },
-  mixalot: { id: 'frozen-mixture-v1', h0: 'iid kategoridata med kända sannolikheter [1/5,4/5].',
+  mixalot: { id: 'frozen-mixture-v2', h0: 'iid kategoridata med kända sannolikheter [1/5,4/5].',
     h1: 'iid kategoridata från en konvex blandning av de fasta signaturerna [1/5,4/5] och [4/5,1/5].',
     prior: 'Blandningsvikt uniform: Dirichlet(1,1); lika priorodds för H0 och H1.',
     rule: 'BF10 >= 10 stödjer H1, BF10 <= 1/10 stödjer H0; annars otillräcklig evidens.',
+    control: 'Före modellförslaget väljs [12,12] med förväntat H1-stöd om exakt primärevidens stödjer H0; annars [0,24] med förväntat H0-stöd. Kontrollens beslut måste verifieras och skilja sig från primärbeslutet.',
     limitations: 'Evidensen gäller dessa två modeller och priorer. Kategoriska iid data identifierar inte generellt antalet verkliga populationer. Bayesfaktor är inte ett p-värde.' },
   statsmodels: { id: 'ar1-test-v1', h0: 'phi=0 i y[t]=intercept+phi*y[t-1]+epsilon[t].', h1: 'phi skiljer sig från noll.',
     assumptions: 'AR(1) med iid homoskedastiska innovationer; nominal villkorlig OLS/t-inferens. Ingen kausal slutsats.',
@@ -28,7 +29,7 @@ export function makeScienceCases(seed, toolId) {
   if (!/^\d{1,9}$/.test(seed) || !PROTOCOLS[toolId]) throw new ResearchError('invalid_plan');
   return [0,1,2].map(index => {
     const b = hashBytes(`science-v1:${toolId}:${seed}:${index}`);
-    let input, control, truth;
+    let input, control, truth, controlExpectation;
     if (toolId === 'annihilator') {
       const u = 1+b[0]%3, v = 1+b[1]%2;
       let second = 3+b[2]%6;
@@ -42,7 +43,10 @@ export function makeScienceCases(seed, toolId) {
       const p = [.2,.5,.8][index], random = rng(`mixture:${seed}:${index}`);
       const successes = Array.from({length:24}, () => random()<p).filter(Boolean).length;
       input = { counts: [successes,24-successes] };
-      control = { counts: successes === 12 ? [0,24] : [24-successes,successes] };
+      // Choose a known contrasting anchor before the model or either tool call.
+      const supportsH0 = mixtureOracle(input).decision === 'supports_h0';
+      control = { counts: supportsH0 ? [12,12] : [0,24] };
+      controlExpectation = { decision: supportsH0 ? 'supports_h1' : 'supports_h0' };
       truth = { generatingProbability: p, synthetic: true };
     } else {
       const phi = [0,.4,.8][index], random = rng(`ar1:${seed}:${index}`);
@@ -57,7 +61,9 @@ export function makeScienceCases(seed, toolId) {
       control = { train: Array.from({length:65}, (_,i)=>String([1,0,-1,0][i%4])), holdout:['0','-1','0','1'] };
       truth = { phi, intercept:.2, synthetic:true, burnIn:64 };
     }
-    return { id:index+1, input, control, truth, commitment:fingerprint({input,control,truth,protocol:PROTOCOLS[toolId]}) };
+    const controls = controlExpectation ? {controlExpectation} : {};
+    return { id:index+1, input, control, truth, ...controls,
+      commitment:fingerprint({input,control,truth,...controls,protocol:PROTOCOLS[toolId]}) };
   });
 }
 
@@ -199,10 +205,12 @@ export async function runScienceExperiment(seed,propose,callTool,onCommit,option
       if(!proposal) throw new ResearchError('invalid_model_proposal');
       operation='positive_control'; const evidence=await callTool(f.input), measured=validateScienceResult(evidence,toolId,f.input);
       operation='negative_control'; const controlEvidence=await callTool(f.control), control=validateScienceResult(controlEvidence,toolId,f.control,toolId!=='annihilator');
+      if(toolId==='mixalot' && (control.decision!==f.controlExpectation.decision || control.decision===measured.decision)) throw new ResearchError('invalid_tool_evidence');
       if(toolId==='statsmodels' && (Math.abs(control.phi)>1e-10 || control.pvalue<.999)) throw new ResearchError('invalid_tool_evidence');
       const passed=toolId==='annihilator'?verifyRecurrence(proposal.coefficients,[...f.input.train,...f.input.holdout]):proposal.decision===measured.decision;
       const decision=toolId==='annihilator'?'supported_on_holdout':measured.decision;
       results.push({case:f.id,commitment:f.commitment,data:f.input,controlData:f.control,truth:f.truth,
+        ...(f.controlExpectation ? {controlExpectation:f.controlExpectation} : {}),
         proposal,provider:ai.provider,model:ai.model,evidence,controlEvidence,
         hypothesisTest:{protocol,decision,measured,independentlyVerified:true,familyInference:toolId==='statsmodels'?'pending_all_three_cases':null},
         initialPassed:passed,passed,correctionAttempted:false,sameModel:true});

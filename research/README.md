@@ -159,7 +159,11 @@ träningsdata, holdout, kontroller och syntetiskt facit.
   Den ändrade kontrollsvansen måste avvisas med samma rekonstruerade formel.
 - Mixalot jämför en känd signatur med en blandning av två fasta signaturer.
   Priorerna och BF-trösklarna låses; två uppströmsvägar och en separat exakt
-  BigInt-polynomintegration måste ge samma evidens. Antalet verkliga grupper
+  BigInt-polynomintegration måste ge samma evidens. Före modellförslaget väljs
+  en känd kontroll: [12,12] ska stödja H1 om primärdata stödjer H0; annars ska
+  [0,24] stödja H0. Kontrollens förväntade beslut ingår i fingeravtrycket och
+  rapporten, och körningen avbryts om kontrollen inte ger ett annat beslut.
+  Antalet verkliga grupper
   kan inte identifieras generellt från dessa iid kategoriska räknedata.
 - Statsmodels passar AR(1) med intercept på 88 observationer och använder 16
   holdoutobservationer enbart för prognosutvärdering. SciPy kontrollerar

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makeScienceCases, sciencePrompt, parseScienceProposal, validateScienceResult, mixtureOracle,
   verifyRecurrence, studentTwoSidedPvalue, regressionOracle, holm, runScienceExperiment, PROTOCOLS } from '../research/science.mjs';
-import { callScienceTool } from '../research/python-tools.mjs';
+import { callScienceTool, fingerprint } from '../research/python-tools.mjs';
 
 const tools=['annihilator','mixalot','statsmodels'];
 const answer=(tool,fixture)=>({method:tool, ...(tool==='annihilator'?{coefficients:fixture.truth.coefficients}
@@ -38,6 +38,34 @@ test('independent mathematical oracles and Holm have analytic positive/negative 
   assert.ok(Math.abs(studentTwoSidedPvalue(2.2281388519649385,10)-.05)<1e-10);
   assert.deepEqual(holm([.01,.04,.03]),[.03,.06,.06]);
   assert.deepEqual(holm([.9,.7,1]),[1,1,1]);
+});
+
+test('Mixalot controls contrast all three primary outcomes, including seed 2 balanced counts',async()=>{
+  const outcomes=new Set();
+  for(const seed of ['1','2']) {
+    const fixtures=makeScienceCases(seed,'mixalot');
+    if(seed==='2') {
+      assert.deepEqual(fixtures[1].input.counts,[11,13]);
+      assert.equal(mixtureOracle({counts:[13,11]}).decision,'supports_h1');
+      assert.deepEqual(fixtures[1].control.counts,[0,24]);
+    }
+    let committed,proposals=0;
+    const report=await runScienceExperiment(seed,async()=>{
+      const f=fixtures[proposals++];
+      assert.equal(committed[f.id-1].sha256,fingerprint({input:f.input,control:f.control,truth:f.truth,
+        controlExpectation:f.controlExpectation,protocol:PROTOCOLS.mixalot}));
+      return {provider:'test',model:'same',text:JSON.stringify(answer('mixalot',f))};
+    },input=>callScienceTool('mixalot',input),receipts=>{committed=receipts;},{toolId:'mixalot'});
+    assert.equal(report.status,'passed');
+    for(const c of report.cases) {
+      const primary=c.evidence.result.decision;
+      outcomes.add(primary);
+      assert.equal(c.controlExpectation.decision,primary==='supports_h0'?'supports_h1':'supports_h0');
+      assert.equal(c.controlEvidence.result.decision,c.controlExpectation.decision);
+      assert.notEqual(c.controlEvidence.result.decision,primary);
+    }
+  }
+  assert.deepEqual([...outcomes].sort(),['inconclusive','supports_h0','supports_h1']);
 });
 
 test('three integrations execute real tools and fail closed on receipts and scientific quantities',async()=>{

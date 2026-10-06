@@ -9,7 +9,7 @@ installation innebär inte att fria vetenskapliga påståenden kan testas direkt
 | Experiment | Hypotes och beslut | Oberoende kontroll |
 | --- | --- | --- |
 | annihilator-recurrence | En konstant rekursion av ordning högst två förklarar serien; håll sex termer utanför passningen | Två primtal, exakt rekonstruktion, BigInt-residualer och ändrad kontrollsvans |
-| mixalot-model-comparison | H0: känd kategorisk signatur; H1: blandning av två fasta signaturer med uniform viktprior; BF10 10 respektive 1/10 | Två uppströmsimplementationer plus separat exakt polynomintegration |
+| mixalot-model-comparison | H0: känd kategorisk signatur; H1: blandning av två fasta signaturer med uniform viktprior; BF10 10 respektive 1/10 | Två uppströmsimplementationer plus separat exakt polynomintegration; låst kontroll [0,24] eller [12,12] måste ge ett annat beslut |
 | statsmodels-ar1 | H0: ingen lagg-1-koefficient; förutbestämd AR(1), alpha 0.05 och Holm över tre fall | SciPy-regression, separat JS-regression/t-fördelning, analytisk nollkontroll och holdoutprognos |
 
 Hypotes, beslutströskel, modellklass och tränings-/kontrolldelning finns i
