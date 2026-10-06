@@ -3,7 +3,7 @@ const codes = new Set(['unexpected_error', 'model_http_error', 'model_transport_
   'tool_http_error', 'tool_transport_error', 'invalid_tool_evidence', 'invalid_model_proposal',
   'invalid_model_response', 'model_changed', 'invalid_plan', 'duplicate_plan',
   'model_budget_exceeded', 'tool_budget_exceeded', 'model_upstream_http_error',
-  'model_output_truncated', 'model_empty_response', 'model_invalid_response']);
+  'model_output_truncated', 'model_empty_response', 'model_invalid_response', 'model_budget_not_applied']);
 export class ResearchError extends Error {
   constructor(code, context = {}) {
     super(codes.has(code) ? code : 'unexpected_error');

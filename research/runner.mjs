@@ -11,6 +11,7 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 if (key.length < 24 || !serviceKey) throw new Error('Orchestrator- och databasnycklar krävs');
 const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
 const directory = 'reports/oraklet-lab';
+const completionTokenLimit = 4096;
 await mkdir(directory, { recursive: true });
 
 async function readJson(response, max = 65536) {
@@ -65,8 +66,9 @@ async function query(body) {
 }
 const propose = lockModel(async messages => {
   if (++modelCalls > 7) throw new ResearchError('model_budget_exceeded');
-  const result = await query({ message: JSON.stringify({ instruction: 'Följ denna konversation och svara endast med begärd JSON.', messages }), mode: 'default' });
+  const result = await query({ message: JSON.stringify({ instruction: 'Följ denna konversation och svara endast med begärd JSON.', messages }), mode: 'default', completionTokenLimit });
   if (result.status !== 200 || result.data.mock !== false) throw new ResearchError('invalid_model_response');
+  if (result.data.inference?.completionTokenLimit !== completionTokenLimit) throw new ResearchError('model_budget_not_applied');
   return { text: result.data.answer, provider: result.data.provider, model: result.data.model };
 });
 const callTool = async input => {
@@ -77,7 +79,7 @@ const callTool = async input => {
 const selection = process.env.EXPERIMENT || 'auto';
 const seed = process.env.EXPERIMENT_SEED || new Date().toISOString().slice(0, 10).replaceAll('-', '');
 const reportId = randomUUID();
-const metadata = { createdAt: new Date().toISOString(), codeCommit: process.env.GITHUB_SHA || null,
+const metadata = { createdAt: new Date().toISOString(), inferenceSettings: { completionTokenLimit }, codeCommit: process.env.GITHUB_SHA || null,
   runUrl: /^\d+$/.test(process.env.GITHUB_RUN_ID || '')
     ? `https://github.com/cryptomanxxx/debatt-ai-orchestrator/actions/runs/${process.env.GITHUB_RUN_ID}` : null };
 let completedCases = [];

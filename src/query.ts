@@ -6,6 +6,7 @@ import { BOOTLOOPS_TOOL, validateRatfitInput, runBootLoops } from './tools/regis
 import type { BootLoopsExecutor } from './tools/registry.ts';
 import { BootLoopsInputError } from './tools/bootloops.ts';
 import { ModelRequestError } from './providers/openai.ts';
+import type { CompletionTokenLimit } from './providers/openai.ts';
 
 // Shared request validation and execution for the Node and Workers transports.
 export async function executeQuery(input: unknown, config: Config, bootloops?: BootLoopsExecutor) {
@@ -25,14 +26,15 @@ export async function executeQuery(input: unknown, config: Config, bootloops?: B
         data: { error: error instanceof BootLoopsInputError ? 'invalid_bootloops_input' : 'bootloops_execution_failed' } };
     }
   }
-  const { message, mode = 'default' } = request;
+  const { message, mode = 'default', completionTokenLimit = 1024 } = request;
   if (typeof message !== 'string' || !message.trim() || message.length > 8000
-    || typeof mode !== 'string' || !['default', 'reasoning', 'auto'].includes(mode))
+    || typeof mode !== 'string' || !['default', 'reasoning', 'auto'].includes(mode)
+    || ![1024, 4096].includes(completionTokenLimit as number))
     return { status: 400, data: { error: 'invalid_request' } };
   if (mode === 'reasoning' && config.provider !== 'mock' && !config.reasoningModel)
     return { status: 400, data: { error: 'reasoning_not_configured' } };
   try {
-    return { status: 200, data: await orchestrate(message.trim(), mode as Mode, config) };
+    return { status: 200, data: await orchestrate(message.trim(), mode as Mode, config, completionTokenLimit as CompletionTokenLimit) };
   } catch (error) {
     if (error instanceof CalculationError) return { status: 400, data: { error: error.message } };
     if (error instanceof ModelRequestError) return { status: 502,

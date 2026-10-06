@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { complete } from './providers/openai.ts';
+import type { CompletionTokenLimit } from './providers/openai.ts';
 import { createPlan } from './planning/planner.ts';
 import { executeTool } from './tools/registry.ts';
 import type { ToolResult } from './tools/registry.ts';
 import { verify } from './verification/verifier.ts';
 import type { Config } from './config.ts';
 import type { Mode } from './router.ts';
-export async function orchestrate(message: string, mode: Mode, config: Config) {
+export async function orchestrate(message: string, mode: Mode, config: Config, completionTokenLimit: CompletionTokenLimit = 1024) {
   const plan = createPlan(message, mode, config);
   const action = plan.steps[0];
   const started = performance.now();
@@ -18,7 +19,7 @@ export async function orchestrate(message: string, mode: Mode, config: Config) {
     answer = String(toolResult.value);
   } else {
     answer = mock ? 'Testläge: förfrågan har passerat orchestratorn. Ingen AI-modell har anropats.'
-      : await complete(action.message, action.model, config);
+      : await complete(action.message, action.model, config, completionTokenLimit);
   }
   const durationMs = Math.round(performance.now() - started);
   const verification = verify(answer, toolResult, mock);
@@ -30,5 +31,5 @@ export async function orchestrate(message: string, mode: Mode, config: Config) {
       steps: [{ kind: action.kind, ...(action.kind === 'tool' ? { tool: action.tool } : { model: action.model }) }, { kind: 'verify' }] },
     trace: [{ step: 1, kind: action.kind, status: 'completed', durationMs },
       { step: 2, kind: 'verify', status: verification.status }],
-    ...(toolResult ? { toolResult } : {}), verification };
+    ...(toolResult ? { toolResult } : { inference: { completionTokenLimit } }), verification };
 }
