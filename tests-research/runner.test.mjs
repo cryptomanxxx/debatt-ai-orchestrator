@@ -12,7 +12,8 @@ const runner = fileURLToPath(new URL('../research/runner.mjs', import.meta.url))
 const core = new URL('../research/ratfit.mjs', import.meta.url).href;
 
 test('daily auto runner saves plan and compatible report; changed model is a persisted execution error', async () => {
-  for (const changeModel of [false, true]) {
+  for (const scenario of ['success', 'model_changed', 'invalid_proposal', 'tool_http_error']) {
+    const changeModel = scenario === 'model_changed';
     const dir = await mkdtemp(join(tmpdir(), 'oraklet-runner-'));
     try {
       const mock = `
@@ -26,6 +27,7 @@ globalThis.fetch = async (url, options = {}) => {
   }
   const body = JSON.parse(options.body);
   if (body.tool) {
+    if (${JSON.stringify(scenario)} === 'tool_http_error') return Response.json({ error: 'SECRET upstream error' }, { status: 502 });
     const fixture = cases.find(c => JSON.stringify(c.input.banked) === JSON.stringify(body.input.banked));
     const accepted = JSON.stringify(fixture.input.holdout) === JSON.stringify(body.input.holdout);
     return Response.json({ provider: 'bootloops', mock: false,
@@ -39,17 +41,34 @@ globalThis.fetch = async (url, options = {}) => {
     const banked = JSON.parse(messages[1].content).banked;
     answer = { method: 'bootloops_ratfit', coefficients: cases.find(c => JSON.stringify(c.input.banked) === JSON.stringify(banked)).truth, reason: 'Förslag.' };
   }
+  if (${JSON.stringify(scenario)} === 'invalid_proposal' && modelCalls === 3) answer = { error: 'SECRET malformed answer' };
   return Response.json({ answer: JSON.stringify(answer), provider: 'groq', model: ${changeModel} && modelCalls > 1 ? 'changed' : 'same', mock: false });
 };`;
       const preload = join(dir, 'mock.mjs'); await writeFile(preload, mock);
       const process = run(globalThis.process.execPath, ['--import', pathToFileURL(preload).href, runner], {
         cwd: dir, env: { ...globalThis.process.env, ORCHESTRATOR_API_KEY: 'test'.repeat(8), SUPABASE_SERVICE_ROLE_KEY: 'test',
           EXPERIMENT: 'auto', EXPERIMENT_SEED: '123' }, timeout: 15000 });
-      if (changeModel) await assert.rejects(process); else await process;
+      if (scenario !== 'success') await assert.rejects(process, error => {
+        assert.ok(!error.stdout.includes('SECRET') && !error.stderr.includes('SECRET'));
+        return true;
+      }); else await process;
       const saved = JSON.parse(await readFile(join(dir, 'saved.json'), 'utf8'));
-      assert.equal(saved.rapport.executionStatus, changeModel ? 'error' : 'completed');
-      assert.equal(saved.rapport.status, changeModel ? 'failed' : 'passed');
-      assert.equal(saved.rapport.cases.length, changeModel ? 0 : 3);
+      assert.equal(saved.rapport.executionStatus, scenario !== 'success' ? 'error' : 'completed');
+      assert.equal(saved.rapport.status, scenario !== 'success' ? 'failed' : 'passed');
+      assert.equal(saved.rapport.cases.length, scenario === 'success' ? 3 : scenario === 'invalid_proposal' ? 1 : 0);
+      if (scenario !== 'success') {
+        const failure = saved.rapport.failure;
+        assert.equal(failure.code, scenario === 'invalid_proposal' ? 'invalid_model_proposal' : scenario);
+        assert.equal(failure.case, scenario === 'invalid_proposal' ? 2 : 1);
+        assert.equal(failure.operation, scenario === 'tool_http_error' ? 'positive_control' : 'initial_proposal');
+        if (scenario === 'tool_http_error') assert.equal(failure.httpStatus, 502);
+        assert.ok(!JSON.stringify(saved).includes('SECRET'));
+      }
+      if (scenario === 'invalid_proposal') {
+        const checkpoint = JSON.parse(await readFile(join(dir, 'reports/oraklet-lab/progress.json'), 'utf8'));
+        assert.equal(checkpoint.cases.length, 1);
+        assert.equal(checkpoint.cases[0].passed, true);
+      }
       assert.ok(await readFile(join(dir, 'reports/oraklet-lab/plan.json'), 'utf8'));
       assert.ok(await readFile(join(dir, 'reports/oraklet-lab/commitments.json'), 'utf8'));
     } finally { await rm(dir, { recursive: true, force: true }); }

@@ -1,3 +1,4 @@
+import { ResearchError } from './errors.mjs';
 export const CATALOG = Object.freeze([
   { id: 'ratfit-baseline', name: 'Ratfit: första förslag', feedback: false,
     question: 'Återfinner modellen ett dolt rationellt samband utan återkoppling?' },
@@ -6,12 +7,13 @@ export const CATALOG = Object.freeze([
 ]);
 
 export function parsePlan(text) {
-  const plan = JSON.parse(text);
+  let plan;
+  try { plan = JSON.parse(text); } catch { throw new ResearchError('invalid_plan'); }
   if (!plan || Object.keys(plan).sort().join(',') !== 'experimentId,reason,seed'
     || !CATALOG.some(e => e.id === plan.experimentId)
     || typeof plan.seed !== 'string' || !/^\d{1,9}$/.test(plan.seed)
     || typeof plan.reason !== 'string' || !plan.reason.trim() || plan.reason.length > 600)
-    throw new Error('Ogiltig experimentplan');
+    throw new ResearchError('invalid_plan');
   return { ...plan, reason: plan.reason.trim() };
 }
 
@@ -28,9 +30,9 @@ export function lockModel(propose) {
     if (!answer || typeof answer.text !== 'string' || !answer.text.trim()
       || typeof answer.provider !== 'string' || !answer.provider
       || typeof answer.model !== 'string' || !answer.model)
-      throw new Error('Ogiltigt modellsvar');
+      throw new ResearchError('invalid_model_response');
     const next = JSON.stringify([answer.provider, answer.model]);
-    if (identity && identity !== next) throw new Error('Modellen ändrades under experimentet');
+    if (identity && identity !== next) throw new ResearchError('model_changed');
     identity = next;
     return answer;
   };
@@ -44,6 +46,6 @@ export async function choosePlan(selection, seed, history, propose) {
   }
   const plan = parsePlan((await propose(plannerPrompt(history, seed))).text);
   if (history.some(r => r.experimentId === plan.experimentId && r.seed === plan.seed))
-    throw new Error('Oraklet valde ett redan genomfört experiment med samma seed');
+    throw new ResearchError('duplicate_plan');
   return plan;
 }

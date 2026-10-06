@@ -69,7 +69,7 @@ test('mock, fel upstream, scope, räknare och missad negativ kontroll avvisas', 
     assert.throws(() => validateTool(modified.status, modified.data, true, 3));
   }
   await assert.rejects(runExperiment('99', async () => ({ text: proposal(['1','1','1','2']), provider: 'test', model: 'test' }),
-    async () => response(true)), /Oväntad Ratfit/);
+    async () => response(true)), /tool_http_error/);
 });
 
 test('fall 2 korrigeras en gång med bara synliga punkter; första försöket bevaras', async () => {
@@ -132,7 +132,7 @@ test('ogiltigt korrigeringssvar får inte gå vidare till blind kontroll', async
   let models = 0, tools = 0;
   await assert.rejects(runExperiment('99', async () => ({
     text: models++ === 0 ? proposal(['0', '0', '0', '1']) : '{}', provider: 'test', model: 'test',
-  }), async () => { tools++; return response(true); }), /Ogiltigt modellförslag/);
+  }), async () => { tools++; return response(true); }), /invalid_model_proposal/);
   assert.equal(models, 2);
   assert.equal(tools, 0);
 });

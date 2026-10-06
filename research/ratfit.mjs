@@ -1,3 +1,4 @@
+import { ResearchError, diagnostic } from './errors.mjs';
 import { createHash } from 'node:crypto';
 
 export const UPSTREAM = '66b680ce742e654cfe86da4f072a69061fe182b1';
@@ -79,13 +80,14 @@ export function parseProposal(text) {
 }
 
 export function validateTool(status, report, accepted, count) {
+  if (status !== (accepted ? 200 : 422)) throw new ResearchError('tool_http_error', { httpStatus: status });
   const t = report?.toolResult, v = report?.verification;
   if (status !== (accepted ? 200 : 422) || report?.provider !== 'bootloops' || report?.mock !== false
     || t?.tool !== 'bootloops_ratfit' || t?.upstreamCommit !== UPSTREAM || t?.accepted !== accepted
     || t?.checked !== count || t?.failed !== (accepted ? 0 : 1)
     || !Number.isInteger(t?.depth) || t.depth < 1 || t.depth > 6
     || v?.status !== (accepted ? 'passed' : 'failed') || v?.scope !== 'exact_rational_holdout'
-    || v?.factualityChecked !== false) throw new Error('Oväntad Ratfit-kontrollrapport');
+    || v?.factualityChecked !== false) throw new ResearchError('invalid_tool_evidence');
   return { accepted: t.accepted, depth: t.depth, checked: t.checked, failed: t.failed, upstreamCommit: t.upstreamCommit };
 }
 
@@ -97,17 +99,20 @@ export async function runExperiment(seed, propose, callTool, onCommit = () => {}
   await onCommit(cases.map(c => ({ case: c.id, sha256: c.commitment })));
   const results = [];
   for (const fixture of cases) {
+    let operation = 'initial_proposal';
+    try {
     // Store a parsed copy so the original attempt cannot be overwritten.
     async function attempt(messages) {
       const ai = await propose(messages);
       const proposal = parseProposal(ai.text);
-      if (!proposal || typeof ai.provider !== 'string' || typeof ai.model !== 'string') throw new Error('Ogiltigt modellförslag');
+      if (!proposal || typeof ai.provider !== 'string' || typeof ai.model !== 'string') throw new ResearchError('invalid_model_proposal');
       return { proposal, provider: ai.provider, model: ai.model,
         visibleChecks: checkVisiblePoints(proposal.coefficients, fixture.input.banked) };
     }
     const initial = await attempt(modelPrompt(fixture.input.banked));
     const correctionAttempted = feedback && initial.visibleChecks.some(p => !p.matched);
     // No tool invocation or holdout evaluation occurs before this final proposal.
+    if (correctionAttempted) operation = 'correction';
     const final = correctionAttempted
       ? await attempt(correctionPrompt(fixture.input.banked, initial.proposal, initial.visibleChecks))
       : initial;
@@ -117,8 +122,11 @@ export async function runExperiment(seed, propose, callTool, onCommit = () => {}
     corrupted.holdout[0][1] = fraction(n + d, d);
     if (!verifyFormula(fixture.truth, fixture.input.holdout) || verifyFormula(fixture.truth, corrupted.holdout))
       throw new Error('Den oberoende kontrollen klarade inte sina egna kontrollfall');
-    const good = await callTool(fixture.input), bad = await callTool(corrupted);
+    operation = 'positive_control';
+    const good = await callTool(fixture.input);
     const ratfit = validateTool(good.status, good.data, true, 3);
+    operation = 'negative_control';
+    const bad = await callTool(corrupted);
     const negativeControl = validateTool(bad.status, bad.data, false, 3);
     const bankedMatch = verifyFormula(proposal.coefficients, fixture.input.banked);
     const holdoutMatch = verifyFormula(proposal.coefficients, fixture.input.holdout);
@@ -131,6 +139,11 @@ export async function runExperiment(seed, propose, callTool, onCommit = () => {}
         && verifyFormula(initial.proposal.coefficients, fixture.input.holdout),
       sameModel: initial.provider === provider && initial.model === model,
       passed: bankedMatch && holdoutMatch });
+    await options.onProgress?.(structuredClone(results));
+    } catch (error) {
+      const info = diagnostic(error, { case: fixture.id, operation });
+      throw new ResearchError(info.code, info);
+    }
   }
   return { schemaVersion: 2, promptVersion: PROMPT_VERSION, researcher: 'Professor Oraklet', title: feedback ? 'Kan återkoppling hjälpa Oraklet återfinna ett dolt rationellt samband?' : 'Kan Oraklet återfinna ett dolt rationellt samband utan återkoppling?',
     question: feedback ? 'Förbättras modellens formelförslag efter högst ett korrigeringsförsök med exakt återkoppling från sex synliga punkter, mätt mot tre undanhållna kontrollpunkter?' : 'Kan ett första formelförslag återfinna sambandet och klara tre blinda kontrollpunkter?',
