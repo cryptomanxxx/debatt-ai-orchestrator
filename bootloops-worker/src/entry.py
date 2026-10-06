@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from workers import Response, WorkerEntrypoint
 from ratfit_core import compute, EXPECTED_SHA256
+from ratfit_diagnostics import diagnose, STAGES
 
 if hashlib.sha256(Path(__file__).with_name('thiele_gate.py').read_bytes()).hexdigest() != EXPECTED_SHA256:
     raise RuntimeError('BootLoops source integrity failure')
@@ -19,7 +20,9 @@ def reply(data, status):
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
         url = urlsplit(request.url)
-        if request.method != 'POST' or url.path != '/v1/ratfit' or url.query:
+        prefix = '/v1/diagnostics/bootloops/'
+        stage = url.path[len(prefix):] if url.path.startswith(prefix) else None
+        if request.method != 'POST' or (url.path != '/v1/ratfit' and stage not in STAGES) or url.query:
             return reply({'error': 'not_found'}, 404)
         content_type = request.headers.get('Content-Type') or ''
         if content_type.split(';')[0].strip() != 'application/json':
@@ -42,6 +45,8 @@ class Default(WorkerEntrypoint):
         finally:
             reader.releaseLock()
         try:
+            if stage is not None:
+                return reply(diagnose(stage, raw, thiele_gate), 200)
             result = compute(json.loads(raw), tool=thiele_gate)
             return reply(result, 200 if result['accepted'] else 422)
         except (ValueError, TypeError, KeyError):
