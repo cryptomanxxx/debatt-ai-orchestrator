@@ -1,0 +1,46 @@
+name: Oraklets forskningslabb
+on:
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+    inputs:
+      experiment:
+        description: Experiment (auto låter Oraklet välja utifrån historiken)
+        type: choice
+        options:
+          - auto
+          - ratfit-baseline
+          - ratfit-feedback
+        default: auto
+      seed:
+        description: 'Seed: 1–9 siffror; tomt använder dagens UTC-datum'
+        type: string
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: oraklet-research
+  cancel-in-progress: false
+jobs:
+  experiment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Planera, kör och spara forskning
+        env:
+          EXPERIMENT: ${{ inputs.experiment || 'auto' }}
+          EXPERIMENT_SEED: ${{ inputs.seed }}
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node research/runner.mjs
+      - name: Spara planer och rapporter även vid driftfel
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oraklet-metodtest-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/oraklet-lab/
+          if-no-files-found: ignore
