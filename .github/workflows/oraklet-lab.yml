@@ -1,9 +1,5 @@
 name: Oraklets forskningslabb
 on:
-  # One branch-only diagnostic trial; main remains manual/scheduled.
-  push:
-    branches: [codex/research-control-diagnostics]
-    paths: [.github/workflows/oraklet-lab.yml]
   schedule:
     - cron: '17 5 * * *'
   workflow_dispatch:

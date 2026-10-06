@@ -54,6 +54,6 @@ test('real provider sends selected model and handles upstream failures', async (
     };
     assert.equal((await orchestrate('Hej', 'reasoning', config)).answer, 'Svar');
     globalThis.fetch = async () => new Response('private provider error', { status: 500 });
-    await assert.rejects(orchestrate('Hej', 'default', config), /Model provider request failed/);
+    await assert.rejects(orchestrate('Hej', 'default', config), /model_upstream_http_error/);
   } finally { globalThis.fetch = original; }
 });

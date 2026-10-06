@@ -61,3 +61,17 @@ Webbplatsens befintliga cache kan fördröja när en ny rapport syns.
 
 Tester: `npm run test:research`. De använder simulerade API-svar, inga nycklar
 eller modellkrediter. CI kör dem tillsammans med befintliga API-tester.
+
+## Driftfelsdiagnostik
+
+Rapportens `failure` innehåller en fast felkod, fallnummer och operation samt
+HTTP-status när den finns. Modellsvar som stoppas av tokenbudgeten avvisas
+som `model_output_truncated`; tomma svar, leverantörens HTTP-fel och nätverksfel
+har separata koder. Råa feltexter och nycklar skrivs aldrig till rapporten.
+Slutförda fall sparas i `progress.json` och i driftfelsrapporten, tydligt som
+delresultat från ett avbrutet experiment. Inga retries eller större tokenbudget
+införs. API:ts nya felkoder kräver att orchestrator-Workern deployas efter merge.
+
+`Testa forskningsdatans BootLoops-kontroller` kör sex fasta positiva och
+negativa kontroller med seed 20261006, utan modell eller databas. Det är ett
+manuellt live-test som skiljer verktygsdrift från modellfel.

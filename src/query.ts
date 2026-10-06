@@ -5,6 +5,7 @@ import { orchestrate } from './orchestrator.ts';
 import { BOOTLOOPS_TOOL, validateRatfitInput, runBootLoops } from './tools/registry.ts';
 import type { BootLoopsExecutor } from './tools/registry.ts';
 import { BootLoopsInputError } from './tools/bootloops.ts';
+import { ModelRequestError } from './providers/openai.ts';
 
 // Shared request validation and execution for the Node and Workers transports.
 export async function executeQuery(input: unknown, config: Config, bootloops?: BootLoopsExecutor) {
@@ -34,6 +35,8 @@ export async function executeQuery(input: unknown, config: Config, bootloops?: B
     return { status: 200, data: await orchestrate(message.trim(), mode as Mode, config) };
   } catch (error) {
     if (error instanceof CalculationError) return { status: 400, data: { error: error.message } };
+    if (error instanceof ModelRequestError) return { status: 502,
+      data: { error: error.code, ...(error.upstreamStatus ? { upstreamStatus: error.upstreamStatus } : {}) } };
     return { status: 502, data: { error: 'model_request_failed' } };
   }
 }

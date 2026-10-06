@@ -11,8 +11,8 @@ const run = promisify(execFile);
 const runner = fileURLToPath(new URL('../research/runner.mjs', import.meta.url));
 const core = new URL('../research/ratfit.mjs', import.meta.url).href;
 
-test('daily auto runner saves plan and compatible report; changed model is a persisted execution error', async () => {
-  for (const scenario of ['success', 'model_changed', 'invalid_proposal', 'tool_http_error']) {
+test('runner preserves partial results and bounded diagnostics for model and tool failures', async () => {
+  for (const scenario of ['success', 'model_changed', 'invalid_proposal', 'tool_http_error', 'model_output_truncated']) {
     const changeModel = scenario === 'model_changed';
     const dir = await mkdtemp(join(tmpdir(), 'oraklet-runner-'));
     try {
@@ -34,6 +34,7 @@ globalThis.fetch = async (url, options = {}) => {
       toolResult: { tool: 'bootloops_ratfit', upstreamCommit: UPSTREAM, accepted, depth: 3, checked: 3, failed: accepted ? 0 : 1 },
       verification: { status: accepted ? 'passed' : 'failed', scope: 'exact_rational_holdout', factualityChecked: false } }, { status: accepted ? 200 : 422 });
   }
+  if (${JSON.stringify(scenario)} === 'model_output_truncated' && modelCalls === 1) return Response.json({ error: 'model_output_truncated', raw: 'SECRET' }, { status: 502 });
   const messages = JSON.parse(body.message).messages;
   let answer;
   if (modelCalls++ === 0) answer = { experimentId: 'ratfit-feedback', seed: '123', reason: 'Nästa test.' };

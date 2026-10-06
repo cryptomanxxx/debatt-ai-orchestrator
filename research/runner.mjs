@@ -40,16 +40,24 @@ let modelCalls = 0, toolCalls = 0;
 async function query(body) {
   const kind = body.tool ? 'tool' : 'model';
   try {
-  const response = await fetch(API, {
-    method: 'POST', redirect: 'error', signal: AbortSignal.timeout(55000),
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!(body.tool ? [200, 422] : [200]).includes(response.status)) {
-    await response.body?.cancel();
-    throw new ResearchError(`${kind}_http_error`, { httpStatus: response.status });
-  }
-  return { status: response.status, data: await readJson(response) };
+    const response = await fetch(API, {
+      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(55000),
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!(body.tool ? [200, 422] : [200]).includes(response.status)) {
+      let code = `${kind}_http_error`, upstreamStatus;
+      try {
+        const data = await readJson(response);
+        if (kind === 'model' && ['model_upstream_http_error', 'model_output_truncated',
+          'model_empty_response', 'model_invalid_response', 'model_transport_error'].includes(data?.error)) {
+          code = data.error;
+          upstreamStatus = data.upstreamStatus;
+        }
+      } catch { /* An untrusted body never becomes public diagnostic text. */ }
+      throw new ResearchError(code, { httpStatus: response.status, upstreamStatus });
+    }
+    return { status: response.status, data: await readJson(response) };
   } catch (error) {
     if (error instanceof ResearchError) throw error;
     throw new ResearchError(`${kind}_transport_error`);
@@ -73,10 +81,10 @@ const metadata = { createdAt: new Date().toISOString(), codeCommit: process.env.
   runUrl: /^\d+$/.test(process.env.GITHUB_RUN_ID || '')
     ? `https://github.com/cryptomanxxx/debatt-ai-orchestrator/actions/runs/${process.env.GITHUB_RUN_ID}` : null };
 let completedCases = [];
-let plan, report, executionFailed = false, stage = 'planning';
+let plan, planCommitment, report, executionFailed = false, stage = 'planning';
 try {
   plan = await choosePlan(selection, seed, history, propose);
-  const planCommitment = createHash('sha256').update(JSON.stringify(plan)).digest('hex');
+  planCommitment = createHash('sha256').update(JSON.stringify(plan)).digest('hex');
   await writeFile(`${directory}/plan.json`, JSON.stringify({ plan, planCommitment, ...metadata }, null, 2));
   console.log('Experimentplanens SHA-256 före körning:', planCommitment);
   stage = 'experiment';
@@ -99,7 +107,7 @@ try {
     method: 'Avbruten körning; detta är ett driftfel, inte ett underkänt vetenskapligt resultat.',
     limitations: 'Kontrollera körningens status. Ingen slutsats om modellens förmåga kan dras.',
     status: 'failed', executionStatus: 'error', experimentId: plan?.experimentId || null,
-    seed: plan?.seed || seed, plan: plan || null, failedStage: stage, failure, cases: completedCases };
+    seed: plan?.seed || seed, plan: plan || null, planCommitment: planCommitment || null, failedStage: stage, failure, cases: completedCases };
 }
 Object.assign(report, metadata, { reportId, modelCalls, toolCalls,
   executionStatus: executionFailed ? 'error' : 'completed' });

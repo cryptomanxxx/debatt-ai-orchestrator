@@ -101,45 +101,45 @@ export async function runExperiment(seed, propose, callTool, onCommit = () => {}
   for (const fixture of cases) {
     let operation = 'initial_proposal';
     try {
-    // Store a parsed copy so the original attempt cannot be overwritten.
-    async function attempt(messages) {
-      const ai = await propose(messages);
-      const proposal = parseProposal(ai.text);
-      if (!proposal || typeof ai.provider !== 'string' || typeof ai.model !== 'string') throw new ResearchError('invalid_model_proposal');
-      return { proposal, provider: ai.provider, model: ai.model,
-        visibleChecks: checkVisiblePoints(proposal.coefficients, fixture.input.banked) };
-    }
-    const initial = await attempt(modelPrompt(fixture.input.banked));
-    const correctionAttempted = feedback && initial.visibleChecks.some(p => !p.matched);
-    // No tool invocation or holdout evaluation occurs before this final proposal.
-    if (correctionAttempted) operation = 'correction';
-    const final = correctionAttempted
-      ? await attempt(correctionPrompt(fixture.input.banked, initial.proposal, initial.visibleChecks))
-      : initial;
-    const { proposal, provider, model } = final;
-    const corrupted = structuredClone(fixture.input);
-    const [n, d] = pair(corrupted.holdout[0][1]);
-    corrupted.holdout[0][1] = fraction(n + d, d);
-    if (!verifyFormula(fixture.truth, fixture.input.holdout) || verifyFormula(fixture.truth, corrupted.holdout))
-      throw new Error('Den oberoende kontrollen klarade inte sina egna kontrollfall');
-    operation = 'positive_control';
-    const good = await callTool(fixture.input);
-    const ratfit = validateTool(good.status, good.data, true, 3);
-    operation = 'negative_control';
-    const bad = await callTool(corrupted);
-    const negativeControl = validateTool(bad.status, bad.data, false, 3);
-    const bankedMatch = verifyFormula(proposal.coefficients, fixture.input.banked);
-    const holdoutMatch = verifyFormula(proposal.coefficients, fixture.input.holdout);
-    results.push({ case: fixture.id, commitment: fixture.commitment, data: fixture.input, truth: fixture.truth,
-      proposal, provider, model, bankedMatch, holdoutMatch, ratfit, negativeControl,
-      correctionAttempted, attempts: correctionAttempted ? [initial, final] : [initial],
-      initialBankedMatch: initial.visibleChecks.every(p => p.matched),
-      initialHoldoutMatch: verifyFormula(initial.proposal.coefficients, fixture.input.holdout),
-      initialPassed: verifyFormula(initial.proposal.coefficients, fixture.input.banked)
-        && verifyFormula(initial.proposal.coefficients, fixture.input.holdout),
-      sameModel: initial.provider === provider && initial.model === model,
-      passed: bankedMatch && holdoutMatch });
-    await options.onProgress?.(structuredClone(results));
+      // Store a parsed copy so the original attempt cannot be overwritten.
+      async function attempt(messages) {
+        const ai = await propose(messages);
+        const proposal = parseProposal(ai.text);
+        if (!proposal || typeof ai.provider !== 'string' || typeof ai.model !== 'string') throw new ResearchError('invalid_model_proposal');
+        return { proposal, provider: ai.provider, model: ai.model,
+          visibleChecks: checkVisiblePoints(proposal.coefficients, fixture.input.banked) };
+      }
+      const initial = await attempt(modelPrompt(fixture.input.banked));
+      const correctionAttempted = feedback && initial.visibleChecks.some(p => !p.matched);
+      // No tool invocation or holdout evaluation occurs before this final proposal.
+      if (correctionAttempted) operation = 'correction';
+      const final = correctionAttempted
+        ? await attempt(correctionPrompt(fixture.input.banked, initial.proposal, initial.visibleChecks))
+        : initial;
+      const { proposal, provider, model } = final;
+      const corrupted = structuredClone(fixture.input);
+      const [n, d] = pair(corrupted.holdout[0][1]);
+      corrupted.holdout[0][1] = fraction(n + d, d);
+      if (!verifyFormula(fixture.truth, fixture.input.holdout) || verifyFormula(fixture.truth, corrupted.holdout))
+        throw new Error('Den oberoende kontrollen klarade inte sina egna kontrollfall');
+      operation = 'positive_control';
+      const good = await callTool(fixture.input);
+      const ratfit = validateTool(good.status, good.data, true, 3);
+      operation = 'negative_control';
+      const bad = await callTool(corrupted);
+      const negativeControl = validateTool(bad.status, bad.data, false, 3);
+      const bankedMatch = verifyFormula(proposal.coefficients, fixture.input.banked);
+      const holdoutMatch = verifyFormula(proposal.coefficients, fixture.input.holdout);
+      results.push({ case: fixture.id, commitment: fixture.commitment, data: fixture.input, truth: fixture.truth,
+        proposal, provider, model, bankedMatch, holdoutMatch, ratfit, negativeControl,
+        correctionAttempted, attempts: correctionAttempted ? [initial, final] : [initial],
+        initialBankedMatch: initial.visibleChecks.every(p => p.matched),
+        initialHoldoutMatch: verifyFormula(initial.proposal.coefficients, fixture.input.holdout),
+        initialPassed: verifyFormula(initial.proposal.coefficients, fixture.input.banked)
+          && verifyFormula(initial.proposal.coefficients, fixture.input.holdout),
+        sameModel: initial.provider === provider && initial.model === model,
+        passed: bankedMatch && holdoutMatch });
+      await options.onProgress?.(structuredClone(results));
     } catch (error) {
       const info = diagnostic(error, { case: fixture.id, operation });
       throw new ResearchError(info.code, info);

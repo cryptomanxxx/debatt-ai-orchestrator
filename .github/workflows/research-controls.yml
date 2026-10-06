@@ -1,9 +1,6 @@
 name: Testa forskningsdatans BootLoops-kontroller
 on:
   workflow_dispatch:
-  push:
-    branches: [codex/research-control-diagnostics]
-    paths: [.github/workflows/research-controls.yml, tests-live/research_controls.mjs]
 permissions:
   contents: read
 concurrency:
