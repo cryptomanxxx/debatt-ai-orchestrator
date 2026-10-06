@@ -18,6 +18,7 @@ on:
           - mixalot-model-comparison
           - statsmodels-ar1
           - sympy-quadratic
+          - sklearn-polynomial
           - pymc-gdp-ar1
         default: auto
       seed:
