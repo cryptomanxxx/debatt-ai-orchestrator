@@ -62,20 +62,22 @@ test('baseline locks first proposal and never sends correction feedback', async 
 });
 
 test('catalog covers upstream inventory and only exposes verified adapters in workflow/planner', async () => {
-  const { CATALOG, TOOLS, catalogMarkdown } = await import('../research/catalog.mjs');
+  const { CATALOG, TOOLS, ALL_RESEARCH_TOOLS, EXTERNAL_TOOLS, catalogMarkdown } = await import('../research/catalog.mjs');
   const { readFile } = await import('node:fs/promises');
   const inventory = JSON.parse(await readFile(new URL('../research/bootloops-inventory.json', import.meta.url), 'utf8'));
   assert.equal(TOOLS.length, 49);
   assert.deepEqual(TOOLS.map(t => t.id), inventory.packages);
-  assert.equal(TOOLS.filter(t => t.integration === 'pending').length, 47);
-  assert.ok(CATALOG.every(e => TOOLS.find(t => t.id === e.toolId)?.integration === 'verified-subset'));
+  assert.equal(TOOLS.filter(t => t.integration === 'pending').length, 45);
+  assert.ok(CATALOG.every(e => ALL_RESEARCH_TOOLS.find(t => t.id === e.toolId)?.integration === 'verified-subset'));
   assert.equal(CATALOG.filter(e => e.toolId === 'rankscreen').length, 2);
+  assert.equal(EXTERNAL_TOOLS[0].id, 'statsmodels');
+  assert.equal(EXTERNAL_TOOLS[0].version, '0.15.0');
   const workflow = await readFile(new URL('../.github/workflows/oraklet-lab.yml', import.meta.url), 'utf8');
   const choices = [...workflow.matchAll(/^          - (.+)$/gm)].map(m => m[1]);
   assert.deepEqual(choices, ['auto', 'catalog-only', ...CATALOG.map(e => e.id)]);
   assert.equal(await readFile(new URL('../research/EXPERIMENTS.md', import.meta.url), 'utf8'), catalogMarkdown());
   const prompt = JSON.parse(plannerPrompt([], '123')[1].content);
   assert.ok(prompt.catalog.every(e => CATALOG.some(c => c.id === e.id)));
-  for (const tool of TOOLS.filter(t => t.integration === 'pending'))
+  for (const tool of ALL_RESEARCH_TOOLS.filter(t => t.integration === 'pending'))
     assert.throws(() => parsePlan(JSON.stringify({ experimentId: tool.id, seed: '123', reason: 'Test.' })));
 });

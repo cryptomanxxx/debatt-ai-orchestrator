@@ -22,7 +22,10 @@ Kör **Oraklets forskningslabb → Run workflow → main**. Välj experiment:
 | ratfit-feedback | Samma fallgenerator; högst en korrigering per fall utifrån sex synliga punkter |
 | rankscreen-consistency | Klassificera fullrangssystem, med och utan planterad motsägelse |
 | rankscreen-rank-deficit | Hitta rangbrist och motsägelser i beroende ekvationer |
-| catalog-only | Visa körbara experiment och samtliga 49 pakets integrationsstatus, utan modell/databas |
+| annihilator-recurrence | Återfinn en konstant rekursion och testa undanhållna termer |
+| mixalot-model-comparison | Jämför två specificerade kategoriska modeller med exakt Bayesfaktor |
+| statsmodels-ar1 | Testa tidsberoende med förutbestämt AR(1)-test, Holm och holdoutprognos |
+| catalog-only | Visa BootLoops och externa verktygs integrationsstatus, utan modell/databas |
 
 Seed är 1–9 siffror; tomt ger dagens UTC-datum. Manuella körningar kan upprepa
 samma seed för jämförelse. Om auto väljer en experiment/seed-kombination som
@@ -39,9 +42,12 @@ Det gamla Debatt-AI-workflowet är manuellt och behövs inte för den nya motorn
 
 Katalogen skiljer experiment från verktyg: två Ratfit-experiment använder
 samma API-adapter och två Rankscreen-experiment använder samma lokala
-Python-adapter i Actions. Se [hela experimentkatalogen](EXPERIMENTS.md)
-för samtliga 49 paket i den låsta BootLoops-versionen. 47 saknar ännu
-integration; bara angivna delmängder av Ratfit och Rankscreen är verifierade.
+Python-adapter i Actions. Tre ytterligare experiment använder begränsade
+Annihilator-, Mixalot- och Statsmodels-operationer i Actions. Se [hela experimentkatalogen](EXPERIMENTS.md)
+för samtliga 49 paket i den låsta BootLoops-versionen. 45 BootLoops-paket saknar ännu integration. Angivna delmängder av Ratfit,
+Rankscreen, Annihilator och Mixalot är verifierade. Statsmodels är ett separat
+installerat verktyg; endast AR(1)-adaptern är verifierad hos oss. Kandidaterna
+PyMC, DoWhy och SymPy visas som väntande och kan inte väljas av planeringen.
 GitHub-menyn och planeringen innehåller endast körbara experiment.
 `catalog-only` visar även väntande metoder i körningens Summary och artefakt.
 Ändra katalogen, dispatch och workflowmenyn tillsammans; CI kontrollerar att de stämmer. Oraklet får
@@ -118,3 +124,61 @@ och anger integrationsomfattning/körmiljö. `npm run research:catalog` skriver
 Markdown och JSON i `reports/oraklet-lab/`; `research/EXPERIMENTS.md` ska motsvara
 den genererade Markdown-filen. Uppströms paketlista är en inventering, inte
 en lista över verktyg som automatiskt går att köra hos oss.
+
+## Installation av forskningsverktyg
+
+Actions installerar `research/requirements.lock` med Python 3.12 före forskning
+och i de två CI-jobb som kör vetenskapstester. Statsmodels 0.15.0 och samtliga
+transitiva paket är versionslåsta. `catalog-only` behöver inga beroenden.
+Varje ny vetenskaplig operation verifierar versionerna mot `toolchain.json`.
+Beroendedrift blir driftfel, inte ett tyst nytt experiment.
+
+Lokalt:
+
+```sh
+python3 -m venv .research-venv
+.research-venv/bin/python -m pip install -r research/requirements.lock
+PATH="$PWD/.research-venv/bin:$PATH" npm test
+PATH="$PWD/.research-venv/bin:$PATH" npm run test:bootloops
+```
+
+`RESEARCH_PYTHON` kan ange en absolut sökväg till Python för de nya adaptrarna.
+Använd annars samma Python 3.12 som installerat låsfilen. Ingen ny modellnyckel,
+Cloudflare-service eller databasändring behövs.
+
+## Hypotesprövning
+
+Se [hypotesprotokollen och forskningsriktningen](HYPOTHESES.md). En hypotes måste
+ha definierad modell, data, antaganden och beslutskriterier. Dessa låses före
+modellens svar och verktygskörningen. Fingeravtrycket inkluderar protokoll,
+träningsdata, holdout, kontroller och syntetiskt facit.
+
+- Annihilator passar högst ordning två med konstanta koefficienter på 24
+  träningsvärden, vid två fasta primtal. Sex externa kontrolltermer används
+  endast efter rekonstruktionen. Modellen ser de första tolv träningsvärdena.
+  Den ändrade kontrollsvansen måste avvisas med samma rekonstruerade formel.
+  De tre serierna är olika inom körningen: vid parameterkollision ökas det
+  andra startvärdet deterministiskt, samtidigt som geometriska serier undviks.
+- Mixalot jämför en känd signatur med en blandning av två fasta signaturer.
+  Priorerna och BF-trösklarna låses; två uppströmsvägar och en separat exakt
+  BigInt-polynomintegration måste ge samma evidens. Före modellförslaget väljs
+  en känd kontroll: [12,12] ska stödja H1 om primärdata stödjer H0; annars ska
+  [0,24] stödja H0. Kontrollens förväntade beslut ingår i fingeravtrycket och
+  rapporten, och körningen avbryts om kontrollen inte ger ett annat beslut.
+  Antalet verkliga grupper
+  kan inte identifieras generellt från dessa iid kategoriska räknedata.
+- Statsmodels passar AR(1) med intercept på 88 observationer och använder 16
+  holdoutobservationer enbart för prognosutvärdering. SciPy kontrollerar
+  skattning/standardfel/p-värde; separat JavaScript kontrollerar regression,
+  Student-t-svans, intervall och prognos. Alpha 0.05 låses i förväg och Holm
+  korrigerar familjen med tre tester. Till dess alla tre fall är klara markeras
+  familjeinferensen som ofullständig. Korrigeringen täcker inte återkommande
+  dagskörningar. Utebliven förkastning innebär inte att H0 bevisats.
+
+Rapportens `hypothesisTest` och Summary-tabellen visar uppmätt evidens och
+beslut separat från modellförslagets träffsäkerhet. `passed/failed` fortsätter
+mäta om modellförslagen stämmer, medan `executionStatus` anger driftstatus.
+Dessa är syntetiska acceptans- och metodtester, inte fynd från verkliga data.
+Adaptrarna tillåter inte fria Pythonprogram, dataset-URL:er, filvägar, priorer,
+laggval eller p-värdesoptimering från modellen. Nya testklasser behöver en
+reviewad adapter; fler bibliotek gör inte automatiskt alla hypoteser körbara.

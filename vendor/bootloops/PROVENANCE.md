@@ -21,6 +21,28 @@ Our acceptance tests cover positive/negative systems, prime disagreement and
 bad-denominator replacement. This is verification of our bounded subset, not
 a claim that the entire upstream battery ran.
 
+Annihilator and Mixalot are also limited to the unchanged modules below, from
+the same upstream commit. `research/toolchain.json` records SHA-256 fingerprints
+checked before import; the Git blob IDs match the original upstream files.
+
+| Local file | Original upstream path | Git blob |
+| --- | --- | --- |
+| annihilator/annihilator.py | tools/annihilator/annihilator.py | 546c32e0cb2eebc94ba9bdfe90425f89f3b5ad9b |
+| mixalot/frozen_comp_v1.py | tools/mixalot/mixalot/vendor/blend/frozen_comp_v1.py | db11f359e0bcfdfc3de4b94d92706b4f1506e465 |
+| mixalot/frozen_comp_blind.py | tools/mixalot/mixalot/vendor/blend/frozen_comp_blind.py | ca7b8cd17f1bc3e5dce96eaeb1288af295140ac9 |
+
+Annihilator exposes constant-coefficient recurrence reconstruction of order at
+most two, with two small fixed primes, exact rational reconstruction and external
+holdout checks. Its built-in core selftest was also run unchanged (dimensions
+2–5, all PASS); this does not verify the optional Ore/factor/eigenring wings.
+Mixalot exposes frozen-component evidence with two fixed categorical signatures
+and fixed Dirichlet weights, using both independent upstream derivations.
+Neither integration installs the whole upstream package or its optional engines.
+They retain the root MIT license and copyright attribution above.
+Statsmodels and numerical dependencies are installed separately from PyPI under
+the version lock in `research/requirements.lock`; Statsmodels uses BSD-3-Clause.
+Our science bridge lives outside the vendored directory.
+
 Other Ratfit functions, wider BootLoops packages, Julia, FLINT and external
 engines are not installed. The package inventory in `research/bootloops-inventory.json`
 is derived from upstream `tools/BATTERIES.json` at this commit.

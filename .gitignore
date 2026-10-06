@@ -167,3 +167,6 @@ bootloops-worker/.wrangler/
 
 # Generated research artifacts
 reports/oraklet-lab/
+
+# Local scientific Python environment
+.research-venv/

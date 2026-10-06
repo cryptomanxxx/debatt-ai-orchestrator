@@ -14,6 +14,9 @@ on:
           - ratfit-feedback
           - rankscreen-consistency
           - rankscreen-rank-deficit
+          - annihilator-recurrence
+          - mixalot-model-comparison
+          - statsmodels-ar1
         default: auto
       seed:
         description: 'Seed: 1–9 siffror; tomt använder dagens UTC-datum'
@@ -38,6 +41,9 @@ jobs:
           python-version: '3.12'
       - name: Visa experiment och integrationsstatus
         run: node research/show-catalog.mjs
+      - name: Installera låsta forskningsberoenden
+        if: inputs.experiment != 'catalog-only'
+        run: python3 -m pip install -r research/requirements.lock
       - name: Planera, kör och spara forskning
         if: inputs.experiment != 'catalog-only'
         env:

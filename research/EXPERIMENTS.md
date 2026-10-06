@@ -8,6 +8,9 @@ Välj experiment i Oraklets forskningslabb. `catalog-only` visar menyn utan mode
 | ratfit-feedback | ratfit | Förbättras förslaget efter ett korrigeringsförsök mot synliga punkter? |
 | rankscreen-consistency | rankscreen | Kan modellen skilja lösbara linjära system från system med en planterad motsägelse? |
 | rankscreen-rank-deficit | rankscreen | Kan modellen hitta rangbrist och motsägelser bland beroende ekvationer? |
+| annihilator-recurrence | annihilator | Kan en rekursion rekonstruerad från träningsdata förklara undanhållna termer? |
+| mixalot-model-comparison | mixalot | Vilken av två specificerade modeller stöds av exakt bayesiansk evidens? |
+| statsmodels-ar1 | statsmodels | Finns lagg-1-beroende i en syntetisk tidsserie under det låsta AR(1)-protokollet? |
 
 ## BootLoops: lokal integrationsstatus
 
@@ -17,7 +20,7 @@ Inventering av 49 paket vid commit `66b680ce742e654cfe86da4f072a69061fe182b1`. U
 | --- | --- | --- | --- |
 | [abacus](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/abacus) | Saknar integration | Adapter, beroenden och acceptanstester återstår att verifiera. | Ej körbart |
 | [amflow-kit](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/amflow-kit) | Saknar integration | Adapter, beroenden och acceptanstester återstår att verifiera. | Ej körbart |
-| [annihilator](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/annihilator) | Saknar integration | Adapter, beroenden och acceptanstester återstår att verifiera. | Ej körbart |
+| [annihilator](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/annihilator) | Verifierad delintegration | Exakt konstant rekursion, ordning högst två; två primtal och extern holdout | github-actions-python |
 | [ansatzer](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/ansatzer) | Saknar integration | Adapter, beroenden och acceptanstester återstår att verifiera. | Ej körbart |
 | [baller](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/baller) | Saknar integration | Adapter, beroenden och acceptanstester återstår att verifiera. | Ej körbart |
 | [blade](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/blade) | Saknar integration | Adapter, beroenden och acceptanstester återstår att verifiera. | Ej körbart |
@@ -46,7 +49,7 @@ Inventering av 49 paket vid commit `66b680ce742e654cfe86da4f072a69061fe182b1`. U
 | [longhand](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/longhand) | Saknar integration | Adapter, beroenden och acceptanstester återstår att verifiera. | Ej körbart |
 | [maxcut](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/maxcut) | Saknar integration | Adapter, beroenden och acceptanstester återstår att verifiera. | Ej körbart |
 | [membound](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/membound) | Saknar integration | Adapter, beroenden och acceptanstester återstår att verifiera. | Ej körbart |
-| [mixalot](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/mixalot) | Saknar integration | Adapter, beroenden och acceptanstester återstår att verifiera. | Ej körbart |
+| [mixalot](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/mixalot) | Verifierad delintegration | Frozen-component-evidens: två fasta kategoriska signaturer, Dirichlet(1,1) | github-actions-python |
 | [nestor](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/nestor) | Saknar integration | Adapter, beroenden och acceptanstester återstår att verifiera. | Ej körbart |
 | [numkin](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/numkin) | Saknar integration | Adapter, beroenden och acceptanstester återstår att verifiera. | Ej körbart |
 | [pmflow](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/pmflow) | Saknar integration | Adapter, beroenden och acceptanstester återstår att verifiera. | Ej körbart |
@@ -64,5 +67,14 @@ Inventering av 49 paket vid commit `66b680ce742e654cfe86da4f072a69061fe182b1`. U
 | [vopclose](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/vopclose) | Saknar integration | Adapter, beroenden och acceptanstester återstår att verifiera. | Ej körbart |
 | [wayfinder](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/wayfinder) | Saknar integration | Adapter, beroenden och acceptanstester återstår att verifiera. | Ej körbart |
 | [winnow](https://github.com/BootLoops-ai/bootloops/tree/66b680ce742e654cfe86da4f072a69061fe182b1/tools/winnow) | Saknar integration | Adapter, beroenden och acceptanstester återstår att verifiera. | Ej körbart |
+
+## Verktyg utanför BootLoops
+
+| Verktyg | Version | Status | Omfattning | Körmiljö |
+| --- | --- | --- | --- | --- |
+| [statsmodels](https://www.statsmodels.org/stable/tsa.html) | 0.15.0 | Verifierad delintegration | Installerat med låsta beroenden; AutoReg AR(1), nominalt t-test, Holm-korrigering och holdoutprognos | github-actions-python |
+| [pymc](https://www.pymc.io/welcome.html) | Ej låst | Saknar integration | Kandidat: probabilistiska modeller och bayesiansk inferens; adapter och kontroller återstår | Ej körbart |
+| [dowhy](https://www.pywhy.org/dowhy/v0.14/) | Ej låst | Saknar integration | Kandidat: kausal inferens med explicita antaganden och robusthetskontroller; ej integrerat | Ej körbart |
+| [sympy](https://www.sympy.org/en/index.html) | Ej låst | Saknar integration | Kandidat: symbolisk algebra och kontroll av matematiska samband; ej integrerat | Ej körbart |
 
 Nya integrationer kräver låst källversion och licens, begränsad adapter, angiven körmiljö, positiva och negativa kontroller samt verifiering av rapportkedjan. Först därefter läggs experimentet till i körmenyn och den automatiska planeringen.
