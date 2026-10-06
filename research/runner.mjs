@@ -4,6 +4,8 @@ import { randomUUID, createHash } from 'node:crypto';
 import { CATALOG, choosePlan, lockModel } from './catalog.mjs';
 import { runExperiment } from './ratfit.mjs';
 import { runRankExperiment, callRankscreen } from './rankscreen.mjs';
+import { runScienceExperiment } from './science.mjs';
+import { callScienceTool } from './python-tools.mjs';
 
 // Catalog viewing needs no model or database credentials.
 if (process.env.EXPERIMENT === 'catalog-only') {
@@ -99,21 +101,23 @@ try {
   console.log('Experimentplanens SHA-256 före körning:', planCommitment);
   stage = 'experiment';
   const entry = CATALOG.find(e => e.id === plan.experimentId);
-  const rankExperiment = entry.toolId === 'rankscreen';
-  const execute = rankExperiment ? runRankExperiment : runExperiment;
-  const tool = rankExperiment ? async input => {
+  const runners = { ratfit: runExperiment, rankscreen: runRankExperiment,
+    annihilator: runScienceExperiment, mixalot: runScienceExperiment, statsmodels: runScienceExperiment };
+  const execute = runners[entry.toolId];
+  if (!execute) throw new ResearchError('invalid_plan');
+  const tool = entry.toolId === 'ratfit' ? callTool : async input => {
     if (++toolCalls > 6) throw new ResearchError('tool_budget_exceeded');
-    return callRankscreen(input);
-  } : callTool;
+    return entry.toolId === 'rankscreen' ? callRankscreen(input) : callScienceTool(entry.toolId, input);
+  };
   report = await execute(plan.seed, propose, tool, async commitments => {
     await writeFile(`${directory}/commitments.json`, JSON.stringify(commitments, null, 2));
     console.log('Datans SHA-256 före modellförslagen:', JSON.stringify(commitments));
-  }, { experimentId: entry.id, feedback: entry.feedback, onProgress: async cases => {
+  }, { experimentId: entry.id, toolId: entry.toolId, feedback: entry.feedback, onProgress: async cases => {
     completedCases = cases;
     await writeFile(`${directory}/progress.json`, JSON.stringify({ cases, ...metadata }, null, 2));
   } });
   Object.assign(report, { experimentId: plan.experimentId, toolId: entry.toolId,
-    toolRuntime: rankExperiment ? 'github-actions-python' : 'orchestrator-api', plan, planCommitment });
+    toolRuntime: entry.toolId === 'ratfit' ? 'orchestrator-api' : 'github-actions-python', plan, planCommitment });
 } catch (error) {
   const failure = diagnostic(error);
   console.error('Experimentets felkod:', JSON.stringify(failure));
@@ -130,10 +134,21 @@ try {
 Object.assign(report, metadata, { reportId, modelCalls, toolCalls,
   executionStatus: executionFailed ? 'error' : 'completed' });
 await writeFile(`${directory}/report.json`, JSON.stringify(report, null, 2));
+const hypothesisRows = report.cases.filter(c => c.hypothesisTest);
+const decisionLabel = value => ({ supports_h1: 'Stöd för H1', supports_h0: 'Stöd för H0', inconclusive: 'Otillräcklig evidens',
+  reject_h0: 'Förkasta H0', do_not_reject_h0: 'Förkasta inte H0', supported_on_holdout: 'Stöd på holdout',
+  pending_all_three_cases: 'Ofullständigt', completed: 'Slutfört' })[value] || value;
+const protocol = report.protocol || hypothesisRows[0]?.hypothesisTest.protocol;
+const protocolMarkdown = protocol ? `\n\nProtokoll: ${protocol.hypothesis || protocol.h0} ${protocol.h1 || protocol.alternative || ''}\n\nBeslutskriterium: ${protocol.rule}\n` : '';
+const hypothesisMarkdown = hypothesisRows.length ? protocolMarkdown + '\n\n## Hypotesresultat\n\nModellförslagets träffsäkerhet ovan är separat från den uppmätta evidensen nedan.\n\n| Fall | Uppmätt beslut | Evidens | Familjebeslut |\n| --- | --- | --- | --- |\n' + hypothesisRows.map(c => {
+  const h = c.hypothesisTest, m = h.measured;
+  const evidence = m.bayesFactor10 ? `BF10=${m.bayesFactor10}` : m.pvalue !== undefined ? `p=${m.pvalue.toPrecision(4)}, Holm=${h.holmAdjustedPvalue?.toPrecision(4) || 'ej klar'}` : `${m.checked} holdouttermer, ${m.failed} avvikelser`;
+  return `| ${c.case} | ${decisionLabel(h.decision)} | ${evidence} | ${decisionLabel(h.familyDecision || h.familyInference || 'Ej tillämpligt')} |`;
+}).join('\n') : '';
 const markdown = `# ${report.title}\n\n${report.question}\n\nExperiment: ${report.experimentId || 'planering'}. Seed: ${report.seed}.\n\n` +
   (report.cases.length ? '| Fall | Första förslag | Korrigering | Slutligt förslag | Samma modell |\n| --- | --- | --- | --- | --- |\n' +
     report.cases.map(c => `| ${c.case} | ${c.initialPassed ? 'Godkänt' : 'Underkänt'} | ${c.correctionAttempted ? 'Ja' : 'Nej'} | ${c.passed ? 'Godkänt' : 'Underkänt'} | ${c.sameModel ? 'Ja' : 'Nej'} |`).join('\n') : report.method) +
-  `\n\n${executionFailed ? 'Driftfel: ' + JSON.stringify(report.failure) + '. Slutförda fall är delresultat; experimentet är avbrutet.\n\n' : ''}${report.limitations}\n\nModellanrop: ${modelCalls}/7. Verktygsanrop: ${toolCalls}/6. Fullständig plan och rapport finns i artefakten.\n`;
+  hypothesisMarkdown + `\n\n${executionFailed ? 'Driftfel: ' + JSON.stringify(report.failure) + '. Slutförda fall är delresultat; experimentet är avbrutet.\n\n' : ''}${report.limitations}\n\nModellanrop: ${modelCalls}/7. Verktygsanrop: ${toolCalls}/6. Fullständig plan och rapport finns i artefakten.\n`;
 await writeFile(`${directory}/report.md`, markdown);
 if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown);
 const saved = await fetch(DB, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
