@@ -46,8 +46,13 @@ Python-adapter i Actions. Tre ytterligare experiment använder begränsade
 Annihilator-, Mixalot- och Statsmodels-operationer i Actions. Se [hela experimentkatalogen](EXPERIMENTS.md)
 för samtliga 49 paket i den låsta BootLoops-versionen. 45 BootLoops-paket saknar ännu integration. Angivna delmängder av Ratfit,
 Rankscreen, Annihilator och Mixalot är verifierade. Statsmodels är ett separat
-installerat verktyg; endast AR(1)-adaptern är verifierad hos oss. Kandidaterna
-PyMC, DoWhy och SymPy visas som väntande och kan inte väljas av planeringen.
+installerat verktyg; endast AR(1)-adaptern är verifierad hos oss.
+DoWhy visas som väntande. PyMC har ett manuellt BNP-experiment.
+SymPy 1.14.0 och mpmath 1.3.0 installeras i båda forskningsworkflowen från
+`sympy-requirements.lock`. Versionskontroll och fasta tester av ekvationslösning,
+exakt derivata och integration körs före forskningen och i CI, även tillsammans
+med PyMC-miljön. SymPy saknar ännu forskningsadapter och körbart experiment
+och kan därför inte väljas av planeringen. Se [SymPy-installationen](SYMPY.md).
 GitHub-menyn och planeringen innehåller endast körbara experiment.
 `catalog-only` visar även väntande metoder i körningens Summary och artefakt.
 Ändra katalogen, dispatch och workflowmenyn tillsammans; CI kontrollerar att de stämmer. Oraklet får
