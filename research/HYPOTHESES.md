@@ -73,18 +73,6 @@ för hans projekt, inte ett testresultat för vår orchestrator eller ett påst�
 att alla manuskript är oberoende validerade eller accepterade för publicering.
 
 Källa: [Claude-shaped science, Anthropic, 1 oktober 2026](https://www.anthropic.com/research/claude-shaped-science).
-BootLoops ägs …3506 tokens truncated…r och använder 16
-  holdoutobservationer enbart för prognosutvärdering. SciPy kontrollerar
-  skattning/standardfel/p-värde; separat JavaScript kontrollerar regression,
-  Student-t-svans, intervall och prognos. Alpha 0.05 låses i förväg och Holm
-  korrigerar familjen med tre tester. Till dess alla tre fall är klara markeras
-  familjeinferensen som ofullständig. Korrigeringen täcker inte återkommande
-  dagskörningar. Utebliven förkastning innebär inte att H0 bevisats.
-
-Rapportens `hypothesisTest` och Summary-tabellen visar uppmätt evidens och
-beslut separat från modellförslagets träffsäkerhet. `passed/failed` fortsätter
-mäta om modellförslagen stämmer, medan `executionStatus` anger driftstatus.
-Dessa är syntetiska acceptans- och metodtester, inte fynd från verkliga data.
-Adaptrarna tillåter inte fria Pythonprogram, dataset-URL:er, filvägar, priorer,
-laggval eller p-värdesoptimering från modellen. Nya testklasser behöver en
-reviewad adapter; fler bibliotek gör inte automatiskt alla hypoteser körbara.
+BootLoops ägs och underhålls enligt artikelns disclosure av Schwartz; det är
+inte ett Anthropic-projekt. Vi använder hans öppna verktyg med vår egen modell
+och forskningsmotor.
