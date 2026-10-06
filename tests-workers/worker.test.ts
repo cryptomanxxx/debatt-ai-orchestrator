@@ -110,3 +110,31 @@ test('Workers runtime routes real inference and hides provider failures', async 
     assert.equal(calls[1].model, 'default-test-model');
   } finally { await runtime.dispose(); }
 });
+
+test('Workers uses an internal service and hides failures without affecting health or calculator', async () => {
+  let fail = false, calls = 0;
+  const runtime = createRuntime({ serviceBindings: { BOOTLOOPS: async (request: Request) => {
+    calls++;
+    assert.equal(request.headers.has('Authorization'), false);
+    return fail ? new Response('private-service-error', { status: 500 })
+      : Response.json({ accepted: true, depth: 3, checked: 2, failed: 0 });
+  } } });
+  try {
+    const body = JSON.stringify({ tool: 'bootloops_ratfit', input: {
+      banked: [['0','1/2'],['1','2/3'],['2','3/4'],['3','4/5']],
+      holdout: [['4','5/6'],['5','6/7']]
+    } });
+    assert.equal((await request(runtime, body, 'wrong')).status, 401);
+    assert.equal(calls, 0);
+    const good = await request(runtime, body);
+    assert.equal(good.status, 200);
+    assert.equal((await good.json()).provider, 'bootloops');
+    fail = true;
+    const bad = await request(runtime, body);
+    assert.equal(bad.status, 502);
+    assert.deepEqual(await bad.json(), { error: 'bootloops_execution_failed' });
+    assert.equal((await runtime.dispatchFetch('https://worker.test/health')).status, 200);
+    assert.equal((await request(runtime, '{"message":"calc: 2+2","mode":"auto"}')).status, 200);
+    assert.equal(calls, 2);
+  } finally { await runtime.dispose(); }
+});

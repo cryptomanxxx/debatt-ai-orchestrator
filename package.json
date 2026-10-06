@@ -13,7 +13,13 @@
     "test:workers": "node --test tests-workers/*.test.ts",
     "dev:workers": "wrangler dev",
     "check:workers": "wrangler deploy --dry-run --outdir .worker-build",
-    "deploy:workers": "wrangler deploy"
+    "deploy:workers": "wrangler deploy",
+    "prepare:bootloops:worker": "python3 scripts/prepare_bootloops_worker.py",
+    "check:bootloops:worker": "npm run prepare:bootloops:worker && cd bootloops-worker && uvx --from workers-py==1.17.6 pywrangler deploy --dry-run --outdir .worker-build",
+    "deploy:bootloops:worker": "npm run prepare:bootloops:worker && cd bootloops-worker && uvx --from workers-py==1.17.6 pywrangler deploy",
+    "deploy:workers:bootloops": "wrangler deploy --config wrangler.bootloops.jsonc",
+    "check:workers:bootloops": "wrangler deploy --config wrangler.bootloops.jsonc --dry-run --outdir .worker-build-bootloops",
+    "test:bootloops:worker": "node --test tests-python-workers/*.test.ts"
   },
   "devDependencies": {
     "miniflare": "5.20261001.0-alpha",
