@@ -21,6 +21,7 @@
     "deploy:workers:bootloops": "wrangler deploy --config wrangler.bootloops.jsonc",
     "check:workers:bootloops": "wrangler deploy --config wrangler.bootloops.jsonc --dry-run --outdir .worker-build-bootloops",
     "test:bootloops:worker": "node --test tests-python-workers/*.test.ts",
+    "research:catalog": "node research/show-catalog.mjs",
     "test:research": "node --test tests-research/*.test.mjs"
   },
   "devDependencies": {

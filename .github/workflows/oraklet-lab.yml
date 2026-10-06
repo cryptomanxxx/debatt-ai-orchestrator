@@ -5,12 +5,15 @@ on:
   workflow_dispatch:
     inputs:
       experiment:
-        description: Experiment (auto låter Oraklet välja utifrån historiken)
+        description: Experiment (catalog-only visar alla metoder; auto väljer körbart)
         type: choice
         options:
           - auto
+          - catalog-only
           - ratfit-baseline
           - ratfit-feedback
+          - rankscreen-consistency
+          - rankscreen-rank-deficit
         default: auto
       seed:
         description: 'Seed: 1–9 siffror; tomt använder dagens UTC-datum'
@@ -30,7 +33,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Visa experiment och integrationsstatus
+        run: node research/show-catalog.mjs
       - name: Planera, kör och spara forskning
+        if: inputs.experiment != 'catalog-only'
         env:
           EXPERIMENT: ${{ inputs.experiment || 'auto' }}
           EXPERIMENT_SEED: ${{ inputs.seed }}
