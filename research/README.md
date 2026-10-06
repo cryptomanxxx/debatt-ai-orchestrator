@@ -22,8 +22,11 @@ Kör **Oraklets forskningslabb → Run workflow → main**. Välj experiment:
 | ratfit-feedback | Samma fallgenerator; högst en korrigering per fall utifrån sex synliga punkter |
 
 Seed är 1–9 siffror; tomt ger dagens UTC-datum. Manuella körningar kan upprepa
-samma seed för jämförelse. Auto avvisar en identisk experiment/seed-kombination
-i den lästa historiken. Detta är ingen global dubblettgaranti.
+samma seed för jämförelse. Om auto väljer en experiment/seed-kombination som
+finns bland de tio senaste rapporterna väljer labbet nästa lediga seed för
+det experimentet, utan ett nytt modellanrop. Ändringen sparas i planens
+`seedAdjustment` och ingår i SHA-256 före datagenereringen. Manuellt valda
+experiment behåller sin seed. Detta är ingen global dubblettgaranti.
 
 Schemat kör dagligen cirka 05:17 UTC (07:17 svensk sommartid, 06:17 vintertid).
 GitHub kan fördröja schemalagda körningar. Dagliga körningar använder `auto`.
