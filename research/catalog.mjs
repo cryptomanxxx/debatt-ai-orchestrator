@@ -21,8 +21,8 @@ export const EXTERNAL_TOOLS = Object.freeze([{ id: 'statsmodels', integration: '
     scope: 'Konjugat bayesiansk AR(1), låsta priorer, fyra MCMC-kedjor, kvalitetsgränser och oberoende analytisk posterior' },
   { id: 'dowhy', integration: 'pending', version: null, runtime: null, source: 'https://www.pywhy.org/dowhy/v0.14/',
     scope: 'Kandidat: kausal inferens med explicita antaganden och robusthetskontroller; ej integrerat' },
-  { id: 'sympy', integration: 'installed', version: sympyToolchain.packages.sympy, runtime: 'github-actions-python', source: 'https://www.sympy.org/en/index.html',
-    scope: 'Installerat med låst mpmath; fasta algebra-/derivatkontroller. Forskningsadapter och experiment återstår' },
+  { id: 'sympy', integration: 'verified-subset', version: sympyToolchain.packages.sympy, runtime: 'github-actions-python', source: 'https://www.sympy.org/en/index.html',
+    scope: 'Exakta andragradsekvationer med rationella eller inga reella rötter; BigInt-verifiering och förvanskade rotkontroller' },
 ]);
 export const ALL_RESEARCH_TOOLS = Object.freeze([...TOOLS, ...EXTERNAL_TOOLS]);
 export const CATALOG = Object.freeze([
@@ -40,6 +40,8 @@ export const CATALOG = Object.freeze([
     question: 'Vilken av två specificerade modeller stöds av exakt bayesiansk evidens?' },
   { id: 'statsmodels-ar1', name: 'Statsmodels: tidsberoende', toolId: 'statsmodels',
     question: 'Finns lagg-1-beroende i en syntetisk tidsserie under det låsta AR(1)-protokollet?' },
+  { id: 'sympy-quadratic', name: 'SymPy: exakta andragradsekvationer', toolId: 'sympy',
+    question: 'Kan Oraklet ange exakt alla distinkta reella rötter och avvisa felaktiga rotmängder?' },
   { id: 'pymc-gdp-ar1', name: 'PyMC: bayesiansk BNP-uppföljning (manuell)', toolId: 'pymc', automatic: false,
     question: 'Hur osäker är lagg-1-koefficienten i historisk BNP-tillväxt under låsta bayesianska priorer?' },
 ]);

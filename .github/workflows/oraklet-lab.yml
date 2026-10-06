@@ -17,6 +17,7 @@ on:
           - annihilator-recurrence
           - mixalot-model-comparison
           - statsmodels-ar1
+          - sympy-quadratic
           - pymc-gdp-ar1
         default: auto
       seed:

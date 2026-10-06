@@ -7,6 +7,7 @@ import { runRankExperiment, callRankscreen } from './rankscreen.mjs';
 import { runScienceExperiment } from './science.mjs';
 import { callScienceTool } from './python-tools.mjs';
 import { runPymcExperiment, callPymc } from './pymc.mjs';
+import { runSympyExperiment, callSympy } from './sympy.mjs';
 
 // Catalog viewing needs no model or database credentials.
 if (process.env.EXPERIMENT === 'catalog-only') {
@@ -103,12 +104,12 @@ try {
   stage = 'experiment';
   const entry = CATALOG.find(e => e.id === plan.experimentId);
   const runners = { ratfit: runExperiment, rankscreen: runRankExperiment,
-    annihilator: runScienceExperiment, mixalot: runScienceExperiment, statsmodels: runScienceExperiment, pymc: runPymcExperiment };
+    annihilator: runScienceExperiment, mixalot: runScienceExperiment, statsmodels: runScienceExperiment, pymc: runPymcExperiment, sympy: runSympyExperiment };
   const execute = runners[entry.toolId];
   if (!execute) throw new ResearchError('invalid_plan');
   const tool = entry.toolId === 'ratfit' ? callTool : async input => {
     if (++toolCalls > 6) throw new ResearchError('tool_budget_exceeded');
-    return entry.toolId === 'rankscreen' ? callRankscreen(input) : entry.toolId === 'pymc' ? callPymc(input) : callScienceTool(entry.toolId, input);
+    return entry.toolId === 'rankscreen' ? callRankscreen(input) : entry.toolId === 'pymc' ? callPymc(input) : entry.toolId === 'sympy' ? callSympy(input) : callScienceTool(entry.toolId, input);
   };
   report = await execute(plan.seed, propose, tool, async commitments => {
     await writeFile(`${directory}/commitments.json`, JSON.stringify(commitments, null, 2));
@@ -138,12 +139,12 @@ await writeFile(`${directory}/report.json`, JSON.stringify(report, null, 2));
 const hypothesisRows = report.cases.filter(c => c.hypothesisTest);
 const decisionLabel = value => ({ supports_h1: 'Stöd för H1', supports_h0: 'Stöd för H0', inconclusive: 'Otillräcklig evidens',
   reject_h0: 'Förkasta H0', do_not_reject_h0: 'Förkasta inte H0', supported_on_holdout: 'Stöd på holdout',
-  pending_all_three_cases: 'Ofullständigt', completed: 'Slutfört', positive:'Positiv koefficient',negative:'Negativ koefficient' })[value] || value;
+  pending_all_three_cases: 'Ofullständigt', completed: 'Slutfört', positive:'Positiv koefficient',negative:'Negativ koefficient', real_solutions:'Reella lösningar',no_real_solutions:'Inga reella lösningar' })[value] || value;
 const protocol = report.protocol || hypothesisRows[0]?.hypothesisTest.protocol;
 const protocolMarkdown = protocol ? `\n\nProtokoll: ${protocol.hypothesis || protocol.h0} ${protocol.h1 || protocol.alternative || ''}\n\nBeslutskriterium: ${protocol.rule}\n` : '';
 const hypothesisMarkdown = hypothesisRows.length ? protocolMarkdown + '\n\n## Hypotesresultat\n\nModellförslagets träffsäkerhet ovan är separat från den uppmätta evidensen nedan.\n\n| Fall | Uppmätt beslut | Evidens | Familjebeslut |\n| --- | --- | --- | --- |\n' + hypothesisRows.map(c => {
   const h = c.hypothesisTest, m = h.measured;
-  const evidence = m.probabilityPositive !== undefined ? `P(phi>0)=${m.probabilityPositive.toPrecision(5)}, 95% posteriorintervall=[${m.phiInterval95.map(v=>v.toPrecision(4)).join(', ')}], Rhat=${m.mcmc.maximumRhat.toPrecision(4)}, ESS=${m.mcmc.minimumEssBulk.toFixed(0)}` : m.bayesFactor10 ? `BF10=${m.bayesFactor10}` : m.pvalue !== undefined ? `p=${m.pvalue.toPrecision(4)}, Holm=${h.holmAdjustedPvalue?.toPrecision(4) || 'ej klar'}` : `${m.checked} holdouttermer, ${m.failed} avvikelser`;
+  const evidence = Array.isArray(m.roots) ? `Rötter: ${m.roots.length ? m.roots.join(', ') : 'tom mängd'}, diskriminant=${m.discriminant}, exakt verifierat` : m.probabilityPositive !== undefined ? `P(phi>0)=${m.probabilityPositive.toPrecision(5)}, 95% posteriorintervall=[${m.phiInterval95.map(v=>v.toPrecision(4)).join(', ')}], Rhat=${m.mcmc.maximumRhat.toPrecision(4)}, ESS=${m.mcmc.minimumEssBulk.toFixed(0)}` : m.bayesFactor10 ? `BF10=${m.bayesFactor10}` : m.pvalue !== undefined ? `p=${m.pvalue.toPrecision(4)}, Holm=${h.holmAdjustedPvalue?.toPrecision(4) || 'ej klar'}` : `${m.checked} holdouttermer, ${m.failed} avvikelser`;
   return `| ${c.case} | ${decisionLabel(h.decision)} | ${evidence} | ${decisionLabel(h.familyDecision || h.familyInference || 'Ej tillämpligt')} |`;
 }).join('\n') : '';
 const markdown = `# ${report.title}\n\n${report.question}\n\nExperiment: ${report.experimentId || 'planering'}. Seed: ${report.seed}.\n\n` +
