@@ -153,6 +153,11 @@ Cloudflare-service eller databasändring behövs.
 
 ## Hypotesprövning
 
+[PyMC:s bayesianska BNP-uppföljning](PYMC.md) finns som `pymc-gdp-ar1` i menyn.
+Den väljs manuellt och installerar en separat låst PyMC-miljö i Actions.
+`npm run test:pymc` verifierar denna adapter; ordinarie Cloudflare-bygge
+behöver inte PyMC-paketen.
+
 Se [hypotesprotokollen och forskningsriktningen](HYPOTHESES.md). En hypotes måste
 ha definierad modell, data, antaganden och beslutskriterier. Dessa låses före
 modellens svar och verktygskörningen. Fingeravtrycket inkluderar protokoll,

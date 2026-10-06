@@ -11,6 +11,7 @@ Välj experiment i Oraklets forskningslabb. `catalog-only` visar menyn utan mode
 | annihilator-recurrence | annihilator | Kan en rekursion rekonstruerad från träningsdata förklara undanhållna termer? |
 | mixalot-model-comparison | mixalot | Vilken av två specificerade modeller stöds av exakt bayesiansk evidens? |
 | statsmodels-ar1 | statsmodels | Finns lagg-1-beroende i en syntetisk tidsserie under det låsta AR(1)-protokollet? |
+| pymc-gdp-ar1 (endast manuellt) | pymc | Hur osäker är lagg-1-koefficienten i historisk BNP-tillväxt under låsta bayesianska priorer? |
 
 ## BootLoops: lokal integrationsstatus
 
@@ -73,7 +74,7 @@ Inventering av 49 paket vid commit `66b680ce742e654cfe86da4f072a69061fe182b1`. U
 | Verktyg | Version | Status | Omfattning | Körmiljö |
 | --- | --- | --- | --- | --- |
 | [statsmodels](https://www.statsmodels.org/stable/tsa.html) | 0.15.0 | Verifierad delintegration | Installerat med låsta beroenden; AutoReg AR(1), nominalt t-test, Holm-korrigering och holdoutprognos | github-actions-python |
-| [pymc](https://www.pymc.io/welcome.html) | Ej låst | Saknar integration | Kandidat: probabilistiska modeller och bayesiansk inferens; adapter och kontroller återstår | Ej körbart |
+| [pymc](https://www.pymc.io/) | 6.3.2 | Verifierad delintegration | Konjugat bayesiansk AR(1), låsta priorer, fyra MCMC-kedjor, kvalitetsgränser och oberoende analytisk posterior | github-actions-python |
 | [dowhy](https://www.pywhy.org/dowhy/v0.14/) | Ej låst | Saknar integration | Kandidat: kausal inferens med explicita antaganden och robusthetskontroller; ej integrerat | Ej körbart |
 | [sympy](https://www.sympy.org/en/index.html) | Ej låst | Saknar integration | Kandidat: symbolisk algebra och kontroll av matematiska samband; ej integrerat | Ej körbart |
 
