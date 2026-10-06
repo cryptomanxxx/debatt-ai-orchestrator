@@ -39,6 +39,20 @@ test('real Python Worker runs behind an authenticated orchestrator service bindi
     assert.deepEqual(await good.json(), { accepted: true, depth: 3, checked: 2, failed: 0 });
     const corrupt = { ...input, holdout: [['4','0'],['5','6/7']] };
     assert.equal((await direct(corrupt)).status, 422);
+    const constant = { banked: input.banked.map(([x]) => [x, '7/3']),
+      holdout: input.holdout.map(([x]) => [x, '7/3']) };
+    const constantResult = await direct(constant);
+    assert.equal(constantResult.status, 200);
+    assert.deepEqual(await constantResult.json(), { accepted: true, depth: 1, checked: 2, failed: 0 });
+    const square = { banked: [-3,-2,-1,0,1,2].map(x => [String(x), String(x*x)]),
+      holdout: [["3","9"],["4","16"]] };
+    const squareResult = await direct(square);
+    assert.equal(squareResult.status, 200);
+    assert.equal((await squareResult.json()).failed, 0);
+    const largeFraction = '999999999999999999999999/999999999999999999999998';
+    assert.equal((await direct({ banked: constant.banked.map(([x]) => [x, largeFraction]),
+      holdout: constant.holdout.map(([x]) => [x, largeFraction]) })).status, 200);
+    assert.equal((await direct({ ...input, holdout: [['4','1/02'],['5','6/7']] })).status, 400);
     assert.equal((await direct({ ...input, holdout: [['0/2','1'],['5','1']] })).status, 400);
     assert.equal((await direct(input, 'text/plain')).status, 415);
     assert.equal((await direct(input, 'application/json', '/other')).status, 404);
@@ -64,7 +78,7 @@ test('real Python Worker runs behind an authenticated orchestrator service bindi
     const rejected = await query(corrupt);
     assert.equal(rejected.status, 422);
     assert.equal((await rejected.json()).verification.status, 'failed');
-    console.log('Real Python Worker: planted truth passed; corrupted holdout refused; service binding passed.');
+    console.log('Real Python Worker: truth, constant, degeneracy and bounded large fractions passed; corruption and invalid input refused; service binding passed.');
   } finally {
     if (runtime) await runtime.dispose();
     if (child.pid) {

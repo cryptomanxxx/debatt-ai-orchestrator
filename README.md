@@ -238,6 +238,19 @@ more sample points may exceed the budget. No paid service is enabled by this
 repository; validate usage before increasing input sizes. The subprocess's
 Unix CPU/memory caps are replaced by Cloudflare's runtime limits in this path.
 
+For development, run `npm run profile:bootloops` to profile a fixed public
+positive fixture and check a corrupted holdout. It reports native Python
+validation, fit and gate timings, plus a call profile; these are **not**
+Cloudflare CPU measurements. The bridge parses bounded rational strings once
+and sets upstream `probe=0` to skip duplicated lookahead evaluations. Upstream
+still validates every banked point and gates every holdout. The pinned upstream
+file is unchanged. `npm run test:bootloops` compares reports with the original
+parser and default fit settings, including corrupted samples, poles, degeneracy
+and input limits. After deploying both Workers, rerun **Testa BootLoops i
+Cloudflare** and compare the Python Worker's CPU time with the earlier 23–26 ms
+observations; an improvement or a successful test alone does not certify that
+all allowed inputs stay below 10 ms.
+
 References: [Python Workers](https://developers.cloudflare.com/workers/languages/python/),
 [Service Bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/),
 [build image](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/),
