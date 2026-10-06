@@ -84,6 +84,7 @@ let completedCases = [];
 let plan, planCommitment, report, executionFailed = false, stage = 'planning';
 try {
   plan = await choosePlan(selection, seed, history, propose);
+  if (plan.seedAdjustment) console.log('Seed ändrad före datagenerering:', JSON.stringify(plan.seedAdjustment), '→', plan.seed);
   planCommitment = createHash('sha256').update(JSON.stringify(plan)).digest('hex');
   await writeFile(`${directory}/plan.json`, JSON.stringify({ plan, planCommitment, ...metadata }, null, 2));
   console.log('Experimentplanens SHA-256 före körning:', planCommitment);

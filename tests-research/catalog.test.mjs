@@ -11,10 +11,29 @@ test('planner can select only validated runnable experiments, bounded seed and r
   let calls = 0;
   const propose = async () => { calls++; return { text: JSON.stringify(plan) }; };
   assert.deepEqual(await choosePlan('auto', '123', [], propose), plan);
-  await assert.rejects(choosePlan('auto', '123', [{ experimentId: plan.experimentId, seed: plan.seed }], propose));
+  const adjusted = await choosePlan('auto', '123', [{ experimentId: plan.experimentId, seed: plan.seed }], propose);
+  assert.deepEqual(adjusted, { ...plan, seed: '124',
+    seedAdjustment: { reason: 'duplicate_in_recent_history', originalSeed: '123' } });
   await choosePlan('ratfit-baseline', '123', [], propose);
   assert.equal(calls, 2); // Manual selection never calls a planner.
   assert.equal(JSON.parse(plannerPrompt(Array(20).fill({ status: 'failed' }), '123')[1].content).history.length, 10);
+});
+
+test('duplicate auto plans skip occupied seeds and wrap; manual repeats remain reproducible', async () => {
+  const plan = { experimentId: 'ratfit-feedback', seed: '999999999', reason: 'Uppföljning.' };
+  let calls = 0;
+  const propose = async () => { calls++; return { text: JSON.stringify(plan) }; };
+  const history = ['999999999', '0', '1', '2'].map(seed => ({ experimentId: plan.experimentId, seed, status: 'failed' }));
+  const adjusted = await choosePlan('auto', plan.seed, history, propose);
+  assert.equal(adjusted.seed, '3');
+  assert.equal(adjusted.seedAdjustment.originalSeed, '999999999');
+  assert.deepEqual(await choosePlan('auto', plan.seed, history, propose), adjusted);
+  assert.equal((await choosePlan('auto', plan.seed, [{ experimentId: 'ratfit-baseline', seed: plan.seed }], propose)).seed, plan.seed);
+  assert.equal(calls, 3, 'one planning call per auto run, no retry');
+  const manual = await choosePlan('ratfit-feedback', plan.seed, history, propose);
+  assert.equal(manual.seed, plan.seed);
+  assert.equal(manual.seedAdjustment, undefined);
+  assert.equal(calls, 3);
 });
 
 test('provider/model is locked across planner, proposals and corrections', async () => {
