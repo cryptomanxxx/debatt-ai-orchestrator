@@ -25,6 +25,7 @@ Kör **Oraklets forskningslabb → Run workflow → main**. Välj experiment:
 | annihilator-recurrence | Återfinn en konstant rekursion och testa undanhållna termer |
 | mixalot-model-comparison | Jämför två specificerade kategoriska modeller med exakt Bayesfaktor |
 | statsmodels-ar1 | Testa tidsberoende med förutbestämt AR(1)-test, Holm och holdoutprognos |
+| sympy-quadratic | Lös exakta andragradsekvationer; komplett reell rotmängd och oberoende BigInt-kontroll |
 | catalog-only | Visa BootLoops och externa verktygs integrationsstatus, utan modell/databas |
 
 Seed är 1–9 siffror; tomt ger dagens UTC-datum. Manuella körningar kan upprepa
@@ -51,8 +52,9 @@ DoWhy visas som väntande. PyMC har ett manuellt BNP-experiment.
 SymPy 1.14.0 och mpmath 1.3.0 installeras i båda forskningsworkflowen från
 `sympy-requirements.lock`. Versionskontroll och fasta tester av ekvationslösning,
 exakt derivata och integration körs före forskningen och i CI, även tillsammans
-med PyMC-miljön. SymPy saknar ännu forskningsadapter och körbart experiment
-och kan därför inte väljas av planeringen. Se [SymPy-installationen](SYMPY.md).
+med PyMC-miljön. SymPy har en begränsad adapter för exakta andragradsekvationer
+och experimentet `sympy-quadratic` kan väljas manuellt eller av `auto`.
+Se [SymPy-protokollet](SYMPY.md).
 GitHub-menyn och planeringen innehåller endast körbara experiment.
 `catalog-only` visar även väntande metoder i körningens Summary och artefakt.
 Ändra katalogen, dispatch och workflowmenyn tillsammans; CI kontrollerar att de stämmer. Oraklet får
