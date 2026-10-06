@@ -1,4 +1,5 @@
 {
+  "adapterVersion": 1,
   "python": "3.12",
   "environment": ".dowhy-venv",
   "packages": {

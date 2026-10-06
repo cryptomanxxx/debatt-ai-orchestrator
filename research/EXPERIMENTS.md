@@ -13,6 +13,7 @@ Välj experiment i Oraklets forskningslabb. `catalog-only` visar menyn utan mode
 | statsmodels-ar1 | statsmodels | Finns lagg-1-beroende i en syntetisk tidsserie under det låsta AR(1)-protokollet? |
 | sympy-quadratic | sympy | Kan Oraklet ange exakt alla distinkta reella rötter och avvisa felaktiga rotmängder? |
 | sklearn-polynomial | scikit-learn | Vilken av två fasta regressionsmodeller väljs på separat valideringsdata och hur går det på testpunkterna? |
+| dowhy-backdoor | dowhy | Kan Oraklet skilja en justerad kausal effekt från ojusterad association under ett fast diagram? |
 | pymc-gdp-ar1 (endast manuellt) | pymc | Hur osäker är lagg-1-koefficienten i historisk BNP-tillväxt under låsta bayesianska priorer? |
 
 ## BootLoops: lokal integrationsstatus
@@ -77,7 +78,7 @@ Inventering av 49 paket vid commit `66b680ce742e654cfe86da4f072a69061fe182b1`. U
 | --- | --- | --- | --- | --- |
 | [statsmodels](https://www.statsmodels.org/stable/tsa.html) | 0.15.0 | Verifierad delintegration | Installerat med låsta beroenden; AutoReg AR(1), nominalt t-test, Holm-korrigering och holdoutprognos | github-actions-python |
 | [pymc](https://www.pymc.io/) | 6.3.2 | Verifierad delintegration | Konjugat bayesiansk AR(1), låsta priorer, fyra MCMC-kedjor, kvalitetsgränser och oberoende analytisk posterior | github-actions-python |
-| [dowhy](https://www.pywhy.org/dowhy/v0.14/) | 0.14 | Installerat; saknar experimentintegration | Installerat i separat Python-miljö; fasta backdoor-, effekt- och nollkontroller. Forskningsadapter och experiment återstår | github-actions-python |
+| [dowhy](https://www.pywhy.org/dowhy/v0.14/) | 0.14 | Verifierad delintegration | Fast backdoor-diagram och justerad linjär regression; positiv/negativ/nolleffekt, exakt rationell kontroll och kontrasterande data | github-actions-python-isolated |
 | [sympy](https://www.sympy.org/en/index.html) | 1.14.0 | Verifierad delintegration | Exakta andragradsekvationer med rationella eller inga reella rötter; BigInt-verifiering och förvanskade rotkontroller | github-actions-python |
 | [scikit-learn](https://scikit-learn.org/stable/) | 1.9.1 | Verifierad delintegration | Fasta linjära/kvadratiska OLS-modeller; separata tränings-, validerings- och testpunkter, exakt rationell kontroll | github-actions-python |
 

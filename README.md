@@ -301,8 +301,8 @@ Reference: [OpenAI Chat Completions API](https://developers.openai.com/api/refer
 
 [Daglig automatisk forskning, experimentmeny och driftinstruktioner](research/README.md).
 Forskningsmotorn använder befintlig Cloudflare-modell, Ratfit via API och
-Rankscreen, Annihilator, Mixalot, Statsmodels, PyMC, SymPy och Scikit-learn i GitHub Actions. [Experimentkatalogen](research/EXPERIMENTS.md)
-visar tio körbara experiment och lokal integrationsstatus för 49 BootLoops-paket samt externa verktyg.
+Rankscreen, Annihilator, Mixalot, Statsmodels, PyMC, SymPy, Scikit-learn och DoWhy i GitHub Actions. [Experimentkatalogen](research/EXPERIMENTS.md)
+visar elva körbara experiment och lokal integrationsstatus för 49 BootLoops-paket samt externa verktyg.
 [Hypotesprotokollen](research/HYPOTHESES.md) beskriver exakt rekonstruktion,
 bayesiansk modelljämförelse och tidsserieprövning.
 `catalog-only` i Actions visar katalogen utan modell eller databas. Motorn sparar rapporter
