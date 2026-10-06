@@ -170,3 +170,4 @@ reports/oraklet-lab/
 
 # Local scientific Python environment
 .research-venv/
+.pymc-venv/
