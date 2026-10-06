@@ -26,6 +26,7 @@ Kör **Oraklets forskningslabb → Run workflow → main**. Välj experiment:
 | mixalot-model-comparison | Jämför två specificerade kategoriska modeller med exakt Bayesfaktor |
 | statsmodels-ar1 | Testa tidsberoende med förutbestämt AR(1)-test, Holm och holdoutprognos |
 | sympy-quadratic | Lös exakta andragradsekvationer; komplett reell rotmängd och oberoende BigInt-kontroll |
+| sklearn-polynomial | Jämför linjär/kvadratisk OLS på validering, rapportera separat test-MSE och verifiera med rationell aritmetik |
 | catalog-only | Visa BootLoops och externa verktygs integrationsstatus, utan modell/databas |
 
 Seed är 1–9 siffror; tomt ger dagens UTC-datum. Manuella körningar kan upprepa
@@ -57,8 +58,9 @@ och experimentet `sympy-quadratic` kan väljas manuellt eller av `auto`.
 Se [SymPy-protokollet](SYMPY.md).
 Scikit-learn 1.9.1 installeras med låsta beroenden i forskningsworkflowen.
 Versioner, regression och klassificering kontrolleras även i CI tillsammans
-med PyMC och SymPy. Forskningsadapter och körbart experiment återstår;
-se [Scikit-learn-installationen](SKLEARN.md).
+med PyMC och SymPy. `sklearn-polynomial` har en begränsad adapter för
+modellval mellan grad 1 och 2, med oberoende OLS-kontroll och separat testdel;
+se [Scikit-learn-protokollet](SKLEARN.md).
 GitHub-menyn och planeringen innehåller endast körbara experiment.
 `catalog-only` visar även väntande metoder i körningens Summary och artefakt.
 Ändra katalogen, dispatch och workflowmenyn tillsammans; CI kontrollerar att de stämmer. Oraklet får

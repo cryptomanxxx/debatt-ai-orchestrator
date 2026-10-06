@@ -21,6 +21,7 @@ jobs:
       - run: python3 scripts/check_sympy.py
       - run: python3 scripts/check_sklearn.py
       - run: npm run test:sympy
+      - run: npm run test:sklearn
       - run: npm test
       - run: npm run test:science
       - run: npm run check:workers

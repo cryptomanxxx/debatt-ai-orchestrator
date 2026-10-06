@@ -24,8 +24,8 @@ export const EXTERNAL_TOOLS = Object.freeze([{ id: 'statsmodels', integration: '
     scope: 'Kandidat: kausal inferens med explicita antaganden och robusthetskontroller; ej integrerat' },
   { id: 'sympy', integration: 'verified-subset', version: sympyToolchain.packages.sympy, runtime: 'github-actions-python', source: 'https://www.sympy.org/en/index.html',
     scope: 'Exakta andragradsekvationer med rationella eller inga reella rötter; BigInt-verifiering och förvanskade rotkontroller' },
-  { id: 'scikit-learn', integration: 'installed', version: sklearnToolchain.packages['scikit-learn'], runtime: 'github-actions-python', source: 'https://scikit-learn.org/stable/',
-    scope: 'Installerat med låsta beroenden; fasta regression-/klassificeringskontroller. Forskningsadapter och experiment återstår' },
+  { id: 'scikit-learn', integration: 'verified-subset', version: sklearnToolchain.packages['scikit-learn'], runtime: 'github-actions-python', source: 'https://scikit-learn.org/stable/',
+    scope: 'Fasta linjära/kvadratiska OLS-modeller; separata tränings-, validerings- och testpunkter, exakt rationell kontroll' },
 ]);
 export const ALL_RESEARCH_TOOLS = Object.freeze([...TOOLS, ...EXTERNAL_TOOLS]);
 export const CATALOG = Object.freeze([
@@ -45,6 +45,8 @@ export const CATALOG = Object.freeze([
     question: 'Finns lagg-1-beroende i en syntetisk tidsserie under det låsta AR(1)-protokollet?' },
   { id: 'sympy-quadratic', name: 'SymPy: exakta andragradsekvationer', toolId: 'sympy',
     question: 'Kan Oraklet ange exakt alla distinkta reella rötter och avvisa felaktiga rotmängder?' },
+  { id: 'sklearn-polynomial', name: 'Scikit-learn: linjär eller kvadratisk modell', toolId: 'scikit-learn',
+    question: 'Vilken av två fasta regressionsmodeller väljs på separat valideringsdata och hur går det på testpunkterna?' },
   { id: 'pymc-gdp-ar1', name: 'PyMC: bayesiansk BNP-uppföljning (manuell)', toolId: 'pymc', automatic: false,
     question: 'Hur osäker är lagg-1-koefficienten i historisk BNP-tillväxt under låsta bayesianska priorer?' },
 ]);

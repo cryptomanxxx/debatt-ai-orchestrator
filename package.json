@@ -25,7 +25,8 @@
     "test:research": "node --test tests-research/*.test.mjs",
     "test:science": "node --test tests-research-python/*.test.mjs",
     "test:pymc": "node --test tests-pymc/*.test.mjs",
-    "test:sympy": "node --test tests-sympy/*.test.mjs"
+    "test:sympy": "node --test tests-sympy/*.test.mjs",
+    "test:sklearn": "node --test tests-sklearn/*.test.mjs"
   },
   "devDependencies": {
     "miniflare": "5.20261001.0-alpha",
