@@ -42,11 +42,53 @@ python3 -m venv .dowhy-venv
 .dowhy-venv/bin/python scripts/check_dowhy.py
 ```
 
-Katalogen visar DoWhy som installerat med forskningsadapter och körbart
-experiment kvar att integrera. Installationen gör inte DoWhy till ett fritt
-modellstyrt verktyg och lägger inte till något experiment i planeringen.
-En framtida adapter måste använda denna isolerade interpreter och ett eget
-protokoll med explicita antaganden, kontroller och verifierad rapportkedja.
+## Körbart experiment: dowhy-backdoor
+
+Katalogen och Oraklets labb erbjuder `dowhy-backdoor`. Tre seedade fall prövar
+positiv, negativ och utebliven kausal effekt under samma fasta diagram.
+Varje fall har 75 balanserade observationer: z,u i {-2,-1,0,1,2},
+v i {-1,0,1}, t=z+u och y=intercept+tau*t+gamma*z+v.
+Den ojusterade associationskoefficienten är tau+gamma/2. Det negativa
+fallet har positiv ojusterad association; nolleffekten har också positiv association.
+
+Diagrammet, observerad och tillräcklig justeringsvariabel z, frånvaro av
+ytterligare dolda gemensamma orsaker samt linjär additiv konstant effekt
+är givna antaganden. Detta är metodtester på syntetiska data, ingen
+kausal upptäckt eller validering av antaganden om verkligheten.
+
+Alla dataset, syntetiska facit och kontroller binds med SHA-256 före första
+modellanropet. Oraklet ser huvudfallets data, diagram och protokoll och anger
+justeringsvariabel och numerisk effekt före verktygskörning. Facit och
+kontrolldata visas först i rapporten. Inga korrigeringsanrop görs.
+Fel förslag blir ett vetenskapligt underkänt resultat även om DoWhy fungerar.
+
+Den fasta Python-adaptern identifierar backdoor-justering för z och använder
+DoWhys linjära regression för do(t=1) minus do(t=0). JavaScript beräknar
+oberoende koefficienterna med exakta rationella kovarianser och verifierar
+effekt, intercept, z-koefficient, ojusterad association och residual-MSE.
+Toleransen är 1e-8*(1+|referens|); |effekt|<=1e-9 klassas som nolleffekt.
+Varje fall har en kontroll med samma confounding men en annan kausal effekt
+och ett annat beslut. Totalt används tre modellanrop och sex verktygsanrop.
+
+Adaptern accepterar endast 25–125 heltalsrader med tre begränsade kolumner.
+Diagram, estimator och kod kan inte ändras av modellen. Singulära designer,
+extra indata, icke-finita tal, versionsdrift och fel inputfingeravtryck avvisas.
+Varje verktygsanrop har 30 sekunders timeout, högst 8 KiB indata och 16 KiB
+utdata och använder explicit `.dowhy-venv/bin/python` (eller `DOWHY_PYTHON`).
+`RESEARCH_PYTHON` används inte av DoWhy.
+
+Rapporten sparar första förslag, både verktygskvitton, facit, kontroller och
+antaganden i JSON/Supabase. Markdown visar justerad effekt och ojusterad
+association. Driftfel sparar slutförda fall som delresultat med felstatus.
+Inga p-värden, konfidensintervall eller DoWhy-refutationskedjor används.
+
+```sh
+npm run test:dowhy
+EXPERIMENT=dowhy-backdoor EXPERIMENT_SEED=123 node research/runner.mjs
+```
+
+Runnern kräver de vanliga orchestrator- och Supabase-nycklarna.
+Testsviten kör riktig DoWhy med simulerade modell- och lagringssvar.
 
 Officiella källor:
 

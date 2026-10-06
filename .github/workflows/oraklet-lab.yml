@@ -19,6 +19,7 @@ on:
           - statsmodels-ar1
           - sympy-quadratic
           - sklearn-polynomial
+          - dowhy-backdoor
           - pymc-gdp-ar1
         default: auto
       seed:

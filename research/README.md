@@ -27,6 +27,7 @@ Kör **Oraklets forskningslabb → Run workflow → main**. Välj experiment:
 | statsmodels-ar1 | Testa tidsberoende med förutbestämt AR(1)-test, Holm och holdoutprognos |
 | sympy-quadratic | Lös exakta andragradsekvationer; komplett reell rotmängd och oberoende BigInt-kontroll |
 | sklearn-polynomial | Jämför linjär/kvadratisk OLS på validering, rapportera separat test-MSE och verifiera med rationell aritmetik |
+| dowhy-backdoor | Skatta effekt under fast diagram; jämför justerad/ojusterad regression och verifiera med rationell aritmetik |
 | catalog-only | Visa BootLoops och externa verktygs integrationsstatus, utan modell/databas |
 
 Seed är 1–9 siffror; tomt ger dagens UTC-datum. Manuella körningar kan upprepa
@@ -49,8 +50,9 @@ Annihilator-, Mixalot- och Statsmodels-operationer i Actions. Se [hela experimen
 för samtliga 49 paket i den låsta BootLoops-versionen. 45 BootLoops-paket saknar ännu integration. Angivna delmängder av Ratfit,
 Rankscreen, Annihilator och Mixalot är verifierade. Statsmodels är ett separat
 installerat verktyg; endast AR(1)-adaptern är verifierad hos oss.
-DoWhy är installerat i en separat versionslåst Python-miljö; forskningsadapter
-och körbart experiment återstår. Se [DoWhy-installationen](DOWHY.md).
+DoWhy kör `dowhy-backdoor` i en separat versionslåst Python-miljö med fast
+diagram, justerad linjär regression och oberoende rationell kontroll.
+Se [DoWhy-protokollet](DOWHY.md).
 PyMC har ett manuellt BNP-experiment.
 SymPy 1.14.0 och mpmath 1.3.0 installeras i båda forskningsworkflowen från
 `sympy-requirements.lock`. Versionskontroll och fasta tester av ekvationslösning,

@@ -16,12 +16,13 @@ installation innebär inte att fria vetenskapliga påståenden kan testas direkt
 | statsmodels-ar1 | H0: ingen lagg-1-koefficient; förutbestämd AR(1), alpha 0.05 och Holm över tre fall | SciPy-regression, separat JS-regression/t-fördelning, analytisk nollkontroll och holdoutprognos |
 | sympy-quadratic | Exakt komplett mängd distinkta reella rötter till en andragradsekvation; rationella rötter eller inga reella rötter | SymPy solveset, oberoende BigInt-diskriminant och rationell insättning; förvanskad rotmängd måste avvisas |
 | sklearn-polynomial | Modellens gradförslag jämförs med valideringsval mellan två fasta OLS-modeller; testdelen används inte för val | Exakt rationell OLS, alla prediktioner/MSE, kontrasterande kontroll och strikt separata datadelar |
+| dowhy-backdoor | Justerad effekt av do(t=1)-do(t=0) under fast observerad-confounder-DAG och linjär modell | Exakta rationella kovarianser, kända effekter och nollkontroller; ojusterad bias och kontrasterande data |
 | pymc-gdp-ar1 (endast manuellt) | Positiv/negativ lagg-1-koefficient endast om lika-svansat 95% posteriorintervall utesluter noll; låsta priorer | Fyra MCMC-kedjor, diagnostik, logdensitetskontroller, analytisk posterior i Python/JS och centrerad nollkontroll |
 
 Hypotes, beslutströskel, modellklass och tränings-/kontrolldelning finns i
-`research/science.mjs`, `research/sympy.mjs`, `research/pymc.mjs` och `research/sklearn.mjs`. Se även
+`research/science.mjs`, `research/sympy.mjs`, `research/pymc.mjs`, `research/sklearn.mjs` och `research/dowhy.mjs`. Se även
 [SymPy-protokollet](SYMPY.md), [PyMC-protokollet](PYMC.md) och
-[Scikit-learn-protokollet](SKLEARN.md). De inkluderas i datans SHA-256 innan modellförslagen.
+[Scikit-learn-protokollet](SKLEARN.md) samt [DoWhy-protokollet](DOWHY.md). De inkluderas i datans SHA-256 innan modellförslagen.
 Ett resultat har två skilda betydelser: modellens förslag kan vara rätt eller
 fel; verktygen redovisar den verifierade lösningen eller inferensen enligt
 respektive protokoll. SymPy ger en exakt rotmängd; statistiska resultat är
@@ -29,8 +30,8 @@ villkorliga på modellens antaganden och kan vara otillräckliga.
 Rapporterna blandar inte ihop dessa. En korrekt beräkning kan fortfarande
 bygga på fel antaganden eller besvara en ointressant fråga.
 
-Katalogen har tio körbara experiment: nio syntetiska metodtester, inklusive
-SymPy och Scikit-learn, och en manuell PyMC-uppföljning med historiska BNP-data. Metodtesterna
+Katalogen har elva körbara experiment: tio syntetiska metodtester, inklusive
+SymPy, Scikit-learn och DoWhy, och en manuell PyMC-uppföljning med historiska BNP-data. Metodtesterna
 verifierar verktyg och forskningsmetoder; de etablerar inte ett nytt fynd från
 verkliga observationer. PyMC-uppföljningen återanvänder hypotespilotens data
 och är explorativ, inte en oberoende replikation. Den väljs inte av `auto`.
@@ -56,7 +57,7 @@ vetenskaplig publiceringsagent. Det är separata integrationer.
 | Verktyg | Potential | Status hos oss |
 | --- | --- | --- |
 | [PyMC](https://www.pymc.io/) | Bayesianska modeller, parameterosäkerhet och posteriora prediktiva kontroller | Verifierad delintegration: fast bayesiansk AR(1) för manuell BNP-uppföljning; generella modeller och posteriorprediktiva kontroller återstår |
-| [DoWhy](https://www.pywhy.org/dowhy/v0.14/) | Kausal inferens med uttryckliga antaganden och refutationskontroller | Installerat i isolerad versionslåst miljö; identifiering, känd effekt och nollkontroll verifieras. Forskningsadapter och experiment återstår |
+| [DoWhy](https://www.pywhy.org/dowhy/v0.14/) | Kausal inferens med uttryckliga antaganden och refutationskontroller | Verifierad delintegration i isolerad miljö: fast backdoor-diagram, justerad linjär effekt och rationell kontroll; generella diagram och refutationskedja återstår |
 | [Scikit-learn](https://scikit-learn.org/stable/) | Regression, klassificering och modellval | Verifierad delintegration: linjär/kvadratisk OLS, separat validering/test och rationell kontroll; generella modeller återstår |
 | [SymPy](https://www.sympy.org/en/index.html) | Symboliska ekvationer och kontroll av matematiska identiteter | Verifierad delintegration: sympy-quadratic, avgränsade exakta andragradsekvationer; generell symbolisk analys återstår |
 
@@ -72,6 +73,18 @@ för hans projekt, inte ett testresultat för vår orchestrator eller ett påst�
 att alla manuskript är oberoende validerade eller accepterade för publicering.
 
 Källa: [Claude-shaped science, Anthropic, 1 oktober 2026](https://www.anthropic.com/research/claude-shaped-science).
-BootLoops ägs och underhålls enligt artikelns disclosure av Schwartz; det är
-inte ett Anthropic-projekt. Vi använder hans öppna verktyg med vår egen modell
-och forskningsmotor.
+BootLoops ägs …3506 tokens truncated…r och använder 16
+  holdoutobservationer enbart för prognosutvärdering. SciPy kontrollerar
+  skattning/standardfel/p-värde; separat JavaScript kontrollerar regression,
+  Student-t-svans, intervall och prognos. Alpha 0.05 låses i förväg och Holm
+  korrigerar familjen med tre tester. Till dess alla tre fall är klara markeras
+  familjeinferensen som ofullständig. Korrigeringen täcker inte återkommande
+  dagskörningar. Utebliven förkastning innebär inte att H0 bevisats.
+
+Rapportens `hypothesisTest` och Summary-tabellen visar uppmätt evidens och
+beslut separat från modellförslagets träffsäkerhet. `passed/failed` fortsätter
+mäta om modellförslagen stämmer, medan `executionStatus` anger driftstatus.
+Dessa är syntetiska acceptans- och metodtester, inte fynd från verkliga data.
+Adaptrarna tillåter inte fria Pythonprogram, dataset-URL:er, filvägar, priorer,
+laggval eller p-värdesoptimering från modellen. Nya testklasser behöver en
+reviewad adapter; fler bibliotek gör inte automatiskt alla hypoteser körbara.
