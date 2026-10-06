@@ -157,6 +157,8 @@ träningsdata, holdout, kontroller och syntetiskt facit.
   träningsvärden, vid två fasta primtal. Sex externa kontrolltermer används
   endast efter rekonstruktionen. Modellen ser de första tolv träningsvärdena.
   Den ändrade kontrollsvansen måste avvisas med samma rekonstruerade formel.
+  De tre serierna är olika inom körningen: vid parameterkollision ökas det
+  andra startvärdet deterministiskt, samtidigt som geometriska serier undviks.
 - Mixalot jämför en känd signatur med en blandning av två fasta signaturer.
   Priorerna och BF-trösklarna låses; två uppströmsvägar och en separat exakt
   BigInt-polynomintegration måste ge samma evidens. Före modellförslaget väljs

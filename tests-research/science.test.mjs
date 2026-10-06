@@ -25,6 +25,22 @@ test('scientific protocols are seeded, committed and separate visible data from 
   }
 });
 
+test('recurrence fixtures have distinct data and prompts, including seed 123 collisions',()=>{
+  for(const seed of ['123','999999999',...Array.from({length:200},(_,i)=>String(i))]) {
+    const fixtures=makeScienceCases(seed,'annihilator');
+    assert.deepEqual(makeScienceCases(seed,'annihilator'),fixtures);
+    for(const select of [f=>f.input,f=>f.control,f=>sciencePrompt('annihilator',f.input),f=>f.commitment])
+      assert.equal(new Set(fixtures.map(f=>JSON.stringify(select(f)))).size,3,`seed ${seed}`);
+    for(const f of fixtures) {
+      assert.equal(verifyRecurrence(f.truth.coefficients,[...f.input.train,...f.input.holdout]),true);
+      assert.equal(verifyRecurrence(f.truth.coefficients,[...f.control.train,...f.control.holdout]),false);
+      const [first,second,third]=f.input.train.map(BigInt);
+      assert.notEqual(second*second,first*third); // No degenerate geometric sequence.
+      assert.equal(f.commitment,fingerprint({input:f.input,control:f.control,truth:f.truth,protocol:PROTOCOLS.annihilator}));
+    }
+  }
+});
+
 test('independent mathematical oracles and Holm have analytic positive/negative controls',()=>{
   assert.equal(verifyRecurrence(['-1','-1','1'],['1','1','2','3','5','8']),true);
   assert.equal(verifyRecurrence(['-1','-1','1'],['1','1','2','3','5','9']),false);

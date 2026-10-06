@@ -3,9 +3,10 @@ import { fingerprint, validateScienceEnvelope } from './python-tools.mjs';
 import { ResearchError, diagnostic } from './errors.mjs';
 
 export const PROTOCOLS = Object.freeze({
-  annihilator: { id: 'exact-recurrence-v1', hypothesis: 'Det finns en linjär rekursion med konstanta koefficienter av ordning högst två.',
+  annihilator: { id: 'exact-recurrence-v2', hypothesis: 'Det finns en linjär rekursion med konstanta koefficienter av ordning högst två.',
     alternative: 'Ingen sådan rekursion stöds av de undanhållna termerna.',
     rule: 'Passa endast träningsprefixet vid två primtal, rekonstruera exakt och kontrollera sex externa holdouttermer.',
+    fixtures: 'Tre olika serier per körning. Vid parameterkollision ökas det andra startvärdet deterministiskt; geometriska serier undviks.',
     limitations: 'Ändligt många exakta termer bevisar inte en universell lag. Syntetiska data; verktyget söker en begränsad formelklass.' },
   mixalot: { id: 'frozen-mixture-v2', h0: 'iid kategoridata med kända sannolikheter [1/5,4/5].',
     h1: 'iid kategoridata från en konvex blandning av de fasta signaturerna [1/5,4/5] och [4/5,1/5].',
@@ -27,13 +28,16 @@ function rng(label) {
 }
 export function makeScienceCases(seed, toolId) {
   if (!/^\d{1,9}$/.test(seed) || !PROTOCOLS[toolId]) throw new ResearchError('invalid_plan');
+  const usedRecurrences = new Set();
   return [0,1,2].map(index => {
     const b = hashBytes(`science-v1:${toolId}:${seed}:${index}`);
     let input, control, truth, controlExpectation;
     if (toolId === 'annihilator') {
       const u = 1+b[0]%3, v = 1+b[1]%2;
       let second = 3+b[2]%6;
-      if (second*second === u*second+v) second++;
+      // At most two previous fixtures can collide; keep genuine order two.
+      while (second*second === u*second+v || usedRecurrences.has(`${u}:${v}:${second}`)) second++;
+      usedRecurrences.add(`${u}:${v}:${second}`);
       const values = [1n, BigInt(second)];
       while (values.length < 30) values.push(BigInt(u)*values.at(-1)+BigInt(v)*values.at(-2));
       input = { train: values.slice(0,24).map(String), holdout: values.slice(24).map(String) };
