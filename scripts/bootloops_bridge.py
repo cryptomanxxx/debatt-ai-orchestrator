@@ -1,7 +1,12 @@
 """Restricted Node subprocess transport for the shared BootLoops core."""
 import json
 import sys
-from bootloops_core import compute
+import importlib.util
+from pathlib import Path
+spec = importlib.util.spec_from_file_location('bootloops_core', Path(__file__).with_name('bootloops_core.py'))
+core = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(core)
+compute = core.compute
 
 if __name__ == '__main__':
     try:

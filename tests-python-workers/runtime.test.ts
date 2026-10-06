@@ -10,7 +10,7 @@ const key = 'python-worker-test-key-at-least-24-characters';
 
 test('real Python Worker runs behind an authenticated orchestrator service binding', { timeout: 240000 }, async () => {
   const child = spawn('uvx', ['--from', 'workers-py==1.17.6', 'pywrangler', 'dev',
-    '--ip', '127.0.0.1', '--port', '8788', '--local', '--no-interactive'],
+    '--ip', '127.0.0.1', '--port', '8788', '--local', '--show-interactive-dev-session=false'],
     { cwd: 'bootloops-worker', detached: true, stdio: ['ignore','pipe','pipe'] });
   let logs = '', exited = false;
   child.stdout.on('data', chunk => { logs = (logs + chunk).slice(-65536); });

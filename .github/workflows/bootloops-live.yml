@@ -1,0 +1,18 @@
+name: Testa BootLoops i Cloudflare
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: bootloops-live
+  cancel-in-progress: false
+jobs:
+  bootloops-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Kontrollera riktig BootLoops och avvisade testvärden
+        env:
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
+        run: python3 tests-live/bootloops_smoke.py

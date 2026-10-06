@@ -71,7 +71,7 @@ For an existing mock deployment, add and deploy the `MODEL_API_KEY` runtime Secr
 
 Groq references: [OpenAI compatibility](https://console.groq.com/docs/openai), [supported models](https://console.groq.com/docs/models), [token-limit parameter](https://console.groq.com/docs/api-reference).
 
-Workers Free limits CPU time per request; awaiting an external model API is not CPU time, but JSON processing and local tools are. These tests verify runtime compatibility, not production CPU-budget compliance. This Worker uses no paid containers, databases, queues or Workers AI. External model providers can still charge for inference. The BootLoops tool below runs in the Node/Python transport and GitHub Actions; Cloudflare returns `503 bootloops_runtime_unavailable` for that tool until a separate Python execution service is connected.
+Workers Free limits CPU time per request; awaiting an external model API is not CPU time, but JSON processing and local tools are. These tests verify runtime compatibility, not production CPU-budget compliance. This Worker uses no paid containers, databases, queues or Workers AI. External model providers can still charge for inference. The BootLoops tool runs in Node/Python and can also run in an internal Python Worker via the optional deployment described below. Without that service binding Cloudflare returns `503 bootloops_runtime_unavailable`.
 
 References: [GitHub integration](https://developers.cloudflare.com/workers/ci-cd/builds/git-integration/github-integration/), [runtime secrets](https://developers.cloudflare.com/workers/configuration/secrets/), [Workers limits](https://developers.cloudflare.com/workers/platform/limits/).
 
@@ -158,12 +158,90 @@ four-second CPU cap, 256 MiB address-space cap and 16 KiB input/output bounds.
 At most two tool processes can run concurrently per Node process. This is a
 bounded tool adapter, not a general sandbox for arbitrary Python programs.
 
-**Cloudflare deployment:** Workers cannot run this Python subprocess. A valid
-tool request currently returns 503 with `bootloops_runtime_unavailable`, as
-verified in Miniflare. Groq, health and calculator routes continue to work.
-Connecting BootLoops to the deployed Worker needs a separate authenticated
-Python execution service; no such service is deployed by this PR. GitHub Actions
-is sufficient for this first reproducible trial.
+**Cloudflare deployment:** the JavaScript Worker uses a private service binding to
+the separate Python Worker described below; it never starts a Python subprocess.
+A deployment without that binding returns `503 bootloops_runtime_unavailable`
+for valid tool requests. Groq, health and calculator routes do not require it.
+
+## Connect BootLoops inside Cloudflare
+
+`bootloops-worker/` is a Python Worker named **debatt-ai-bootloops**.
+The orchestrator sends only validated exact samples over an internal HTTP
+Service Binding called **BOOTLOOPS**. Authentication stays at the public
+orchestrator boundary; neither its key nor the Groq key is forwarded.
+The Python Worker has `workers_dev: false`, `preview_urls: false` and no
+routes, so it is accessible only through a service binding on the same account.
+Do not add a public domain or enable workers.dev for this service.
+
+The Python bridge and Worker share `scripts/bootloops_core.py`. Preparation
+copies this file and the fingerprint-checked upstream module into the bundle;
+generated copies are ignored by Git. The Python Worker checks the source
+fingerprint at initialization, validates data independently, limits its body
+to 16 KiB while streaming, and returns 422 on a failed exact holdout.
+It does not import the Node subprocess bridge or its Unix-only resource module.
+
+The ordinary `wrangler.jsonc` stays usable before the Python service exists.
+`wrangler.bootloops.jsonc` declares the optional binding and the same production
+Groq settings. Deploy the Python Worker **first**, then switch the existing
+orchestrator's deploy command to this configuration. This avoids breaking
+automatic main deployments before the target Worker has been created.
+
+### Deploy from the dashboard, using the same GitHub repo
+
+After merging:
+
+1. Create another Worker from **cryptomanxxx/debatt-ai-orchestrator**, name
+   **debatt-ai-bootloops**, production branch **main**, repository root **/**.
+2. Build command:
+   `python3 -m pip install uv==0.12.19 && npm run check:bootloops:worker`
+   Deploy command: `npm run deploy:bootloops:worker`.
+   Disable preview builds. Cloudflare's build token is created by the GitHub
+   integration; no model or orchestrator runtime secrets are needed here.
+   Python 3.13 and Node 24 are required in the build image.
+3. Wait for the Python deployment to succeed. Its configured public and preview
+   URLs are disabled, so there is no Visit URL to test directly.
+4. In the **existing debatt-ai-orchestrator** Worker, change its deploy command
+   from `npm run deploy:workers` to **`npm run deploy:workers:bootloops`**.
+   Keep the existing build command and runtime secrets. Trigger a new build
+   from main. The repository configuration adds **BOOTLOOPS → debatt-ai-bootloops**.
+   A dashboard-only binding can be removed by later Wrangler deployments;
+   use the configured deploy command for every subsequent deployment.
+5. In this repo's GitHub **Actions**, manually run **Testa BootLoops i Cloudflare**
+   on main. It uses the existing ORCHESTRATOR_API_KEY repository secret.
+   Expect 200 for the planted rational function, 422 for a corrupted holdout,
+   and 401 without authentication. It makes no Groq calls and logs no inputs,
+   raw responses or keys.
+
+Local/CI checks require uv 0.12.19 and Node 24:
+
+```sh
+npm ci
+npm run test:bootloops
+npm run check:workers
+npm run check:workers:bootloops
+npm run check:bootloops:worker
+npm run test:bootloops:worker
+```
+
+The `bootloops-worker` CI job builds the Python bundle with pinned
+workers-py 1.17.6 and workers-runtime-sdk 1.9.2, runs its real Pyodide/workerd
+server, checks positive and corrupted controls, and connects it to the
+orchestrator bundle via Miniflare's service binding. This local integration
+uses an HTTP transport between runtimes; the production binding stays internal.
+The existing `test` and `bootloops` jobs cover API regressions and native Python.
+
+**Free-plan check:** successful CI does not certify production CPU usage.
+Workers Free allows 10 ms CPU per request. After the manual live test, inspect
+the **Python Worker's Observability/Logs** CPU time and errors; logging is
+enabled but the code never prints request bodies. Larger exact fractions or
+more sample points may exceed the budget. No paid service is enabled by this
+repository; validate usage before increasing input sizes. The subprocess's
+Unix CPU/memory caps are replaced by Cloudflare's runtime limits in this path.
+
+References: [Python Workers](https://developers.cloudflare.com/workers/languages/python/),
+[Service Bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/),
+[build image](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/),
+[CPU limits](https://developers.cloudflare.com/workers/platform/limits/).
 
 ## Token-limit compatibility
 
