@@ -1,5 +1,8 @@
 # Från metodtester till automatiserad vetenskaplig forskning
 
+[Det första avgränsade hypotesförsöket med verkliga makrodata](HYPOTHESIS-PILOT.md)
+låter Oraklet välja en variabel och formulera frågan före verktygsanalysen.
+
 BootLoops kan beräkna konsekvenser av vissa vetenskapliga modeller och kontrollera
 matematiska samband. Det behöver en specificerad fråga och data; ett biblioteks
 installation innebär inte att fria vetenskapliga påståenden kan testas direkt.

@@ -1,0 +1,38 @@
+name: Oraklet formulerar och testar en hypotes
+on:
+  push:
+    branches: [codex/oraklet-hypothesis-pilot]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: oraklet-research
+  cancel-in-progress: false
+jobs:
+  hypothesis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Installera låsta forskningsberoenden
+        run: python3 -m pip install -r research/requirements.lock
+      - name: Verifiera hypoteskedjan innan liveförsöket
+        run: node --test tests-research/hypothesis-pilot.test.mjs tests-research-python/hypothesis-pilot.test.mjs
+      - name: Lås hypotes, analysera och spara resultat
+        env:
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node research/run-hypothesis-pilot.mjs
+      - name: Spara hypotes och rapport även vid driftfel
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oraklet-hypotes-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/oraklet-hypothesis/
+          if-no-files-found: ignore
