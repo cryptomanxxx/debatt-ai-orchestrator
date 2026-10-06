@@ -299,5 +299,8 @@ Reference: [OpenAI Chat Completions API](https://developers.openai.com/api/refer
 ## Oraklets forskningslabb
 
 [Daglig automatisk forskning, experimentmeny och driftinstruktioner](research/README.md).
-Forskningsmotorn använder befintlig Cloudflare-modell och Ratfit, sparar rapporter
+Forskningsmotorn använder befintlig Cloudflare-modell, Ratfit via API och
+Rankscreen i GitHub Actions. [Experimentkatalogen](research/EXPERIMENTS.md)
+visar fyra körbara experiment och lokal integrationsstatus för 49 BootLoops-paket.
+`catalog-only` i Actions visar katalogen utan modell eller databas. Motorn sparar rapporter
 i AI-universitetets Supabase-tabell och kräver ingen PR för en ny körning.

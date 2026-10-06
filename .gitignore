@@ -164,3 +164,6 @@ bootloops-worker/.venv*/
 bootloops-worker/.worker-build/
 bootloops-worker/.wrangler/
 .worker-build-bootloops/
+
+# Generated research artifacts
+reports/oraklet-lab/

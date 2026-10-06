@@ -1,10 +1,35 @@
 import { ResearchError } from './errors.mjs';
+import inventory from './bootloops-inventory.json' with { type: 'json' };
+export const TOOLS = Object.freeze(inventory.packages.map(id => Object.freeze({
+  id, upstreamCommit: inventory.upstreamCommit,
+  source: `https://github.com/BootLoops-ai/bootloops/tree/${inventory.upstreamCommit}/tools/${id}`,
+  integration: ['ratfit', 'rankscreen'].includes(id) ? 'verified-subset' : 'pending',
+  scope: id === 'ratfit' ? 'Thiele + exakt holdoutkontroll'
+    : id === 'rankscreen' ? 'Tre primtal, sparse-backend; exakt oberoende rangkontroll'
+    : 'Adapter, beroenden och acceptanstester återstår att verifiera.',
+  runtime: id === 'ratfit' ? 'orchestrator-api' : id === 'rankscreen' ? 'github-actions-python' : null,
+})));
 export const CATALOG = Object.freeze([
-  { id: 'ratfit-baseline', name: 'Ratfit: första förslag', feedback: false,
+  { id: 'ratfit-baseline', name: 'Ratfit: första förslag', toolId: 'ratfit', feedback: false,
     question: 'Återfinner modellen ett dolt rationellt samband utan återkoppling?' },
-  { id: 'ratfit-feedback', name: 'Ratfit: exakt återkoppling', feedback: true,
+  { id: 'ratfit-feedback', name: 'Ratfit: exakt återkoppling', toolId: 'ratfit', feedback: true,
     question: 'Förbättras förslaget efter ett korrigeringsförsök mot synliga punkter?' },
+  { id: 'rankscreen-consistency', name: 'Rankscreen: konsistens', toolId: 'rankscreen',
+    question: 'Kan modellen skilja lösbara linjära system från system med en planterad motsägelse?' },
+  { id: 'rankscreen-rank-deficit', name: 'Rankscreen: rangbrist', toolId: 'rankscreen',
+    question: 'Kan modellen hitta rangbrist och motsägelser bland beroende ekvationer?' },
 ]);
+
+export function catalogMarkdown() {
+  return '# Experimentkatalog\n\nVälj experiment i Oraklets forskningslabb. `catalog-only` visar menyn utan modell, databas eller nycklar. `auto` väljer ett körbart experiment. Ett paket med verifierad delintegration innebär inte att hela paketet stöds.\n\n'
+    + '| Körbart experiment | Verktyg | Fråga |\n| --- | --- | --- |\n'
+    + CATALOG.map(e => `| ${e.id} | ${e.toolId} | ${e.question} |`).join('\n')
+    + '\n\n## BootLoops: lokal integrationsstatus\n\n'
+    + `Inventering av ${TOOLS.length} paket vid commit \`${inventory.upstreamCommit}\`. Uppströms egna tester innebär inte integration hos oss.\n\n`
+    + '| Metod/paket | Status hos oss | Omfattning eller nästa steg | Körmiljö |\n| --- | --- | --- | --- |\n'
+    + TOOLS.map(t => `| [${t.id}](${t.source}) | ${t.integration === 'pending' ? 'Saknar integration' : 'Verifierad delintegration'} | ${t.scope} | ${t.runtime || 'Ej körbart'} |`).join('\n')
+    + '\n\nNya integrationer kräver låst källversion och licens, begränsad adapter, angiven körmiljö, positiva och negativa kontroller samt verifiering av rapportkedjan. Först därefter läggs experimentet till i körmenyn och den automatiska planeringen.\n';
+}
 
 export function parsePlan(text) {
   let plan;

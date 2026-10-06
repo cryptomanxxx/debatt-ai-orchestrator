@@ -20,6 +20,9 @@ Kör **Oraklets forskningslabb → Run workflow → main**. Välj experiment:
 | auto | Oraklet väljer upplägg och seed utifrån de tio senaste rapportsammanfattningarna |
 | ratfit-baseline | Tre nya syntetiska fall, ett första förslag per fall |
 | ratfit-feedback | Samma fallgenerator; högst en korrigering per fall utifrån sex synliga punkter |
+| rankscreen-consistency | Klassificera fullrangssystem, med och utan planterad motsägelse |
+| rankscreen-rank-deficit | Hitta rangbrist och motsägelser i beroende ekvationer |
+| catalog-only | Visa körbara experiment och samtliga 49 pakets integrationsstatus, utan modell/databas |
 
 Seed är 1–9 siffror; tomt ger dagens UTC-datum. Manuella körningar kan upprepa
 samma seed för jämförelse. Om auto väljer en experiment/seed-kombination som
@@ -34,17 +37,34 @@ Det gamla Debatt-AI-workflowet är manuellt och behövs inte för den nya motorn
 
 ## Vetenskapligt och operativt kontrakt
 
-Ratfit är det enda anslutna BootLoops-verktyget. Katalogens två poster är
-experimentupplägg för detta verktyg, inte hela BootLoops utbud. Oraklet får
+Katalogen skiljer experiment från verktyg: två Ratfit-experiment använder
+samma API-adapter och två Rankscreen-experiment använder samma lokala
+Python-adapter i Actions. Se [hela experimentkatalogen](EXPERIMENTS.md)
+för samtliga 49 paket i den låsta BootLoops-versionen. 47 saknar ännu
+integration; bara angivna delmängder av Ratfit och Rankscreen är verifierade.
+GitHub-menyn och planeringen innehåller endast körbara experiment.
+`catalog-only` visar även väntande metoder i körningens Summary och artefakt.
+Ändra katalogen, dispatch och workflowmenyn tillsammans; CI kontrollerar att de stämmer. Oraklet får
 välja en strukturerad plan och motivering, men ingen exekverbar kod eller nya
 metoder. Data är syntetiska med känt facit; körningen är inte en vetenskaplig
 upptäckt och tre fall räcker inte för att belägga generell förbättring.
 
 Planen skrivs och SHA-256 loggas före körningen. Alla datafingeravtryck sparas
-före modellförslagen. Bara synliga punkter lämnas till modellen; facit och
+före modellförslagen. I Ratfit lämnas bara synliga punkter till modellen; facit och
 undanhållna punkter redovisas efteråt. Separat exakt BigInt-kontroll testar
 modellens koefficienter. Ratfit måste godkänna rätt data och avvisa felaktig
 kontrolldata. Godkänd Ratfit är inte ett godkännande av modellens förslag.
+
+Rankscreen visar hela ekvationssystemet för modellen och mäter klassificering,
+inte prediktion på dolda data. Tre seedade system paras med tre kontroller där
+högerledet ändras. Rankscreen kör sparse-backend med tre fasta primtal.
+Rang och konsistens jämförs med en oberoende exakt BigInt-beräkning av minorer.
+Enighet mellan primtal behandlas som screening; exakt kontroll är slutlig
+auktoritet. Oenighet eller felaktigt kvitto avbryter körningen. Adaptern begränsar
+indata till 12 rader, fyra variabler och heltalssträngar med högst nio siffror,
+15 sekunder och 64 KiB utdata. Experimenten använder tre variabler.
+Modellen kan inte välja kod, primtal, filer, beroenden eller exekveringsväg.
+Inga tillägg i den publika API- eller Cloudflare-miljön behövs.
 
 Modellen är orchestratorns konfigurerade standardmodell, för närvarande Groq
 GPT-OSS 120B. Ingen leverantörskedja importeras från webbplatsen. Provider och
@@ -64,8 +84,11 @@ Databasfel ger rött workflow; lokala rapportfiler laddas ändå upp som artefak
 om de hunnit skapas. Inga råa API-fel eller nycklar skrivs i rapporterna.
 Webbplatsens befintliga cache kan fördröja när en ny rapport syns.
 
-Tester: `npm run test:research`. De använder simulerade API-svar, inga nycklar
-eller modellkrediter. CI kör dem tillsammans med befintliga API-tester.
+Tester: `npm run test:research` och `npm run test:bootloops`. Modell- och
+databassvar simuleras, men Rankscreen kör riktig låst uppströmskod via Python.
+Tester omfattar parade kontroller, oenighet mellan primtal, dålig nämnare,
+begränsad indata, rapportdispatch och avvisning av ändrade kvitton. Ingen
+modellkredit eller nyckel används. CI kör dem tillsammans med befintliga API-tester.
 
 ## Driftfelsdiagnostik
 
@@ -86,3 +109,12 @@ Om den gamla versionen fortfarande används avbryts körningen med
 `model_budget_not_applied` i stället för att tyst köra med fel budget.
 4096 tokens garanterar inte att varje svar blir färdigt; eventuella nya
 tokenstopp fortsätter att rapporteras som driftfel.
+
+## Underhåll av katalogen
+
+`research/bootloops-inventory.json` låser paketlistan till samma uppströmscommit
+som verktygen. `research/catalog.mjs` kopplar flera experiment till ett verktyg
+och anger integrationsomfattning/körmiljö. `npm run research:catalog` skriver
+Markdown och JSON i `reports/oraklet-lab/`; `research/EXPERIMENTS.md` ska motsvara
+den genererade Markdown-filen. Uppströms paketlista är en inventering, inte
+en lista över verktyg som automatiskt går att köra hos oss.

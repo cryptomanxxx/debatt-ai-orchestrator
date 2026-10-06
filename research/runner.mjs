@@ -3,6 +3,13 @@ import { mkdir, writeFile, appendFile } from 'node:fs/promises';
 import { randomUUID, createHash } from 'node:crypto';
 import { CATALOG, choosePlan, lockModel } from './catalog.mjs';
 import { runExperiment } from './ratfit.mjs';
+import { runRankExperiment, callRankscreen } from './rankscreen.mjs';
+
+// Catalog viewing needs no model or database credentials.
+if (process.env.EXPERIMENT === 'catalog-only') {
+  await import('./show-catalog.mjs');
+  process.exit(0);
+}
 
 const API = 'https://debatt-ai-orchestrator.xx8031126.workers.dev/v1/query';
 const DB = 'https://fmwxftnistkoqazfwnuj.supabase.co/rest/v1/oraklet_experiment';
@@ -92,14 +99,21 @@ try {
   console.log('Experimentplanens SHA-256 före körning:', planCommitment);
   stage = 'experiment';
   const entry = CATALOG.find(e => e.id === plan.experimentId);
-  report = await runExperiment(plan.seed, propose, callTool, async commitments => {
+  const rankExperiment = entry.toolId === 'rankscreen';
+  const execute = rankExperiment ? runRankExperiment : runExperiment;
+  const tool = rankExperiment ? async input => {
+    if (++toolCalls > 6) throw new ResearchError('tool_budget_exceeded');
+    return callRankscreen(input);
+  } : callTool;
+  report = await execute(plan.seed, propose, tool, async commitments => {
     await writeFile(`${directory}/commitments.json`, JSON.stringify(commitments, null, 2));
     console.log('Datans SHA-256 före modellförslagen:', JSON.stringify(commitments));
-  }, { feedback: entry.feedback, onProgress: async cases => {
+  }, { experimentId: entry.id, feedback: entry.feedback, onProgress: async cases => {
     completedCases = cases;
     await writeFile(`${directory}/progress.json`, JSON.stringify({ cases, ...metadata }, null, 2));
   } });
-  Object.assign(report, { experimentId: plan.experimentId, plan, planCommitment });
+  Object.assign(report, { experimentId: plan.experimentId, toolId: entry.toolId,
+    toolRuntime: rankExperiment ? 'github-actions-python' : 'orchestrator-api', plan, planCommitment });
 } catch (error) {
   const failure = diagnostic(error);
   console.error('Experimentets felkod:', JSON.stringify(failure));
@@ -110,6 +124,7 @@ try {
     method: 'Avbruten körning; detta är ett driftfel, inte ett underkänt vetenskapligt resultat.',
     limitations: 'Kontrollera körningens status. Ingen slutsats om modellens förmåga kan dras.',
     status: 'failed', executionStatus: 'error', experimentId: plan?.experimentId || null,
+    toolId: plan ? CATALOG.find(e => e.id === plan.experimentId)?.toolId : null,
     seed: plan?.seed || seed, plan: plan || null, planCommitment: planCommitment || null, failedStage: stage, failure, cases: completedCases };
 }
 Object.assign(report, metadata, { reportId, modelCalls, toolCalls,
