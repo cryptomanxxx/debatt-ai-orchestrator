@@ -55,6 +55,10 @@ exakt derivata och integration körs före forskningen och i CI, även tillsamma
 med PyMC-miljön. SymPy har en begränsad adapter för exakta andragradsekvationer
 och experimentet `sympy-quadratic` kan väljas manuellt eller av `auto`.
 Se [SymPy-protokollet](SYMPY.md).
+Scikit-learn 1.9.1 installeras med låsta beroenden i forskningsworkflowen.
+Versioner, regression och klassificering kontrolleras även i CI tillsammans
+med PyMC och SymPy. Forskningsadapter och körbart experiment återstår;
+se [Scikit-learn-installationen](SKLEARN.md).
 GitHub-menyn och planeringen innehåller endast körbara experiment.
 `catalog-only` visar även väntande metoder i körningens Summary och artefakt.
 Ändra katalogen, dispatch och workflowmenyn tillsammans; CI kontrollerar att de stämmer. Oraklet får
