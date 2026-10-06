@@ -78,6 +78,6 @@ test('catalog covers upstream inventory and only exposes verified adapters in wo
   assert.equal(await readFile(new URL('../research/EXPERIMENTS.md', import.meta.url), 'utf8'), catalogMarkdown());
   const prompt = JSON.parse(plannerPrompt([], '123')[1].content);
   assert.ok(prompt.catalog.every(e => CATALOG.some(c => c.id === e.id)));
-  for (const tool of ALL_RESEARCH_TOOLS.filter(t => t.integration === 'pending'))
+  for (const tool of ALL_RESEARCH_TOOLS.filter(t => t.integration !== 'verified-subset'))
     assert.throws(() => parsePlan(JSON.stringify({ experimentId: tool.id, seed: '123', reason: 'Test.' })));
 });

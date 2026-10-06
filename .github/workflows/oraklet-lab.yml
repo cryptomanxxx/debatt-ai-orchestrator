@@ -50,6 +50,13 @@ jobs:
       - name: Installera låst PyMC-miljö för manuell BNP-uppföljning
         if: inputs.experiment == 'pymc-gdp-ar1'
         run: python3 -m pip install -r research/pymc-requirements.lock
+      - name: Installera och kontrollera isolerad DoWhy-miljö
+        if: inputs.experiment != 'catalog-only'
+        run: |
+          python3 -m venv .dowhy-venv
+          .dowhy-venv/bin/python -m pip install -r research/dowhy-requirements.lock
+          .dowhy-venv/bin/python -m pip check
+          .dowhy-venv/bin/python scripts/check_dowhy.py
       - name: Installera och kontrollera Scikit-learn
         if: inputs.experiment != 'catalog-only'
         run: |

@@ -56,7 +56,7 @@ vetenskaplig publiceringsagent. Det är separata integrationer.
 | Verktyg | Potential | Status hos oss |
 | --- | --- | --- |
 | [PyMC](https://www.pymc.io/) | Bayesianska modeller, parameterosäkerhet och posteriora prediktiva kontroller | Verifierad delintegration: fast bayesiansk AR(1) för manuell BNP-uppföljning; generella modeller och posteriorprediktiva kontroller återstår |
-| [DoWhy](https://www.pywhy.org/dowhy/v0.14/) | Kausal inferens med uttryckliga antaganden och refutationskontroller | Saknar integration |
+| [DoWhy](https://www.pywhy.org/dowhy/v0.14/) | Kausal inferens med uttryckliga antaganden och refutationskontroller | Installerat i isolerad versionslåst miljö; identifiering, känd effekt och nollkontroll verifieras. Forskningsadapter och experiment återstår |
 | [Scikit-learn](https://scikit-learn.org/stable/) | Regression, klassificering och modellval | Verifierad delintegration: linjär/kvadratisk OLS, separat validering/test och rationell kontroll; generella modeller återstår |
 | [SymPy](https://www.sympy.org/en/index.html) | Symboliska ekvationer och kontroll av matematiska identiteter | Verifierad delintegration: sympy-quadratic, avgränsade exakta andragradsekvationer; generell symbolisk analys återstår |
 
