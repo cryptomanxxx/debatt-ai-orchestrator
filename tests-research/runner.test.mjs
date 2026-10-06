@@ -12,7 +12,7 @@ const runner = fileURLToPath(new URL('../research/runner.mjs', import.meta.url))
 const core = new URL('../research/ratfit.mjs', import.meta.url).href;
 
 test('runner preserves partial results and bounded diagnostics for model and tool failures', async () => {
-  for (const scenario of ['success', 'model_changed', 'invalid_proposal', 'tool_http_error', 'model_output_truncated', 'duplicate_plan']) {
+  for (const scenario of ['success', 'model_changed', 'invalid_proposal', 'tool_http_error', 'model_output_truncated', 'duplicate_plan', 'model_budget_not_applied']) {
     const changeModel = scenario === 'model_changed';
     const successful = ['success', 'duplicate_plan'].includes(scenario);
     const dir = await mkdtemp(join(tmpdir(), 'oraklet-runner-'));
@@ -36,6 +36,7 @@ globalThis.fetch = async (url, options = {}) => {
       verification: { status: accepted ? 'passed' : 'failed', scope: 'exact_rational_holdout', factualityChecked: false } }, { status: accepted ? 200 : 422 });
   }
   if (${JSON.stringify(scenario)} === 'model_output_truncated' && modelCalls === 1) return Response.json({ error: 'model_output_truncated', raw: 'SECRET' }, { status: 502 });
+  if (body.completionTokenLimit !== 4096) throw new Error('Unexpected completion budget');
   const messages = JSON.parse(body.message).messages;
   let answer;
   if (modelCalls++ === 0) answer = { experimentId: 'ratfit-feedback', seed: '123', reason: 'Nästa test.' };
@@ -44,7 +45,7 @@ globalThis.fetch = async (url, options = {}) => {
     answer = { method: 'bootloops_ratfit', coefficients: cases.find(c => JSON.stringify(c.input.banked) === JSON.stringify(banked)).truth, reason: 'Förslag.' };
   }
   if (${JSON.stringify(scenario)} === 'invalid_proposal' && modelCalls === 3) answer = { error: 'SECRET malformed answer' };
-  return Response.json({ answer: JSON.stringify(answer), provider: 'groq', model: ${changeModel} && modelCalls > 1 ? 'changed' : 'same', mock: false });
+  return Response.json({ answer: JSON.stringify(answer), provider: 'groq', model: ${changeModel} && modelCalls > 1 ? 'changed' : 'same', mock: false, inference: { completionTokenLimit: ${JSON.stringify(scenario)} === 'model_budget_not_applied' ? 1024 : 4096 } });
 };`;
       const preload = join(dir, 'mock.mjs'); await writeFile(preload, mock);
       const process = run(globalThis.process.execPath, ['--import', pathToFileURL(preload).href, runner], {
@@ -56,13 +57,14 @@ globalThis.fetch = async (url, options = {}) => {
       }); else await process;
       const saved = JSON.parse(await readFile(join(dir, 'saved.json'), 'utf8'));
       assert.equal(saved.rapport.executionStatus, !successful ? 'error' : 'completed');
+      assert.equal(saved.rapport.inferenceSettings.completionTokenLimit, 4096);
       assert.equal(saved.rapport.status, !successful ? 'failed' : 'passed');
       assert.equal(saved.rapport.cases.length, successful ? 3 : scenario === 'invalid_proposal' ? 1 : 0);
       if (!successful) {
         const failure = saved.rapport.failure;
         assert.equal(failure.code, scenario === 'invalid_proposal' ? 'invalid_model_proposal' : scenario);
-        assert.equal(failure.case, scenario === 'invalid_proposal' ? 2 : 1);
-        assert.equal(failure.operation, scenario === 'tool_http_error' ? 'positive_control' : 'initial_proposal');
+        assert.equal(failure.case, scenario === 'model_budget_not_applied' ? undefined : scenario === 'invalid_proposal' ? 2 : 1);
+        assert.equal(failure.operation, scenario === 'model_budget_not_applied' ? undefined : scenario === 'tool_http_error' ? 'positive_control' : 'initial_proposal');
         if (scenario === 'tool_http_error') assert.equal(failure.httpStatus, 502);
         assert.ok(!JSON.stringify(saved).includes('SECRET'));
       }
@@ -77,8 +79,13 @@ globalThis.fetch = async (url, options = {}) => {
         assert.equal(checkpoint.cases.length, 1);
         assert.equal(checkpoint.cases[0].passed, true);
       }
-      assert.ok(await readFile(join(dir, 'reports/oraklet-lab/plan.json'), 'utf8'));
-      assert.ok(await readFile(join(dir, 'reports/oraklet-lab/commitments.json'), 'utf8'));
+      if (scenario === 'model_budget_not_applied') {
+        assert.equal(saved.rapport.failedStage, 'planning');
+        await assert.rejects(readFile(join(dir, 'reports/oraklet-lab/plan.json'), 'utf8'), { code: 'ENOENT' });
+      } else {
+        assert.ok(await readFile(join(dir, 'reports/oraklet-lab/plan.json'), 'utf8'));
+        assert.ok(await readFile(join(dir, 'reports/oraklet-lab/commitments.json'), 'utf8'));
+      }
     } finally { await rm(dir, { recursive: true, force: true }); }
   }
 });

@@ -1,4 +1,5 @@
 import type { Config } from '../config.ts';
+export type CompletionTokenLimit = 1024 | 4096;
 export class ModelRequestError extends Error {
   code: string;
   upstreamStatus?: number;
@@ -16,13 +17,13 @@ export function tokenLimitParameter(model: string, config: Config) {
   return new URL(config.baseUrl).hostname === 'api.openai.com' || /^o\d+(?:-|$)/.test(modelName)
     ? 'max_completion_tokens' : 'max_tokens';
 }
-export async function complete(message: string, model: string, config: Config) {
+export async function complete(message: string, model: string, config: Config, completionTokenLimit: CompletionTokenLimit = 1024) {
   try {
     const response = await fetch(config.baseUrl.replace(/\/$/, '') + '/chat/completions', {
       method: 'POST', signal: AbortSignal.timeout(45000),
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.modelKey}` },
       body: JSON.stringify({ model, messages: [{ role: 'user', content: message }],
-        [tokenLimitParameter(model, config)]: 1024 })
+        [tokenLimitParameter(model, config)]: completionTokenLimit })
     });
     if (!response.ok) {
       await response.body?.cancel();

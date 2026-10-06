@@ -51,8 +51,10 @@ GPT-OSS 120B. Ingen leverantörskedja importeras från webbplatsen. Provider och
 modell-ID låses från första anropet (inklusive planering); byte avbryter
 körningen. API-alias garanterar inte oförändrade modellvikter hos leverantören.
 Högst sju modellanrop och sex verktygsanrop per körning, inga automatiska
-retries. API:ts befintliga tokenbudget gäller även här. Större budget eller
-andra modeller kräver separat konfiguration. Detta tak begränsar antalet
+retries. Forskningsanrop begär 4096 completion-tokens, inklusive modellens reasoning,
+och verifierar att orchestratorn använder denna budget. Vanliga API-anrop
+behåller 1024. Budgeten sparas som `inferenceSettings` i rapport och planartefakt.
+Andra modeller kräver separat konfiguration. Detta tak begränsar antalet
 anrop, inte en garanterad kostnad eller CPU-förbrukning för alla körningar.
 
 Rapporter med felaktiga förslag sparas som `failed` men workflowet är grönt
@@ -72,9 +74,15 @@ HTTP-status när den finns. Modellsvar som stoppas av tokenbudgeten avvisas
 som `model_output_truncated`; tomma svar, leverantörens HTTP-fel och nätverksfel
 har separata koder. Råa feltexter och nycklar skrivs aldrig till rapporten.
 Slutförda fall sparas i `progress.json` och i driftfelsrapporten, tydligt som
-delresultat från ett avbrutet experiment. Inga retries eller större tokenbudget
-införs. API:ts nya felkoder kräver att orchestrator-Workern deployas efter merge.
+delresultat från ett avbrutet experiment. Inga automatiska retries införs. API:ts nya felkoder kräver att orchestrator-Workern deployas efter merge.
 
 `Testa forskningsdatans BootLoops-kontroller` kör sex fasta positiva och
 negativa kontroller med seed 20261006, utan modell eller databas. Det är ett
 manuellt live-test som skiljer verktygsdrift från modellfel.
+
+Det observerade tokenstoppet med 1024 tokens motiverar en explicit
+forskningsbudget på 4096. Ändringen kräver deployment av orchestrator-Workern efter merge.
+Om den gamla versionen fortfarande används avbryts körningen med
+`model_budget_not_applied` i stället för att tyst köra med fel budget.
+4096 tokens garanterar inte att varje svar blir färdigt; eventuella nya
+tokenstopp fortsätter att rapporteras som driftfel.

@@ -138,13 +138,19 @@ test('Workers runtime routes real inference and hides provider failures', async 
     assert.equal(calls[0].model, 'o3-mini');
     assert.equal(calls[0].max_completion_tokens, 1024);
     assert.equal('max_tokens' in calls[0], false);
+    const research = await request(runtime, '{"message":"Test","completionTokenLimit":4096}');
+    assert.equal(research.status, 200);
+    assert.deepEqual((await research.json()).inference, { completionTokenLimit: 4096 });
+    assert.equal(calls[1].max_completion_tokens, 4096);
+    assert.equal('max_tokens' in calls[1], false);
+    assert.equal((await request(runtime, '{"message":"Test","completionTokenLimit":8192}')).status, 400);
     await request(runtime, '{"message":"calc: 2+2","mode":"auto"}');
-    assert.equal(calls.length, 1);
+    assert.equal(calls.length, 2);
     fail = true;
     const failure = await request(runtime, '{"message":"Hej"}');
     assert.equal(failure.status, 502);
     assert.deepEqual(await failure.json(), { error: 'model_upstream_http_error', upstreamStatus: 500 });
-    assert.equal(calls[1].model, 'default-test-model');
+    assert.equal(calls[2].model, 'default-test-model');
   } finally { await runtime.dispose(); }
 });
 
