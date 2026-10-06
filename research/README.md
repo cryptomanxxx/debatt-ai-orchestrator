@@ -49,7 +49,9 @@ Annihilator-, Mixalot- och Statsmodels-operationer i Actions. Se [hela experimen
 för samtliga 49 paket i den låsta BootLoops-versionen. 45 BootLoops-paket saknar ännu integration. Angivna delmängder av Ratfit,
 Rankscreen, Annihilator och Mixalot är verifierade. Statsmodels är ett separat
 installerat verktyg; endast AR(1)-adaptern är verifierad hos oss.
-DoWhy visas som väntande. PyMC har ett manuellt BNP-experiment.
+DoWhy är installerat i en separat versionslåst Python-miljö; forskningsadapter
+och körbart experiment återstår. Se [DoWhy-installationen](DOWHY.md).
+PyMC har ett manuellt BNP-experiment.
 SymPy 1.14.0 och mpmath 1.3.0 installeras i båda forskningsworkflowen från
 `sympy-requirements.lock`. Versionskontroll och fasta tester av ekvationslösning,
 exakt derivata och integration körs före forskningen och i CI, även tillsammans

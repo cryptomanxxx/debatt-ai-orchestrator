@@ -77,7 +77,7 @@ Inventering av 49 paket vid commit `66b680ce742e654cfe86da4f072a69061fe182b1`. U
 | --- | --- | --- | --- | --- |
 | [statsmodels](https://www.statsmodels.org/stable/tsa.html) | 0.15.0 | Verifierad delintegration | Installerat med låsta beroenden; AutoReg AR(1), nominalt t-test, Holm-korrigering och holdoutprognos | github-actions-python |
 | [pymc](https://www.pymc.io/) | 6.3.2 | Verifierad delintegration | Konjugat bayesiansk AR(1), låsta priorer, fyra MCMC-kedjor, kvalitetsgränser och oberoende analytisk posterior | github-actions-python |
-| [dowhy](https://www.pywhy.org/dowhy/v0.14/) | Ej låst | Saknar integration | Kandidat: kausal inferens med explicita antaganden och robusthetskontroller; ej integrerat | Ej körbart |
+| [dowhy](https://www.pywhy.org/dowhy/v0.14/) | 0.14 | Installerat; saknar experimentintegration | Installerat i separat Python-miljö; fasta backdoor-, effekt- och nollkontroller. Forskningsadapter och experiment återstår | github-actions-python |
 | [sympy](https://www.sympy.org/en/index.html) | 1.14.0 | Verifierad delintegration | Exakta andragradsekvationer med rationella eller inga reella rötter; BigInt-verifiering och förvanskade rotkontroller | github-actions-python |
 | [scikit-learn](https://scikit-learn.org/stable/) | 1.9.1 | Verifierad delintegration | Fasta linjära/kvadratiska OLS-modeller; separata tränings-, validerings- och testpunkter, exakt rationell kontroll | github-actions-python |
 

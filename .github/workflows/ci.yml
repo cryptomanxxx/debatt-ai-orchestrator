@@ -77,3 +77,18 @@ jobs:
       - run: npm run check:workers:bootloops
       - run: npm run check:bootloops:worker
       - run: npm run test:bootloops:worker
+
+  dowhy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Installera och kontrollera isolerad DoWhy-miljö
+        run: |
+          python3 -m venv .dowhy-venv
+          .dowhy-venv/bin/python -m pip install -r research/dowhy-requirements.lock
+          .dowhy-venv/bin/python -m pip check
+          .dowhy-venv/bin/python scripts/check_dowhy.py

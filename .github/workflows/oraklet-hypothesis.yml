@@ -22,6 +22,12 @@ jobs:
           python-version: '3.12'
       - name: Installera låsta forskningsberoenden
         run: python3 -m pip install -r research/requirements.lock
+      - name: Installera och kontrollera isolerad DoWhy-miljö
+        run: |
+          python3 -m venv .dowhy-venv
+          .dowhy-venv/bin/python -m pip install -r research/dowhy-requirements.lock
+          .dowhy-venv/bin/python -m pip check
+          .dowhy-venv/bin/python scripts/check_dowhy.py
       - name: Installera och kontrollera Scikit-learn
         run: |
           python3 -m pip install -r research/sklearn-requirements.lock

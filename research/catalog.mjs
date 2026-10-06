@@ -4,6 +4,7 @@ import toolchain from './toolchain.json' with { type: 'json' };
 import pymcToolchain from './pymc-toolchain.json' with { type: 'json' };
 import sympyToolchain from './sympy-toolchain.json' with { type: 'json' };
 import sklearnToolchain from './sklearn-toolchain.json' with { type: 'json' };
+import dowhyToolchain from './dowhy-toolchain.json' with { type: 'json' };
 export const TOOLS = Object.freeze(inventory.packages.map(id => Object.freeze({
   id, upstreamCommit: inventory.upstreamCommit,
   source: `https://github.com/BootLoops-ai/bootloops/tree/${inventory.upstreamCommit}/tools/${id}`,
@@ -20,8 +21,8 @@ export const EXTERNAL_TOOLS = Object.freeze([{ id: 'statsmodels', integration: '
   runtime: 'github-actions-python', scope: 'Installerat med låsta beroenden; AutoReg AR(1), nominalt t-test, Holm-korrigering och holdoutprognos' },
   { id: 'pymc', integration: 'verified-subset', version: pymcToolchain.packages.pymc, runtime: 'github-actions-python', source: 'https://www.pymc.io/',
     scope: 'Konjugat bayesiansk AR(1), låsta priorer, fyra MCMC-kedjor, kvalitetsgränser och oberoende analytisk posterior' },
-  { id: 'dowhy', integration: 'pending', version: null, runtime: null, source: 'https://www.pywhy.org/dowhy/v0.14/',
-    scope: 'Kandidat: kausal inferens med explicita antaganden och robusthetskontroller; ej integrerat' },
+  { id: 'dowhy', integration: 'installed', version: dowhyToolchain.packages.dowhy, runtime: 'github-actions-python', source: 'https://www.pywhy.org/dowhy/v0.14/',
+    scope: 'Installerat i separat Python-miljö; fasta backdoor-, effekt- och nollkontroller. Forskningsadapter och experiment återstår' },
   { id: 'sympy', integration: 'verified-subset', version: sympyToolchain.packages.sympy, runtime: 'github-actions-python', source: 'https://www.sympy.org/en/index.html',
     scope: 'Exakta andragradsekvationer med rationella eller inga reella rötter; BigInt-verifiering och förvanskade rotkontroller' },
   { id: 'scikit-learn', integration: 'verified-subset', version: sklearnToolchain.packages['scikit-learn'], runtime: 'github-actions-python', source: 'https://scikit-learn.org/stable/',
