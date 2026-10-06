@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node src/server.ts",
-    "test": "node --test tests/*.test.ts",
+    "test": "node --test tests/*.test.ts && npm run test:research",
     "test:bootloops": "python3 -m unittest discover -s tests-python && node --test tests-bootloops/*.test.ts",
     "profile:bootloops": "python3 scripts/profile_bootloops.py",
     "test:workers": "node --test tests-workers/*.test.ts",
@@ -20,7 +20,8 @@
     "deploy:bootloops:worker": "npm run prepare:bootloops:worker && cd bootloops-worker && uvx --from workers-py==1.17.6 pywrangler deploy",
     "deploy:workers:bootloops": "wrangler deploy --config wrangler.bootloops.jsonc",
     "check:workers:bootloops": "wrangler deploy --config wrangler.bootloops.jsonc --dry-run --outdir .worker-build-bootloops",
-    "test:bootloops:worker": "node --test tests-python-workers/*.test.ts"
+    "test:bootloops:worker": "node --test tests-python-workers/*.test.ts",
+    "test:research": "node --test tests-research/*.test.mjs"
   },
   "devDependencies": {
     "miniflare": "5.20261001.0-alpha",

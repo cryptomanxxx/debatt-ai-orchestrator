@@ -295,3 +295,9 @@ References: [Python Workers](https://developers.cloudflare.com/workers/languages
 `MODEL_TOKEN_LIMIT_FIELD=auto` (default) sends `max_completion_tokens` to the official `api.openai.com` endpoint and recognised o-series model IDs such as `o3-mini`, including provider-prefixed IDs. Other compatible providers keep `max_tokens`. Set `MODEL_TOKEN_LIMIT_FIELD=max_completion_tokens` or `max_tokens` to override this selection for provider-specific aliases or requirements. An override applies to both configured models; automatic selection is based on the actual selected model ID. Exactly one limit field is sent, always capped at 1,024 tokens. For `max_completion_tokens` this budget includes hidden reasoning tokens as well as visible output, so it can run out before a visible answer is produced. No automatic retry or budget increase is performed.
 
 Reference: [OpenAI Chat Completions API](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create).
+
+## Oraklets forskningslabb
+
+[Daglig automatisk forskning, experimentmeny och driftinstruktioner](research/README.md).
+Forskningsmotorn använder befintlig Cloudflare-modell och Ratfit, sparar rapporter
+i AI-universitetets Supabase-tabell och kräver ingen PR för en ny körning.
