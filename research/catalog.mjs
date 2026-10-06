@@ -3,6 +3,7 @@ import inventory from './bootloops-inventory.json' with { type: 'json' };
 import toolchain from './toolchain.json' with { type: 'json' };
 import pymcToolchain from './pymc-toolchain.json' with { type: 'json' };
 import sympyToolchain from './sympy-toolchain.json' with { type: 'json' };
+import sklearnToolchain from './sklearn-toolchain.json' with { type: 'json' };
 export const TOOLS = Object.freeze(inventory.packages.map(id => Object.freeze({
   id, upstreamCommit: inventory.upstreamCommit,
   source: `https://github.com/BootLoops-ai/bootloops/tree/${inventory.upstreamCommit}/tools/${id}`,
@@ -23,6 +24,8 @@ export const EXTERNAL_TOOLS = Object.freeze([{ id: 'statsmodels', integration: '
     scope: 'Kandidat: kausal inferens med explicita antaganden och robusthetskontroller; ej integrerat' },
   { id: 'sympy', integration: 'verified-subset', version: sympyToolchain.packages.sympy, runtime: 'github-actions-python', source: 'https://www.sympy.org/en/index.html',
     scope: 'Exakta andragradsekvationer med rationella eller inga reella rötter; BigInt-verifiering och förvanskade rotkontroller' },
+  { id: 'scikit-learn', integration: 'installed', version: sklearnToolchain.packages['scikit-learn'], runtime: 'github-actions-python', source: 'https://scikit-learn.org/stable/',
+    scope: 'Installerat med låsta beroenden; fasta regression-/klassificeringskontroller. Forskningsadapter och experiment återstår' },
 ]);
 export const ALL_RESEARCH_TOOLS = Object.freeze([...TOOLS, ...EXTERNAL_TOOLS]);
 export const CATALOG = Object.freeze([

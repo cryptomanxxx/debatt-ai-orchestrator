@@ -16,8 +16,10 @@ jobs:
       - run: npm ci
       - run: python3 -m pip install -r research/requirements.lock
       - run: python3 -m pip install -r research/sympy-requirements.lock
+      - run: python3 -m pip install -r research/sklearn-requirements.lock
       - run: python3 -m pip check
       - run: python3 scripts/check_sympy.py
+      - run: python3 scripts/check_sklearn.py
       - run: npm run test:sympy
       - run: npm test
       - run: npm run test:science
@@ -36,8 +38,10 @@ jobs:
           python-version: '3.12'
       - run: python3 -m pip install -r research/pymc-requirements.lock
       - run: python3 -m pip install -r research/sympy-requirements.lock
+      - run: python3 -m pip install -r research/sklearn-requirements.lock
       - run: python3 -m pip check
       - run: python3 scripts/check_sympy.py
+      - run: python3 scripts/check_sklearn.py
       - run: npm run test:pymc
   bootloops:
     runs-on: ubuntu-latest
