@@ -121,8 +121,9 @@ It executes the actual Python code, checks a planted `(x+1)/(x+2)` function
 against separately withheld exact values, checks a constant function, and
 requires a deliberately corrupted holdout to fail. A local authenticated Node
 HTTP test verifies the full transport-to-Python path. This test does not call
-the deployed Cloudflare URL or Groq. Existing `npm test` remains Python-free,
-so the Cloudflare build command can stay as configured.
+the deployed Cloudflare URL or Groq. `npm test` does not require the locked scientific Python packages,
+so the Cloudflare build command can stay as configured. CI separately runs
+`npm run test:science` after installing `research/requirements.lock`.
 
 Send the following to the **Node** server's authenticated `POST /v1/query`:
 
