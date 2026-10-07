@@ -53,33 +53,42 @@ jobs:
           python-version: '3.12'
       - name: Visa experiment och integrationsstatus
         run: node research/show-catalog.mjs
+      - name: Lös faktiskt experiment för Problem Bank
+        id: resolved
+        if: inputs.problem_bank_id != ''
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          PROBLEM_BANK_ID: ${{ inputs.problem_bank_id }}
+          PROBLEM_BANK_VERSION: ${{ inputs.problem_bank_version || '1' }}
+        run: echo "experiment=$(node research/resolve-problem-bank-experiment.mjs)" >> "$GITHUB_OUTPUT"
       - name: Installera låsta forskningsberoenden
-        if: inputs.experiment != 'catalog-only'
+        if: inputs.experiment != 'catalog-only' || inputs.problem_bank_id != ''
         run: python3 -m pip install -r research/requirements.lock
-      - name: Installera låst PyMC-miljö för manuell BNP-uppföljning
-        if: inputs.experiment == 'pymc-gdp-ar1'
+      - name: Installera låst PyMC-miljö för BNP-uppföljning
+        if: inputs.experiment == 'pymc-gdp-ar1' || steps.resolved.outputs.experiment == 'pymc-gdp-ar1'
         run: python3 -m pip install -r research/pymc-requirements.lock
       - name: Installera och kontrollera isolerad DoWhy-miljö
-        if: inputs.experiment != 'catalog-only'
+        if: inputs.experiment != 'catalog-only' || inputs.problem_bank_id != ''
         run: |
           python3 -m venv .dowhy-venv
           .dowhy-venv/bin/python -m pip install -r research/dowhy-requirements.lock
           .dowhy-venv/bin/python -m pip check
           .dowhy-venv/bin/python scripts/check_dowhy.py
       - name: Installera och kontrollera Scikit-learn
-        if: inputs.experiment != 'catalog-only'
+        if: inputs.experiment != 'catalog-only' || inputs.problem_bank_id != ''
         run: |
           python3 -m pip install -r research/sklearn-requirements.lock
           python3 -m pip check
           python3 scripts/check_sklearn.py
       - name: Installera och kontrollera SymPy
-        if: inputs.experiment != 'catalog-only'
+        if: inputs.experiment != 'catalog-only' || inputs.problem_bank_id != ''
         run: |
           python3 -m pip install -r research/sympy-requirements.lock
           python3 -m pip check
           python3 scripts/check_sympy.py
       - name: Planera, kör och spara forskning
-        if: inputs.experiment != 'catalog-only'
+        if: inputs.experiment != 'catalog-only' || inputs.problem_bank_id != ''
         env:
           EXPERIMENT: ${{ inputs.experiment || 'auto' }}
           EXPERIMENT_SEED: ${{ inputs.seed }}
