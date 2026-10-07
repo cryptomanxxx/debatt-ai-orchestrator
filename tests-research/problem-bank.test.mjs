@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createProblem,problemFingerprint,runnerView,assertNoHiddenReference,createProblemBankClient} from '../research/problem-bank.mjs';
+function validRow(overrides={}) {
+ const base={id:'abc',kind:'open',domain:'math',question:'Q',source:null,verifier_ids:[],difficulty:1,status:'active',version:1};
+ return {...base,...overrides,fingerprint:problemFingerprint({...base,...overrides})};
+}
+
 
 test('creates deterministic problem records',()=>{
  const p=createProblem({id:'bench-001',kind:'benchmark_hidden_solution',domain:'math',question:'Solve x^2=4',verifier_ids:['sympy-quadratic'],difficulty:1});
@@ -16,7 +21,7 @@ test('client explicitly selects only runner-safe columns',async()=>{
  let requested='';
  const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'secret',fetchImpl:async url=>{
    requested=String(url);
-   return {ok:true,json:async()=>[{id:'abc',kind:'open',domain:'math',question:'Q',source:null,verifier_ids:[],difficulty:1,status:'active',version:1,fingerprint:'a'.repeat(64)}]};
+   return {ok:true,json:async()=>[validRow()]};
  }});
  const p=await client.getProblem('abc');
  assert.equal(p.id,'abc');
@@ -28,7 +33,7 @@ test('modern Supabase secret is sent only as apikey',async()=>{
  let headers;
  const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'sb_secret_test',fetchImpl:async (_url,init)=>{
    headers=init.headers;
-   return {ok:true,json:async()=>[{id:'abc',kind:'open',domain:'math',question:'Q',source:null,verifier_ids:[],difficulty:1,status:'active',version:1,fingerprint:'a'.repeat(64)}]};
+   return {ok:true,json:async()=>[validRow()]};
  }});
  await client.getProblem('abc');
  assert.equal(headers.apikey,'sb_secret_test');
