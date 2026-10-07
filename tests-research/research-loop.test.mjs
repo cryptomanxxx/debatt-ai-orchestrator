@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createResearchProblem, addHypothesis, recordAttempt, recordResult, researchSummary } from '../research/research-loop.mjs';
+import { createResearchProblem, addHypothesis, recordAttempt, recordResult, researchSummary, researchFingerprint } from '../research/research-loop.mjs';
 
 test('Research Loop v1 preserves problem lineage through verified result',()=>{
  let p=createResearchProblem({id:'open-problem-001',question:'Kan hypotesen verifieras?',domain:'matematik',computeBudget:{maxAttempts:2}});
@@ -67,4 +67,13 @@ test('hypothesis parent must already exist',()=>{
  p=addHypothesis(p,{id:'parent',statement:'P',rationale:'R'});
  p=addHypothesis(p,{id:'child',statement:'C',rationale:'R',parentId:'parent'});
  assert.equal(p.hypotheses[1].parentId,'parent');
+});
+
+
+test('result parent must already exist',()=>{
+ let p=createResearchProblem({id:'problem-014',question:'Test?',domain:'test'});
+ assert.throws(()=>recordResult(p,{id:'child',claim:'C',status:'inconclusive',parentResultId:'missing'}),/unknown_parent_result/);
+ p=recordResult(p,{id:'parent',claim:'P',status:'inconclusive'});
+ p=recordResult(p,{id:'child',claim:'C',status:'inconclusive',parentResultId:'parent'});
+ assert.equal(p.results[1].parentResultId,'parent');
 });
