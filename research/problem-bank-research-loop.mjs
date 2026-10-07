@@ -16,16 +16,8 @@ export function researchProblemFromBank(problem,{maxAttempts=3}={}) {
     id:view.id,
     question:view.question,
     domain:view.domain,
-    source:{
-      problem_bank:{
-        kind:view.kind,
-        version:view.version,
-        fingerprint:view.fingerprint,
-        source:view.source??null,
-        verifier_ids:view.verifier_ids??[],
-        difficulty:view.difficulty??null
-      }
-    },
+    source:{problem_bank:{kind:view.kind,version:view.version,fingerprint:view.fingerprint,source:view.source??null,
+      verifier_ids:view.verifier_ids??[],difficulty:view.difficulty??null}},
     computeBudget:{maxAttempts}
   });
 }
@@ -34,11 +26,7 @@ export async function startBankResearchRun(client,problem,options={}) {
   if (!client || typeof client.startRun!=='function') throw new Error('invalid_problem_bank_client');
   const view=assertBankProblem(problem);
   const research=researchProblemFromBank(view,options);
-  const run=await client.startRun(view,{
-    phase:'research_loop',
-    research_fingerprint:research.fingerprint,
-    research
-  });
+  const run=await client.startRun(view,{phase:'research_loop',research_fingerprint:research.fingerprint,research});
   return Object.freeze({problem:view,run,research});
 }
 
@@ -46,11 +34,11 @@ export async function finishBankResearchRun(client,session,{status='completed',r
   if (!client || typeof client.finishRun!=='function') throw new Error('invalid_problem_bank_client');
   if (!session?.run?.id || !session?.problem?.fingerprint) throw new Error('invalid_research_session');
   if (!research || researchFingerprint(research)!==research.fingerprint) throw new Error('invalid_problem_fingerprint');
-  if (research.id!==session.problem.id) throw new Error('research_problem_lineage_mismatch');
-  return client.finishRun(session.run.id,status,{
-    phase:'research_loop_finished',
-    problem_fingerprint:session.problem.fingerprint,
-    research_fingerprint:research.fingerprint,
-    research
-  });
+  const lineage=research.source?.problem_bank;
+  if (research.id!==session.problem.id
+    || lineage?.version!==session.problem.version
+    || lineage?.fingerprint!==session.problem.fingerprint)
+    throw new Error('research_problem_lineage_mismatch');
+  return client.finishRun(session.run.id,status,{phase:'research_loop_finished',problem_fingerprint:session.problem.fingerprint,
+    research_fingerprint:research.fingerprint,research});
 }
