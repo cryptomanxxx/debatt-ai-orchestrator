@@ -5,7 +5,7 @@ export function canonicalVersion(value) {
   const text=String(value);
   if (!/^[1-9][0-9]*$/.test(text)) throw new Error('invalid_canonical_problem_version');
   const number=Number(text);
-  if (!Number.isSafeInteger(number)) throw new Error('invalid_canonical_problem_version');
+  if (!Number.isSafeInteger(number) || number > 2147483647) throw new Error('invalid_canonical_problem_version');
   return number;
 }
 
