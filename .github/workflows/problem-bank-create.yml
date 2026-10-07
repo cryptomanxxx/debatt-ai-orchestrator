@@ -1,0 +1,51 @@
+name: Create Problem Bank problem
+on:
+  workflow_dispatch:
+    inputs:
+      problem_id:
+        description: Unique problem ID (letters, digits, dots, underscores, hyphens)
+        required: true
+        type: string
+      experiment_id:
+        description: Exact experiment ID from Oraklet catalog
+        required: true
+        type: string
+      domain:
+        description: Research domain
+        required: true
+        type: string
+      difficulty:
+        description: Difficulty 1-5
+        required: true
+        default: '2'
+        type: choice
+        options: ['1','2','3','4','5']
+      version:
+        description: Immutable problem version (positive integer)
+        required: true
+        default: '1'
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: problem-bank-create-${{ inputs.problem_id }}-${{ inputs.version }}
+  cancel-in-progress: false
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate and create or verify problem
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          PROBLEM_ID: ${{ inputs.problem_id }}
+          EXPERIMENT_ID: ${{ inputs.experiment_id }}
+          PROBLEM_DOMAIN: ${{ inputs.domain }}
+          PROBLEM_DIFFICULTY: ${{ inputs.difficulty }}
+          PROBLEM_VERSION: ${{ inputs.version }}
+        run: node research/problem-bank-create-catalog.mjs
