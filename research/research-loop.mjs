@@ -8,7 +8,10 @@ function jsonValue(value, path='value') {
     if (!Number.isFinite(value)) throw new Error('invalid_json_value:' + path);
     return value;
   }
-  if (Array.isArray(value)) return value.map((v,i)=>jsonValue(v,path+'['+i+']'));
+  if (Array.isArray(value)) {
+    for (let i=0;i<value.length;i++) if (!Object.hasOwn(value,i)) throw new Error('invalid_json_value:' + path+'['+i+']');
+    return value.map((v,i)=>jsonValue(v,path+'['+i+']'));
+  }
   if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
     const out={};
     for (const key of Object.keys(value).sort()) {
@@ -28,7 +31,9 @@ function deepFreeze(value) {
   return value;
 }
 export function researchFingerprint(value) {
-  return createHash('sha256').update(JSON.stringify(jsonValue(value))).digest('hex');
+  const canonical=jsonValue(value);
+  if (canonical && typeof canonical === 'object' && !Array.isArray(canonical)) delete canonical.fingerprint;
+  return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
 }
 function immutableResearchState(value) {
   const copy=jsonValue(value);
@@ -39,7 +44,9 @@ function verificationEnvelope(value) {
   if (!v || typeof v !== 'object' || Array.isArray(v)
     || typeof v.tool !== 'string' || !v.tool.trim()
     || v.independent !== true
-    || !Object.hasOwn(v,'result')) throw new Error('invalid_verification');
+    || !Object.hasOwn(v,'result')
+    || !v.result || typeof v.result !== 'object' || Array.isArray(v.result)
+    || v.result.valid !== true) throw new Error('invalid_verification');
   return v;
 }
 function requiredText(value, name, max=4000) {
@@ -58,6 +65,7 @@ export function addHypothesis(problem, hypothesis) {
   const h={id:requiredText(hypothesis.id,'hypothesis_id',120),statement:requiredText(hypothesis.statement,'hypothesis',3000),
     rationale:requiredText(hypothesis.rationale,'rationale',3000),parentId:hypothesis.parentId??null,status:'proposed'};
   if(problem.hypotheses.some(x=>x.id===h.id)) throw new Error('duplicate_hypothesis');
+  if(h.parentId!==null && !problem.hypotheses.some(x=>x.id===h.parentId)) throw new Error('unknown_parent_hypothesis');
   return evolve(problem,{hypotheses:[...problem.hypotheses,h]},'hypothesis_added');
 }
 export function recordAttempt(problem, attempt) {
