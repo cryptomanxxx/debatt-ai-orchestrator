@@ -85,3 +85,75 @@ test('lifecycle status does not change the immutable problem fingerprint',()=>{
  assert.equal(problemFingerprint(active),problemFingerprint(retired));
  assert.equal(active.fingerprint,problemFingerprint(retired));
 });
+
+
+test('client persists problems and runs through the Supabase write path',async()=>{
+ const calls=[];
+ const row=validRow();
+ const run={id:'11111111-1111-1111-1111-111111111111',problem_id:'abc',problem_version:1,problem_fingerprint:row.fingerprint,state:{step:1},status:'running',started_at:'2026-10-07T13:00:00.000Z',completed_at:null};
+ const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'sb_secret_test',fetchImpl:async (url,init={})=>{
+   calls.push({url:String(url),init});
+   if (String(url).includes('research_problem')) return {ok:true,json:async()=>[row]};
+   if (init.method==='PATCH') return {ok:true,json:async()=>[{...run,state:{done:true},status:'completed',completed_at:'2026-10-07T13:01:00.000Z'}]};
+   return {ok:true,json:async()=>[run]};
+ }});
+ const problem=await client.putProblem({id:'abc',kind:'open',domain:'math',question:'Q',difficulty:1});
+ const started=await client.startRun(problem,{step:1});
+ const finished=await client.finishRun(started.id,'completed',{done:true});
+ assert.equal(finished.status,'completed');
+ assert.deepEqual(calls.map(c=>c.init.method),['POST','POST','PATCH']);
+ assert.equal(calls[0].init.headers.apikey,'sb_secret_test');
+ assert.equal(Object.hasOwn(calls[0].init.headers,'Authorization'),false);
+ assert.match(calls[2].url,/id=eq\.11111111-1111-1111-1111-111111111111/);
+});
+
+
+test('startRun rejects tampered problem content with a copied fingerprint',async()=>{
+ const original=validRow();
+ const tampered={...original,question:'Tampered question'};
+ let called=false;
+ const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'sb_secret_test',fetchImpl:async()=>{
+   called=true;
+   throw new Error('should_not_call_supabase');
+ }});
+ await assert.rejects(()=>client.startRun(tampered,{}),/problem_fingerprint_mismatch/);
+ assert.equal(called,false);
+});
+
+
+test('run writes reject non-JSON state before calling Supabase',async()=>{
+ const problem=validRow();
+ for (const state of [{value:NaN},{value:undefined},new Array(1)]) {
+   let called=false;
+   const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'sb_secret_test',fetchImpl:async()=>{
+     called=true;
+     throw new Error('should_not_call_supabase');
+   }});
+   await assert.rejects(()=>client.startRun(problem,state),/invalid_problem_json/);
+   assert.equal(called,false);
+   await assert.rejects(()=>client.finishRun('11111111-1111-1111-1111-111111111111','completed',state),/invalid_problem_json/);
+   assert.equal(called,false);
+ }
+});
+
+
+test('finishRun delegates completed_at to the database clock',async()=>{
+ let patchBody;
+ const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'sb_secret_test',fetchImpl:async (_url,init)=>{
+   patchBody=JSON.parse(init.body);
+   return {ok:true,json:async()=>[{id:'11111111-1111-1111-1111-111111111111',status:'completed',state:{done:true},started_at:'2026-10-07T13:00:00.000Z',completed_at:'2026-10-07T13:00:00.001Z'}]};
+ }});
+ await client.finishRun('11111111-1111-1111-1111-111111111111','completed',{done:true});
+ assert.equal(Object.hasOwn(patchBody,'completed_at'),false);
+});
+
+
+test('finishRun delegates completed_at to the database clock',async()=>{
+ let patchBody;
+ const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'sb_secret_test',fetchImpl:async (_url,init)=>{
+   patchBody=JSON.parse(init.body);
+   return {ok:true,json:async()=>[{id:'11111111-1111-1111-1111-111111111111',status:'completed',state:{done:true},started_at:'2026-10-07T13:00:00.000Z',completed_at:'2026-10-07T13:00:00.001Z'}]};
+ }});
+ await client.finishRun('11111111-1111-1111-1111-111111111111','completed',{done:true});
+ assert.equal(Object.hasOwn(patchBody,'completed_at'),false);
+});
