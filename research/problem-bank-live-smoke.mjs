@@ -1,14 +1,22 @@
-import { createProblemBankClient } from './problem-bank.mjs';
+import { createProblem, createProblemBankClient } from './problem-bank.mjs';
 
 const url=process.env.SUPABASE_URL;
 const secretKey=process.env.SUPABASE_SECRET_KEY;
 if (!url||!secretKey) throw new Error('missing_problem_bank_environment');
 
 const client=createProblemBankClient({url,secretKey});
-const suffix=Date.now().toString(36);
-const input={id:`smoke-${suffix}`,kind:'open',domain:'integration-test',question:'Can the Problem Bank persist and complete a research run end to end?',difficulty:1,verifier_ids:[]};
+const fixtureInput={id:'problem-bank-smoke-fixture',kind:'open',domain:'integration-test',question:'Can the Problem Bank persist and complete a research run end to end?',difficulty:1,verifier_ids:[]};
+const expected=createProblem(fixtureInput);
 
-const problem=await client.putProblem(input);
+let problem;
+try {
+  problem=await client.getProblem(expected.id,expected.version);
+  if (problem.fingerprint!==expected.fingerprint) throw new Error('smoke_fixture_mismatch');
+} catch (error) {
+  if (error?.message!=='problem_bank_read_failed:406') throw error;
+  problem=await client.putProblem(fixtureInput);
+}
+
 const started=await client.startRun(problem,{phase:'started',smoke:true});
 const finished=await client.finishRun(started.id,'completed',{phase:'completed',smoke:true});
 const loaded=await client.getProblem(problem.id,problem.version);
