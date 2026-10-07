@@ -12,7 +12,13 @@ The runner client uses an explicit safe-column projection and has no method for 
 
 ## Install
 
-Run `supabase/migrations/20261007_research_problem_bank_v1.sql` first, then `supabase/migrations/20261007150000_research_run_database_completion_clock.sql` in the new orchestrator project's SQL Editor. Both migrations are required, in that order.
+Run these migrations in the new orchestrator project's SQL Editor, in this order:
+
+1. `supabase/migrations/20261007_research_problem_bank_v1.sql`
+2. `supabase/migrations/20261007150000_research_run_database_completion_clock.sql`
+3. `supabase/migrations/20261007181500_problem_bank_service_role_grants.sql`
+
+All three migrations are required. The final migration grants the backend `service_role` Data API table privileges while keeping `anon` and `authenticated` revoked.
 
 Runtime configuration:
 - `SUPABASE_URL` is non-secret and may be stored in Wrangler vars.
