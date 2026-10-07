@@ -13,7 +13,7 @@ try {
   problem=await client.getProblem(expected.id,expected.version);
   if (problem.fingerprint!==expected.fingerprint) throw new Error('smoke_fixture_mismatch');
 } catch (error) {
-  if (error?.message!=='problem_bank_read_failed:406') throw error;
+  if (error?.message!=='problem_not_found') throw error;
   problem=await client.putProblem(fixtureInput);
 }
 
