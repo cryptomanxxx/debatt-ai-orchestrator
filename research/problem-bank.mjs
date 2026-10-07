@@ -93,6 +93,7 @@ export function createProblemBankClient({url,secretKey,fetchImpl=fetch}) {
     async startRun(problem,state={}) {
       const view=runnerView(problem);
       if (!view.id||!Number.isInteger(view.version)||typeof view.fingerprint!=='string') throw new Error('invalid_run_problem');
+      if (problemFingerprint(view)!==view.fingerprint) throw new Error('problem_fingerprint_mismatch');
       const endpoint=new URL('/rest/v1/research_run',url);
       const payload={problem_id:view.id,problem_version:view.version,problem_fingerprint:view.fingerprint,state,status:'running'};
       const response=await fetchImpl(endpoint,{method:'POST',headers:{...jsonHeaders,Prefer:'return=representation'},body:JSON.stringify(payload)});
