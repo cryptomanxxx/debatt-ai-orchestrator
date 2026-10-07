@@ -6,7 +6,7 @@ function jsonValue(value, path='value') {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) throw new Error('invalid_json_value:' + path);
-    return value;
+    return Object.is(value,-0) ? 0 : value;
   }
   if (Array.isArray(value)) {
     for (let i=0;i<value.length;i++) if (!Object.hasOwn(value,i)) throw new Error('invalid_json_value:' + path+'['+i+']');
