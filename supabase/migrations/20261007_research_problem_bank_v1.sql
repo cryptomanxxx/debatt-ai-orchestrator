@@ -15,7 +15,24 @@ create table if not exists public.research_problem (
   created_at timestamptz not null default now()
 );
 
-create or replace function public.enforce_research_run_problem_fingerprint() returns trigger\nlanguage plpgsql\nas $\nbegin\n  if not exists (select 1 from public.research_problem p where p.id = new.problem_id and p.fingerprint = new.problem_fingerprint) then\n    raise exception 'problem_fingerprint_mismatch';\n  end if;\n  return new;\nend;\n$;\n\ncreate table if not exists public.research_run (
+create or replace function public.enforce_research_run_problem_fingerprint()
+returns trigger
+language plpgsql
+as $$
+begin
+  if not exists (
+    select 1
+    from public.research_problem p
+    where p.id = new.problem_id
+      and p.fingerprint = new.problem_fingerprint
+  ) then
+    raise exception 'problem_fingerprint_mismatch';
+  end if;
+  return new;
+end;
+$$;
+
+create table if not exists public.research_run (
   id uuid primary key default gen_random_uuid(),
   problem_id text not null references public.research_problem(id),
   problem_fingerprint text not null,
@@ -25,6 +42,12 @@ create or replace function public.enforce_research_run_problem_fingerprint() ret
   completed_at timestamptz,
   check ((status = 'completed' and completed_at is not null) or status <> 'completed')
 );
+
+drop trigger if exists research_run_problem_fingerprint_guard on public.research_run;
+create trigger research_run_problem_fingerprint_guard
+before insert on public.research_run
+for each row
+execute function public.enforce_research_run_problem_fingerprint();
 
 -- Hidden benchmark answers never live in a Data API schema.
 create table if not exists private.research_problem_reference (
