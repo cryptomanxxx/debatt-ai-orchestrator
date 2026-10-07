@@ -27,6 +27,7 @@ function deepFreeze(value) {
   return value;
 }
 const HIDDEN_KEYS=new Set(['reference_solution','reference_fingerprint','solution','answer']);
+const BENCHMARK_SOURCE_KEYS=new Set(['provider','collection','problem_id','url','citation','license']);
 function scanHidden(value) {
   if (Array.isArray(value)) { for (const item of value) scanHidden(item); return; }
   if (!value || typeof value !== 'object') return;
@@ -34,6 +35,12 @@ function scanHidden(value) {
     if (HIDDEN_KEYS.has(key)) throw new Error('hidden_reference_leak');
     scanHidden(child);
   }
+}
+function validateBenchmarkSource(source) {
+  if (source === null) return;
+  if (!source || typeof source !== 'object' || Array.isArray(source)) throw new Error('unsafe_benchmark_source');
+  for (const key of Object.keys(source)) if (!BENCHMARK_SOURCE_KEYS.has(key)) throw new Error('unsafe_benchmark_source');
+  scanHidden(source);
 }
 export function problemFingerprint(problem) {
   const value=canonical(problem);
@@ -52,7 +59,7 @@ export function createProblem(input) {
   if (!Number.isInteger(input.version??1)||(input.version??1)<1) throw new Error('invalid_problem_version');
   const problem=canonical({id:input.id,kind:input.kind,domain:input.domain.trim(),question:input.question.trim(),source:input.source??null,
     verifier_ids:input.verifier_ids??[],difficulty:input.difficulty??null,status:input.status??'active',version:input.version??1});
-  if (problem.kind==='benchmark_hidden_solution') scanHidden(problem.source);
+  if (problem.kind==='benchmark_hidden_solution') validateBenchmarkSource(problem.source);
   return deepFreeze({...problem,fingerprint:problemFingerprint(problem)});
 }
 export function runnerView(row) {
@@ -76,7 +83,7 @@ export function createProblemBankClient({url,secretKey,fetchImpl=fetch}) {
       const rows=await response.json();
       if (!Array.isArray(rows)||rows.length!==1) throw new Error('problem_not_found');
       const view=runnerView(rows[0]);
-      if (view.kind==='benchmark_hidden_solution') assertNoHiddenReference(view.source);
+      if (view.kind==='benchmark_hidden_solution') validateBenchmarkSource(view.source);
       if (problemFingerprint(view)!==view.fingerprint) throw new Error('problem_fingerprint_mismatch');
       return view;
     }
