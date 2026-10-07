@@ -53,11 +53,7 @@ export function runnerView(row) {
   for (const key of allowed) if (Object.hasOwn(row,key)) view[key]=canonical(row[key]);
   return deepFreeze(view);
 }
-export function assertNoHiddenReference(value) {
-  for (const key of ['reference_solution','reference_fingerprint','solution','answer'])
-    if (Object.hasOwn(value??{},key)) throw new Error('hidden_reference_leak');
-  return value;
-}
+export function assertNoHiddenReference(value) { scanHidden(value); return value; }
 export function createProblemBankClient({url,secretKey,fetchImpl=fetch}) {
   if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url??'')) throw new Error('invalid_supabase_url');
   if (typeof secretKey!=='string'||!secretKey) throw new Error('missing_supabase_secret');
