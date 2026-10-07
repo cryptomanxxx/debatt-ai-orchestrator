@@ -49,6 +49,7 @@ export function problemFingerprint(problem) {
   const value=canonical(problem);
   delete value.fingerprint;
   delete value.created_at;
+  delete value.status;
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 export function createProblem(input) {
