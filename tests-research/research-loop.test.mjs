@@ -6,8 +6,8 @@ test('Research Loop v1 preserves problem lineage through verified result',()=>{
  let p=createResearchProblem({id:'open-problem-001',question:'Kan hypotesen verifieras?',domain:'matematik',computeBudget:{maxAttempts:2}});
  const original=p.fingerprint;
  p=addHypothesis(p,{id:'h1',statement:'Ett kandidatsamband gäller.',rationale:'Testbar kandidat.'});
- p=recordAttempt(p,{id:'a1',hypothesisId:'h1',method:'symbolic-check',toolId:'sympy',outcome:'Kandidaten stöds.',evidence:{case:'exact'},verification:{tool:'sympy',independent:true}});
- p=recordResult(p,{id:'r1',claim:'Kandidatsambandet gäller inom testad domän.',status:'verified',significance:'pilot',verification:{tool:'sympy',independent:true}});
+ p=recordAttempt(p,{id:'a1',hypothesisId:'h1',method:'symbolic-check',toolId:'sympy',outcome:'Kandidaten stöds.',evidence:{case:'exact'},verification:{tool:'sympy',independent:true,result:{valid:true}}});
+ p=recordResult(p,{id:'r1',claim:'Kandidatsambandet gäller inom testad domän.',status:'verified',significance:'pilot',verification:{tool:'sympy',independent:true,result:{valid:true}}});
  assert.equal(p.status,'verified'); assert.notEqual(p.fingerprint,original);
  assert.equal(p.revisions.length,3); assert.equal(researchSummary(p).attempts,'1/2');
 });
@@ -26,4 +26,24 @@ test('inconclusive is a first-class research result',()=>{
  let p=createResearchProblem({id:'problem-004',question:'Test?',domain:'test'});
  p=recordResult(p,{id:'r',claim:'Evidensen räcker inte.',status:'inconclusive'});
  assert.equal(p.status,'inconclusive');
+});
+
+
+test('research state is deeply immutable',()=>{
+ let p=createResearchProblem({id:'problem-005',question:'Test?',domain:'test',source:{origin:'fixture'}});
+ p=addHypothesis(p,{id:'h',statement:'H',rationale:'R'});
+ assert.equal(Object.isFrozen(p.hypotheses),true);
+ assert.equal(Object.isFrozen(p.hypotheses[0]),true);
+ assert.throws(()=>p.hypotheses.push({}),TypeError);
+ assert.throws(()=>{p.hypotheses[0].statement='changed';},TypeError);
+});
+test('conclusive verification requires structured independent result',()=>{
+ const p=createResearchProblem({id:'problem-006',question:'Test?',domain:'test'});
+ for (const verification of [{},true,'yes',{tool:'sympy',independent:true}])
+   assert.throws(()=>recordResult(p,{id:'r',claim:'C',status:'verified',verification}),/invalid_verification/);
+});
+test('fingerprinted unrestricted fields reject non JSON values',()=>{
+ assert.throws(()=>createResearchProblem({id:'problem-007',question:'Test?',domain:'test',source:{x:undefined}}),/invalid_json_value/);
+ assert.throws(()=>createResearchProblem({id:'problem-008',question:'Test?',domain:'test',source:{x:NaN}}),/invalid_json_value/);
+ assert.throws(()=>createResearchProblem({id:'problem-009',question:'Test?',domain:'test',source:{x:1n}}),/invalid_json_value/);
 });
