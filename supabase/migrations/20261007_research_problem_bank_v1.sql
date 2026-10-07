@@ -18,6 +18,42 @@ create table if not exists public.research_problem (
   unique (id, version, fingerprint)
 );
 
+create or replace function public.validate_research_problem_source()
+returns trigger
+language plpgsql
+as $
+declare
+  source_key text;
+  source_value jsonb;
+begin
+  if new.kind <> 'benchmark_hidden_solution' or new.source is null then
+    return new;
+  end if;
+
+  if jsonb_typeof(new.source) <> 'object' then
+    raise exception 'unsafe_benchmark_source';
+  end if;
+
+  for source_key, source_value in select key, value from jsonb_each(new.source)
+  loop
+    if source_key not in ('provider','collection','problem_id','url','citation','license') then
+      raise exception 'unsafe_benchmark_source';
+    end if;
+    if jsonb_typeof(source_value) not in ('string','null') then
+      raise exception 'unsafe_benchmark_source';
+    end if;
+  end loop;
+
+  return new;
+end;
+$;
+
+drop trigger if exists research_problem_source_guard on public.research_problem;
+create trigger research_problem_source_guard
+before insert or update of kind, source on public.research_problem
+for each row
+execute function public.validate_research_problem_source();
+
 create or replace function public.prevent_research_problem_update()
 returns trigger
 language plpgsql
