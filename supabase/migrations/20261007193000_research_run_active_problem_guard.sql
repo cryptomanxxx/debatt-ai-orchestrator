@@ -1,20 +1,24 @@
 -- Prevent new runs from starting against a retired Problem Bank entry.
--- This check is performed in the database so stale or locally modified runner views cannot bypass lifecycle status.
+-- Lock the matching problem row while checking status so run creation and retirement serialize.
 create or replace function public.guard_research_run_insert_active_problem()
 returns trigger
 language plpgsql
 as $$
+declare
+  persisted_status text;
 begin
-  if not exists (
-    select 1
+  select p.status
+    into persisted_status
     from public.research_problem p
     where p.id = new.problem_id
       and p.version = new.problem_version
       and p.fingerprint = new.problem_fingerprint
-      and p.status = 'active'
-  ) then
+    for share;
+
+  if persisted_status is distinct from 'active' then
     raise exception 'research_problem_not_active';
   end if;
+
   return new;
 end;
 $$;
