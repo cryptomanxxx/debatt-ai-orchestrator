@@ -40,8 +40,9 @@ test('modern Supabase secret is sent only as apikey',async()=>{
  assert.equal(Object.hasOwn(headers,'Authorization'),false);
 });
 test('hidden references are rejected recursively for benchmarks',()=>{
- assert.throws(()=>createProblem({id:'bench-002',kind:'benchmark_hidden_solution',domain:'math',question:'Q',source:{metadata:{answer:42}}}),/hidden_reference_leak/);
+ assert.throws(()=>createProblem({id:'bench-002',kind:'benchmark_hidden_solution',domain:'math',question:'Q',source:{provider:{answer:42}}}),/hidden_reference_leak/);
  assert.throws(()=>assertNoHiddenReference({source:{nested:[{solution:'secret'}]}}),/hidden_reference_leak/);
+ assert.throws(()=>createProblem({id:'bench-003',kind:'benchmark_hidden_solution',domain:'math',question:'Q',source:{provider:{ground_truth:42}}}),/unsafe_benchmark_source/);
 });
 test('problem records are deeply immutable',()=>{
  const p=createProblem({id:'open-001',kind:'open',domain:'math',question:'Q',source:{url:'a'},verifier_ids:['sympy']});
