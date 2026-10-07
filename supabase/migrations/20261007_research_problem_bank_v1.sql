@@ -94,7 +94,7 @@ create table if not exists public.research_run (
   completed_at timestamptz,
   foreign key (problem_id, problem_version, problem_fingerprint)
     references public.research_problem(id, version, fingerprint),
-  check ((status = 'running' and completed_at is null) or (status in ('completed','failed') and completed_at is not null))
+  check ((status = 'running' and completed_at is null) or (status in ('completed','failed') and completed_at is not null and completed_at >= started_at))
 );
 
 create or replace function public.guard_research_run_update()
@@ -105,7 +105,8 @@ begin
   if old.status in ('completed','failed') then
     raise exception 'research_run_terminal_immutable';
   end if;
-  if new.problem_id is distinct from old.problem_id
+  if new.id is distinct from old.id
+     or new.problem_id is distinct from old.problem_id
      or new.problem_version is distinct from old.problem_version
      or new.problem_fingerprint is distinct from old.problem_fingerprint
      or new.started_at is distinct from old.started_at then
@@ -127,6 +128,24 @@ create trigger research_run_update_guard
 before update on public.research_run
 for each row
 execute function public.guard_research_run_update();
+
+create or replace function public.guard_research_run_delete()
+returns trigger
+language plpgsql
+as $
+begin
+  if old.status in ('completed','failed') then
+    raise exception 'research_run_terminal_immutable';
+  end if;
+  return old;
+end;
+$;
+
+drop trigger if exists research_run_delete_guard on public.research_run;
+create trigger research_run_delete_guard
+before delete on public.research_run
+for each row
+execute function public.guard_research_run_delete();
 
 -- Hidden benchmark answers never live in a Data API schema.
 create table if not exists private.research_problem_reference (
