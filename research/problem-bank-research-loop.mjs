@@ -1,4 +1,4 @@
-import { createResearchProblem, researchFingerprint } from './research-loop.mjs';
+import { createResearchProblem, addHypothesis, recordAttempt, recordResult, researchFingerprint } from './research-loop.mjs';
 import { problemFingerprint, runnerView } from './problem-bank.mjs';
 
 function assertBankProblem(problem) {
@@ -14,19 +14,30 @@ function descendsFrom(research,started) {
   if (research.schemaVersion!==started.schemaVersion || research.id!==started.id
     || research.question!==started.question || research.domain!==started.domain
     || !sameJson(research.source,started.source) || !sameJson(research.computeBudget,started.computeBudget)) return false;
-  if (research.hypotheses.length < started.hypotheses.length
-    || research.attempts.length < started.attempts.length || research.results.length < started.results.length
-    || research.revisions.length <= started.revisions.length) return false;
   if (!sameJson(research.hypotheses.slice(0,started.hypotheses.length),started.hypotheses)
     || !sameJson(research.attempts.slice(0,started.attempts.length),started.attempts)
     || !sameJson(research.results.slice(0,started.results.length),started.results)
     || !sameJson(research.revisions.slice(0,started.revisions.length),started.revisions)) return false;
-  const first=research.revisions[started.revisions.length];
-  if (first.version!==started.revisions.length+1 || first.previousFingerprint!==started.fingerprint) return false;
-  for (let i=started.revisions.length;i<research.revisions.length;i++) {
-    if (research.revisions[i].version!==i+1) return false;
-  }
-  return true;
+  let replayed=started, h=started.hypotheses.length, a=started.attempts.length, r=started.results.length;
+  try {
+    for (let i=started.revisions.length;i<research.revisions.length;i++) {
+      const revision=research.revisions[i];
+      if (revision.version!==i+1 || revision.previousFingerprint!==replayed.fingerprint) return false;
+      if (revision.reason==='hypothesis_added') {
+        if (h>=research.hypotheses.length) return false;
+        replayed=addHypothesis(replayed,research.hypotheses[h++]);
+      } else if (revision.reason==='attempt_recorded') {
+        if (a>=research.attempts.length) return false;
+        replayed=recordAttempt(replayed,research.attempts[a++]);
+      } else if (revision.reason==='result_recorded') {
+        if (r>=research.results.length) return false;
+        replayed=recordResult(replayed,research.results[r++]);
+      } else return false;
+      if (!sameJson(replayed.revisions[i],revision)) return false;
+    }
+  } catch { return false; }
+  return h===research.hypotheses.length && a===research.attempts.length && r===research.results.length
+    && replayed.fingerprint===research.fingerprint && sameJson(replayed,research);
 }
 function assertRunLineage(run,problem,researchFingerprintValue,runBinding) {
   if (!run || typeof run.id!=='string' || !run.id
