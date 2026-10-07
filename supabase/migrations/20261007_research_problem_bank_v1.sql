@@ -21,7 +21,7 @@ create table if not exists public.research_problem (
 create or replace function public.validate_research_problem_source()
 returns trigger
 language plpgsql
-as $
+as $$
 declare
   source_key text;
   source_value jsonb;
@@ -46,7 +46,7 @@ begin
 
   return new;
 end;
-$;
+$$;
 
 drop trigger if exists research_problem_source_guard on public.research_problem;
 create trigger research_problem_source_guard
@@ -57,7 +57,7 @@ execute function public.validate_research_problem_source();
 create or replace function public.prevent_research_problem_update()
 returns trigger
 language plpgsql
-as $
+as $$
 begin
   if old.status = 'active'
      and new.status = 'retired'
@@ -75,7 +75,7 @@ begin
   end if;
   raise exception 'research_problem_version_immutable';
 end;
-$;
+$$;
 
 drop trigger if exists research_problem_immutable_guard on public.research_problem;
 create trigger research_problem_immutable_guard
@@ -100,7 +100,7 @@ create table if not exists public.research_run (
 create or replace function public.guard_research_run_update()
 returns trigger
 language plpgsql
-as $
+as $$
 begin
   if old.status in ('completed','failed') then
     raise exception 'research_run_terminal_immutable';
@@ -120,7 +120,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 
 drop trigger if exists research_run_lineage_immutable_guard on public.research_run;
 drop trigger if exists research_run_update_guard on public.research_run;
@@ -132,14 +132,14 @@ execute function public.guard_research_run_update();
 create or replace function public.guard_research_run_delete()
 returns trigger
 language plpgsql
-as $
+as $$
 begin
   if old.status in ('completed','failed') then
     raise exception 'research_run_terminal_immutable';
   end if;
   return old;
 end;
-$;
+$$;
 
 drop trigger if exists research_run_delete_guard on public.research_run;
 create trigger research_run_delete_guard
