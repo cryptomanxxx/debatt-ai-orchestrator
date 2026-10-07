@@ -60,3 +60,19 @@ test('finish rejects a run borrowed from another session on the same Problem Ban
  const mixed={...high,run:low.run};
  await assert.rejects(()=>finishBankResearchRun(clientFor(bank),mixed),/research_run_state_mismatch/);
 });
+
+
+test('identical concurrent sessions have unique persisted run bindings',async()=>{
+ const bank=bankProblem();
+ const first=await startBankResearchRun(clientFor(bank),bank);
+ const second=await startBankResearchRun(clientFor(bank),bank);
+ assert.notEqual(first.runBinding,second.runBinding);
+ const mixed={...first,run:second.run};
+ await assert.rejects(()=>finishBankResearchRun(clientFor(bank),mixed),/research_run_state_mismatch/);
+});
+
+test('finish rejects run records with omitted lineage fields',async()=>{
+ const bank=bankProblem(), session=await startBankResearchRun(clientFor(bank),bank);
+ const stripped={...session,run:{id:session.run.id}};
+ await assert.rejects(()=>finishBankResearchRun(clientFor(bank),stripped),/research_run_lineage_mismatch/);
+});
