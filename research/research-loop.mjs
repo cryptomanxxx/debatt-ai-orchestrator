@@ -17,7 +17,7 @@ function jsonValue(value, path='value') {
     for (const key of Object.keys(value).sort()) {
       const v=value[key];
       if (v === undefined || ['function','symbol','bigint'].includes(typeof v)) throw new Error('invalid_json_value:' + path+'.'+key);
-      out[key]=jsonValue(v,path+'.'+key);
+      Object.defineProperty(out,key,{value:jsonValue(v,path+'.'+key),enumerable:true,writable:true,configurable:true});
     }
     return out;
   }
