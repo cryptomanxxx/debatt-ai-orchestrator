@@ -7,7 +7,7 @@ create table if not exists public.research_problem (
   domain text not null check (btrim(domain) <> ''),
   question text not null check (btrim(question) <> ''),
   source jsonb,
-  verifier_ids text[] not null default '{}',
+  verifier_ids text[] not null default '{}' check (array_position(verifier_ids, null) is null),
   difficulty smallint check (difficulty between 1 and 5),
   status text not null default 'active' check (status in ('active','retired')),
   version integer not null default 1 check (version > 0),
