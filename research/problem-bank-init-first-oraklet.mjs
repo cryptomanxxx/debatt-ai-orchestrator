@@ -19,6 +19,7 @@ let problem;
 try {
   problem=await client.getProblem(expected.id,expected.version);
   if (problem.fingerprint!==expected.fingerprint) throw new Error('oraklet_problem_mismatch');
+  if (problem.status!=='active') throw new Error('oraklet_problem_retired_create_new_version');
   console.log(JSON.stringify({ok:true,created:false,problem_id:problem.id,version:problem.version,fingerprint:problem.fingerprint}));
 } catch (error) {
   if (error?.message!=='problem_not_found') throw error;
