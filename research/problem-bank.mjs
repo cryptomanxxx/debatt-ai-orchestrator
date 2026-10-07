@@ -77,7 +77,41 @@ export function createProblemBankClient({url,secretKey,fetchImpl=fetch}) {
   if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url??'')) throw new Error('invalid_supabase_url');
   if (typeof secretKey!=='string'||!secretKey) throw new Error('missing_supabase_secret');
   const headers={apikey:secretKey};
+  const jsonHeaders={...headers,'Content-Type':'application/json'};
   return Object.freeze({
+    async putProblem(input) {
+      const problem=createProblem(input);
+      const endpoint=new URL('/rest/v1/research_problem',url);
+      const response=await fetchImpl(endpoint,{method:'POST',headers:{...jsonHeaders,Prefer:'return=representation'},body:JSON.stringify(problem)});
+      if (!response.ok) throw new Error('problem_bank_write_failed:'+response.status);
+      const rows=await response.json();
+      if (!Array.isArray(rows)||rows.length!==1) throw new Error('problem_bank_write_invalid_response');
+      const view=runnerView(rows[0]);
+      if (problemFingerprint(view)!==view.fingerprint) throw new Error('problem_fingerprint_mismatch');
+      return view;
+    },
+    async startRun(problem,state={}) {
+      const view=runnerView(problem);
+      if (!view.id||!Number.isInteger(view.version)||typeof view.fingerprint!=='string') throw new Error('invalid_run_problem');
+      const endpoint=new URL('/rest/v1/research_run',url);
+      const payload={problem_id:view.id,problem_version:view.version,problem_fingerprint:view.fingerprint,state,status:'running'};
+      const response=await fetchImpl(endpoint,{method:'POST',headers:{...jsonHeaders,Prefer:'return=representation'},body:JSON.stringify(payload)});
+      if (!response.ok) throw new Error('research_run_start_failed:'+response.status);
+      const rows=await response.json();
+      if (!Array.isArray(rows)||rows.length!==1) throw new Error('research_run_start_invalid_response');
+      return deepFreeze(canonical(rows[0]));
+    },
+    async finishRun(runId,status,state,completedAt=new Date().toISOString()) {
+      if (!['completed','failed'].includes(status)) throw new Error('invalid_terminal_run_status');
+      if (typeof runId!=='string'||!runId) throw new Error('invalid_run_id');
+      const endpoint=new URL('/rest/v1/research_run',url);
+      endpoint.searchParams.set('id',`eq.${runId}`);
+      const response=await fetchImpl(endpoint,{method:'PATCH',headers:{...jsonHeaders,Prefer:'return=representation'},body:JSON.stringify({status,state,completed_at:completedAt})});
+      if (!response.ok) throw new Error('research_run_finish_failed:'+response.status);
+      const rows=await response.json();
+      if (!Array.isArray(rows)||rows.length!==1) throw new Error('research_run_finish_invalid_response');
+      return deepFreeze(canonical(rows[0]));
+    },
     async getProblem(id,version=1) {
       if (!Number.isInteger(version)||version<1) throw new Error('invalid_problem_version');
       const endpoint=new URL('/rest/v1/research_problem',url);
