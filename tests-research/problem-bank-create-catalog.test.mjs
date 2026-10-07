@@ -86,3 +86,10 @@ test('concurrent insert conflict rejects different fingerprint',async()=>{
     putProblem:async()=>{throw new Error('problem_bank_write_failed:409');}
   },expected),/existing_problem_fingerprint_mismatch/);
 });
+
+test('accepts PostgreSQL maximum int32 version and rejects overflow',()=>{
+  assert.equal(makeCatalogProblem({...args,version:'2147483647'}).version,2147483647);
+  for (const version of ['2147483648','4294967295']) {
+    assert.throws(()=>makeCatalogProblem({...args,version}),/invalid_canonical_problem_version/);
+  }
+});
