@@ -39,8 +39,11 @@ function scanHidden(value) {
 function validateBenchmarkSource(source) {
   if (source === null) return;
   if (!source || typeof source !== 'object' || Array.isArray(source)) throw new Error('unsafe_benchmark_source');
-  for (const key of Object.keys(source)) if (!BENCHMARK_SOURCE_KEYS.has(key)) throw new Error('unsafe_benchmark_source');
   scanHidden(source);
+  for (const [key,value] of Object.entries(source)) {
+    if (!BENCHMARK_SOURCE_KEYS.has(key)) throw new Error('unsafe_benchmark_source');
+    if (value !== null && typeof value !== 'string') throw new Error('unsafe_benchmark_source');
+  }
 }
 export function problemFingerprint(problem) {
   const value=canonical(problem);
