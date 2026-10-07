@@ -19,10 +19,12 @@ function descendsFrom(research,started) {
   }
   return false;
 }
-function assertRunLineage(run,problem,researchFingerprintValue) {
-  if (run.problem_id!==undefined && (run.problem_id!==problem.id || run.problem_version!==problem.version || run.problem_fingerprint!==problem.fingerprint))
+function assertRunLineage(run,problem,researchFingerprintValue,runBinding) {
+  if (!run || typeof run.id!=='string' || !run.id
+    || run.problem_id!==problem.id || run.problem_version!==problem.version || run.problem_fingerprint!==problem.fingerprint)
     throw new Error('research_run_lineage_mismatch');
-  if (run.state!==undefined && run.state?.research_fingerprint!==researchFingerprintValue) throw new Error('research_run_state_mismatch');
+  if (!run.state || run.state.research_fingerprint!==researchFingerprintValue || run.state.run_binding!==runBinding)
+    throw new Error('research_run_state_mismatch');
 }
 export function researchProblemFromBank(problem,{maxAttempts=3}={}) {
   const view=assertBankProblem(problem);
@@ -32,19 +34,20 @@ export function researchProblemFromBank(problem,{maxAttempts=3}={}) {
 export async function startBankResearchRun(client,problem,options={}) {
   if (!client || typeof client.startRun!=='function') throw new Error('invalid_problem_bank_client');
   const view=assertBankProblem(problem), research=researchProblemFromBank(view,options);
-  const run=await client.startRun(view,{phase:'research_loop',research_fingerprint:research.fingerprint,research});
-  assertRunLineage(run,view,research.fingerprint);
-  return Object.freeze({problem:view,run,research});
+  const runBinding=crypto.randomUUID();
+  const run=await client.startRun(view,{phase:'research_loop',run_binding:runBinding,research_fingerprint:research.fingerprint,research});
+  assertRunLineage(run,view,research.fingerprint,runBinding);
+  return Object.freeze({problem:view,run,research,runBinding});
 }
 export async function finishBankResearchRun(client,session,{status='completed',research=session?.research}={}) {
   if (!client || typeof client.finishRun!=='function') throw new Error('invalid_problem_bank_client');
-  if (!session?.run?.id || !session?.problem?.fingerprint || !session?.research?.fingerprint) throw new Error('invalid_research_session');
-  assertRunLineage(session.run,session.problem,session.research.fingerprint);
+  if (!session?.run?.id || !session?.problem?.fingerprint || !session?.research?.fingerprint || !session?.runBinding) throw new Error('invalid_research_session');
+  assertRunLineage(session.run,session.problem,session.research.fingerprint,session.runBinding);
   if (!research || researchFingerprint(research)!==research.fingerprint) throw new Error('invalid_problem_fingerprint');
   const lineage=research.source?.problem_bank;
   if (research.id!==session.problem.id || lineage?.version!==session.problem.version || lineage?.fingerprint!==session.problem.fingerprint)
     throw new Error('research_problem_lineage_mismatch');
   if (!descendsFrom(research,session.research)) throw new Error('research_state_lineage_mismatch');
-  return client.finishRun(session.run.id,status,{phase:'research_loop_finished',problem_fingerprint:session.problem.fingerprint,
-    research_fingerprint:research.fingerprint,research});
+  return client.finishRun(session.run.id,status,{phase:'research_loop_finished',run_binding:session.runBinding,
+    problem_fingerprint:session.problem.fingerprint,research_fingerprint:research.fingerprint,research});
 }
