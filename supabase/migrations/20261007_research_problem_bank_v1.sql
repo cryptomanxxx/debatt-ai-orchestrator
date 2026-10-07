@@ -15,7 +15,7 @@ create table if not exists public.research_problem (
   created_at timestamptz not null default now()
 );
 
-create table if not exists public.research_run (
+create or replace function public.enforce_research_run_problem_fingerprint() returns trigger\nlanguage plpgsql\nas $\nbegin\n  if not exists (select 1 from public.research_problem p where p.id = new.problem_id and p.fingerprint = new.problem_fingerprint) then\n    raise exception 'problem_fingerprint_mismatch';\n  end if;\n  return new;\nend;\n$;\n\ncreate table if not exists public.research_run (
   id uuid primary key default gen_random_uuid(),
   problem_id text not null references public.research_problem(id),
   problem_fingerprint text not null,
