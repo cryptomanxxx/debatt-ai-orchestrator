@@ -112,12 +112,14 @@ export function createProblemBankClient({url,secretKey,fetchImpl=fetch}) {
       if (expected !== null) {
         const safeExpected=canonical(expected);
         if (typeof safeExpected.problem_id!=='string' || !Number.isInteger(safeExpected.problem_version)
-          || typeof safeExpected.problem_fingerprint!=='string' || typeof safeExpected.run_binding!=='string' || !safeExpected.run_binding)
+          || typeof safeExpected.problem_fingerprint!=='string' || typeof safeExpected.run_binding!=='string' || !safeExpected.run_binding
+          || typeof safeExpected.research_fingerprint!=='string' || !safeExpected.research_fingerprint)
           throw new Error('invalid_run_finish_guard');
         endpoint.searchParams.set('problem_id',`eq.${safeExpected.problem_id}`);
         endpoint.searchParams.set('problem_version',`eq.${safeExpected.problem_version}`);
         endpoint.searchParams.set('problem_fingerprint',`eq.${safeExpected.problem_fingerprint}`);
         endpoint.searchParams.set('state->>run_binding',`eq.${safeExpected.run_binding}`);
+        endpoint.searchParams.set('state->>research_fingerprint',`eq.${safeExpected.research_fingerprint}`);
       }
       const response=await fetchImpl(endpoint,{method:'PATCH',headers:{...jsonHeaders,Prefer:'return=representation'},body:JSON.stringify({status,state:safeState})});
       if (!response.ok) throw new Error('research_run_finish_failed:'+response.status);
