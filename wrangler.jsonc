@@ -11,6 +11,7 @@
     "MODEL_PROVIDER": "openai",
     "MODEL_BASE_URL": "https://api.groq.com/openai/v1",
     "MODEL_DEFAULT": "openai/gpt-oss-120b",
-    "MODEL_TOKEN_LIMIT_FIELD": "max_completion_tokens"
+    "MODEL_TOKEN_LIMIT_FIELD": "max_completion_tokens",
+    "SUPABASE_URL": "https://jxvnmnptlpdlswgcddfn.supabase.co"
   }
 }
