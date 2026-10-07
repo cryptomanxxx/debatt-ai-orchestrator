@@ -4,8 +4,8 @@ create schema if not exists private;
 create table if not exists public.research_problem (
   id text not null check (id ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,79}$'),
   kind text not null check (kind in ('open','benchmark_hidden_solution','solved_training','verified_reference','failed_attempt')),
-  domain text not null,
-  question text not null,
+  domain text not null check (btrim(domain) <> ''),
+  question text not null check (btrim(question) <> ''),
   source jsonb,
   verifier_ids text[] not null default '{}',
   difficulty smallint check (difficulty between 1 and 5),
