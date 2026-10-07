@@ -88,6 +88,7 @@ export function recordResult(problem, result) {
   const r={id:requiredText(result.id,'result_id',120),claim:requiredText(result.claim,'claim'),status,
     significance:jsonValue(result.significance??null,'significance'),verification,parentResultId:result.parentResultId??null};
   if(problem.results.some(x=>x.id===r.id)) throw new Error('duplicate_result');
+  if (r.parentResultId !== null && !problem.results.some(existing => existing.id === r.parentResultId)) throw new Error('unknown_parent_result');
   return evolve(problem,{results:[...problem.results,r],status},'result_recorded');
 }
 function evolve(problem, patch, reason) {
