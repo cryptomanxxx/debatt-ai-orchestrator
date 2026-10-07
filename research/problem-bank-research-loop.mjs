@@ -49,5 +49,8 @@ export async function finishBankResearchRun(client,session,{status='completed',r
     throw new Error('research_problem_lineage_mismatch');
   if (!descendsFrom(research,session.research)) throw new Error('research_state_lineage_mismatch');
   return client.finishRun(session.run.id,status,{phase:'research_loop_finished',run_binding:session.runBinding,
-    problem_fingerprint:session.problem.fingerprint,research_fingerprint:research.fingerprint,research});
+    problem_fingerprint:session.problem.fingerprint,research_fingerprint:research.fingerprint,research},{
+    problem_id:session.problem.id,problem_version:session.problem.version,
+    problem_fingerprint:session.problem.fingerprint,run_binding:session.runBinding
+  });
 }
