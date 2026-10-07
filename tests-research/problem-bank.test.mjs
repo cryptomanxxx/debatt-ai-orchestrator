@@ -23,3 +23,24 @@ test('client explicitly selects only runner-safe columns',async()=>{
  assert.match(requested,/select=id%2Ckind%2Cdomain%2Cquestion/);
  assert.doesNotMatch(requested,/reference_solution/);
 });
+
+test('modern Supabase secret is sent only as apikey',async()=>{
+ let headers;
+ const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'sb_secret_test',fetchImpl:async (_url,init)=>{
+   headers=init.headers;
+   return {ok:true,json:async()=>[{id:'abc',kind:'open',domain:'math',question:'Q',source:null,verifier_ids:[],difficulty:1,status:'active',version:1,fingerprint:'a'.repeat(64)}]};
+ }});
+ await client.getProblem('abc');
+ assert.equal(headers.apikey,'sb_secret_test');
+ assert.equal(Object.hasOwn(headers,'Authorization'),false);
+});
+test('hidden references are rejected recursively for benchmarks',()=>{
+ assert.throws(()=>createProblem({id:'bench-002',kind:'benchmark_hidden_solution',domain:'math',question:'Q',source:{metadata:{answer:42}}}),/hidden_reference_leak/);
+ assert.throws(()=>assertNoHiddenReference({source:{nested:[{solution:'secret'}]}}),/hidden_reference_leak/);
+});
+test('problem records are deeply immutable',()=>{
+ const p=createProblem({id:'open-001',kind:'open',domain:'math',question:'Q',source:{url:'a'},verifier_ids:['sympy']});
+ assert.throws(()=>{p.source.url='b';},TypeError);
+ assert.throws(()=>p.verifier_ids.push('other'),TypeError);
+ assert.equal(problemFingerprint(p),p.fingerprint);
+});
