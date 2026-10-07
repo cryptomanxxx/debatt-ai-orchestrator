@@ -23,8 +23,9 @@ test('client explicitly selects only runner-safe columns',async()=>{
    requested=String(url);
    return {ok:true,json:async()=>[validRow()]};
  }});
- const p=await client.getProblem('abc');
+ const p=await client.getProblem('abc',1);
  assert.equal(p.id,'abc');
+ assert.match(requested,/version=eq%2E1/);
  assert.match(requested,/select=id%2Ckind%2Cdomain%2Cquestion/);
  assert.doesNotMatch(requested,/reference_solution/);
 });
@@ -64,4 +65,16 @@ test('client rejects stale persisted fingerprints',async()=>{
    {id:'abc',kind:'open',domain:'math',question:'Changed',source:null,verifier_ids:[],difficulty:1,status:'active',version:1,fingerprint:'a'.repeat(64)}
  ]})});
  await assert.rejects(()=>client.getProblem('abc'),/problem_fingerprint_mismatch/);
+});
+
+test('client selects an exact immutable problem version',async()=>{
+ let requested='';
+ const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'secret',fetchImpl:async url=>{
+   requested=String(url);
+   return {ok:true,json:async()=>[validRow({version:2})]};
+ }});
+ const p=await client.getProblem('abc',2);
+ assert.equal(p.version,2);
+ assert.match(requested,/version=eq%2E2/);
+ await assert.rejects(()=>client.getProblem('abc',0),/invalid_problem_version/);
 });
