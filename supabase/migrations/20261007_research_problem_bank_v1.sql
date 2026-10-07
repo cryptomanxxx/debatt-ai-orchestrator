@@ -18,6 +18,21 @@ create table if not exists public.research_problem (
   unique (id, version, fingerprint)
 );
 
+create or replace function public.prevent_research_problem_update()
+returns trigger
+language plpgsql
+as $
+begin
+  raise exception 'research_problem_version_immutable';
+end;
+$;
+
+drop trigger if exists research_problem_immutable_guard on public.research_problem;
+create trigger research_problem_immutable_guard
+before update on public.research_problem
+for each row
+execute function public.prevent_research_problem_update();
+
 create table if not exists public.research_run (
   id uuid primary key default gen_random_uuid(),
   problem_id text not null,
