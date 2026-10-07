@@ -99,7 +99,7 @@ test('client persists problems and runs through the Supabase write path',async()
  }});
  const problem=await client.putProblem({id:'abc',kind:'open',domain:'math',question:'Q',difficulty:1});
  const started=await client.startRun(problem,{step:1});
- const finished=await client.finishRun(started.id,'completed',{done:true},'2026-10-07T13:01:00.000Z');
+ const finished=await client.finishRun(started.id,'completed',{done:true});
  assert.equal(finished.status,'completed');
  assert.deepEqual(calls.map(c=>c.init.method),['POST','POST','PATCH']);
  assert.equal(calls[0].init.headers.apikey,'sb_secret_test');
@@ -131,7 +131,18 @@ test('run writes reject non-JSON state before calling Supabase',async()=>{
    }});
    await assert.rejects(()=>client.startRun(problem,state),/invalid_problem_json/);
    assert.equal(called,false);
-   await assert.rejects(()=>client.finishRun('11111111-1111-1111-1111-111111111111','completed',state,'2026-10-07T13:01:00.000Z'),/invalid_problem_json/);
+   await assert.rejects(()=>client.finishRun('11111111-1111-1111-1111-111111111111','completed',state),/invalid_problem_json/);
    assert.equal(called,false);
  }
+});
+
+
+test('finishRun delegates completed_at to the database clock',async()=>{
+ let patchBody;
+ const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'sb_secret_test',fetchImpl:async (_url,init)=>{
+   patchBody=JSON.parse(init.body);
+   return {ok:true,json:async()=>[{id:'11111111-1111-1111-1111-111111111111',status:'completed',state:{done:true},started_at:'2026-10-07T13:00:00.000Z',completed_at:'2026-10-07T13:00:00.001Z'}]};
+ }});
+ await client.finishRun('11111111-1111-1111-1111-111111111111','completed',{done:true});
+ assert.equal(Object.hasOwn(patchBody,'completed_at'),false);
 });
