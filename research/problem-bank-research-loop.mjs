@@ -8,16 +8,25 @@ function assertBankProblem(problem) {
   if (view.status!=='active') throw new Error('problem_not_active');
   return view;
 }
+function sameJson(a,b) { return JSON.stringify(a)===JSON.stringify(b); }
 function descendsFrom(research,started) {
   if (research.fingerprint===started.fingerprint) return true;
-  let expected=research.revisions.length;
-  if (expected<=started.revisions.length) return false;
-  for (let i=research.revisions.length-1;i>=started.revisions.length;i--) {
-    const revision=research.revisions[i];
-    if (revision.version!==expected--) return false;
-    if (i===started.revisions.length) return revision.previousFingerprint===started.fingerprint;
+  if (research.schemaVersion!==started.schemaVersion || research.id!==started.id
+    || research.question!==started.question || research.domain!==started.domain
+    || !sameJson(research.source,started.source) || !sameJson(research.computeBudget,started.computeBudget)) return false;
+  if (research.hypotheses.length < started.hypotheses.length
+    || research.attempts.length < started.attempts.length || research.results.length < started.results.length
+    || research.revisions.length <= started.revisions.length) return false;
+  if (!sameJson(research.hypotheses.slice(0,started.hypotheses.length),started.hypotheses)
+    || !sameJson(research.attempts.slice(0,started.attempts.length),started.attempts)
+    || !sameJson(research.results.slice(0,started.results.length),started.results)
+    || !sameJson(research.revisions.slice(0,started.revisions.length),started.revisions)) return false;
+  const first=research.revisions[started.revisions.length];
+  if (first.version!==started.revisions.length+1 || first.previousFingerprint!==started.fingerprint) return false;
+  for (let i=started.revisions.length;i<research.revisions.length;i++) {
+    if (research.revisions[i].version!==i+1) return false;
   }
-  return false;
+  return true;
 }
 function assertRunLineage(run,problem,researchFingerprintValue,runBinding) {
   if (!run || typeof run.id!=='string' || !run.id
