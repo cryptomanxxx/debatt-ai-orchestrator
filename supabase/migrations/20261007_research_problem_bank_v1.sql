@@ -59,6 +59,20 @@ returns trigger
 language plpgsql
 as $
 begin
+  if old.status = 'active'
+     and new.status = 'retired'
+     and new.id is not distinct from old.id
+     and new.kind is not distinct from old.kind
+     and new.domain is not distinct from old.domain
+     and new.question is not distinct from old.question
+     and new.source is not distinct from old.source
+     and new.verifier_ids is not distinct from old.verifier_ids
+     and new.difficulty is not distinct from old.difficulty
+     and new.version is not distinct from old.version
+     and new.fingerprint is not distinct from old.fingerprint
+     and new.created_at is not distinct from old.created_at then
+    return new;
+  end if;
   raise exception 'research_problem_version_immutable';
 end;
 $;
@@ -80,28 +94,39 @@ create table if not exists public.research_run (
   completed_at timestamptz,
   foreign key (problem_id, problem_version, problem_fingerprint)
     references public.research_problem(id, version, fingerprint),
-  check ((status = 'completed' and completed_at is not null) or status <> 'completed')
+  check ((status = 'running' and completed_at is null) or (status in ('completed','failed') and completed_at is not null))
 );
 
-create or replace function public.prevent_research_run_lineage_update()
+create or replace function public.guard_research_run_update()
 returns trigger
 language plpgsql
-as $$
+as $
 begin
+  if old.status in ('completed','failed') then
+    raise exception 'research_run_terminal_immutable';
+  end if;
   if new.problem_id is distinct from old.problem_id
      or new.problem_version is distinct from old.problem_version
-     or new.problem_fingerprint is distinct from old.problem_fingerprint then
+     or new.problem_fingerprint is distinct from old.problem_fingerprint
+     or new.started_at is distinct from old.started_at then
     raise exception 'research_run_lineage_immutable';
+  end if;
+  if new.status = 'running' and new.completed_at is not null then
+    raise exception 'invalid_research_run_transition';
+  end if;
+  if new.status in ('completed','failed') and new.completed_at is null then
+    raise exception 'invalid_research_run_transition';
   end if;
   return new;
 end;
-$$;
+$;
 
 drop trigger if exists research_run_lineage_immutable_guard on public.research_run;
-create trigger research_run_lineage_immutable_guard
-before update of problem_id, problem_version, problem_fingerprint on public.research_run
+drop trigger if exists research_run_update_guard on public.research_run;
+create trigger research_run_update_guard
+before update on public.research_run
 for each row
-execute function public.prevent_research_run_lineage_update();
+execute function public.guard_research_run_update();
 
 -- Hidden benchmark answers never live in a Data API schema.
 create table if not exists private.research_problem_reference (
