@@ -44,3 +44,18 @@ test('problem records are deeply immutable',()=>{
  assert.throws(()=>p.verifier_ids.push('other'),TypeError);
  assert.equal(problemFingerprint(p),p.fingerprint);
 });
+
+test('rejects records outside database constraints',()=>{
+ for (const extra of [{difficulty:6},{status:'draft'},{version:0},{verifier_ids:'sympy'}])
+   assert.throws(()=>createProblem({id:'bad-001',kind:'open',domain:'math',question:'Q',...extra}));
+});
+test('rejects sparse arrays before fingerprinting',()=>{
+ const sparse=[]; sparse.length=1;
+ assert.throws(()=>createProblem({id:'bad-002',kind:'open',domain:'math',question:'Q',source:sparse}),/invalid_problem_json/);
+});
+test('client rejects stale persisted fingerprints',async()=>{
+ const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'sb_secret_test',fetchImpl:async()=>({ok:true,json:async()=>[
+   {id:'abc',kind:'open',domain:'math',question:'Changed',source:null,verifier_ids:[],difficulty:1,status:'active',version:1,fingerprint:'a'.repeat(64)}
+ ]})});
+ await assert.rejects(()=>client.getProblem('abc'),/problem_fingerprint_mismatch/);
+});
