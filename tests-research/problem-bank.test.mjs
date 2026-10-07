@@ -106,3 +106,16 @@ test('client persists problems and runs through the Supabase write path',async()
  assert.equal(Object.hasOwn(calls[0].init.headers,'Authorization'),false);
  assert.match(calls[2].url,/id=eq\.11111111-1111-1111-1111-111111111111/);
 });
+
+
+test('startRun rejects tampered problem content with a copied fingerprint',async()=>{
+ const original=validRow();
+ const tampered={...original,question:'Tampered question'};
+ let called=false;
+ const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'sb_secret_test',fetchImpl:async()=>{
+   called=true;
+   throw new Error('should_not_call_supabase');
+ }});
+ await assert.rejects(()=>client.startRun(tampered,{}),/problem_fingerprint_mismatch/);
+ assert.equal(called,false);
+});
