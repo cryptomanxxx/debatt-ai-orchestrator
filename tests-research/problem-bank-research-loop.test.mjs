@@ -85,3 +85,26 @@ test('finish passes persisted compare-and-set lineage guard to Problem Bank clie
    problem_id:bank.id,problem_version:bank.version,problem_fingerprint:bank.fingerprint,run_binding:session.runBinding
  });
 });
+
+
+test('finish rejects forged ancestry that mutates immutable compute budget',async()=>{
+ const bank=bankProblem(), session=await startBankResearchRun(clientFor(bank),bank,{maxAttempts:1});
+ const forgedBase={...session.research,computeBudget:{maxAttempts:20},
+   revisions:[...session.research.revisions,{version:1,reason:'forged',previousFingerprint:session.research.fingerprint}]};
+ delete forgedBase.fingerprint;
+ const { researchFingerprint }=await import('../research/research-loop.mjs');
+ const forged={...forgedBase,fingerprint:researchFingerprint(forgedBase)};
+ await assert.rejects(()=>finishBankResearchRun(clientFor(bank),session,{research:forged}),/research_state_lineage_mismatch/);
+});
+
+test('finish rejects forged ancestry that rewrites started history',async()=>{
+ const bank=bankProblem(), base=await startBankResearchRun(clientFor(bank),bank);
+ const startedResearch=addHypothesis(base.research,{id:'h-start',statement:'Original',rationale:'Original rationale'});
+ const session={...base,research:startedResearch,run:{...base.run,state:{...base.run.state,research_fingerprint:startedResearch.fingerprint}}};
+ const forgedBase={...startedResearch,hypotheses:[{...startedResearch.hypotheses[0],statement:'Rewritten'}],
+   revisions:[...startedResearch.revisions,{version:2,reason:'forged',previousFingerprint:startedResearch.fingerprint}]};
+ delete forgedBase.fingerprint;
+ const { researchFingerprint }=await import('../research/research-loop.mjs');
+ const forged={...forgedBase,fingerprint:researchFingerprint(forgedBase)};
+ await assert.rejects(()=>finishBankResearchRun(clientFor(bank),session,{research:forged}),/research_state_lineage_mismatch/);
+});
