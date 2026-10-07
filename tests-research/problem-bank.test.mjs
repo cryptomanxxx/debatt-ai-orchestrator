@@ -119,3 +119,19 @@ test('startRun rejects tampered problem content with a copied fingerprint',async
  await assert.rejects(()=>client.startRun(tampered,{}),/problem_fingerprint_mismatch/);
  assert.equal(called,false);
 });
+
+
+test('run writes reject non-JSON state before calling Supabase',async()=>{
+ const problem=validRow();
+ for (const state of [{value:NaN},{value:undefined},new Array(1)]) {
+   let called=false;
+   const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'sb_secret_test',fetchImpl:async()=>{
+     called=true;
+     throw new Error('should_not_call_supabase');
+   }});
+   await assert.rejects(()=>client.startRun(problem,state),/invalid_problem_json/);
+   assert.equal(called,false);
+   await assert.rejects(()=>client.finishRun('11111111-1111-1111-1111-111111111111','completed',state,'2026-10-07T13:01:00.000Z'),/invalid_problem_json/);
+   assert.equal(called,false);
+ }
+});
