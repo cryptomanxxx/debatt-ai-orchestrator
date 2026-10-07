@@ -85,3 +85,24 @@ test('lifecycle status does not change the immutable problem fingerprint',()=>{
  assert.equal(problemFingerprint(active),problemFingerprint(retired));
  assert.equal(active.fingerprint,problemFingerprint(retired));
 });
+
+
+test('client persists problems and runs through the Supabase write path',async()=>{
+ const calls=[];
+ const row=validRow();
+ const run={id:'11111111-1111-1111-1111-111111111111',problem_id:'abc',problem_version:1,problem_fingerprint:row.fingerprint,state:{step:1},status:'running',started_at:'2026-10-07T13:00:00.000Z',completed_at:null};
+ const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'sb_secret_test',fetchImpl:async (url,init={})=>{
+   calls.push({url:String(url),init});
+   if (String(url).includes('research_problem')) return {ok:true,json:async()=>[row]};
+   if (init.method==='PATCH') return {ok:true,json:async()=>[{...run,state:{done:true},status:'completed',completed_at:'2026-10-07T13:01:00.000Z'}]};
+   return {ok:true,json:async()=>[run]};
+ }});
+ const problem=await client.putProblem({id:'abc',kind:'open',domain:'math',question:'Q',difficulty:1});
+ const started=await client.startRun(problem,{step:1});
+ const finished=await client.finishRun(started.id,'completed',{done:true},'2026-10-07T13:01:00.000Z');
+ assert.equal(finished.status,'completed');
+ assert.deepEqual(calls.map(c=>c.init.method),['POST','POST','PATCH']);
+ assert.equal(calls[0].init.headers.apikey,'sb_secret_test');
+ assert.equal(Object.hasOwn(calls[0].init.headers,'Authorization'),false);
+ assert.match(calls[2].url,/id=eq\.11111111-1111-1111-1111-111111111111/);
+});
