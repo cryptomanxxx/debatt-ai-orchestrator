@@ -84,3 +84,9 @@ test('negative zero is canonicalized before storage and fingerprinting',()=>{
  assert.equal(p.source.x,0);
  assert.equal(researchFingerprint(p),p.fingerprint);
 });
+
+test('tampered research state cannot extend revision lineage',()=>{
+ const p=createResearchProblem({id:'problem-016',question:'Original?',domain:'test'});
+ const tampered={...p,question:'Silently changed'};
+ assert.throws(()=>addHypothesis(tampered,{id:'h',statement:'H',rationale:'R'}),/invalid_problem_fingerprint/);
+});
