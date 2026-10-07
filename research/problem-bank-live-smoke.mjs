@@ -11,11 +11,11 @@ const expected=createProblem(fixtureInput);
 let problem;
 try {
   problem=await client.getProblem(expected.id,expected.version);
-  if (problem.fingerprint!==expected.fingerprint) throw new Error('smoke_fixture_mismatch');
 } catch (error) {
   if (error?.message!=='problem_not_found') throw error;
-  problem=await client.putProblem(fixtureInput);
+  throw new Error('smoke_fixture_missing: initialize it once with the reviewed putProblem path before running the persistent live smoke test');
 }
+if (problem.fingerprint!==expected.fingerprint) throw new Error('smoke_fixture_mismatch');
 
 const started=await client.startRun(problem,{phase:'started',smoke:true});
 const finished=await client.finishRun(started.id,'completed',{phase:'completed',smoke:true});
