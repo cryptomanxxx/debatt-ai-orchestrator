@@ -92,6 +92,7 @@ export function recordResult(problem, result) {
   return evolve(problem,{results:[...problem.results,r],status},'result_recorded');
 }
 function evolve(problem, patch, reason) {
+  if (researchFingerprint(problem) !== problem.fingerprint) throw new Error('invalid_problem_fingerprint');
   const base={...problem,...patch}; delete base.fingerprint;
   const revision={version:problem.revisions.length+1,reason,previousFingerprint:problem.fingerprint};
   base.revisions=[...problem.revisions,revision];
