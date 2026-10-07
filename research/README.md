@@ -13,7 +13,9 @@ Lägg `SUPABASE_SERVICE_ROLE_KEY` som Actions-secret i **detta repo**.
 i Actions: modellen anropas genom den befintliga Cloudflare-orchestratorn.
 Inga Cloudflare-inställningar eller nya betaltjänster behövs för denna ändring.
 
-Kör **Oraklets forskningslabb → Run workflow → main**. Välj experiment:
+Kör **Oraklets forskningslabb → Run workflow → main**. För en persistent Problem Bank-körning anger du `problem_bank_id` och version. Problemets `source.experiment_id` måste peka på ett körbart katalogexperiment och problemets fråga måste exakt motsvara katalogfrågan; annars avbryts körningen före modell- eller verktygsanrop. Då skapas en `research_run` före experimentet, rapporten översätts till Research Loop-hypotes/försök/resultat och runnen avslutas atomiskt som `completed` eller `failed`. Tomt Problem Bank-ID behåller den befintliga fristående labbkörningen. Problem Bank använder `SUPABASE_URL` och `SUPABASE_SECRET_KEY`; den äldre rapporttabellen fortsätter tills vidare använda `SUPABASE_SERVICE_ROLE_KEY`.
+
+Välj experiment:
 
 | Val | Funktion |
 | --- | --- |
