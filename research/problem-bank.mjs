@@ -16,6 +16,22 @@ function canonical(value) {
   }
   throw new Error('invalid_problem_json');
 }
+function deepFreeze(value) {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value)) deepFreeze(child);
+  }
+  return value;
+}
+const HIDDEN_KEYS=new Set(['reference_solution','reference_fingerprint','solution','answer']);
+function scanHidden(value) {
+  if (Array.isArray(value)) { for (const item of value) scanHidden(item); return; }
+  if (!value || typeof value !== 'object') return;
+  for (const [key,child] of Object.entries(value)) {
+    if (HIDDEN_KEYS.has(key)) throw new Error('hidden_reference_leak');
+    scanHidden(child);
+  }
+}
 export function problemFingerprint(problem) {
   const value=canonical(problem);
   delete value.fingerprint;
@@ -29,13 +45,13 @@ export function createProblem(input) {
   if (typeof input.question!=='string'||!input.question.trim()) throw new Error('invalid_problem_question');
   const problem=canonical({id:input.id,kind:input.kind,domain:input.domain.trim(),question:input.question.trim(),source:input.source??null,
     verifier_ids:input.verifier_ids??[],difficulty:input.difficulty??null,status:input.status??'active',version:input.version??1});
-  return Object.freeze({...problem,fingerprint:problemFingerprint(problem)});
+  if (problem.kind==='benchmark_hidden_solution') scanHidden(problem.source);\n  return deepFreeze({...problem,fingerprint:problemFingerprint(problem)});
 }
 export function runnerView(row) {
   const allowed=['id','kind','domain','question','source','verifier_ids','difficulty','status','version','fingerprint'];
   const view={};
   for (const key of allowed) if (Object.hasOwn(row,key)) view[key]=canonical(row[key]);
-  return Object.freeze(view);
+  return deepFreeze(view);
 }
 export function assertNoHiddenReference(value) {
   for (const key of ['reference_solution','reference_fingerprint','solution','answer'])
@@ -45,7 +61,7 @@ export function assertNoHiddenReference(value) {
 export function createProblemBankClient({url,secretKey,fetchImpl=fetch}) {
   if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url??'')) throw new Error('invalid_supabase_url');
   if (typeof secretKey!=='string'||!secretKey) throw new Error('missing_supabase_secret');
-  const headers={apikey:secretKey,Authorization:`Bearer ${secretKey}`};
+  const headers={apikey:secretKey};
   return Object.freeze({
     async getProblem(id) {
       const endpoint=new URL('/rest/v1/research_problem',url);
