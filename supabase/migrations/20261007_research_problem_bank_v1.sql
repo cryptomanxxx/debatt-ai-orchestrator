@@ -105,6 +105,9 @@ begin
   if old.status in ('completed','failed') then
     raise exception 'research_run_terminal_immutable';
   end if;
+  if old.status = 'running' and new.status in ('completed','failed') and new.completed_at is null then
+    new.completed_at := greatest(clock_timestamp(), old.started_at);
+  end if;
   if new.id is distinct from old.id
      or new.problem_id is distinct from old.problem_id
      or new.problem_version is distinct from old.problem_version
