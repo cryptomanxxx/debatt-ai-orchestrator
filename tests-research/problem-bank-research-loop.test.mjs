@@ -147,3 +147,22 @@ test('finish guard binds the persisted starting research fingerprint',async()=>{
  assert.equal(finished.expected.research_fingerprint,forged.fingerprint);
  assert.notEqual(finished.expected.research_fingerprint,session.run.state.research_fingerprint);
 });
+
+
+test('finish accepts valid descendant reconstructed with different object key order',async()=>{
+ const bank=bankProblem(), session=await startBankResearchRun(clientFor(bank),bank);
+ const research=addHypothesis(session.research,{id:'h-order',statement:'Candidate',rationale:'Testable'});
+ const reorder=value=>{
+   if (Array.isArray(value)) return value.map(reorder);
+   if (value && typeof value==='object') {
+     const out={};
+     for (const key of Object.keys(value).reverse()) out[key]=reorder(value[key]);
+     return out;
+   }
+   return value;
+ };
+ const reconstructed=reorder(research);
+ assert.equal(researchFingerprint(reconstructed),research.fingerprint);
+ const finished=await finishBankResearchRun(clientFor(bank),session,{research:reconstructed});
+ assert.equal(finished.state.research_fingerprint,research.fingerprint);
+});
