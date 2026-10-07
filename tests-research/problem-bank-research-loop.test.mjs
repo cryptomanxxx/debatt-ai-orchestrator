@@ -6,7 +6,7 @@ import { researchProblemFromBank, startBankResearchRun, finishBankResearchRun } 
 
 const bankProblem=()=>createProblem({id:'adapter-problem-001',kind:'open',domain:'mathematics',question:'Can this conjecture be tested?',difficulty:2,verifier_ids:['sympy']});
 const clientFor=(bank)=>({
- async startRun(){return {id:'run-1',status:'running',problem_id:bank.id,problem_version:bank.version,problem_fingerprint:bank.fingerprint};},
+ async startRun(problem,state){return {id:'run-1',status:'running',problem_id:bank.id,problem_version:bank.version,problem_fingerprint:bank.fingerprint,state};},
  async finishRun(id,status,state){return {id,status,state};}
 });
 
@@ -50,4 +50,13 @@ test('finish requires final research to descend from the started state',async()=
  const bank=bankProblem(), session=await startBankResearchRun(clientFor(bank),bank,{maxAttempts:1});
  const replacement=researchProblemFromBank(bank,{maxAttempts:20});
  await assert.rejects(()=>finishBankResearchRun(clientFor(bank),session,{research:replacement}),/research_state_lineage_mismatch/);
+});
+
+
+test('finish rejects a run borrowed from another session on the same Problem Bank version',async()=>{
+ const bank=bankProblem();
+ const low=await startBankResearchRun(clientFor(bank),bank,{maxAttempts:1});
+ const high=await startBankResearchRun(clientFor(bank),bank,{maxAttempts:20});
+ const mixed={...high,run:low.run};
+ await assert.rejects(()=>finishBankResearchRun(clientFor(bank),mixed),/research_run_state_mismatch/);
 });
