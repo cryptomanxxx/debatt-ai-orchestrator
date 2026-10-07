@@ -165,12 +165,13 @@ test('finishRun compare-and-set filters on persisted run lineage and binding',as
    requested=String(url); return {ok:true,json:async()=>[]};
  }});
  await assert.rejects(()=>client.finishRun('11111111-1111-1111-1111-111111111111','completed',{done:true},{
-   problem_id:'abc',problem_version:1,problem_fingerprint:'f'.repeat(64),run_binding:'binding-1'
+   problem_id:'abc',problem_version:1,problem_fingerprint:'f'.repeat(64),run_binding:'binding-1',research_fingerprint:'r'.repeat(64)
  }),/research_run_finish_invalid_response/);
  assert.match(requested,/problem_id=eq\.abc/);
  assert.match(requested,/problem_version=eq\.1/);
  assert.match(requested,/problem_fingerprint=eq\.f{64}/);
  assert.match(requested,/state-%3E%3Erun_binding=eq\.binding-1/);
+ assert.match(requested,/state-%3E%3Eresearch_fingerprint=eq\.r{64}/);
 });
 
 test('finishRun rejects incomplete compare-and-set guards before Supabase',async()=>{
