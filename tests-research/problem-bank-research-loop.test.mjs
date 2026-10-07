@@ -46,4 +46,6 @@ test('finish rejects tampered Research Loop state and cross-problem lineage',asy
  assert.rejects(()=>finishBankResearchRun(client,session,{research:{...session.research,question:'tampered'}}),/invalid_problem_fingerprint/);
  const other=researchProblemFromBank(createProblem({id:'adapter-problem-002',kind:'open',domain:'test',question:'Other?'}));
  await assert.rejects(()=>finishBankResearchRun(client,session,{research:other}),/research_problem_lineage_mismatch/);
+ const version2=researchProblemFromBank(createProblem({id:'adapter-problem-001',kind:'open',domain:'mathematics',question:'Can this conjecture be tested?',difficulty:2,verifier_ids:['sympy'],version:2}));
+ await assert.rejects(()=>finishBankResearchRun(client,session,{research:version2}),/research_problem_lineage_mismatch/);
 });
