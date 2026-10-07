@@ -146,3 +146,14 @@ test('finishRun delegates completed_at to the database clock',async()=>{
  await client.finishRun('11111111-1111-1111-1111-111111111111','completed',{done:true});
  assert.equal(Object.hasOwn(patchBody,'completed_at'),false);
 });
+
+
+test('finishRun delegates completed_at to the database clock',async()=>{
+ let patchBody;
+ const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'sb_secret_test',fetchImpl:async (_url,init)=>{
+   patchBody=JSON.parse(init.body);
+   return {ok:true,json:async()=>[{id:'11111111-1111-1111-1111-111111111111',status:'completed',state:{done:true},started_at:'2026-10-07T13:00:00.000Z',completed_at:'2026-10-07T13:00:00.001Z'}]};
+ }});
+ await client.finishRun('11111111-1111-1111-1111-111111111111','completed',{done:true});
+ assert.equal(Object.hasOwn(patchBody,'completed_at'),false);
+});
