@@ -78,3 +78,10 @@ test('client selects an exact immutable problem version',async()=>{
  assert.match(requested,/version=eq\.2/);
  await assert.rejects(()=>client.getProblem('abc',0),/invalid_problem_version/);
 });
+
+test('lifecycle status does not change the immutable problem fingerprint',()=>{
+ const active=validRow();
+ const retired={...active,status:'retired'};
+ assert.equal(problemFingerprint(active),problemFingerprint(retired));
+ assert.equal(active.fingerprint,problemFingerprint(retired));
+});
