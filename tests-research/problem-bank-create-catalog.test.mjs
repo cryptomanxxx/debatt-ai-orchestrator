@@ -60,3 +60,29 @@ test('does not create when lookup fails for reasons other than missing row',asyn
     putProblem:async()=>{throw new Error('must_not_write');}
   },expected),/problem_bank_read_failed:403/);
 });
+
+test('rejects noncanonical and unsafe versions',()=>{
+  for (const version of ['01','1e0','0','-1','1.0','9007199254740992']) {
+    assert.throws(()=>makeCatalogProblem({...args,version}),/invalid_canonical_problem_version/);
+  }
+});
+
+test('concurrent insert conflict re-reads and verifies the committed row',async()=>{
+  const expected=makeCatalogProblem(args);
+  let reads=0;
+  const result=await createOrVerifyCatalogProblem({
+    getProblem:async()=>{reads++;if(reads===1)throw new Error('problem_not_found');return expected;},
+    putProblem:async()=>{throw new Error('problem_bank_write_failed:409');}
+  },expected);
+  assert.equal(result.created,false);
+  assert.equal(reads,2);
+});
+
+test('concurrent insert conflict rejects different fingerprint',async()=>{
+  const expected=makeCatalogProblem(args);
+  let reads=0;
+  await assert.rejects(createOrVerifyCatalogProblem({
+    getProblem:async()=>{reads++;if(reads===1)throw new Error('problem_not_found');return {...expected,fingerprint:'0'.repeat(64)};},
+    putProblem:async()=>{throw new Error('problem_bank_write_failed:409');}
+  },expected),/existing_problem_fingerprint_mismatch/);
+});
