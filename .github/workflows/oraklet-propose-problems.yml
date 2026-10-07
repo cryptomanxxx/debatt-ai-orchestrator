@@ -1,0 +1,24 @@
+name: Oraklet proposes research problems
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Generate review-only proposals
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: node research/run-oraklet-proposals.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oraklet-proposals
+          path: oraklet-proposals.md
+          retention-days: 30
