@@ -17,8 +17,9 @@ Run these migrations in the new orchestrator project's SQL Editor, in this order
 1. `supabase/migrations/20261007_research_problem_bank_v1.sql`
 2. `supabase/migrations/20261007150000_research_run_database_completion_clock.sql`
 3. `supabase/migrations/20261007181500_problem_bank_service_role_grants.sql`
+4. `supabase/migrations/20261007193000_research_run_active_problem_guard.sql`
 
-All three migrations are required. The final migration grants the backend `service_role` Data API table privileges while keeping `anon` and `authenticated` revoked.
+All four migrations are required. The service-role migration grants the backend `service_role` Data API table privileges while keeping `anon` and `authenticated` revoked. The final migration atomically rejects new runs unless the persisted Problem Bank row is still `active`.
 
 Runtime configuration:
 - `SUPABASE_URL` is non-secret and may be stored in Wrangler vars.
