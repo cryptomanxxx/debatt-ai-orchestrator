@@ -171,6 +171,7 @@ test('finishRun compare-and-set filters on persisted run lineage and binding',as
  assert.match(requested,/problem_version=eq\.1/);
  assert.match(requested,/problem_fingerprint=eq\.f{64}/);
  assert.match(requested,/state-%3E%3Erun_binding=eq\.binding-1/);
+ assert.match(requested,/research_fingerprint=eq\.r{64}/);
  assert.match(requested,/state-%3E%3Eresearch_fingerprint=eq\.r{64}/);
 });
 
