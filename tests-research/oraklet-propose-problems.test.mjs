@@ -27,3 +27,26 @@ test('rejects invalid inventory and proposal limits',()=>{
 test('report explicitly identifies proposals as unregistered',()=>{
   assert.match(renderProposals(proposeCatalogProblems({limit:1})),/inte skrivits till Supabase/);
 });
+
+test('candidate lookup checks every candidate and excludes existing rows',async()=>{
+  const {findExistingCandidateIds}=await import('../research/run-oraklet-proposals.mjs');
+  const candidates=proposeCatalogProblems({limit:4});
+  const calls=[];
+  const existing=await findExistingCandidateIds({
+    getProblem:async(id,version)=>{
+      calls.push([id,version]);
+      if (id!==candidates[2].id) throw new Error('problem_not_found');
+      return candidates[2];
+    }
+  },candidates);
+  assert.deepEqual(existing,[candidates[2].id]);
+  assert.equal(calls.length,4);
+  assert.ok(!proposeCatalogProblems({existingIds:existing,limit:11}).some(p=>p.id===candidates[2].id));
+});
+
+test('candidate lookup fails closed on database errors',async()=>{
+  const {findExistingCandidateIds}=await import('../research/run-oraklet-proposals.mjs');
+  await assert.rejects(findExistingCandidateIds({
+    getProblem:async()=>{throw new Error('problem_bank_read_failed:403');}
+  },proposeCatalogProblems({limit:1})),/problem_bank_read_failed:403/);
+});
