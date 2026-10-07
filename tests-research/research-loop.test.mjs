@@ -77,3 +77,10 @@ test('result parent must already exist',()=>{
  p=recordResult(p,{id:'child',claim:'C',status:'inconclusive',parentResultId:'parent'});
  assert.equal(p.results[1].parentResultId,'parent');
 });
+
+test('negative zero is canonicalized before storage and fingerprinting',()=>{
+ const p=createResearchProblem({id:'problem-015',question:'Test?',domain:'test',source:{x:-0}});
+ assert.equal(Object.is(p.source.x,-0),false);
+ assert.equal(p.source.x,0);
+ assert.equal(researchFingerprint(p),p.fingerprint);
+});
