@@ -47,3 +47,24 @@ test('fingerprinted unrestricted fields reject non JSON values',()=>{
  assert.throws(()=>createResearchProblem({id:'problem-008',question:'Test?',domain:'test',source:{x:NaN}}),/invalid_json_value/);
  assert.throws(()=>createResearchProblem({id:'problem-009',question:'Test?',domain:'test',source:{x:1n}}),/invalid_json_value/);
 });
+
+
+test('verification result must be affirmative',()=>{
+ const p=createResearchProblem({id:'problem-010',question:'Test?',domain:'test'});
+ for (const result of [null,{valid:false},{}])
+   assert.throws(()=>recordResult(p,{id:'r',claim:'C',status:'verified',verification:{tool:'sympy',independent:true,result}}),/invalid_verification/);
+});
+test('sparse arrays are rejected',()=>{
+ assert.throws(()=>createResearchProblem({id:'problem-011',question:'Test?',domain:'test',source:Array(1)}),/invalid_json_value/);
+});
+test('stored fingerprint is directly verifiable',()=>{
+ const p=createResearchProblem({id:'problem-012',question:'Test?',domain:'test'});
+ assert.equal(researchFingerprint(p),p.fingerprint);
+});
+test('hypothesis parent must already exist',()=>{
+ let p=createResearchProblem({id:'problem-013',question:'Test?',domain:'test'});
+ assert.throws(()=>addHypothesis(p,{id:'child',statement:'C',rationale:'R',parentId:'missing'}),/unknown_parent_hypothesis/);
+ p=addHypothesis(p,{id:'parent',statement:'P',rationale:'R'});
+ p=addHypothesis(p,{id:'child',statement:'C',rationale:'R',parentId:'parent'});
+ assert.equal(p.hypotheses[1].parentId,'parent');
+});
