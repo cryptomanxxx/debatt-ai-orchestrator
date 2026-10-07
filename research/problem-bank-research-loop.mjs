@@ -71,6 +71,7 @@ export async function finishBankResearchRun(client,session,{status='completed',r
   return client.finishRun(session.run.id,status,{phase:'research_loop_finished',run_binding:session.runBinding,
     problem_fingerprint:session.problem.fingerprint,research_fingerprint:research.fingerprint,research},{
     problem_id:session.problem.id,problem_version:session.problem.version,
-    problem_fingerprint:session.problem.fingerprint,run_binding:session.runBinding
+    problem_fingerprint:session.problem.fingerprint,run_binding:session.runBinding,
+    research_fingerprint:session.research.fingerprint
   });
 }
