@@ -1,6 +1,14 @@
 import { CATALOG } from './catalog.mjs';
 import { createProblem, createProblemBankClient } from './problem-bank.mjs';
 
+export function canonicalVersion(value) {
+  const text=String(value);
+  if (!/^[1-9][0-9]*$/.test(text)) throw new Error('invalid_canonical_problem_version');
+  const number=Number(text);
+  if (!Number.isSafeInteger(number)) throw new Error('invalid_canonical_problem_version');
+  return number;
+}
+
 export function makeCatalogProblem({id,experimentId,domain,kind='open',difficulty=2,version=1}) {
   const entry=CATALOG.find(item=>item.id===experimentId);
   if (!entry) throw new Error('unsupported_catalog_experiment');
@@ -9,21 +17,30 @@ export function makeCatalogProblem({id,experimentId,domain,kind='open',difficult
     id,kind,domain,question:entry.question,
     source:{experiment_id:entry.id},
     verifier_ids:[entry.toolId],
-    difficulty:Number(difficulty),version:Number(version)
+    difficulty:Number(difficulty),version:canonicalVersion(version)
   });
 }
 
 export async function createOrVerifyCatalogProblem(client,expected) {
-  try {
-    const existing=await client.getProblem(expected.id,expected.version);
+  const verify=(existing)=>{
     if (existing.fingerprint!==expected.fingerprint) throw new Error('existing_problem_fingerprint_mismatch');
     if (existing.status!=='active') throw new Error('existing_problem_retired_create_new_version');
     return {created:false,problem:existing};
+  };
+  let existing;
+  try {
+    existing=await client.getProblem(expected.id,expected.version);
   } catch (error) {
     if (error?.message!=='problem_not_found') throw error;
+  }
+  if (existing) return verify(existing);
+  try {
     const created=await client.putProblem(expected);
     if (created.fingerprint!==expected.fingerprint||created.status!=='active') throw new Error('created_problem_integrity_mismatch');
     return {created:true,problem:created};
+  } catch (error) {
+    if (!/409|23505/.test(String(error?.message))) throw error;
+    return verify(await client.getProblem(expected.id,expected.version));
   }
 }
 
