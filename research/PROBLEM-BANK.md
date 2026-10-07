@@ -12,7 +12,7 @@ The runner client uses an explicit safe-column projection and has no method for 
 
 ## Install
 
-Run `supabase/migrations/20261007_research_problem_bank_v1.sql` in the new orchestrator project's SQL Editor.
+Run `supabase/migrations/20261007_research_problem_bank_v1.sql` first, then `supabase/migrations/20261007150000_research_run_database_completion_clock.sql` in the new orchestrator project's SQL Editor. Both migrations are required, in that order.
 
 Runtime configuration:
 - `SUPABASE_URL` is non-secret and may be stored in Wrangler vars.
