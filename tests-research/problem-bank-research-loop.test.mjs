@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createProblem } from '../research/problem-bank.mjs';
-import { addHypothesis, recordResult } from '../research/research-loop.mjs';
+import { addHypothesis, recordResult, researchFingerprint } from '../research/research-loop.mjs';
 import { researchProblemFromBank, startBankResearchRun, finishBankResearchRun } from '../research/problem-bank-research-loop.mjs';
 
 const bankProblem=()=>createProblem({id:'adapter-problem-001',kind:'open',domain:'mathematics',question:'Can this conjecture be tested?',difficulty:2,verifier_ids:['sympy']});
@@ -105,6 +105,33 @@ test('finish rejects forged ancestry that rewrites started history',async()=>{
    revisions:[...startedResearch.revisions,{version:2,reason:'forged',previousFingerprint:startedResearch.fingerprint}]};
  delete forgedBase.fingerprint;
  const { researchFingerprint }=await import('../research/research-loop.mjs');
+ const forged={...forgedBase,fingerprint:researchFingerprint(forgedBase)};
+ await assert.rejects(()=>finishBankResearchRun(clientFor(bank),session,{research:forged}),/research_state_lineage_mismatch/);
+});
+
+
+test('finish rejects fabricated post-start attempts that bypass compute budget',async()=>{
+ const bank=bankProblem(), session=await startBankResearchRun(clientFor(bank),bank,{maxAttempts:1});
+ const hypothesis=addHypothesis(session.research,{id:'h-budget',statement:'Candidate',rationale:'Test'});
+ const forgedAttempts=[
+   {id:'a1',hypothesisId:'h-budget',method:'fake',toolId:null,outcome:'x',evidence:null,verification:null},
+   {id:'a2',hypothesisId:'h-budget',method:'fake',toolId:null,outcome:'x',evidence:null,verification:null}
+ ];
+ const forgedBase={...hypothesis,attempts:forgedAttempts,
+   revisions:[...hypothesis.revisions,{version:2,reason:'attempt_recorded',previousFingerprint:hypothesis.fingerprint},
+     {version:3,reason:'attempt_recorded',previousFingerprint:'fabricated'}]};
+ delete forgedBase.fingerprint;
+ const forged={...forgedBase,fingerprint:researchFingerprint(forgedBase)};
+ const startedSession={...session,research:hypothesis,run:{...session.run,state:{...session.run.state,research_fingerprint:hypothesis.fingerprint}}};
+ await assert.rejects(()=>finishBankResearchRun(clientFor(bank),startedSession,{research:forged}),/research_state_lineage_mismatch/);
+});
+
+test('finish rejects fabricated post-start attempt with unknown hypothesis',async()=>{
+ const bank=bankProblem(), session=await startBankResearchRun(clientFor(bank),bank);
+ const forgedAttempt={id:'a-forged',hypothesisId:'missing',method:'fake',toolId:null,outcome:'x',evidence:null,verification:null};
+ const forgedBase={...session.research,attempts:[forgedAttempt],
+   revisions:[{version:1,reason:'attempt_recorded',previousFingerprint:session.research.fingerprint}]};
+ delete forgedBase.fingerprint;
  const forged={...forgedBase,fingerprint:researchFingerprint(forgedBase)};
  await assert.rejects(()=>finishBankResearchRun(clientFor(bank),session,{research:forged}),/research_state_lineage_mismatch/);
 });
