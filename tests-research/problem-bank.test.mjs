@@ -157,3 +157,25 @@ test('finishRun delegates completed_at to the database clock',async()=>{
  await client.finishRun('11111111-1111-1111-1111-111111111111','completed',{done:true});
  assert.equal(Object.hasOwn(patchBody,'completed_at'),false);
 });
+
+
+test('finishRun compare-and-set filters on persisted run lineage and binding',async()=>{
+ let requested='';
+ const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'secret',fetchImpl:async (url)=> {
+   requested=String(url); return {ok:true,json:async()=>[]};
+ }});
+ await assert.rejects(()=>client.finishRun('11111111-1111-1111-1111-111111111111','completed',{done:true},{
+   problem_id:'abc',problem_version:1,problem_fingerprint:'f'.repeat(64),run_binding:'binding-1'
+ }),/research_run_finish_invalid_response/);
+ assert.match(requested,/problem_id=eq\.abc/);
+ assert.match(requested,/problem_version=eq\.1/);
+ assert.match(requested,/problem_fingerprint=eq\.f{64}/);
+ assert.match(requested,/state-%3E%3Erun_binding=eq\.binding-1/);
+});
+
+test('finishRun rejects incomplete compare-and-set guards before Supabase',async()=>{
+ let called=false;
+ const client=createProblemBankClient({url:'https://example.supabase.co',secretKey:'secret',fetchImpl:async()=>{called=true; throw new Error('unexpected');}});
+ await assert.rejects(()=>client.finishRun('run','completed',{}, {problem_id:'abc'}),/invalid_run_finish_guard/);
+ assert.equal(called,false);
+});
