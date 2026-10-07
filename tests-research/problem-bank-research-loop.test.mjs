@@ -7,7 +7,7 @@ import { researchProblemFromBank, startBankResearchRun, finishBankResearchRun } 
 const bankProblem=()=>createProblem({id:'adapter-problem-001',kind:'open',domain:'mathematics',question:'Can this conjecture be tested?',difficulty:2,verifier_ids:['sympy']});
 const clientFor=(bank)=>({
  async startRun(problem,state){return {id:'run-1',status:'running',problem_id:bank.id,problem_version:bank.version,problem_fingerprint:bank.fingerprint,state};},
- async finishRun(id,status,state){return {id,status,state};}
+ async finishRun(id,status,state,expected){return {id,status,state,expected};}
 });
 
 test('adapter preserves immutable Problem Bank lineage in Research Loop source',()=>{
@@ -75,4 +75,13 @@ test('finish rejects run records with omitted lineage fields',async()=>{
  const bank=bankProblem(), session=await startBankResearchRun(clientFor(bank),bank);
  const stripped={...session,run:{id:session.run.id}};
  await assert.rejects(()=>finishBankResearchRun(clientFor(bank),stripped),/research_run_lineage_mismatch/);
+});
+
+
+test('finish passes persisted compare-and-set lineage guard to Problem Bank client',async()=>{
+ const bank=bankProblem(), session=await startBankResearchRun(clientFor(bank),bank);
+ const finished=await finishBankResearchRun(clientFor(bank),session);
+ assert.deepEqual(finished.expected,{
+   problem_id:bank.id,problem_version:bank.version,problem_fingerprint:bank.fingerprint,run_binding:session.runBinding
+ });
 });
