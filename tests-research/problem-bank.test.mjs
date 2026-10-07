@@ -25,7 +25,7 @@ test('client explicitly selects only runner-safe columns',async()=>{
  }});
  const p=await client.getProblem('abc',1);
  assert.equal(p.id,'abc');
- assert.match(requested,/version=eq%2E1/);
+ assert.match(requested,/version=eq\.1/);
  assert.match(requested,/select=id%2Ckind%2Cdomain%2Cquestion/);
  assert.doesNotMatch(requested,/reference_solution/);
 });
@@ -75,6 +75,6 @@ test('client selects an exact immutable problem version',async()=>{
  }});
  const p=await client.getProblem('abc',2);
  assert.equal(p.version,2);
- assert.match(requested,/version=eq%2E2/);
+ assert.match(requested,/version=eq\.2/);
  await assert.rejects(()=>client.getProblem('abc',0),/invalid_problem_version/);
 });
