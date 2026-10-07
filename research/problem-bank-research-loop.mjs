@@ -8,7 +8,18 @@ function assertBankProblem(problem) {
   if (view.status!=='active') throw new Error('problem_not_active');
   return view;
 }
-function sameJson(a,b) { return JSON.stringify(a)===JSON.stringify(b); }
+function canonicalJson(value) {
+  if (value===null || typeof value==='string' || typeof value==='boolean') return value;
+  if (typeof value==='number') return Object.is(value,-0)?0:value;
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (value && typeof value==='object') {
+    const out={};
+    for (const key of Object.keys(value).sort()) out[key]=canonicalJson(value[key]);
+    return out;
+  }
+  return value;
+}
+function sameJson(a,b) { return JSON.stringify(canonicalJson(a))===JSON.stringify(canonicalJson(b)); }
 function descendsFrom(research,started) {
   if (research.fingerprint===started.fingerprint) return true;
   if (research.schemaVersion!==started.schemaVersion || research.id!==started.id
