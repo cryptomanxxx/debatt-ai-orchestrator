@@ -14,7 +14,8 @@ create table if not exists public.research_problem (
   fingerprint text not null unique check (fingerprint ~ '^[0-9a-f]{64}$'),
   created_at timestamptz not null default now(),
   primary key (id, version),
-  unique (id, fingerprint)
+  unique (id, fingerprint),
+  unique (id, version, fingerprint)
 );
 
 create table if not exists public.research_run (
@@ -26,10 +27,8 @@ create table if not exists public.research_run (
   status text not null default 'running' check (status in ('running','completed','failed')),
   started_at timestamptz not null default now(),
   completed_at timestamptz,
-  foreign key (problem_id, problem_version)
-    references public.research_problem(id, version),
-  foreign key (problem_id, problem_fingerprint)
-    references public.research_problem(id, fingerprint),
+  foreign key (problem_id, problem_version, problem_fingerprint)
+    references public.research_problem(id, version, fingerprint),
   check ((status = 'completed' and completed_at is not null) or status <> 'completed')
 );
 
@@ -55,10 +54,14 @@ execute function public.prevent_research_run_lineage_update();
 
 -- Hidden benchmark answers never live in a Data API schema.
 create table if not exists private.research_problem_reference (
-  problem_id text primary key references public.research_problem(id) on delete cascade,
+  problem_id text not null,
+  problem_version integer not null,
   reference_solution jsonb not null,
   reference_fingerprint text not null check (reference_fingerprint ~ '^[0-9a-f]{64}$'),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  primary key (problem_id, problem_version),
+  foreign key (problem_id, problem_version)
+    references public.research_problem(id, version) on delete cascade
 );
 
 alter table public.research_problem enable row level security;
