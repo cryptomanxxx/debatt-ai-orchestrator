@@ -26,6 +26,14 @@ on:
         description: 'Seed: 1–9 siffror; tomt använder dagens UTC-datum'
         type: string
         default: ''
+      problem_bank_id:
+        description: 'Valfritt Problem Bank-ID; måste peka på ett katalogexperiment med exakt samma fråga'
+        type: string
+        default: ''
+      problem_bank_version:
+        description: 'Problem Bank-version'
+        type: string
+        default: '1'
 permissions:
   contents: read
 concurrency:
@@ -77,7 +85,16 @@ jobs:
           EXPERIMENT_SEED: ${{ inputs.seed }}
           ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node research/runner.mjs
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          PROBLEM_BANK_ID: ${{ inputs.problem_bank_id }}
+          PROBLEM_BANK_VERSION: ${{ inputs.problem_bank_version || '1' }}
+        run: |
+          if [ -n "$PROBLEM_BANK_ID" ]; then
+            node research/run-problem-bank-oraklet.mjs
+          else
+            node research/runner.mjs
+          fi
       - name: Spara planer och rapporter även vid driftfel
         if: always()
         uses: actions/upload-artifact@v4
