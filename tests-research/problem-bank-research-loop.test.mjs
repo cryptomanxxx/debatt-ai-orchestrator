@@ -82,7 +82,8 @@ test('finish passes persisted compare-and-set lineage guard to Problem Bank clie
  const bank=bankProblem(), session=await startBankResearchRun(clientFor(bank),bank);
  const finished=await finishBankResearchRun(clientFor(bank),session);
  assert.deepEqual(finished.expected,{
-   problem_id:bank.id,problem_version:bank.version,problem_fingerprint:bank.fingerprint,run_binding:session.runBinding
+   problem_id:bank.id,problem_version:bank.version,problem_fingerprint:bank.fingerprint,run_binding:session.runBinding,
+   research_fingerprint:session.research.fingerprint
  });
 });
 
@@ -134,4 +135,15 @@ test('finish rejects fabricated post-start attempt with unknown hypothesis',asyn
  delete forgedBase.fingerprint;
  const forged={...forgedBase,fingerprint:researchFingerprint(forgedBase)};
  await assert.rejects(()=>finishBankResearchRun(clientFor(bank),session,{research:forged}),/research_state_lineage_mismatch/);
+});
+
+
+test('finish guard binds the persisted starting research fingerprint',async()=>{
+ const bank=bankProblem(), session=await startBankResearchRun(clientFor(bank),bank,{maxAttempts:1});
+ const forgedBase={...session.research,computeBudget:{maxAttempts:20}}; delete forgedBase.fingerprint;
+ const forged={...forgedBase,fingerprint:researchFingerprint(forgedBase)};
+ const local={...session,research:forged,run:{...session.run,state:{...session.run.state,research_fingerprint:forged.fingerprint}}};
+ const finished=await finishBankResearchRun(clientFor(bank),local,{research:forged});
+ assert.equal(finished.expected.research_fingerprint,forged.fingerprint);
+ assert.notEqual(finished.expected.research_fingerprint,session.run.state.research_fingerprint);
 });
