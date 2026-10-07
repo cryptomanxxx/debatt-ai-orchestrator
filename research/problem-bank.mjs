@@ -77,9 +77,11 @@ export function createProblemBankClient({url,secretKey,fetchImpl=fetch}) {
   if (typeof secretKey!=='string'||!secretKey) throw new Error('missing_supabase_secret');
   const headers={apikey:secretKey};
   return Object.freeze({
-    async getProblem(id) {
+    async getProblem(id,version=1) {
+      if (!Number.isInteger(version)||version<1) throw new Error('invalid_problem_version');
       const endpoint=new URL('/rest/v1/research_problem',url);
       endpoint.searchParams.set('id',`eq.${id}`);
+      endpoint.searchParams.set('version',`eq.${version}`);
       endpoint.searchParams.set('select','id,kind,domain,question,source,verifier_ids,difficulty,status,version,fingerprint');
       const response=await fetchImpl(endpoint,{headers});
       if (!response.ok) throw new Error('problem_bank_read_failed:'+response.status);
