@@ -95,7 +95,8 @@ export function createProblemBankClient({url,secretKey,fetchImpl=fetch}) {
       if (!view.id||!Number.isInteger(view.version)||typeof view.fingerprint!=='string') throw new Error('invalid_run_problem');
       if (problemFingerprint(view)!==view.fingerprint) throw new Error('problem_fingerprint_mismatch');
       const endpoint=new URL('/rest/v1/research_run',url);
-      const payload={problem_id:view.id,problem_version:view.version,problem_fingerprint:view.fingerprint,state,status:'running'};
+      const safeState=canonical(state);
+      const payload={problem_id:view.id,problem_version:view.version,problem_fingerprint:view.fingerprint,state:safeState,status:'running'};
       const response=await fetchImpl(endpoint,{method:'POST',headers:{...jsonHeaders,Prefer:'return=representation'},body:JSON.stringify(payload)});
       if (!response.ok) throw new Error('research_run_start_failed:'+response.status);
       const rows=await response.json();
@@ -105,9 +106,10 @@ export function createProblemBankClient({url,secretKey,fetchImpl=fetch}) {
     async finishRun(runId,status,state,completedAt=new Date().toISOString()) {
       if (!['completed','failed'].includes(status)) throw new Error('invalid_terminal_run_status');
       if (typeof runId!=='string'||!runId) throw new Error('invalid_run_id');
+      const safeState=canonical(state);
       const endpoint=new URL('/rest/v1/research_run',url);
       endpoint.searchParams.set('id',`eq.${runId}`);
-      const response=await fetchImpl(endpoint,{method:'PATCH',headers:{...jsonHeaders,Prefer:'return=representation'},body:JSON.stringify({status,state,completed_at:completedAt})});
+      const response=await fetchImpl(endpoint,{method:'PATCH',headers:{...jsonHeaders,Prefer:'return=representation'},body:JSON.stringify({status,state:safeState,completed_at:completedAt})});
       if (!response.ok) throw new Error('research_run_finish_failed:'+response.status);
       const rows=await response.json();
       if (!Array.isArray(rows)||rows.length!==1) throw new Error('research_run_finish_invalid_response');
