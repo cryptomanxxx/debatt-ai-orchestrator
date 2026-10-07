@@ -8,7 +8,7 @@ function canonical(value) {
     if (!Number.isFinite(value)) throw new Error('invalid_problem_json');
     return Object.is(value,-0)?0:value;
   }
-  if (Array.isArray(value)) return value.map(canonical);
+  if (Array.isArray(value)) {\n    for (let i=0;i<value.length;i++) if (!Object.hasOwn(value,i)) throw new Error('invalid_problem_json');\n    return value.map(canonical);\n  }
   if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
     const out={};
     for (const key of Object.keys(value).sort()) Object.defineProperty(out,key,{value:canonical(value[key]),enumerable:true,writable:true,configurable:true});
@@ -43,7 +43,7 @@ export function createProblem(input) {
   if (!PROBLEM_KINDS.includes(input.kind)) throw new Error('invalid_problem_kind');
   if (typeof input.domain!=='string'||!input.domain.trim()) throw new Error('invalid_problem_domain');
   if (typeof input.question!=='string'||!input.question.trim()) throw new Error('invalid_problem_question');
-  const problem=canonical({id:input.id,kind:input.kind,domain:input.domain.trim(),question:input.question.trim(),source:input.source??null,
+  if (!Array.isArray(input.verifier_ids??[]) || !(input.verifier_ids??[]).every(v=>typeof v==='string')) throw new Error('invalid_verifier_ids');\n  if (input.difficulty!=null && (!Number.isInteger(input.difficulty)||input.difficulty<1||input.difficulty>5)) throw new Error('invalid_difficulty');\n  if (!['active','retired'].includes(input.status??'active')) throw new Error('invalid_problem_status');\n  if (!Number.isInteger(input.version??1)||(input.version??1)<1) throw new Error('invalid_problem_version');\n  const problem=canonical({id:input.id,kind:input.kind,domain:input.domain.trim(),question:input.question.trim(),source:input.source??null,
     verifier_ids:input.verifier_ids??[],difficulty:input.difficulty??null,status:input.status??'active',version:input.version??1});
   if (problem.kind==='benchmark_hidden_solution') scanHidden(problem.source);\n  return deepFreeze({...problem,fingerprint:problemFingerprint(problem)});
 }
@@ -67,7 +67,7 @@ export function createProblemBankClient({url,secretKey,fetchImpl=fetch}) {
       if (!response.ok) throw new Error('problem_bank_read_failed:'+response.status);
       const rows=await response.json();
       if (!Array.isArray(rows)||rows.length!==1) throw new Error('problem_not_found');
-      return assertNoHiddenReference(runnerView(rows[0]));
+      const view=assertNoHiddenReference(runnerView(rows[0]));\n      if (problemFingerprint(view)!==view.fingerprint) throw new Error('problem_fingerprint_mismatch');\n      return view;
     }
   });
 }
