@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { CATALOG } from '../research/catalog.mjs';
 import {proposeCatalogProblems,renderProposals} from '../research/oraklet-propose-problems.mjs';
 
 test('suggests only locked catalog problems with a testable plan and fingerprint',()=>{
@@ -49,4 +50,14 @@ test('candidate lookup fails closed on database errors',async()=>{
   await assert.rejects(findExistingCandidateIds({
     getProblem:async()=>{throw new Error('problem_bank_read_failed:403');}
   },proposeCatalogProblems({limit:1})),/problem_bank_read_failed:403/);
+});
+
+
+test('every automatic catalog experiment is available to the proposal generator',()=>{
+  const proposals=proposeCatalogProblems({limit:11});
+  assert.deepEqual(proposals.map(p=>p.experiment_id),CATALOG.filter(e=>e.automatic!==false).map(e=>e.id));
+  const glucose=proposals.find(p=>p.experiment_id==='glucose-absorption');
+  assert.equal(glucose.domain,'synthetic-physiological-dynamics');
+  assert.deepEqual(glucose.verifier_ids,['glucose-simulator']);
+  assert.equal(glucose.status,'proposed_requires_human_approval');
 });
