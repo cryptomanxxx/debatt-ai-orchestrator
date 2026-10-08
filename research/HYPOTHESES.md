@@ -17,6 +17,8 @@ installation innebär inte att fria vetenskapliga påståenden kan testas direkt
 | sympy-quadratic | Exakt komplett mängd distinkta reella rötter till en andragradsekvation; rationella rötter eller inga reella rötter | SymPy solveset, oberoende BigInt-diskriminant och rationell insättning; förvanskad rotmängd måste avvisas |
 | sklearn-polynomial | Modellens gradförslag jämförs med valideringsval mellan två fasta OLS-modeller; testdelen används inte för val | Exakt rationell OLS, alla prediktioner/MSE, kontrasterande kontroll och strikt separata datadelar |
 | dowhy-backdoor | Justerad effekt av do(t=1)-do(t=0) under fast observerad-confounder-DAG och linjär modell | Exakta rationella kovarianser, kända effekter och nollkontroller; ojusterad bias och kontrasterande data |
+| glucose-absorption | Ändrad absorption i en dimensionslös modell; adaptiv fördel kräver lägre MSE vid både 30 och 60 minuter | RK4/midpoint, steghalvering, identisk oförändrad kontroll och kausala prognosursprung |
+| glucose-robustness | Kvarstår adaptiv fördel vid fasta ±30% fel i måltid och antagen känslighet? Alla åtta felaktiga kombinationer klassas per absorptionstakt | RK4/midpoint/steghalvering för varje kombination; separat korrekt kontroll som exakt matchar gridens kontroll; oförändrat facit |
 | pymc-gdp-ar1 (endast manuellt) | Positiv/negativ lagg-1-koefficient endast om lika-svansat 95% posteriorintervall utesluter noll; låsta priorer | Fyra MCMC-kedjor, diagnostik, logdensitetskontroller, analytisk posterior i Python/JS och centrerad nollkontroll |
 
 Hypotes, beslutströskel, modellklass och tränings-/kontrolldelning finns i
@@ -30,8 +32,8 @@ villkorliga på modellens antaganden och kan vara otillräckliga.
 Rapporterna blandar inte ihop dessa. En korrekt beräkning kan fortfarande
 bygga på fel antaganden eller besvara en ointressant fråga.
 
-Katalogen har elva körbara experiment: tio syntetiska metodtester, inklusive
-SymPy, Scikit-learn och DoWhy, och en manuell PyMC-uppföljning med historiska BNP-data. Metodtesterna
+Katalogen har tretton körbara experiment: tolv syntetiska metodtester, inklusive
+SymPy, Scikit-learn, DoWhy och de två [glukosprotokollen](GLUCOSE-ROBUSTNESS.md), och en manuell PyMC-uppföljning med historiska BNP-data. Metodtesterna
 verifierar verktyg och forskningsmetoder; de etablerar inte ett nytt fynd från
 verkliga observationer. PyMC-uppföljningen återanvänder hypotespilotens data
 och är explorativ, inte en oberoende replikation. Den väljs inte av `auto`.

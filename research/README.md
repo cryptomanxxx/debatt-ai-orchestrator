@@ -1,5 +1,10 @@
 # Oraklets dagliga forskningslabb
 
+Uppföljningen `glucose-robustness` testar felaktiga måltidsuppgifter och antagen
+insulinkänslighet i det syntetiska absorptionsexperimentet. Välj den manuellt med
+seed `20261008` för att matcha första körningen, eller låt `auto` välja den.
+Se [protokoll, kontroller och begränsningar](GLUCOSE-ROBUSTNESS.md).
+
 Forskningsmotorn ligger i orchestrator-repot. Webbplatsen visar rapporterna i
 den befintliga Supabase-tabellen `oraklet_experiment` (schemaVersion 2).
 Ingen ny databasmigrering krävs. Upprepad forskning ändrar data och planer,

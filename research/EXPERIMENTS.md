@@ -15,6 +15,7 @@ Välj experiment i Oraklets forskningslabb. `catalog-only` visar menyn utan mode
 | sklearn-polynomial | scikit-learn | Vilken av två fasta regressionsmodeller väljs på separat valideringsdata och hur går det på testpunkterna? |
 | dowhy-backdoor | dowhy | Kan Oraklet skilja en justerad kausal effekt från ojusterad association under ett fast diagram? |
 | glucose-absorption | glucose-simulator | Hur påverkar absorptionstakten en syntetisk glukoskurva och 30–60-minutersprognoser? |
+| glucose-robustness | glucose-robustness-simulator | Kvarstår adaptiva prognosfördelar när måltidsuppgifter och antagen insulinkänslighet är felaktiga? |
 | pymc-gdp-ar1 (endast manuellt) | pymc | Hur osäker är lagg-1-koefficienten i historisk BNP-tillväxt under låsta bayesianska priorer? |
 
 ## BootLoops: lokal integrationsstatus
@@ -83,5 +84,6 @@ Inventering av 49 paket vid commit `66b680ce742e654cfe86da4f072a69061fe182b1`. U
 | [sympy](https://www.sympy.org/en/index.html) | 1.14.0 | Verifierad delintegration | Exakta andragradsekvationer med rationella eller inga reella rötter; BigInt-verifiering och förvanskade rotkontroller | github-actions-python |
 | [scikit-learn](https://scikit-learn.org/stable/) | 1.9.1 | Verifierad delintegration | Fasta linjära/kvadratiska OLS-modeller; separata tränings-, validerings- och testpunkter, exakt rationell kontroll | github-actions-python |
 | [glucose-simulator](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/GLUCOSE.md) | synthetic-absorption-v1 | Verifierad delintegration | Dimensionslös glukos–insulinsimulering; kausal filterbank, RK4/midpointkontroll; inga kliniska doser | github-actions-node |
+| [glucose-robustness-simulator](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/GLUCOSE-ROBUSTNESS.md) | synthetic-absorption-robustness-v1 | Verifierad delintegration | Låst 3 × 3 stresstest av felaktig måltid/känslighet; parade kausala prognoser och separat korrekt kontroll; syntetiskt, inga dosråd | github-actions-node |
 
 Nya integrationer kräver låst källversion och licens, begränsad adapter, angiven körmiljö, positiva och negativa kontroller samt verifiering av rapportkedjan. Först därefter läggs experimentet till i körmenyn och den automatiska planeringen.

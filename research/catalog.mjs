@@ -28,6 +28,7 @@ export const EXTERNAL_TOOLS = Object.freeze([{ id: 'statsmodels', integration: '
   { id: 'scikit-learn', integration: 'verified-subset', version: sklearnToolchain.packages['scikit-learn'], runtime: 'github-actions-python', source: 'https://scikit-learn.org/stable/',
     scope: 'Fasta linjära/kvadratiska OLS-modeller; separata tränings-, validerings- och testpunkter, exakt rationell kontroll' },
   { id: 'glucose-simulator', integration: 'verified-subset', version: 'synthetic-absorption-v1', runtime: 'github-actions-node', source: 'https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/GLUCOSE.md', scope: 'Dimensionslös glukos–insulinsimulering; kausal filterbank, RK4/midpointkontroll; inga kliniska doser' },
+  { id: 'glucose-robustness-simulator', integration: 'verified-subset', version: 'synthetic-absorption-robustness-v1', runtime: 'github-actions-node', source: 'https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/GLUCOSE-ROBUSTNESS.md', scope: 'Låst 3 × 3 stresstest av felaktig måltid/känslighet; parade kausala prognoser och separat korrekt kontroll; syntetiskt, inga dosråd' },
 ]);
 export const ALL_RESEARCH_TOOLS = Object.freeze([...TOOLS, ...EXTERNAL_TOOLS]);
 export const CATALOG = Object.freeze([
@@ -52,6 +53,7 @@ export const CATALOG = Object.freeze([
   { id: 'dowhy-backdoor', name: 'DoWhy: effekt eller confounding?', toolId: 'dowhy',
     question: 'Kan Oraklet skilja en justerad kausal effekt från ojusterad association under ett fast diagram?' },
   { id: 'glucose-absorption', name: 'Glukos: absorption och adaptiva prognoser', toolId: 'glucose-simulator', question: 'Hur påverkar absorptionstakten en syntetisk glukoskurva och 30–60-minutersprognoser?' },
+  { id: 'glucose-robustness', name: 'Glukos: robusthet mot felaktiga uppgifter', toolId: 'glucose-robustness-simulator', question: 'Kvarstår adaptiva prognosfördelar när måltidsuppgifter och antagen insulinkänslighet är felaktiga?' },
   { id: 'pymc-gdp-ar1', name: 'PyMC: bayesiansk BNP-uppföljning (manuell)', toolId: 'pymc', automatic: false,
     question: 'Hur osäker är lagg-1-koefficienten i historisk BNP-tillväxt under låsta bayesianska priorer?' },
 ]);

@@ -5,6 +5,7 @@ const DOMAINS=Object.freeze({
   'sympy-quadratic':'symbolic-mathematics',
   'sklearn-polynomial':'machine-learning',
   'dowhy-backdoor':'causal-inference',
+  'glucose-robustness':'synthetic-physiological-dynamics',
   'glucose-absorption':'synthetic-physiological-dynamics',
   'statsmodels-ar1':'time-series',
   'pymc-gdp-ar1':'bayesian-inference',
@@ -18,7 +19,7 @@ const DOMAINS=Object.freeze({
 const slug=id=>id.replace(/[^a-z0-9-]/g,'-');
 export function proposeCatalogProblems({catalog=CATALOG,existingIds=[],limit=3}={}) {
   if (!Array.isArray(existingIds)||!existingIds.every(x=>typeof x==='string')) throw new Error('invalid_existing_problem_ids');
-  if (!Number.isInteger(limit)||limit<1||limit>11) throw new Error('invalid_proposal_limit');
+  if (!Number.isInteger(limit)||limit<1||limit>CATALOG.filter(e=>e.automatic!==false).length) throw new Error('invalid_proposal_limit');
   const seen=new Set(existingIds);
   return catalog.filter(entry=>entry.automatic!==false && DOMAINS[entry.id])
     .map(entry=>{

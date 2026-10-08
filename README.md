@@ -372,3 +372,5 @@ Use `catalog-only` in **Oraklets forskningslabb** to inspect the catalog without
 ### Synthetic insulin absorption experiment
 
 `glucose-absorption` tests altered absorption and fixed versus adaptive 30/60-minute forecasts in a dimensionless compartment model. It uses a causal Kalman filter bank and numerical controls, with no medical data, dosing recommendations or neural network. See [protocol and limitations](research/GLUCOSE.md). This is an educational mechanism test, not a validated patient model.
+
+`glucose-robustness` follows up with nine combinations of correct and ±30% incorrect meal/sensitivity inputs per absorption rate. Both methods receive identical information; reports show every combination and a separate correct-input control. Use seed `20261008` to match the initial experiment. See the [robustness protocol](research/GLUCOSE-ROBUSTNESS.md).
