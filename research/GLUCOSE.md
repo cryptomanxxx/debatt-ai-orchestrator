@@ -74,6 +74,10 @@ prediction, separately from the measured mechanistic and forecasting outcomes.
 
 ## Background and next steps
 
+The runnable [robustness follow-up](GLUCOSE-ROBUSTNESS.md), `glucose-robustness`,
+tests fixed ±30% errors in meal amount and assumed sensitivity. True trajectories
+remain unchanged; it does not add real patients or temperature data.
+
 - Glucose/insulin modeling: https://pubmed.ncbi.nlm.nih.gov/7033284/
 - UVA/Padova research simulator: https://github.com/jxx123/simglucose
 - Physiological glucose prediction: https://arxiv.org/abs/1901.07467

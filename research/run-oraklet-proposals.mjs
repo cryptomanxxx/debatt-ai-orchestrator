@@ -1,3 +1,4 @@
+import { CATALOG } from './catalog.mjs';
 import { createProblemBankClient } from './problem-bank.mjs';
 import { proposeCatalogProblems, renderProposals } from './oraklet-propose-problems.mjs';
 import { writeFile } from 'node:fs/promises';
@@ -18,7 +19,7 @@ export async function findExistingCandidateIds(client, candidates) {
 export async function main(env=process.env) {
   if (!env.SUPABASE_URL||!env.SUPABASE_SECRET_KEY) throw new Error('missing_problem_bank_environment');
   const client=createProblemBankClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY});
-  const candidates=proposeCatalogProblems({limit:11});
+  const candidates=proposeCatalogProblems({limit:CATALOG.filter(e=>e.automatic!==false).length});
   const existingIds=await findExistingCandidateIds(client,candidates);
   const proposals=proposeCatalogProblems({existingIds,limit:3});
   const markdown=renderProposals(proposals);

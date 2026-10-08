@@ -21,6 +21,7 @@ on:
           - sklearn-polynomial
           - dowhy-backdoor
           - glucose-absorption
+          - glucose-robustness
           - pymc-gdp-ar1
         default: auto
       seed:

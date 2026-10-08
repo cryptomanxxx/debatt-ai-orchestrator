@@ -10,13 +10,13 @@ test('suggests only locked catalog problems with a testable plan and fingerprint
 });
 
 test('skips registered problems and does not propose manually restricted experiments',()=>{
-  const all=proposeCatalogProblems({limit:11,existingIds:['oraklet-ratfit-baseline-001']});
+  const all=proposeCatalogProblems({limit:CATALOG.filter(e=>e.automatic!==false).length,existingIds:['oraklet-ratfit-baseline-001']});
   assert.ok(all.every(p=>p.id!=='oraklet-ratfit-baseline-001'));
   assert.ok(all.every(p=>p.experiment_id!=='pymc-gdp-ar1'));
 });
 
 test('returns empty when every eligible catalog problem exists',()=>{
-  const all=proposeCatalogProblems({limit:11});
+  const all=proposeCatalogProblems({limit:CATALOG.filter(e=>e.automatic!==false).length});
   assert.deepEqual(proposeCatalogProblems({existingIds:all.map(p=>p.id)}),[]);
 });
 
@@ -42,7 +42,7 @@ test('candidate lookup checks every candidate and excludes existing rows',async(
   },candidates);
   assert.deepEqual(existing,[candidates[2].id]);
   assert.equal(calls.length,4);
-  assert.ok(!proposeCatalogProblems({existingIds:existing,limit:11}).some(p=>p.id===candidates[2].id));
+  assert.ok(!proposeCatalogProblems({existingIds:existing,limit:CATALOG.filter(e=>e.automatic!==false).length}).some(p=>p.id===candidates[2].id));
 });
 
 test('candidate lookup fails closed on database errors',async()=>{
@@ -54,10 +54,13 @@ test('candidate lookup fails closed on database errors',async()=>{
 
 
 test('every automatic catalog experiment is available to the proposal generator',()=>{
-  const proposals=proposeCatalogProblems({limit:11});
+  const proposals=proposeCatalogProblems({limit:CATALOG.filter(e=>e.automatic!==false).length});
   assert.deepEqual(proposals.map(p=>p.experiment_id),CATALOG.filter(e=>e.automatic!==false).map(e=>e.id));
   const glucose=proposals.find(p=>p.experiment_id==='glucose-absorption');
   assert.equal(glucose.domain,'synthetic-physiological-dynamics');
   assert.deepEqual(glucose.verifier_ids,['glucose-simulator']);
   assert.equal(glucose.status,'proposed_requires_human_approval');
+  const robustness=proposals.find(p=>p.experiment_id==='glucose-robustness');
+  assert.equal(robustness.domain,'synthetic-physiological-dynamics');
+  assert.deepEqual(robustness.verifier_ids,['glucose-robustness-simulator']);
 });
