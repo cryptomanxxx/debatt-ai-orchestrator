@@ -1,0 +1,56 @@
+{
+  "version": "temperature-literature-v1",
+  "checkedAt": "2026-10-08",
+  "selection": "Targeted primary-source search; three selected studies, not a systematic review",
+  "individualDataAvailable": false,
+  "studies": [
+    {
+      "id": "ambient-1981",
+      "doi": "10.1016/0026-0495(81)90122-0",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/7010077/",
+      "location": "Abstract",
+      "extraction": "Manual numeric summary, no individual records",
+      "n": 6,
+      "insulin": "125I-labelled Actrapid, insulin-dependent diabetes",
+      "temperatureKind": "ambient",
+      "temperaturesC": [20, 35],
+      "endpoint": "Reported injection-site insulin disappearance rate during four hours",
+      "reportedRatioRange": [1.5, 1.6],
+      "rangeMeaning": "Reported 50–60% increase; not a confidence interval",
+      "reportedP": {"relation": "lt", "value": 0.01}
+    },
+    {
+      "id": "ambient-1988",
+      "doi": "10.2337/diacare.11.10.769",
+      "url": "https://diabetesjournals.org/care/article/11/10/769/1857/Combined-Effect-of-Exercise-and-Ambient",
+      "location": "Abstract",
+      "extraction": "Manual numeric summary, no individual records",
+      "n": 9,
+      "insulin": "Short- and intermediate-acting human insulin, type 1 diabetes",
+      "temperatureKind": "ambient",
+      "temperaturesC": [10, 30],
+      "endpoint": "Reported insulin absorption comparison under meal/exercise study conditions",
+      "reportedRatioRange": [3, 5],
+      "rangeMeaning": "Reported 3–5-fold difference; not a confidence interval",
+      "reportedP": {"relation": "lt", "value": 0.01},
+      "context": "Breakfast and exercise/rest conditions; no exercise-stratified numeric data extracted"
+    },
+    {
+      "id": "local-2019",
+      "doi": "10.1177/1932296819842151",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6835184/",
+      "location": "Methods, Table 3 and limitations",
+      "extraction": "Manual numeric summary, no individual records",
+      "n": 14,
+      "insulin": "Glargine, type 1 diabetes; randomized open-label crossover",
+      "temperatureKind": "injection-site-skin",
+      "temperaturesC": {"cooling": 15, "warming": 40, "control": null},
+      "roomTemperatureC": {"mean": 24, "spread": 3},
+      "endpoint": "Published 0–240 minute normalized serum-insulin AUC summary, not depot absorption rate",
+      "means": {"control": 84, "cooling": 61, "warming": 92},
+      "sd": {"control": 22.4, "cooling": 22.1, "warming": 16.1},
+      "reportedP": {"coolingVsControl": 0.02, "warmingVsControl": 0.65, "coolingVsWarming": 0.002},
+      "caveats": "Warming intermittent; early terminations; paired covariance unavailable; device-company funding and author ties"
+    }
+  ]
+}
