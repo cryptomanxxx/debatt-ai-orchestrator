@@ -114,11 +114,17 @@ hashes. Plots are in the downloadable artifact; they are not embedded images in
 the website or GitHub summary. No website deployment or database migration is
 required.
 
+The default `npm test` suite is Node-only and remains suitable for Cloudflare
+Workers Builds. Python/Matplotlib integration tests run separately as
+`npm run test:plots` in GitHub CI after the locked plotting dependencies are
+installed. They do not execute in the API deployment build.
+
 For local development:
 
 ```sh
 python3 -m pip install -r research/plot-requirements.lock
 npm test
+npm run test:plots
 python3 scripts/plot_insulin_curves.py reports/oraklet-lab/report.json
 ```
 

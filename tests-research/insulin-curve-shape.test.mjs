@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { createHash } from 'node:crypto';
 import { CURVE_PROTOCOL,forecastShapeRows,evaluateCurveShape,callCurveShape,validateCurveShape,
   makeCurveCases,parseCurveProposal,runCurveShapeExperiment,curveMarkdown } from '../research/insulin-curve-shape.mjs';
 import { forecastWarmingRows,WARMING_DATA_SHA256 } from '../research/insulin-warming.mjs';
@@ -115,7 +114,7 @@ test('commit before model; no future values in prompt; wrong proposals and parti
   assert.equal(progress.length,1);
 });
 
-test('production runner saves comparison/provenance; plotting produces all origins and checks samples',async()=>{
+test('production runner saves comparison/provenance and graph data without Python dependencies',async()=>{
   const dir=await mkdtemp(join(tmpdir(),'curve-shape-runner-'));
   try {
     const preload=join(dir,'mock.mjs');
@@ -138,25 +137,11 @@ globalThis.fetch=async(url,options={})=>{
     assert.equal(saved.modelCalls,3);assert.equal(saved.toolCalls,6);assert.equal(saved.toolRuntime,'github-actions-node');
     assert.ok(saved.cases.every(c=>c.data.dataSha256===WARMING_DATA_SHA256));
     const directory=join(dir,'reports/oraklet-lab'), path=join(directory,'report.json');
-    const raw=await readFile(path);
     const markdown=await readFile(join(directory,'report.md'),'utf8');
     assert.match(markdown,/Utforskande kurvformsjämförelse/);assert.match(markdown,/Persistens/);assert.match(markdown,/Tau utan värme/);
-    const script=fileURLToPath(new URL('../scripts/plot_insulin_curves.py',import.meta.url));
-    await run('python3',[script,path],{timeout:25000});
-    const manifest=JSON.parse(await readFile(join(directory,'curve-plots.json'),'utf8'));
-    assert.equal(manifest.plots.length,6);assert.equal(manifest.reportSha256,createHash('sha256').update(raw).digest('hex'));
-    for (const plot of manifest.plots) {
-      const bytes=await readFile(join(directory,plot.file));
-      assert.equal(createHash('sha256').update(bytes).digest('hex'),plot.sha256);
-      if (plot.file.endsWith('.png')) assert.equal(bytes.subarray(0,8).toString('hex'),'89504e470d0a1a0a');
-      else {assert.match(bytes.toString(),/Minuter efter bolus/);assert.match(bytes.toString(),/Persistens/);}
-    }
-    saved.cases[0].hypothesisTest.measured.plot.curves[0].points.at(-1).heated+=1;
-    await writeFile(path,JSON.stringify(saved));
-    await assert.rejects(run('python3',[script,path],{timeout:15000}));
-    // Partial reports still render their completed case; wrong proposal is irrelevant.
-    saved.cases=saved.cases.slice(1,2);saved.executionStatus='error';
-    await writeFile(path,JSON.stringify(saved));await run('python3',[script,path],{timeout:15000});
-    assert.equal(JSON.parse(await readFile(join(directory,'curve-plots.json'),'utf8')).plots.length,2);
+    const disk=JSON.parse(await readFile(path,'utf8'));
+    assert.deepEqual(disk,saved);
+    assert.equal(saved.cases.length,3);
+    assert.ok(saved.cases.every(c=>c.hypothesisTest.measured.plot.curves.length===5));
   } finally {await rm(dir,{recursive:true,force:true});}
 });
