@@ -67,4 +67,6 @@ test('every automatic catalog experiment is available to the proposal generator'
   assert.equal(CATALOG.find(e=>e.id==='glucose-temperature-evidence').automatic,false);
   assert.ok(!proposals.some(p=>p.experiment_id==='insulin-warming-forecast'));
   assert.equal(CATALOG.find(e=>e.id==='insulin-warming-forecast').automatic,false);
+  assert.ok(!proposals.some(p=>p.experiment_id==='insulin-curve-shape'));
+  assert.equal(CATALOG.find(e=>e.id==='insulin-curve-shape').automatic,false);
 });

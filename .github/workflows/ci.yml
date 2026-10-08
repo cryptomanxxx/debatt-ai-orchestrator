@@ -22,6 +22,7 @@ jobs:
       - run: python3 scripts/check_sklearn.py
       - run: npm run test:sympy
       - run: npm run test:sklearn
+      - run: python3 -m pip install -r research/plot-requirements.lock
       - run: npm test
       - run: npm run test:science
       - run: npm run check:workers
