@@ -43,8 +43,8 @@ export function simulate(p, solver='rk4', step=0.25, rate=p.rate) {
 }
 export function makeGlucoseCases(seed) {
   if(typeof seed!=='string'||!/^\d{1,9}$/.test(seed)) throw new ResearchError('invalid_plan');
+  const h=hash({seed,protocol:GLUCOSE_PROTOCOL.id});
   return rates.map((rate,i)=>{
-    const h=hash({seed,i,protocol:GLUCOSE_PROTOCOL.id});
     const input={rate,dose:[0.8,1,1.2][parseInt(h.slice(0,2),16)%3],
       meal:[1,1.25,1.5][parseInt(h.slice(2,4),16)%3],
       sensitivity:[0.025,0.035,0.045][parseInt(h.slice(4,6),16)%3],noise:0.015};
