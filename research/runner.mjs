@@ -15,6 +15,8 @@ import { runGlucoseExperiment, callGlucose } from './glucose.mjs';
 import { runGlucoseRobustnessExperiment, callGlucoseRobustness, glucoseRobustnessMarkdown } from './glucose-robustness.mjs';
 import { runTemperatureExperiment, callTemperature, temperatureSummary, temperatureMarkdown } from './glucose-temperature.mjs';
 
+import { runWarmingExperiment, callWarming, warmingSummary, warmingMarkdown } from './insulin-warming.mjs';
+
 // Catalog viewing needs no model or database credentials.
 if (process.env.EXPERIMENT === 'catalog-only') {
   await import('./show-catalog.mjs');
@@ -109,13 +111,13 @@ try {
   console.log('Experimentplanens SHA-256 före körning:', planCommitment);
   stage = 'experiment';
   const entry = CATALOG.find(e => e.id === plan.experimentId);
-  const runners = { 'temperature-evidence': runTemperatureExperiment, 'glucose-robustness-simulator': runGlucoseRobustnessExperiment, 'glucose-simulator': runGlucoseExperiment, ratfit: runExperiment, rankscreen: runRankExperiment,
+  const runners = { 'insulin-warming-forecast': runWarmingExperiment, 'temperature-evidence': runTemperatureExperiment, 'glucose-robustness-simulator': runGlucoseRobustnessExperiment, 'glucose-simulator': runGlucoseExperiment, ratfit: runExperiment, rankscreen: runRankExperiment,
     annihilator: runScienceExperiment, mixalot: runScienceExperiment, statsmodels: runScienceExperiment, pymc: runPymcExperiment, sympy: runSympyExperiment, 'scikit-learn': runSklearnExperiment, dowhy: runDowhyExperiment };
   const execute = runners[entry.toolId];
   if (!execute) throw new ResearchError('invalid_plan');
   const tool = entry.toolId === 'ratfit' ? callTool : async input => {
     if (++toolCalls > 6) throw new ResearchError('tool_budget_exceeded');
-    return entry.toolId === 'temperature-evidence' ? callTemperature(input) : entry.toolId === 'glucose-robustness-simulator' ? callGlucoseRobustness(input) : entry.toolId === 'glucose-simulator' ? callGlucose(input) : entry.toolId === 'rankscreen' ? callRankscreen(input) : entry.toolId === 'pymc' ? callPymc(input) : entry.toolId === 'sympy' ? callSympy(input) : entry.toolId === 'scikit-learn' ? callSklearn(input) : entry.toolId === 'dowhy' ? callDowhy(input) : callScienceTool(entry.toolId, input);
+    return entry.toolId === 'insulin-warming-forecast' ? callWarming(input) : entry.toolId === 'temperature-evidence' ? callTemperature(input) : entry.toolId === 'glucose-robustness-simulator' ? callGlucoseRobustness(input) : entry.toolId === 'glucose-simulator' ? callGlucose(input) : entry.toolId === 'rankscreen' ? callRankscreen(input) : entry.toolId === 'pymc' ? callPymc(input) : entry.toolId === 'sympy' ? callSympy(input) : entry.toolId === 'scikit-learn' ? callSklearn(input) : entry.toolId === 'dowhy' ? callDowhy(input) : callScienceTool(entry.toolId, input);
   };
   report = await execute(plan.seed, propose, tool, async commitments => {
     await writeFile(`${directory}/commitments.json`, JSON.stringify(commitments, null, 2));
@@ -125,7 +127,7 @@ try {
     await writeFile(`${directory}/progress.json`, JSON.stringify({ cases, ...metadata }, null, 2));
   } });
   Object.assign(report, { experimentId: plan.experimentId, toolId: entry.toolId,
-    toolRuntime: ['glucose-simulator','glucose-robustness-simulator','temperature-evidence'].includes(entry.toolId) ? 'github-actions-node' : entry.toolId === 'ratfit' ? 'orchestrator-api' : entry.toolId === 'dowhy' ? 'github-actions-python-isolated' : 'github-actions-python', plan, planCommitment });
+    toolRuntime: ['glucose-simulator','glucose-robustness-simulator','temperature-evidence','insulin-warming-forecast'].includes(entry.toolId) ? 'github-actions-node' : entry.toolId === 'ratfit' ? 'orchestrator-api' : entry.toolId === 'dowhy' ? 'github-actions-python-isolated' : 'github-actions-python', plan, planCommitment });
 } catch (error) {
   const failure = diagnostic(error);
   console.error('Experimentets felkod:', JSON.stringify(failure));
@@ -150,13 +152,13 @@ const protocol = report.protocol || hypothesisRows[0]?.hypothesisTest.protocol;
 const protocolMarkdown = protocol ? `\n\nProtokoll: ${protocol.hypothesis || protocol.h0} ${protocol.h1 || protocol.alternative || ''}\n\nBeslutskriterium: ${protocol.rule}\n${protocol.assumptions ? `\nAntaganden: ${protocol.assumptions}\n` : ''}` : '';
 const hypothesisMarkdown = hypothesisRows.length ? protocolMarkdown + '\n\n## Hypotesresultat\n\nModellförslagets träffsäkerhet ovan är separat från den uppmätta evidensen nedan.\n\n| Fall | Uppmätt beslut | Evidens | Familjebeslut |\n| --- | --- | --- | --- |\n' + hypothesisRows.map(c => {
   const h = c.hypothesisTest, m = h.measured;
-  const evidence = m.studyId && m.temperatureKind ? temperatureSummary(m) : m.conditions ? `Fördel i ${m.improvedConditions}/${m.stressConditions} felaktiga kombinationer; korrekt kontroll: ${m.cleanDecision}; robusthet: ${m.robustness}. Alla kombinationer redovisas nedan.` : m.horizonMetrics ? m.horizonMetrics.map(v => `${v.horizon} min: fast MSE=${v.fixedMse.toPrecision(5)}, adaptiv MSE=${v.adaptiveMse.toPrecision(5)}`).join('; ') : m.adjustmentVariables ? `Justerat för ${m.adjustmentVariables.join(', ')}: effekt=${m.effect.toPrecision(5)}; ojusterad association=${m.naiveEffect.toPrecision(5)}; residual-MSE=${m.residualMse.toPrecision(5)}` : Array.isArray(m.models) ? `Validerings-MSE: grad 1=${m.models[0].validationMse.toPrecision(5)}, grad 2=${m.models[1].validationMse.toPrecision(5)}; vald grad=${m.selectedDegree}; separat test-MSE=${m.selectedTestMse.toPrecision(5)}` : Array.isArray(m.roots) ? `Rötter: ${m.roots.length ? m.roots.join(', ') : 'tom mängd'}, diskriminant=${m.discriminant}, exakt verifierat` : m.probabilityPositive !== undefined ? `P(phi>0)=${m.probabilityPositive.toPrecision(5)}, 95% posteriorintervall=[${m.phiInterval95.map(v=>v.toPrecision(4)).join(', ')}], Rhat=${m.mcmc.maximumRhat.toPrecision(4)}, ESS=${m.mcmc.minimumEssBulk.toFixed(0)}` : m.bayesFactor10 ? `BF10=${m.bayesFactor10}` : m.pvalue !== undefined ? `p=${m.pvalue.toPrecision(4)}, Holm=${h.holmAdjustedPvalue?.toPrecision(4) || 'ej klar'}` : `${m.checked} holdouttermer, ${m.failed} avvikelser`;
+  const evidence = m.endpoint === 'baseline-subtracted-plasma-insulin' ? warmingSummary(m) : m.studyId && m.temperatureKind ? temperatureSummary(m) : m.conditions ? `Fördel i ${m.improvedConditions}/${m.stressConditions} felaktiga kombinationer; korrekt kontroll: ${m.cleanDecision}; robusthet: ${m.robustness}. Alla kombinationer redovisas nedan.` : m.horizonMetrics ? m.horizonMetrics.map(v => `${v.horizon} min: fast MSE=${v.fixedMse.toPrecision(5)}, adaptiv MSE=${v.adaptiveMse.toPrecision(5)}`).join('; ') : m.adjustmentVariables ? `Justerat för ${m.adjustmentVariables.join(', ')}: effekt=${m.effect.toPrecision(5)}; ojusterad association=${m.naiveEffect.toPrecision(5)}; residual-MSE=${m.residualMse.toPrecision(5)}` : Array.isArray(m.models) ? `Validerings-MSE: grad 1=${m.models[0].validationMse.toPrecision(5)}, grad 2=${m.models[1].validationMse.toPrecision(5)}; vald grad=${m.selectedDegree}; separat test-MSE=${m.selectedTestMse.toPrecision(5)}` : Array.isArray(m.roots) ? `Rötter: ${m.roots.length ? m.roots.join(', ') : 'tom mängd'}, diskriminant=${m.discriminant}, exakt verifierat` : m.probabilityPositive !== undefined ? `P(phi>0)=${m.probabilityPositive.toPrecision(5)}, 95% posteriorintervall=[${m.phiInterval95.map(v=>v.toPrecision(4)).join(', ')}], Rhat=${m.mcmc.maximumRhat.toPrecision(4)}, ESS=${m.mcmc.minimumEssBulk.toFixed(0)}` : m.bayesFactor10 ? `BF10=${m.bayesFactor10}` : m.pvalue !== undefined ? `p=${m.pvalue.toPrecision(4)}, Holm=${h.holmAdjustedPvalue?.toPrecision(4) || 'ej klar'}` : `${m.checked} holdouttermer, ${m.failed} avvikelser`;
   return `| ${c.case} | ${decisionLabel(h.decision)} | ${evidence} | ${decisionLabel(h.familyDecision || h.familyInference || 'Ej tillämpligt')} |`;
 }).join('\n') : '';
 const markdown = `# ${report.title}\n\n${report.question}\n\nExperiment: ${report.experimentId || 'planering'}. Seed: ${report.seed}.\n\n` +
   (report.cases.length ? '| Fall | Första förslag | Korrigering | Slutligt förslag | Samma modell |\n| --- | --- | --- | --- | --- |\n' +
     report.cases.map(c => `| ${c.case} | ${c.initialPassed ? 'Godkänt' : 'Underkänt'} | ${c.correctionAttempted ? 'Ja' : 'Nej'} | ${c.passed ? 'Godkänt' : 'Underkänt'} | ${c.sameModel ? 'Ja' : 'Nej'} |`).join('\n') : report.method) +
-  hypothesisMarkdown + glucoseRobustnessMarkdown(report.cases) + temperatureMarkdown(report.cases) + `\n\n${executionFailed ? 'Driftfel: ' + JSON.stringify(report.failure) + '. Slutförda fall är delresultat; experimentet är avbrutet.\n\n' : ''}${report.limitations}\n\nModellanrop: ${modelCalls}/7. Verktygsanrop: ${toolCalls}/6. Fullständig plan och rapport finns i artefakten.\n`;
+  hypothesisMarkdown + glucoseRobustnessMarkdown(report.cases) + temperatureMarkdown(report.cases) + warmingMarkdown(report.cases) + `\n\n${executionFailed ? 'Driftfel: ' + JSON.stringify(report.failure) + '. Slutförda fall är delresultat; experimentet är avbrutet.\n\n' : ''}${report.limitations}\n\nModellanrop: ${modelCalls}/7. Verktygsanrop: ${toolCalls}/6. Fullständig plan och rapport finns i artefakten.\n`;
 await writeFile(`${directory}/report.md`, markdown);
 if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown);
 const saved = await fetch(DB, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=minimal' },

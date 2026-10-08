@@ -23,6 +23,7 @@ on:
           - glucose-absorption
           - glucose-robustness
           - glucose-temperature-evidence
+          - insulin-warming-forecast
           - pymc-gdp-ar1
         default: auto
       seed:

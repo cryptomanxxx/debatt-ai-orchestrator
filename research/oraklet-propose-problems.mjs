@@ -5,6 +5,7 @@ const DOMAINS=Object.freeze({
   'sympy-quadratic':'symbolic-mathematics',
   'sklearn-polynomial':'machine-learning',
   'dowhy-backdoor':'causal-inference',
+  'insulin-warming-forecast':'physiological-evidence-reanalysis',
   'glucose-temperature-evidence':'physiological-evidence-reanalysis',
   'glucose-robustness':'synthetic-physiological-dynamics',
   'glucose-absorption':'synthetic-physiological-dynamics',
