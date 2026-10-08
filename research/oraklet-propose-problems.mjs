@@ -5,6 +5,7 @@ const DOMAINS=Object.freeze({
   'sympy-quadratic':'symbolic-mathematics',
   'sklearn-polynomial':'machine-learning',
   'dowhy-backdoor':'causal-inference',
+  'glucose-absorption':'synthetic-physiological-dynamics',
   'statsmodels-ar1':'time-series',
   'pymc-gdp-ar1':'bayesian-inference',
   'ratfit-baseline':'symbolic-regression',
