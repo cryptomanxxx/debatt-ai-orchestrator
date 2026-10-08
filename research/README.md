@@ -1,5 +1,12 @@
 # Oraklets dagliga forskningslabb
 
+`insulin-curve-shape` är en manuell, utforskande uppföljning på samma redan
+analyserade figur. En förutbestämd alternativ kurvform jämförs med den gamla
+formen med samma antal parametrar och med senaste avlästa värdet. Grafer visar
+anpassning, framtida prognoser och gränsträffar; PNG och SVG finns i Actions-
+artefakten. Resultaten är ingen oberoende validering.
+Se [kurvformer, kontroller och körinstruktioner](INSULIN-CURVE-SHAPE.md).
+
 `insulin-warming-forecast` jämför enkla 30–60-minutersprognoser av manuellt
 avlästa aspart-gruppkurvor med och utan lokal uppvärmning. Separata tids- och
 höjdparametrar, persistensreferens och avläsningsstresstest redovisas. Det gäller
