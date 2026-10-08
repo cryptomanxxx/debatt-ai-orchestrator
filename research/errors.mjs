@@ -1,7 +1,7 @@
 // Public diagnostics contain fixed codes and bounded metadata, never raw errors.
 const codes = new Set(['unexpected_error', 'model_http_error', 'model_transport_error',
   'tool_http_error', 'tool_transport_error', 'invalid_tool_evidence', 'invalid_model_proposal',
-  'invalid_model_response', 'model_changed', 'invalid_plan', 'duplicate_plan',
+  'invalid_model_response', 'model_changed', 'invalid_plan', 'invalid_seed', 'duplicate_plan',
   'model_budget_exceeded', 'tool_budget_exceeded', 'model_upstream_http_error',
   'model_output_truncated', 'model_empty_response', 'model_invalid_response', 'model_budget_not_applied']);
 export class ResearchError extends Error {

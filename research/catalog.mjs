@@ -106,9 +106,13 @@ export function lockModel(propose) {
 }
 
 export async function choosePlan(selection, seed, history, propose) {
-  if (!/^\d{1,9}$/.test(seed)) throw new Error('Seed ska vara 1–9 siffror');
+  // Workflow inputs can contain accidental surrounding whitespace from paste.
+  // Normalize before planning so commitments and reports use the same seed.
+  if (typeof seed !== 'string') throw new ResearchError('invalid_seed');
+  seed = seed.trim();
+  if (!/^\d{1,9}$/.test(seed)) throw new ResearchError('invalid_seed');
   if (selection !== 'auto') {
-    if (!CATALOG.some(e => e.id === selection)) throw new Error('Okänt experiment');
+    if (!CATALOG.some(e => e.id === selection)) throw new ResearchError('invalid_plan');
     return { experimentId: selection, seed, reason: 'Manuellt valt experiment.' };
   }
   const plan = parsePlan((await propose(plannerPrompt(history, seed))).text);

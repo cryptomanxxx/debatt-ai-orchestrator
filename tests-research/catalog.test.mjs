@@ -2,6 +2,28 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { choosePlan, parsePlan, lockModel, plannerPrompt } from '../research/catalog.mjs';
 import { runExperiment, makeCases, UPSTREAM } from '../research/ratfit.mjs';
+import { diagnostic } from '../research/errors.mjs';
+
+test('workflow seeds trim surrounding whitespace before manual or automatic planning', async () => {
+  const clean = await choosePlan('glucose-temperature-evidence', '20261008', [], () => assert.fail('Manual planning called a model'));
+  for (const seed of [' 20261008', '20261008 ', '\t20261008\n', '\u00a020261008\u00a0'])
+    assert.deepEqual(await choosePlan('glucose-temperature-evidence', seed, [], () => assert.fail()), clean);
+  let calls = 0;
+  await choosePlan('auto', ' 20261008 ', [], async messages => {
+    calls++;
+    assert.equal(JSON.parse(messages[1].content).suggestedSeed, '20261008');
+    return { text: JSON.stringify({ experimentId: 'ratfit-feedback', seed: '20261008', reason: 'Test.' }) };
+  });
+  assert.equal(calls, 1);
+});
+
+test('invalid workflow seeds fail with a bounded diagnostic before any model call', async () => {
+  for (const seed of ['', '   ', '2026 1008', '20261008x', '1234567890', null, 20261008])
+    await assert.rejects(choosePlan('auto', seed, [], () => assert.fail('Invalid seed reached model')),
+      error => { assert.deepEqual(diagnostic(error), { code: 'invalid_seed' }); return true; });
+  await assert.rejects(choosePlan('unknown', '20261008', [], () => assert.fail()),
+    error => { assert.deepEqual(diagnostic(error), { code: 'invalid_plan' }); return true; });
+});
 
 test('planner can select only validated runnable experiments, bounded seed and reason', async () => {
   const plan = { experimentId: 'ratfit-feedback', seed: '123', reason: 'Pröva återkoppling på nya data.' };
