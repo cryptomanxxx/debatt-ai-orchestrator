@@ -1,0 +1,247 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "title": "Faster In and Faster Out: Accelerating Insulin Absorption and Action by Insulin Infusion Site Warming",
+    "year": 2014,
+    "doi": "10.1089/dia.2013.0187",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3887414/",
+    "figure": 2,
+    "figureUrl": "https://cdn.ncbi.nlm.nih.gov/pmc/blobs/e442/3887414/8ee133962b11/fig-2.jpg",
+    "figureSha256": "4630ffbc5d234439ad4d81863065b238144dac030cabf78bede04ace9633414c",
+    "pkParticipants": 16,
+    "pdParticipants": 17,
+    "insulin": "aspart",
+    "design": "randomized crossover euglycemic clamp",
+    "bolusUPerKg": 0.2,
+    "warmingCelsius": 40,
+    "warmingStartMinutes": -15,
+    "warmingEndMinutes": 60,
+    "previousDoi": "10.1111/pedi.12001",
+    "separatePublication": true,
+    "sameResearchGroup": true,
+    "participantOverlap": "not-established"
+  },
+  "analysisLock": {
+    "path": "insulin-external-analysis-lock.md",
+    "sha256": "d1465d35e8cdb589a2ead8a69b5c53edcf48f23f21e90fce4dba3abb0b62b609",
+    "sequence": "Specification written before marker digitization and first forecast evaluation; local record, not externally registered or witnessed."
+  },
+  "digitization": {
+    "method": "Manual centres of circles (unheated) and squares (heated); error bars not digitized.",
+    "imageWidth": 800,
+    "imageHeight": 534,
+    "calibration": {
+      "xZero": 96,
+      "x300": 783,
+      "yZero": 341,
+      "y100": 120,
+      "formulaUuPerMl": "(341-y)*100/221",
+      "roundingUuPerMl": 0.5
+    },
+    "assumedErrorUuPerMl": 2,
+    "baseline": "Zero increment fixed by definition; overlapping baseline markers not independently read.",
+    "limitations": "Approximate manually read group means; not raw individual observations or SEM. Negative late increments preserved. Numerical tests cannot validate these readings."
+  },
+  "points": [
+    {
+      "minute": 0,
+      "unheated": 0.0,
+      "heated": 0.0,
+      "pixel": {
+        "x": 96,
+        "unheatedY": 341,
+        "heatedY": 341
+      }
+    },
+    {
+      "minute": 10,
+      "unheated": 6.5,
+      "heated": 11.5,
+      "pixel": {
+        "x": 119,
+        "unheatedY": 327,
+        "heatedY": 316
+      }
+    },
+    {
+      "minute": 20,
+      "unheated": 32.0,
+      "heated": 53.0,
+      "pixel": {
+        "x": 142,
+        "unheatedY": 270,
+        "heatedY": 224
+      }
+    },
+    {
+      "minute": 30,
+      "unheated": 67.0,
+      "heated": 83.5,
+      "pixel": {
+        "x": 165,
+        "unheatedY": 193,
+        "heatedY": 157
+      }
+    },
+    {
+      "minute": 40,
+      "unheated": 78.0,
+      "heated": 99.0,
+      "pixel": {
+        "x": 188,
+        "unheatedY": 169,
+        "heatedY": 122
+      }
+    },
+    {
+      "minute": 50,
+      "unheated": 83.5,
+      "heated": 106.0,
+      "pixel": {
+        "x": 210,
+        "unheatedY": 156,
+        "heatedY": 107
+      }
+    },
+    {
+      "minute": 60,
+      "unheated": 88.5,
+      "heated": 104.0,
+      "pixel": {
+        "x": 233,
+        "unheatedY": 145,
+        "heatedY": 111
+      }
+    },
+    {
+      "minute": 70,
+      "unheated": 86.0,
+      "heated": 96.5,
+      "pixel": {
+        "x": 256,
+        "unheatedY": 151,
+        "heatedY": 128
+      }
+    },
+    {
+      "minute": 80,
+      "unheated": 75.0,
+      "heated": 99.0,
+      "pixel": {
+        "x": 279,
+        "unheatedY": 175,
+        "heatedY": 122
+      }
+    },
+    {
+      "minute": 90,
+      "unheated": 75.0,
+      "heated": 92.0,
+      "pixel": {
+        "x": 302,
+        "unheatedY": 175,
+        "heatedY": 138
+      }
+    },
+    {
+      "minute": 105,
+      "unheated": 64.5,
+      "heated": 69.0,
+      "pixel": {
+        "x": 336,
+        "unheatedY": 198,
+        "heatedY": 188
+      }
+    },
+    {
+      "minute": 120,
+      "unheated": 50.5,
+      "heated": 55.0,
+      "pixel": {
+        "x": 370,
+        "unheatedY": 229,
+        "heatedY": 219
+      }
+    },
+    {
+      "minute": 135,
+      "unheated": 44.5,
+      "heated": 40.5,
+      "pixel": {
+        "x": 405,
+        "unheatedY": 243,
+        "heatedY": 251
+      }
+    },
+    {
+      "minute": 150,
+      "unheated": 34.5,
+      "heated": 28.5,
+      "pixel": {
+        "x": 439,
+        "unheatedY": 265,
+        "heatedY": 278
+      }
+    },
+    {
+      "minute": 165,
+      "unheated": 25.0,
+      "heated": 21.5,
+      "pixel": {
+        "x": 473,
+        "unheatedY": 286,
+        "heatedY": 294
+      }
+    },
+    {
+      "minute": 180,
+      "unheated": 18.0,
+      "heated": 12.5,
+      "pixel": {
+        "x": 508,
+        "unheatedY": 301,
+        "heatedY": 313
+      }
+    },
+    {
+      "minute": 210,
+      "unheated": 9.0,
+      "heated": 1.0,
+      "pixel": {
+        "x": 576,
+        "unheatedY": 321,
+        "heatedY": 339
+      }
+    },
+    {
+      "minute": 240,
+      "unheated": -2.0,
+      "heated": -7.0,
+      "pixel": {
+        "x": 645,
+        "unheatedY": 345,
+        "heatedY": 357
+      }
+    },
+    {
+      "minute": 270,
+      "unheated": -7.0,
+      "heated": -11.5,
+      "pixel": {
+        "x": 714,
+        "unheatedY": 357,
+        "heatedY": 366
+      }
+    },
+    {
+      "minute": 300,
+      "unheated": -12.0,
+      "heated": -15.0,
+      "pixel": {
+        "x": 782,
+        "unheatedY": 368,
+        "heatedY": 374
+      }
+    }
+  ]
+}
