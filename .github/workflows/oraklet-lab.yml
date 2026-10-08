@@ -20,6 +20,7 @@ on:
           - sympy-quadratic
           - sklearn-polynomial
           - dowhy-backdoor
+          - glucose-absorption
           - pymc-gdp-ar1
         default: auto
       seed:
