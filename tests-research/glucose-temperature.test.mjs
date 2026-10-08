@@ -138,9 +138,10 @@ globalThis.fetch=async(url,options={})=>{
 };`);
     await promisify(execFile)(process.execPath,['--import',pathToFileURL(preload).href,
       fileURLToPath(new URL('../research/runner.mjs',import.meta.url))],{cwd:dir,
-      env:{...process.env,EXPERIMENT:'glucose-temperature-evidence',EXPERIMENT_SEED:'20261008',
+      env:{...process.env,EXPERIMENT:'glucose-temperature-evidence',EXPERIMENT_SEED:' 20261008 ',
         ORCHESTRATOR_API_KEY:'test'.repeat(8),SUPABASE_SERVICE_ROLE_KEY:'test'},timeout:15000});
     const saved=JSON.parse(await readFile(join(dir,'saved.json'),'utf8')).rapport;
+    assert.equal(saved.seed,'20261008');assert.equal(saved.plan.seed,'20261008');
     assert.equal(saved.executionStatus,'completed');assert.equal(saved.modelCalls,3);assert.equal(saved.toolCalls,6);
     assert.equal(saved.toolRuntime,'github-actions-node');assert.equal(saved.cases.length,3);
     assert.ok(saved.cases.every(c=>c.data.source.doi&&c.data.dataSha256===TEMPERATURE_DATA_SHA256));
