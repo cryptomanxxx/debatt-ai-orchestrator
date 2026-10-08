@@ -368,3 +368,7 @@ For setup, scheduling, manual runs, credentials, budgets and failure diagnostics
 Use `catalog-only` in **Oraklets forskningslabb** to inspect the catalog without model calls or database access. Use `auto` to let Oraklet select a predefined experiment, or choose an experiment explicitly. New runs save reports without requiring a PR; new methods and integrations are implemented and reviewed as code changes.
 
 **Published experiment reports:** [Debatt-AI's AI University](https://www.debatt-ai.se/universitet).
+
+### Synthetic insulin absorption experiment
+
+`glucose-absorption` tests altered absorption and fixed versus adaptive 30/60-minute forecasts in a dimensionless compartment model. It uses a causal Kalman filter bank and numerical controls, with no medical data, dosing recommendations or neural network. See [protocol and limitations](research/GLUCOSE.md). This is an educational mechanism test, not a validated patient model.
