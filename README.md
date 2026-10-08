@@ -1,6 +1,70 @@
 # Debatt-AI Orchestrator
 
-Independent orchestration service for Debatt-AI AI 1.0. Working pipeline: HTTP → rule-based plan → model or registered tool → verification → structured response. Memory, retrieval, web search and general multi-step agent planning remain future work.
+Debatt-AI Orchestrator runs the daily scientific experiment workflow for **Professor Oraklet**, Debatt-AI's own AI research agent, and provides the model and tool API used by that workflow. It is part of [Debatt-AI](https://www.debatt-ai.se/), an independent project developing an AI newsroom and AI university.
+
+**See Professor Oraklet's experiment reports at [Debatt-AI's AI University](https://www.debatt-ai.se/universitet).**
+
+## What the system does today
+
+Professor Oraklet runs standardized, predefined scientific experiments through GitHub Actions. The daily workflow is scheduled for **05:17 UTC**; GitHub may delay scheduled runs. It runs automatically within the existing experiment protocols, without requiring a person to launch or approve each daily run.
+
+Each scheduled run uses `auto`: Oraklet receives the available experiment catalog and summaries of the ten most recent reports, then selects an experiment, a seed and a short research rationale. The runner validates that choice and executes the corresponding predefined protocol. Manual runs can select a specific experiment and seed.
+
+The research workflow:
+
+1. Records the selected plan and data fingerprints before the model's experiment responses.
+2. Asks Oraklet for a structured hypothesis or proposed answer under the selected protocol.
+3. Executes the protocol's fixed scientific tool adapter and controls.
+4. Checks evidence against the experiment's independent verification criteria, and records whether the model's proposal was correct.
+5. Saves the plan, evidence, verification results and report to Supabase and GitHub Actions artifacts. The Debatt-AI website displays the experiment reports in the AI University.
+
+A completed measurement can contain an incorrect model proposal. Reports distinguish that scientific test outcome from an execution failure. Repeated runs create new data and reports; they do not modify repository code.
+
+### Current experiment coverage
+
+The catalog contains **eleven runnable experiments**: ten synthetic method tests available to automatic planning and one manually selected analysis of historical GDP data.
+
+| Experiment area | Implemented methods and tools |
+| --- | --- |
+| Rational reconstruction | Ratfit, with separate baseline and feedback protocols |
+| Linear systems | Rankscreen consistency and rank-deficit tests |
+| Sequence reconstruction | Annihilator recurrence recovery and held-out terms |
+| Bayesian model comparison | Mixalot with fixed categorical models |
+| Time-series analysis | Statsmodels with a fixed AR(1) protocol |
+| Symbolic mathematics | SymPy exact quadratic equations |
+| Machine learning | Scikit-learn linear/quadratic regression with separate training, validation and test data |
+| Causal inference | DoWhy backdoor adjustment under a given causal diagram |
+| Bayesian follow-up, manual only | PyMC analysis of historical GDP data |
+
+These are bounded scientific methods with predefined assumptions, controls and acceptance criteria. The synthetic experiments test methods and model performance against known references; a successful run does not by itself establish a new scientific discovery. The GDP follow-up is exploratory. Each library is integrated through a specific adapter, rather than exposed in its entirety.
+
+See the [experiment catalog](research/EXPERIMENTS.md), [hypothesis protocols](research/HYPOTHESES.md) and [research operations guide](research/README.md) for the exact contracts.
+
+## Automated research and autonomous research
+
+**Automated AI-agent research** executes an established research procedure without someone manually carrying out every step. This is operational today: the schedule, model calls, tool execution, verification and reporting are automated.
+
+**Autonomous AI-agent research** also gives the agent responsibility for decisions about what to investigate and how to investigate it. Oraklet already has limited autonomy when selecting an experiment and seed from the approved catalog. The scientific method and tool are fixed by that selection, and the research model is configured by the operator and locked throughout the run.
+
+| Decision | Current implementation | Development goal |
+| --- | --- | --- |
+| Research task | Select an existing catalog experiment and seed using recent report summaries | Select and formulate a wider range of research questions |
+| AI model | Use the configured research model; provider/model identity stays fixed during a run | Let Oraklet choose suitable AI models for research tasks |
+| Scientific tools | Use the fixed adapter associated with the selected experiment | Let Oraklet choose and combine suitable scientific tools |
+| Experiment design | Follow predefined protocols, assumptions and verification criteria | Develop and revise research plans within explicit budgets and verification requirements |
+
+**The project's goal is greater research autonomy:** Professor Oraklet should be able to decide which AI models to run and which tools to use for a research question, execute the investigation and evaluate the evidence. Model selection and general tool composition are development goals, rather than capabilities already implemented in the daily workflow.
+
+The repository also contains a persistent Problem Bank and Research Loop integration for tracking catalog-backed problems, hypotheses, attempts and results. A separate proposal workflow produces deterministic catalog-based research suggestions for review. These provide a foundation for broader autonomy; they do not yet generate unrestricted new experiments. See [Problem Bank](research/PROBLEM-BANK.md) and [Research Loop](research/RESEARCH-LOOP.md).
+
+## Architecture
+
+The repository has two connected execution paths:
+
+- **Orchestration API:** an authenticated Node/Cloudflare service with a rule-based plan, configured model or registered tool, verification and a structured response.
+- **Research runner:** GitHub Actions workflows that call the model through the orchestration API, execute the experiment's scientific tools and persist reports.
+
+Ratfit can run through the API's BootLoops integration. Rankscreen, Annihilator, Mixalot, Statsmodels, PyMC, SymPy, Scikit-learn and DoWhy run through bounded Python adapters in GitHub Actions; DoWhy uses an isolated environment. General multi-step API planning, unrestricted tool execution and agent-selected model routing remain future work.
 
 ## Run
 
@@ -297,13 +361,10 @@ References: [Python Workers](https://developers.cloudflare.com/workers/languages
 
 Reference: [OpenAI Chat Completions API](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create).
 
-## Oraklets forskningslabb
+## Professor Oraklet's research lab
 
-[Daglig automatisk forskning, experimentmeny och driftinstruktioner](research/README.md).
-Forskningsmotorn använder befintlig Cloudflare-modell, Ratfit via API och
-Rankscreen, Annihilator, Mixalot, Statsmodels, PyMC, SymPy, Scikit-learn och DoWhy i GitHub Actions. [Experimentkatalogen](research/EXPERIMENTS.md)
-visar elva körbara experiment och lokal integrationsstatus för 49 BootLoops-paket samt externa verktyg.
-[Hypotesprotokollen](research/HYPOTHESES.md) beskriver exakt rekonstruktion,
-bayesiansk modelljämförelse och tidsserieprövning.
-`catalog-only` i Actions visar katalogen utan modell eller databas. Motorn sparar rapporter
-i AI-universitetets Supabase-tabell och kräver ingen PR för en ny körning.
+For setup, scheduling, manual runs, credentials, budgets and failure diagnostics, see the [research operations guide](research/README.md). The [experiment catalog](research/EXPERIMENTS.md) distinguishes runnable adapters from tools awaiting integration; the [hypothesis protocols](research/HYPOTHESES.md) describe what each experiment verifies.
+
+Use `catalog-only` in **Oraklets forskningslabb** to inspect the catalog without model calls or database access. Use `auto` to let Oraklet select a predefined experiment, or choose an experiment explicitly. New runs save reports without requiring a PR; new methods and integrations are implemented and reviewed as code changes.
+
+**Published experiment reports:** [Debatt-AI's AI University](https://www.debatt-ai.se/universitet).
