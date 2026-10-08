@@ -2,6 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {makeGlucoseCases,simulate,forecast,evaluateGlucose,callGlucose,validateGlucose,runGlucoseExperiment} from '../research/glucose.mjs';
 
+test('rate comparisons keep dose, meal, sensitivity and observation noise identical',()=>{
+  for(const seed of ['1','42','20261008']) {
+    const fixtures=makeGlucoseCases(seed);
+    const parameters=fixtures.map(({input:{rate,...known}})=>known);
+    assert.deepEqual(parameters[0],parameters[1]);
+    assert.deepEqual(parameters[1],parameters[2]);
+    assert.deepEqual(fixtures.map(f=>f.input.rate),[0.012,0.024,0.048]);
+    assert.equal(new Set(fixtures.map(f=>f.commitment)).size,3);
+  }
+});
+
 test('absorption conserves the injected amount and agrees with analytical two-depot solution',()=>{
   for(const f of makeGlucoseCases('42')) for(const row of simulate(f.input)) {
     const z=f.input.rate*row.minute;
