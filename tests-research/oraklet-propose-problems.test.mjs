@@ -63,4 +63,6 @@ test('every automatic catalog experiment is available to the proposal generator'
   const robustness=proposals.find(p=>p.experiment_id==='glucose-robustness');
   assert.equal(robustness.domain,'synthetic-physiological-dynamics');
   assert.deepEqual(robustness.verifier_ids,['glucose-robustness-simulator']);
+  assert.ok(!proposals.some(p=>p.experiment_id==='glucose-temperature-evidence'));
+  assert.equal(CATALOG.find(e=>e.id==='glucose-temperature-evidence').automatic,false);
 });

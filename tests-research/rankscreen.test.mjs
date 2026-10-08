@@ -120,7 +120,7 @@ test('catalog-only runs without credentials, Python invocation, model or databas
     await run(process.execPath, ['--import', pathToFileURL(preload).href, fileURLToPath(new URL('../research/runner.mjs', import.meta.url))],
       { cwd: dir, env: { ...process.env, EXPERIMENT: 'catalog-only', ORCHESTRATOR_API_KEY: '', SUPABASE_SERVICE_ROLE_KEY: '' }, timeout: 5000 });
     const catalog = JSON.parse(await readFile(join(dir, 'reports/oraklet-lab/catalog.json'), 'utf8'));
-    assert.equal(catalog.experiments.length, 13);
+    assert.equal(catalog.experiments.length, 14);
     assert.equal(catalog.tools.filter(t => t.integration === 'pending').length, 45);
     await assert.rejects(readFile(join(dir, 'saved.json')), { code: 'ENOENT' });
   } finally { await rm(dir, {recursive: true, force: true}); }

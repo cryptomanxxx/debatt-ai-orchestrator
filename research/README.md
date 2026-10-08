@@ -1,5 +1,10 @@
 # Oraklets dagliga forskningslabb
 
+`glucose-temperature-evidence` är en manuell återanalys av publicerade
+temperaturstudier med källhänvisningar, två alternativa temperaturkurvor och
+ett deskriptivt överföringstest. Den skattar ingen patientmodell eller dos.
+Se [temperaturprotokollet](GLUCOSE-TEMPERATURE.md).
+
 Uppföljningen `glucose-robustness` testar felaktiga måltidsuppgifter och antagen
 insulinkänslighet i det syntetiska absorptionsexperimentet. Välj den manuellt med
 seed `20261008` för att matcha första körningen, eller låt `auto` välja den.

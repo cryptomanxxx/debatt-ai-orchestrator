@@ -22,6 +22,7 @@ on:
           - dowhy-backdoor
           - glucose-absorption
           - glucose-robustness
+          - glucose-temperature-evidence
           - pymc-gdp-ar1
         default: auto
       seed:
