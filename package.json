@@ -22,6 +22,7 @@
     "check:workers:bootloops": "wrangler deploy --config wrangler.bootloops.jsonc --dry-run --outdir .worker-build-bootloops",
     "test:bootloops:worker": "node --test tests-python-workers/*.test.ts",
     "research:catalog": "node research/show-catalog.mjs",
+    "test:plots": "node --test tests-plotting/*.test.mjs",
     "test:research": "node --test tests-research/*.test.mjs",
     "test:science": "node --test tests-research-python/*.test.mjs",
     "test:pymc": "node --test tests-pymc/*.test.mjs",

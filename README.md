@@ -186,7 +186,9 @@ against separately withheld exact values, checks a constant function, and
 requires a deliberately corrupted holdout to fail. A local authenticated Node
 HTTP test verifies the full transport-to-Python path. This test does not call
 the deployed Cloudflare URL or Groq. `npm test` does not require the locked scientific Python packages,
-so the Cloudflare build command can stay as configured. CI separately runs
+so the Cloudflare build command can stay as configured. Matplotlib graph tests run
+separately with `npm run test:plots` after installing `research/plot-requirements.lock`;
+they are part of GitHub CI and do not run in the API deployment build. CI separately runs
 `npm run test:science` after installing `research/requirements.lock`.
 
 Send the following to the **Node** server's authenticated `POST /v1/query`:
