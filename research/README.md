@@ -1,5 +1,11 @@
 # Oraklets dagliga forskningslabb
 
+`insulin-warming-forecast` jämför enkla 30–60-minutersprognoser av manuellt
+avlästa aspart-gruppkurvor med och utan lokal uppvärmning. Separata tids- och
+höjdparametrar, persistensreferens och avläsningsstresstest redovisas. Det gäller
+insulininkrement i blodet, inte patienters blodsocker eller doser. Kör manuellt.
+Se [data, modeller och protokoll](INSULIN-WARMING.md).
+
 `glucose-temperature-evidence` är en manuell återanalys av publicerade
 temperaturstudier med källhänvisningar, två alternativa temperaturkurvor och
 ett deskriptivt överföringstest. Den skattar ingen patientmodell eller dos.

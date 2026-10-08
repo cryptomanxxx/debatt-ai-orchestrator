@@ -1,0 +1,231 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "doi": "10.1111/pedi.12001",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3572265/",
+    "location": "Figure 2; Methods: procedures, biochemical methods and statistical analyses",
+    "figureUrl": "https://cdn.ncbi.nlm.nih.gov/pmc/blobs/e7c7/3572265/387c9209337b/nihms-401844-f0002.jpg",
+    "figureSha256": "2019408ba0b3dab28ce48ae7ebff4acef6fcf62964c69f29bd7bd4213f405436",
+    "figureWidthPx": 800,
+    "figureHeightPx": 415,
+    "participants": 13,
+    "insulinCurveParticipants": 12,
+    "insulin": "aspart",
+    "population": "adolescents with type 1 diabetes",
+    "design": "randomized crossover euglycemic clamp",
+    "heatedSkinSetpointC": 38.5,
+    "unheatedSkinTemperatureC": null,
+    "heatingPeriodMinutes": {
+      "start": -15,
+      "endRange": [
+        60,
+        90
+      ]
+    },
+    "endpoint": "Group mean baseline-subtracted plasma insulin increment (uU/mL); error bars are published SEM, not digitization error."
+  },
+  "digitization": {
+    "method": "Manual visual marker-center extraction from the original 800 x 415 JPEG. Values rounded to 0.5 uU/mL. Nominal times matched to the stated sampling schedule, with positions cross-checked against x ticks. Circle = no IP; square = IP. Overlapping 10-minute markers were omitted rather than inferred. Zero at baseline is fixed by the baseline-subtracted endpoint.",
+    "extractedOn": "2026-10-08",
+    "axisCalibration": {
+      "xTicks": [
+        {
+          "minute": 0,
+          "xPx": 80
+        },
+        {
+          "minute": 100,
+          "xPx": 236
+        },
+        {
+          "minute": 200,
+          "xPx": 391
+        },
+        {
+          "minute": 300,
+          "xPx": 547
+        }
+      ],
+      "yTicks": [
+        {
+          "value": 0,
+          "yPx": 307
+        },
+        {
+          "value": 50,
+          "yPx": 207
+        },
+        {
+          "value": 100,
+          "yPx": 107
+        },
+        {
+          "value": 150,
+          "yPx": 7
+        }
+      ],
+      "valuePerPixel": 0.5
+    },
+    "assumedVerticalErrorPx": 4,
+    "assumedErrorUuPerMl": 2,
+    "uncertaintyMeaning": "Chosen image-reading sensitivity margin, not an empirical measurement error, confidence interval or SEM. Five fixed perturbation patterns do not exhaust all possible reading errors.",
+    "omittedMinutes": [
+      10
+    ],
+    "statisticalIndependence": "Group timepoints and forecast origins are not independent subjects or replicates."
+  },
+  "points": [
+    {
+      "minute": 0,
+      "xPx": 80,
+      "unheatedYPx": 307,
+      "heatedYPx": 307,
+      "unheated": 0,
+      "heated": 0
+    },
+    {
+      "minute": 20,
+      "xPx": 111,
+      "unheatedYPx": 258,
+      "heatedYPx": 237,
+      "unheated": 24.5,
+      "heated": 35.0
+    },
+    {
+      "minute": 30,
+      "xPx": 127,
+      "unheatedYPx": 215,
+      "heatedYPx": 185,
+      "unheated": 46.0,
+      "heated": 61.0
+    },
+    {
+      "minute": 40,
+      "xPx": 143,
+      "unheatedYPx": 177,
+      "heatedYPx": 149,
+      "unheated": 65.0,
+      "heated": 79.0
+    },
+    {
+      "minute": 50,
+      "xPx": 159,
+      "unheatedYPx": 177,
+      "heatedYPx": 124,
+      "unheated": 65.0,
+      "heated": 91.5
+    },
+    {
+      "minute": 60,
+      "xPx": 174,
+      "unheatedYPx": 185,
+      "heatedYPx": 116,
+      "unheated": 61.0,
+      "heated": 95.5
+    },
+    {
+      "minute": 70,
+      "xPx": 190,
+      "unheatedYPx": 181,
+      "heatedYPx": 121,
+      "unheated": 63.0,
+      "heated": 93.0
+    },
+    {
+      "minute": 80,
+      "xPx": 205,
+      "unheatedYPx": 183,
+      "heatedYPx": 119,
+      "unheated": 62.0,
+      "heated": 94.0
+    },
+    {
+      "minute": 90,
+      "xPx": 221,
+      "unheatedYPx": 185,
+      "heatedYPx": 137,
+      "unheated": 61.0,
+      "heated": 85.0
+    },
+    {
+      "minute": 105,
+      "xPx": 244,
+      "unheatedYPx": 206,
+      "heatedYPx": 155,
+      "unheated": 50.5,
+      "heated": 76.0
+    },
+    {
+      "minute": 120,
+      "xPx": 267,
+      "unheatedYPx": 209,
+      "heatedYPx": 175,
+      "unheated": 49.0,
+      "heated": 66.0
+    },
+    {
+      "minute": 135,
+      "xPx": 291,
+      "unheatedYPx": 234,
+      "heatedYPx": 191,
+      "unheated": 36.5,
+      "heated": 58.0
+    },
+    {
+      "minute": 150,
+      "xPx": 314,
+      "unheatedYPx": 235,
+      "heatedYPx": 206,
+      "unheated": 36.0,
+      "heated": 50.5
+    },
+    {
+      "minute": 165,
+      "xPx": 337,
+      "unheatedYPx": 247,
+      "heatedYPx": 247,
+      "unheated": 30.0,
+      "heated": 30.0
+    },
+    {
+      "minute": 180,
+      "xPx": 361,
+      "unheatedYPx": 272,
+      "heatedYPx": 250,
+      "unheated": 17.5,
+      "heated": 28.5
+    },
+    {
+      "minute": 210,
+      "xPx": 407,
+      "unheatedYPx": 291,
+      "heatedYPx": 252,
+      "unheated": 8.0,
+      "heated": 27.5
+    },
+    {
+      "minute": 240,
+      "xPx": 454,
+      "unheatedYPx": 314,
+      "heatedYPx": 302,
+      "unheated": -3.5,
+      "heated": 2.5
+    },
+    {
+      "minute": 270,
+      "xPx": 500,
+      "unheatedYPx": 330,
+      "heatedYPx": 313,
+      "unheated": -11.5,
+      "heated": -3.0
+    },
+    {
+      "minute": 300,
+      "xPx": 546,
+      "unheatedYPx": 344,
+      "heatedYPx": 328,
+      "unheated": -18.5,
+      "heated": -10.5
+    }
+  ]
+}

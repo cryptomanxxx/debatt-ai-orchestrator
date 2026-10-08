@@ -17,6 +17,7 @@ Välj experiment i Oraklets forskningslabb. `catalog-only` visar menyn utan mode
 | glucose-absorption | glucose-simulator | Hur påverkar absorptionstakten en syntetisk glukoskurva och 30–60-minutersprognoser? |
 | glucose-robustness | glucose-robustness-simulator | Kvarstår adaptiva prognosfördelar när måltidsuppgifter och antagen insulinkänslighet är felaktiga? |
 | glucose-temperature-evidence (endast manuellt) | temperature-evidence | Vad stöder publicerade temperaturstudier om insulinabsorption, och räcker sammanfattningarna för en överförbar temperaturmodell? |
+| insulin-warming-forecast (endast manuellt) | insulin-warming-forecast | Förbättrar separata tidsparametrar för lokal uppvärmning 30–60-minutersprognoser för publicerade gruppkurvor av insulin aspart? |
 | pymc-gdp-ar1 (endast manuellt) | pymc | Hur osäker är lagg-1-koefficienten i historisk BNP-tillväxt under låsta bayesianska priorer? |
 
 ## BootLoops: lokal integrationsstatus
@@ -86,6 +87,7 @@ Inventering av 49 paket vid commit `66b680ce742e654cfe86da4f072a69061fe182b1`. U
 | [scikit-learn](https://scikit-learn.org/stable/) | 1.9.1 | Verifierad delintegration | Fasta linjära/kvadratiska OLS-modeller; separata tränings-, validerings- och testpunkter, exakt rationell kontroll | github-actions-python |
 | [glucose-simulator](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/GLUCOSE.md) | synthetic-absorption-v1 | Verifierad delintegration | Dimensionslös glukos–insulinsimulering; kausal filterbank, RK4/midpointkontroll; inga kliniska doser | github-actions-node |
 | [glucose-robustness-simulator](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/GLUCOSE-ROBUSTNESS.md) | synthetic-absorption-robustness-v1 | Verifierad delintegration | Låst 3 × 3 stresstest av felaktig måltid/känslighet; parade kausala prognoser och separat korrekt kontroll; syntetiskt, inga dosråd | github-actions-node |
+| [insulin-warming-forecast](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/INSULIN-WARMING.md) | insulin-warming-forecast-v1 | Verifierad delintegration | Avlästa aspart-gruppkurvor; prefixprognoser, tids-/höjdkontroller och avläsningsstresstest; ingen patient- eller glukosprognos | github-actions-node |
 | [temperature-evidence](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/GLUCOSE-TEMPERATURE.md) | temperature-evidence-v1 | Verifierad delintegration | Publicerade gruppsammanfattningar; effektkvoter, alternativa temperaturkurvor och deskriptivt överföringstest; ingen patientkalibrering | github-actions-node |
 
 Nya integrationer kräver låst källversion och licens, begränsad adapter, angiven körmiljö, positiva och negativa kontroller samt verifiering av rapportkedjan. Först därefter läggs experimentet till i körmenyn och den automatiska planeringen.
