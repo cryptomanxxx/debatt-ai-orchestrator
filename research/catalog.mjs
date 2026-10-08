@@ -27,6 +27,7 @@ export const EXTERNAL_TOOLS = Object.freeze([{ id: 'statsmodels', integration: '
     scope: 'Exakta andragradsekvationer med rationella eller inga reella rötter; BigInt-verifiering och förvanskade rotkontroller' },
   { id: 'scikit-learn', integration: 'verified-subset', version: sklearnToolchain.packages['scikit-learn'], runtime: 'github-actions-python', source: 'https://scikit-learn.org/stable/',
     scope: 'Fasta linjära/kvadratiska OLS-modeller; separata tränings-, validerings- och testpunkter, exakt rationell kontroll' },
+  { id: 'glucose-simulator', integration: 'verified-subset', version: 'synthetic-absorption-v1', runtime: 'github-actions-node', source: 'https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/GLUCOSE.md', scope: 'Dimensionslös glukos–insulinsimulering; kausal filterbank, RK4/midpointkontroll; inga kliniska doser' },
 ]);
 export const ALL_RESEARCH_TOOLS = Object.freeze([...TOOLS, ...EXTERNAL_TOOLS]);
 export const CATALOG = Object.freeze([
@@ -50,6 +51,7 @@ export const CATALOG = Object.freeze([
     question: 'Vilken av två fasta regressionsmodeller väljs på separat valideringsdata och hur går det på testpunkterna?' },
   { id: 'dowhy-backdoor', name: 'DoWhy: effekt eller confounding?', toolId: 'dowhy',
     question: 'Kan Oraklet skilja en justerad kausal effekt från ojusterad association under ett fast diagram?' },
+  { id: 'glucose-absorption', name: 'Glukos: absorption och adaptiva prognoser', toolId: 'glucose-simulator', question: 'Hur påverkar absorptionstakten en syntetisk glukoskurva och 30–60-minutersprognoser?' },
   { id: 'pymc-gdp-ar1', name: 'PyMC: bayesiansk BNP-uppföljning (manuell)', toolId: 'pymc', automatic: false,
     question: 'Hur osäker är lagg-1-koefficienten i historisk BNP-tillväxt under låsta bayesianska priorer?' },
 ]);
