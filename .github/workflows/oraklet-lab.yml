@@ -10,6 +10,7 @@ on:
         options:
           - auto
           - catalog-only
+          - shallow-water-hybrid
           - ratfit-baseline
           - ratfit-feedback
           - rankscreen-consistency
@@ -96,6 +97,11 @@ jobs:
       - name: Installera låsta grafberoenden för kurvformsuppföljning
         if: inputs.experiment == 'insulin-curve-shape' || steps.resolved.outputs.experiment == 'insulin-curve-shape' || inputs.experiment == 'insulin-external-curve' || steps.resolved.outputs.experiment == 'insulin-external-curve'
         run: python3 -m pip install -r research/plot-requirements.lock
+      - name: Installera låsta kanal- och grafberoenden
+        if: inputs.experiment == 'shallow-water-hybrid' || steps.resolved.outputs.experiment == 'shallow-water-hybrid'
+        run: |
+          python3 -m pip install -r research/shallow-water-requirements.lock -r research/plot-requirements.lock
+          python3 -m pip check
       - name: Planera, kör och spara forskning
         if: inputs.experiment != 'catalog-only' || inputs.problem_bank_id != ''
         env:
@@ -116,6 +122,9 @@ jobs:
       - name: Rita kurvanpassning och prognoser även för sparade delresultat
         if: always() && (inputs.experiment == 'insulin-curve-shape' || steps.resolved.outputs.experiment == 'insulin-curve-shape' || inputs.experiment == 'insulin-external-curve' || steps.resolved.outputs.experiment == 'insulin-external-curve')
         run: python3 scripts/plot_insulin_curves.py reports/oraklet-lab/report.json
+      - name: Rita kanalvågor även för sparade delresultat
+        if: always() && (inputs.experiment == 'shallow-water-hybrid' || steps.resolved.outputs.experiment == 'shallow-water-hybrid')
+        run: python3 scripts/plot_shallow_water.py reports/oraklet-lab/report.json
       - name: Spara planer och rapporter även vid driftfel
         if: always()
         uses: actions/upload-artifact@v4

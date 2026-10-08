@@ -33,9 +33,11 @@ export const EXTERNAL_TOOLS = Object.freeze([{ id: 'statsmodels', integration: '
   { id: 'insulin-curve-shape', integration: 'verified-subset', version: 'insulin-curve-shape-v1', runtime: 'github-actions-node', source: 'https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/INSULIN-CURVE-SHAPE.md', scope: 'Utforskande återanalys av samma figur; fasta formexponenter, lika parameterantal, persistensreferens och prefixgrafer; ingen oberoende validering' },
   { id: 'insulin-warming-forecast', integration: 'verified-subset', version: 'insulin-warming-forecast-v1', runtime: 'github-actions-node', source: 'https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/INSULIN-WARMING.md', scope: 'Avlästa aspart-gruppkurvor; prefixprognoser, tids-/höjdkontroller och avläsningsstresstest; ingen patient- eller glukosprognos' },
   { id: 'temperature-evidence', integration: 'verified-subset', version: 'temperature-evidence-v1', runtime: 'github-actions-node', source: 'https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/GLUCOSE-TEMPERATURE.md', scope: 'Publicerade gruppsammanfattningar; effektkvoter, alternativa temperaturkurvor och deskriptivt överföringstest; ingen patientkalibrering' },
+  { id: 'shallow-water-hybrid', integration: 'verified-subset', version: 'shallow-water-hybrid-v1', runtime: 'github-actions-python', source: 'https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/SHALLOW-WATER.md', scope: 'Reducerade linjära kanalvågor; diskret fysikinformerat nätverk, fast/adaptivt UKF, prefixprognoser och numerisk replay; ingen turbulens' },
 ]);
 export const ALL_RESEARCH_TOOLS = Object.freeze([...TOOLS, ...EXTERNAL_TOOLS]);
 export const CATALOG = Object.freeze([
+  { id: 'shallow-water-hybrid', name: 'Kanalvågor: fysikinformerat nätverk och adaptivt UKF (manuell)', toolId: 'shallow-water-hybrid', automatic: false, question: 'Förbättrar ett diskret fysikinformerat nätverk med adaptivt UKF tillståndsskattning och korta prognoser för släta kanalvågor med få sensorer och förändrat mätbrus?' },
   { id: 'ratfit-baseline', name: 'Ratfit: första förslag', toolId: 'ratfit', feedback: false,
     question: 'Återfinner modellen ett dolt rationellt samband utan återkoppling?' },
   { id: 'ratfit-feedback', name: 'Ratfit: exakt återkoppling', toolId: 'ratfit', feedback: true,

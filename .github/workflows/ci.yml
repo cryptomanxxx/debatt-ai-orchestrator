@@ -98,3 +98,18 @@ jobs:
           .dowhy-venv/bin/python -m pip check
           .dowhy-venv/bin/python scripts/check_dowhy.py
       - run: npm run test:dowhy
+
+  shallow-water:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python3 -m pip install -r research/shallow-water-requirements.lock -r research/plot-requirements.lock
+      - run: python3 -m pip check
+      - run: npm run test:shallow-water

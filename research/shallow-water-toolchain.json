@@ -1,0 +1,6 @@
+{
+  "adapterVersion": "shallow-water-hybrid-v1",
+  "numpy": "2.3.5",
+  "sourceSha256": "dd5e9aaee1b308aeb86c11f7b2cb9e25254855f8b058fa9792e7d4de9b3803bb",
+  "configSha256": "bbbaccde2fa7079998a6201d93050fe27abc6dc51f602d017f27d42d9309933d"
+}

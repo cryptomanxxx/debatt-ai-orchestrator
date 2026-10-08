@@ -4,6 +4,7 @@ Välj experiment i Oraklets forskningslabb. `catalog-only` visar menyn utan mode
 
 | Körbart experiment | Verktyg | Fråga |
 | --- | --- | --- |
+| shallow-water-hybrid (endast manuellt) | shallow-water-hybrid | Förbättrar ett diskret fysikinformerat nätverk med adaptivt UKF tillståndsskattning och korta prognoser för släta kanalvågor med få sensorer och förändrat mätbrus? |
 | ratfit-baseline | ratfit | Återfinner modellen ett dolt rationellt samband utan återkoppling? |
 | ratfit-feedback | ratfit | Förbättras förslaget efter ett korrigeringsförsök mot synliga punkter? |
 | rankscreen-consistency | rankscreen | Kan modellen skilja lösbara linjära system från system med en planterad motsägelse? |
@@ -93,5 +94,6 @@ Inventering av 49 paket vid commit `66b680ce742e654cfe86da4f072a69061fe182b1`. U
 | [insulin-curve-shape](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/INSULIN-CURVE-SHAPE.md) | insulin-curve-shape-v1 | Verifierad delintegration | Utforskande återanalys av samma figur; fasta formexponenter, lika parameterantal, persistensreferens och prefixgrafer; ingen oberoende validering | github-actions-node |
 | [insulin-warming-forecast](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/INSULIN-WARMING.md) | insulin-warming-forecast-v1 | Verifierad delintegration | Avlästa aspart-gruppkurvor; prefixprognoser, tids-/höjdkontroller och avläsningsstresstest; ingen patient- eller glukosprognos | github-actions-node |
 | [temperature-evidence](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/GLUCOSE-TEMPERATURE.md) | temperature-evidence-v1 | Verifierad delintegration | Publicerade gruppsammanfattningar; effektkvoter, alternativa temperaturkurvor och deskriptivt överföringstest; ingen patientkalibrering | github-actions-node |
+| [shallow-water-hybrid](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/SHALLOW-WATER.md) | shallow-water-hybrid-v1 | Verifierad delintegration | Reducerade linjära kanalvågor; diskret fysikinformerat nätverk, fast/adaptivt UKF, prefixprognoser och numerisk replay; ingen turbulens | github-actions-python |
 
 Nya integrationer kräver låst källversion och licens, begränsad adapter, angiven körmiljö, positiva och negativa kontroller samt verifiering av rapportkedjan. Först därefter läggs experimentet till i körmenyn och den automatiska planeringen.

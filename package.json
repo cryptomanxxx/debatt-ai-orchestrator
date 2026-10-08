@@ -22,6 +22,7 @@
     "check:workers:bootloops": "wrangler deploy --config wrangler.bootloops.jsonc --dry-run --outdir .worker-build-bootloops",
     "test:bootloops:worker": "node --test tests-python-workers/*.test.ts",
     "research:catalog": "node research/show-catalog.mjs",
+    "test:shallow-water": "python3 -m unittest discover -s tests-shallow-water && node --test tests-shallow-water/*.test.mjs",
     "test:plots": "node --test tests-plotting/*.test.mjs",
     "test:research": "node --test tests-research/*.test.mjs",
     "test:science": "node --test tests-research-python/*.test.mjs",
