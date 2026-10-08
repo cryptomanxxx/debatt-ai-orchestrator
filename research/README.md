@@ -1,5 +1,7 @@
 # Oraklets dagliga forskningslabb
 
+`insulin-external-curve` prövar samma fasta kurvmodeller på en separat publicerad aspartfigur och redovisar fel per grupp och horisont. Samma forskargrupp; deltagaröverlapp ej klarlagt. Se [låst protokoll](INSULIN-EXTERNAL-CURVE.md).
+
 `insulin-curve-shape` är en manuell, utforskande uppföljning på samma redan
 analyserade figur. En förutbestämd alternativ kurvform jämförs med den gamla
 formen med samma antal parametrar och med senaste avlästa värdet. Grafer visar
