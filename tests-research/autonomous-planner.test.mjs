@@ -19,12 +19,14 @@ test('planner creates traceable unverified proposals and does not execute', () =
   assert.equal(result.proposals[0].status, 'candidate_unverified');
   assert.equal(result.proposals[0].requires_human_approval, true);
   assert.equal(result.proposals[0].evidence[0].id, 'a');
+  assert.ok(result.proposals.some(x => x.id === 'arp-symbolic-regression'));
+  assert.ok(!result.proposals.some(x => x.id === 'arp-reproducibility'));
   assert.match(result.selection_note, /not by verified scientific merit/);
 });
 
-test('results are deterministic regardless of corpus order for distinct themes', () => {
-  const items = [paper('a', 'Active learning'), paper('b', 'Symbolic regression')];
-  assert.deepEqual(planResearch(items).proposals.map(x => x.id), planResearch([...items].reverse()).proposals.map(x => x.id));
+test('complete reports are deterministic regardless of input order, including same-theme citations', () => {
+  const items = [paper('b', 'Active learning'), paper('a', 'Bayesian optimization'), paper('c', 'Symbolic regression')];
+  assert.deepEqual(planResearch(items), planResearch([...items].reverse()));
 });
 
 test('invalid or duplicate source metadata is rejected', () => {
