@@ -7,7 +7,7 @@ Välj experiment i Oraklets forskningslabb. `catalog-only` visar menyn utan mode
 | shallow-water-hybrid (endast manuellt) | shallow-water-hybrid | Förbättrar ett diskret fysikinformerat nätverk med adaptivt UKF tillståndsskattning och korta prognoser för släta kanalvågor med få sensorer och förändrat mätbrus? |
 | ratfit-baseline | ratfit | Återfinner modellen ett dolt rationellt samband utan återkoppling? |
 | ratfit-feedback | ratfit | Förbättras förslaget efter ett korrigeringsförsök mot synliga punkter? |
-| ratfit-staged-feedback (endast manuellt) | ratfit | Kan tre ytterligare synliga observationer och exakt återkoppling förbättra ett första underbestämt formelförslag på dolda kontrollpunkter? |
+| ratfit-staged-feedback (endast manuellt) | ratfit | Kan fyra ytterligare synliga observationer och exakt återkoppling förbättra ett första underbestämt formelförslag på dolda kontrollpunkter? |
 | rankscreen-consistency | rankscreen | Kan modellen skilja lösbara linjära system från system med en planterad motsägelse? |
 | rankscreen-rank-deficit | rankscreen | Kan modellen hitta rangbrist och motsägelser bland beroende ekvationer? |
 | annihilator-recurrence | annihilator | Kan en rekursion rekonstruerad från träningsdata förklara undanhållna termer? |
