@@ -93,7 +93,9 @@ export function validateTool(status, report, accepted, count) {
 
 export async function runExperiment(seed, propose, callTool, onCommit = () => {}, options = {}) {
   const cases = makeCases(seed);
+  const staged = options.staged === true;
   const feedback = options.feedback !== false;
+  if (staged && !feedback) throw new ResearchError('invalid_plan');
   // Commit all fixtures before any model sees its banked data. This is an
   // audit fingerprint, not protection against an agent with repository access.
   await onCommit(cases.map(c => ({ case: c.id, sha256: c.commitment })));
@@ -109,7 +111,10 @@ export async function runExperiment(seed, propose, callTool, onCommit = () => {}
         return { proposal, provider: ai.provider, model: ai.model,
           visibleChecks: checkVisiblePoints(proposal.coefficients, fixture.input.banked) };
       }
-      const initial = await attempt(modelPrompt(fixture.input.banked));
+      // Staged stress test: first proposal sees only three observations; the
+      // other three visible observations are revealed only for correction.
+      // Holdouts and truth are never sent to the model.
+      const initial = await attempt(modelPrompt(staged ? fixture.input.banked.slice(0, 3) : fixture.input.banked));
       const correctionAttempted = feedback && initial.visibleChecks.some(p => !p.matched);
       // No tool invocation or holdout evaluation occurs before this final proposal.
       if (correctionAttempted) operation = 'correction';
@@ -132,7 +137,7 @@ export async function runExperiment(seed, propose, callTool, onCommit = () => {}
       const holdoutMatch = verifyFormula(proposal.coefficients, fixture.input.holdout);
       results.push({ case: fixture.id, commitment: fixture.commitment, data: fixture.input, truth: fixture.truth,
         proposal, provider, model, bankedMatch, holdoutMatch, ratfit, negativeControl,
-        correctionAttempted, attempts: correctionAttempted ? [initial, final] : [initial],
+        correctionAttempted, staged, initialVisibleCount: staged ? 3 : 6, attempts: correctionAttempted ? [initial, final] : [initial],
         initialBankedMatch: initial.visibleChecks.every(p => p.matched),
         initialHoldoutMatch: verifyFormula(initial.proposal.coefficients, fixture.input.holdout),
         initialPassed: verifyFormula(initial.proposal.coefficients, fixture.input.banked)
@@ -145,8 +150,8 @@ export async function runExperiment(seed, propose, callTool, onCommit = () => {}
       throw new ResearchError(info.code, info);
     }
   }
-  return { schemaVersion: 2, promptVersion: PROMPT_VERSION, researcher: 'Professor Oraklet', title: feedback ? 'Kan återkoppling hjälpa Oraklet återfinna ett dolt rationellt samband?' : 'Kan Oraklet återfinna ett dolt rationellt samband utan återkoppling?',
-    question: feedback ? 'Förbättras modellens formelförslag efter högst ett korrigeringsförsök med exakt återkoppling från sex synliga punkter, mätt mot tre undanhållna kontrollpunkter?' : 'Kan ett första formelförslag återfinna sambandet och klara tre blinda kontrollpunkter?',
-    method: (feedback ? '' : 'Ingen återkoppling eller korrigering ges i denna körning. ') + 'Tre syntetiska fall. Första förslaget sparas och kontrolleras mot sex synliga punkter. I återkopplingsläget ges vid miss exakt återkoppling och högst ett korrigeringsförsök. Det slutliga förslaget låses innan de tre undanhållna punkterna kontrolleras. Första och slutliga resultat redovisas separat. Ratfit körs på riktiga och avsiktligt felaktiga kontrollvärden. Modellens koefficienter testas separat med BigInt och exakt korsmultiplikation, utan Thiele-algoritmen.',
-    seed: String(seed), status: results.every(r => r.passed) ? 'passed' : 'failed', limitations: LIMITATIONS + ' Tre fall räcker inte för att fastställa en generell förbättring. Eventuella modellbyten mellan försöken redovisas och kan påverka jämförelsen.', cases: results };
+  return { schemaVersion: 2, promptVersion: PROMPT_VERSION, researcher: 'Professor Oraklet', title: staged ? 'Kan fler synliga observationer korrigera ett underbestämt rationellt samband?' : feedback ? 'Kan återkoppling hjälpa Oraklet återfinna ett dolt rationellt samband?' : 'Kan Oraklet återfinna ett dolt rationellt samband utan återkoppling?',
+    question: staged ? 'Förbättras ett första förslag baserat på tre observationer när ytterligare tre synliga observationer och exakt felåterkoppling tillkommer, mätt på tre fortsatt dolda kontrollpunkter?' : feedback ? 'Förbättras modellens formelförslag efter högst ett korrigeringsförsök med exakt återkoppling från sex synliga punkter, mätt mot tre undanhållna kontrollpunkter?' : 'Kan ett första formelförslag återfinna sambandet och klara tre blinda kontrollpunkter?',
+    method: (staged ? 'Stresstest: första förslaget ser endast tre av sex synliga punkter. Vid fel mot samtliga sex visas exakta avvikelser och ett enda korrigeringsförsök tillåts. Tre separata holdoutpunkter förblir dolda. ' : '') + (feedback ? '' : 'Ingen återkoppling eller korrigering ges i denna körning. ') + 'Tre syntetiska fall. Första förslaget sparas och kontrolleras mot sex synliga punkter. I återkopplingsläget ges vid miss exakt återkoppling och högst ett korrigeringsförsök. Det slutliga förslaget låses innan de tre undanhållna punkterna kontrolleras. Första och slutliga resultat redovisas separat. Ratfit körs på riktiga och avsiktligt felaktiga kontrollvärden. Modellens koefficienter testas separat med BigInt och exakt korsmultiplikation, utan Thiele-algoritmen.',
+    seed: String(seed), status: results.every(r => r.passed) ? 'passed' : 'failed', limitations: LIMITATIONS + (staged ? ' Fler observationer och felåterkoppling ges samtidigt; deras individuella effekter kan inte särskiljas. ' : ' ') + 'Tre fall räcker inte för att fastställa en generell förbättring. Eventuella modellbyten mellan försöken redovisas och kan påverka jämförelsen.', cases: results };
 }
