@@ -17,7 +17,8 @@ test('reproducerbara data, blindad modellprompt och alla kontroller före rappor
   const report = await runExperiment('20261006', async messages => {
     assert.equal(committed, true);
     assert.deepEqual(messages, modelPrompt(fixtures[models].input.banked));
-    assert.deepEqual(Object.keys(JSON.parse(messages[1].content)), ['banked']);
+    assert.deepEqual(Object.keys(JSON.parse(messages[1].content)), ['banked', 'availablePoints']);
+    assert.equal(JSON.parse(messages[1].content).availablePoints, 6);
     return { text: proposal(fixtures[models++].truth), provider: 'test', model: 'test-model' };
   }, async input => {
     const index = Math.floor(calls / 2), positive = calls++ % 2 === 0;
