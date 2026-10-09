@@ -19,7 +19,7 @@ export function validateCorpus(corpus) {
   return corpus.map((paper, index) => {
     if (!paper || typeof paper !== 'object' || Array.isArray(paper)) throw new Error(`Paper ${index} must be an object`);
     const id = normalize(paper.id), title = normalize(paper.title), abstract = normalize(paper.abstract);
-    const url = normalize(paper.url), year = paper.year;
+    const url = paper.url, year = paper.year;
     let validUrl = false;
     try { const parsed = new URL(url); validUrl = parsed.protocol === 'https:' && Boolean(parsed.hostname) && !/\s/.test(url); } catch { /* invalid source URL */ }
     if (!id || !title || !abstract || !validUrl) throw new Error(`Paper ${index} requires id, title, abstract and HTTPS url`);
