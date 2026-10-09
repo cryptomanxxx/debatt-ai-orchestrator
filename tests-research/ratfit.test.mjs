@@ -17,7 +17,8 @@ test('reproducerbara data, blindad modellprompt och alla kontroller före rappor
   const report = await runExperiment('20261006', async messages => {
     assert.equal(committed, true);
     assert.deepEqual(messages, modelPrompt(fixtures[models].input.banked));
-    assert.deepEqual(Object.keys(JSON.parse(messages[1].content)), ['banked']);
+    assert.deepEqual(Object.keys(JSON.parse(messages[1].content)), ['banked', 'availablePoints']);
+    assert.equal(JSON.parse(messages[1].content).availablePoints, 6);
     return { text: proposal(fixtures[models++].truth), provider: 'test', model: 'test-model' };
   }, async input => {
     const index = Math.floor(calls / 2), positive = calls++ % 2 === 0;
@@ -144,9 +145,38 @@ test('rätt formel i motiveringen ersätter inte felaktiga JSON-koefficienter', 
       reason: 'Slutlig formel: (2x+7)/(3x+9). Koefficienter a=2,b=7,c=3,d=9.' }),
     provider: 'test', model: 'test',
   }), async () => response(calls++ % 2 === 0));
-  assert.equal(report.promptVersion, 'consistent-coefficients-v1');
+  assert.equal(report.promptVersion, 'consistent-coefficients-v2');
   assert.equal(report.cases[1].passed, false);
   assert.equal(report.cases[1].correctionAttempted, true);
   assert.deepEqual(report.cases[1].proposal.coefficients, ['2', '7', '9', '0']);
   assert.ok(verifyFormula(makeCases('20261006')[1].truth, report.cases[1].data.holdout));
+});
+
+
+test('stegvis feedback visar två punkter först och låser holdout', async () => {
+  const fixtures = makeCases('20261009');
+  let caseIndex = 0, calls = 0, toolCalls = 0;
+  const report = await runExperiment('20261009', async messages => {
+    calls++;
+    const fixture = fixtures[caseIndex];
+    if (messages.length === 2) {
+      assert.deepEqual(JSON.parse(messages[1].content).banked, fixture.input.banked.slice(0, 2));
+      return { text: proposal(['0', '0', '0', '1']), provider: 'test', model: 'same' };
+    }
+    assert.equal(messages.length, 4);
+    assert.deepEqual(JSON.parse(messages[1].content).banked, fixture.input.banked.slice(0, 2));
+    assert.equal(JSON.parse(messages[1].content).availablePoints, 2);
+    assert.deepEqual(JSON.parse(messages[3].content).newlyRevealedPoints, fixture.input.banked.slice(2));
+    assert.equal(JSON.parse(messages[3].content).visibleChecks.length, 6);
+    assert.ok(!JSON.stringify(messages).includes(JSON.stringify(fixture.input.holdout)));
+    return { text: proposal(fixture.truth), provider: 'test', model: 'same' };
+  }, async () => {
+    const positive = toolCalls++ % 2 === 0;
+    if (!positive) caseIndex++;
+    return response(positive);
+  }, () => {}, { staged: true, feedback: true });
+  assert.equal(calls, 6);
+  assert.equal(toolCalls, 6);
+  assert.equal(report.status, 'passed');
+  assert.ok(report.cases.every(c => c.staged && c.initialVisibleCount === 2 && !c.initialPassed && c.passed && c.correctionAttempted && c.attempts.length === 2));
 });

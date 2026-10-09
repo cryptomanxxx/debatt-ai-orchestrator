@@ -127,7 +127,7 @@ try {
   report = await execute(plan.seed, propose, tool, async commitments => {
     await writeFile(`${directory}/commitments.json`, JSON.stringify(commitments, null, 2));
     console.log('Datans SHA-256 före modellförslagen:', JSON.stringify(commitments));
-  }, { experimentId: entry.id, toolId: entry.toolId, feedback: entry.feedback, onProgress: async cases => {
+  }, { experimentId: entry.id, toolId: entry.toolId, feedback: entry.feedback, staged: entry.staged, onProgress: async cases => {
     completedCases = cases;
     await writeFile(`${directory}/progress.json`, JSON.stringify({ cases, ...metadata }, null, 2));
   } });

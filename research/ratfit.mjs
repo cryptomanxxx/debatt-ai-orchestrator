@@ -2,7 +2,7 @@ import { ResearchError, diagnostic } from './errors.mjs';
 import { createHash } from 'node:crypto';
 
 export const UPSTREAM = '66b680ce742e654cfe86da4f072a69061fe182b1';
-export const PROMPT_VERSION = 'consistent-coefficients-v1';
+export const PROMPT_VERSION = 'consistent-coefficients-v2';
 export const LIMITATIONS = 'Syntetiskt metodtest med känd formelklass, inte en ny vetenskaplig upptäckt. Kontroll på ändligt många punkter är inget bevis för alla x. Ratfit returnerar en kontrollrapport, inte formelns koefficienter; modellens förslag kontrolleras separat.';
 
 function gcd(a, b) { a = a < 0n ? -a : a; while (b) [a, b] = [b, a % b]; return a; }
@@ -33,12 +33,14 @@ export function checkVisiblePoints(coefficients, banked) {
   });
 }
 
-export function correctionPrompt(banked, proposal, checks) {
+export function correctionPrompt(banked, proposal, checks, initialBanked = banked) {
+  const additionalBanked = banked.slice(initialBanked.length);
   return [
-    ...modelPrompt(banked),
+    ...modelPrompt(initialBanked),
     { role: 'assistant', content: JSON.stringify(proposal) },
     { role: 'user', content: JSON.stringify({
       instruction: 'Ditt förslag matchar inte alla givna punkter. Gör ett enda korrigeringsförsök utifrån exakt kontroll nedan. actual=null betyder division med noll. Bestäm och kontrollera den nya slutliga formeln mot alla sex givna punkter INNAN du skriver JSON. Ersätt coefficients med den slutliga formelns koefficienter i ordningen [a,b,c,d]; behåll inte gamla värden om formeln ändras. Det är coefficients som testas, inte formeln i reason. Skriv därefter en kort reason som beskriver just dessa koefficienter, utan mellanliggande försök. Samma JSON-format gäller. Du har fortfarande inte fått facit eller undanhållna kontrollpunkter.',
+      ...(additionalBanked.length ? { newlyRevealedPoints: additionalBanked } : {}),
       visibleChecks: checks,
     }) },
   ];
@@ -61,9 +63,10 @@ export function makeCases(seed) {
 }
 
 export function modelPrompt(banked) {
+  const count = banked.length;
   return [
-    { role: 'system', content: 'Du är Professor Oraklet i Debatt-AI:s forskningslabb. Genomför ett syntetiskt metodtest. Sök en formel (a*x+b)/(c*x+d) från de givna exakta datapunkterna. Använd metoden bootloops_ratfit som efterföljande kontroll. Du har inte fått facit eller kontrollpunkterna. Bestäm den slutliga formeln och kontrollera den mot de sex givna punkterna INNAN du skriver JSON. Svara ENDAST med JSON: {"method":"bootloops_ratfit","coefficients":["a","b","c","d"],"reason":"kort metodmotivering på svenska"}. coefficients ska innehålla den slutliga formelns koefficienter i exakt ordningen [a,b,c,d]. Det är dessa värden som testas; en annan formel i reason ändrar inte förslaget. Skriv därefter en kort reason som beskriver just den slutliga formeln, utan mellanliggande försök. Koefficienter ska vara heltal mellan -999 och 999, skrivna som strängar. Ange inga påståenden om testresultat eftersom testet ännu inte har körts.' },
-    { role: 'user', content: JSON.stringify({ banked }) },
+    { role: 'system', content: 'Du är Professor Oraklet i Debatt-AI:s forskningslabb. Genomför ett syntetiskt metodtest. Sök en formel (a*x+b)/(c*x+d) från de givna exakta datapunkterna. Använd metoden bootloops_ratfit som efterföljande kontroll. Du har inte fått facit eller kontrollpunkterna. Bestäm ett formelförslag och kontrollera det mot de givna datapunkterna INNAN du skriver JSON. Antalet tillgängliga punkter framgår av nästa meddelande. Svara ENDAST med JSON: {"method":"bootloops_ratfit","coefficients":["a","b","c","d"],"reason":"kort metodmotivering på svenska"}. coefficients ska innehålla den slutliga formelns koefficienter i exakt ordningen [a,b,c,d]. Det är dessa värden som testas; en annan formel i reason ändrar inte förslaget. Skriv därefter en kort reason som beskriver just den slutliga formeln, utan mellanliggande försök. Koefficienter ska vara heltal mellan -999 och 999, skrivna som strängar. Ange inga påståenden om testresultat eftersom testet ännu inte har körts.' },
+    { role: 'user', content: JSON.stringify({ banked, availablePoints: count }) },
   ];
 }
 
@@ -93,7 +96,9 @@ export function validateTool(status, report, accepted, count) {
 
 export async function runExperiment(seed, propose, callTool, onCommit = () => {}, options = {}) {
   const cases = makeCases(seed);
+  const staged = options.staged === true;
   const feedback = options.feedback !== false;
+  if (staged && !feedback) throw new ResearchError('invalid_plan');
   // Commit all fixtures before any model sees its banked data. This is an
   // audit fingerprint, not protection against an agent with repository access.
   await onCommit(cases.map(c => ({ case: c.id, sha256: c.commitment })));
@@ -109,12 +114,16 @@ export async function runExperiment(seed, propose, callTool, onCommit = () => {}
         return { proposal, provider: ai.provider, model: ai.model,
           visibleChecks: checkVisiblePoints(proposal.coefficients, fixture.input.banked) };
       }
-      const initial = await attempt(modelPrompt(fixture.input.banked));
+      // Staged stress test: first proposal sees only two observations; the
+      // other four visible observations are revealed only for correction.
+      // Holdouts and truth are never sent to the model.
+      const initial = await attempt(modelPrompt(staged ? fixture.input.banked.slice(0, 2) : fixture.input.banked));
       const correctionAttempted = feedback && initial.visibleChecks.some(p => !p.matched);
       // No tool invocation or holdout evaluation occurs before this final proposal.
       if (correctionAttempted) operation = 'correction';
       const final = correctionAttempted
-        ? await attempt(correctionPrompt(fixture.input.banked, initial.proposal, initial.visibleChecks))
+        ? await attempt(correctionPrompt(fixture.input.banked, initial.proposal, initial.visibleChecks,
+            staged ? fixture.input.banked.slice(0, 2) : fixture.input.banked))
         : initial;
       const { proposal, provider, model } = final;
       const corrupted = structuredClone(fixture.input);
@@ -132,7 +141,7 @@ export async function runExperiment(seed, propose, callTool, onCommit = () => {}
       const holdoutMatch = verifyFormula(proposal.coefficients, fixture.input.holdout);
       results.push({ case: fixture.id, commitment: fixture.commitment, data: fixture.input, truth: fixture.truth,
         proposal, provider, model, bankedMatch, holdoutMatch, ratfit, negativeControl,
-        correctionAttempted, attempts: correctionAttempted ? [initial, final] : [initial],
+        correctionAttempted, staged, initialVisibleCount: staged ? 2 : 6, attempts: correctionAttempted ? [initial, final] : [initial],
         initialBankedMatch: initial.visibleChecks.every(p => p.matched),
         initialHoldoutMatch: verifyFormula(initial.proposal.coefficients, fixture.input.holdout),
         initialPassed: verifyFormula(initial.proposal.coefficients, fixture.input.banked)
@@ -145,8 +154,8 @@ export async function runExperiment(seed, propose, callTool, onCommit = () => {}
       throw new ResearchError(info.code, info);
     }
   }
-  return { schemaVersion: 2, promptVersion: PROMPT_VERSION, researcher: 'Professor Oraklet', title: feedback ? 'Kan återkoppling hjälpa Oraklet återfinna ett dolt rationellt samband?' : 'Kan Oraklet återfinna ett dolt rationellt samband utan återkoppling?',
-    question: feedback ? 'Förbättras modellens formelförslag efter högst ett korrigeringsförsök med exakt återkoppling från sex synliga punkter, mätt mot tre undanhållna kontrollpunkter?' : 'Kan ett första formelförslag återfinna sambandet och klara tre blinda kontrollpunkter?',
-    method: (feedback ? '' : 'Ingen återkoppling eller korrigering ges i denna körning. ') + 'Tre syntetiska fall. Första förslaget sparas och kontrolleras mot sex synliga punkter. I återkopplingsläget ges vid miss exakt återkoppling och högst ett korrigeringsförsök. Det slutliga förslaget låses innan de tre undanhållna punkterna kontrolleras. Första och slutliga resultat redovisas separat. Ratfit körs på riktiga och avsiktligt felaktiga kontrollvärden. Modellens koefficienter testas separat med BigInt och exakt korsmultiplikation, utan Thiele-algoritmen.',
-    seed: String(seed), status: results.every(r => r.passed) ? 'passed' : 'failed', limitations: LIMITATIONS + ' Tre fall räcker inte för att fastställa en generell förbättring. Eventuella modellbyten mellan försöken redovisas och kan påverka jämförelsen.', cases: results };
+  return { schemaVersion: 2, promptVersion: PROMPT_VERSION, researcher: 'Professor Oraklet', title: staged ? 'Kan ytterligare observationer korrigera ett underbestämt rationellt samband?' : feedback ? 'Kan återkoppling hjälpa Oraklet återfinna ett dolt rationellt samband?' : 'Kan Oraklet återfinna ett dolt rationellt samband utan återkoppling?',
+    question: staged ? 'Förbättras ett första förslag baserat på två observationer när ytterligare fyra synliga observationer och exakt felåterkoppling tillkommer, mätt på tre fortsatt dolda kontrollpunkter?' : feedback ? 'Förbättras modellens formelförslag efter högst ett korrigeringsförsök med exakt återkoppling från sex synliga punkter, mätt mot tre undanhållna kontrollpunkter?' : 'Kan ett första formelförslag återfinna sambandet och klara tre blinda kontrollpunkter?',
+    method: (staged ? 'Stresstest: första förslaget ser endast två av sex synliga punkter. Vid fel mot samtliga sex visas exakta avvikelser och ett enda korrigeringsförsök tillåts. Tre separata holdoutpunkter förblir dolda. ' : '') + (feedback ? '' : 'Ingen återkoppling eller korrigering ges i denna körning. ') + 'Tre syntetiska fall. Första förslaget sparas och kontrolleras mot sex synliga punkter. I återkopplingsläget ges vid miss exakt återkoppling och högst ett korrigeringsförsök. Det slutliga förslaget låses innan de tre undanhållna punkterna kontrolleras. Första och slutliga resultat redovisas separat. Ratfit körs på riktiga och avsiktligt felaktiga kontrollvärden. Modellens koefficienter testas separat med BigInt och exakt korsmultiplikation, utan Thiele-algoritmen.',
+    seed: String(seed), status: results.every(r => r.passed) ? 'passed' : 'failed', limitations: LIMITATIONS + (staged ? ' Fler observationer och felåterkoppling ges samtidigt; deras individuella effekter kan inte särskiljas. ' : ' ') + 'Tre fall räcker inte för att fastställa en generell förbättring. Eventuella modellbyten mellan försöken redovisas och kan påverka jämförelsen.', cases: results };
 }
