@@ -41,3 +41,20 @@ test('no novelty claim from a single paper', () => {
   assert.equal(proposal.scores.novelty, 1);
   assert.ok(proposal.caveats.some(x => x.includes('Novelty requires')));
 });
+
+test('specific symbolic regression topic wins over broad research and active-learning keywords', () => {
+  for (const title of ['Symbolic regression for scientific discovery', 'Symbolic regression with active learning']) {
+    assert.equal(planResearch([paper('s', title)]).proposals[0].id, 'arp-symbolic-regression');
+  }
+});
+
+test('canonical ordering is stable for canonically equivalent Unicode IDs', () => {
+  const items = [paper('é', 'Active learning'), paper('e\u0301', 'Bayesian optimization')];
+  assert.deepEqual(planResearch(items), planResearch([...items].reverse()));
+});
+
+test('rejects whitespace anywhere in HTTPS source URLs', () => {
+  for (const url of ['https://example.org/a b', 'https://example.org/a\tb', 'https://example.org/a\nb']) {
+    assert.throws(() => validateCorpus([{ ...paper('a', 'Experiment'), url }]), /HTTPS/);
+  }
+});
