@@ -145,7 +145,7 @@ test('rätt formel i motiveringen ersätter inte felaktiga JSON-koefficienter', 
       reason: 'Slutlig formel: (2x+7)/(3x+9). Koefficienter a=2,b=7,c=3,d=9.' }),
     provider: 'test', model: 'test',
   }), async () => response(calls++ % 2 === 0));
-  assert.equal(report.promptVersion, 'consistent-coefficients-v1');
+  assert.equal(report.promptVersion, 'consistent-coefficients-v2');
   assert.equal(report.cases[1].passed, false);
   assert.equal(report.cases[1].correctionAttempted, true);
   assert.deepEqual(report.cases[1].proposal.coefficients, ['2', '7', '9', '0']);
@@ -164,7 +164,9 @@ test('stegvis feedback visar två punkter först och låser holdout', async () =
       return { text: proposal(['0', '0', '0', '1']), provider: 'test', model: 'same' };
     }
     assert.equal(messages.length, 4);
-    assert.deepEqual(JSON.parse(messages[1].content).banked, fixture.input.banked);
+    assert.deepEqual(JSON.parse(messages[1].content).banked, fixture.input.banked.slice(0, 2));
+    assert.equal(JSON.parse(messages[1].content).availablePoints, 2);
+    assert.deepEqual(JSON.parse(messages[3].content).newlyRevealedPoints, fixture.input.banked.slice(2));
     assert.equal(JSON.parse(messages[3].content).visibleChecks.length, 6);
     assert.ok(!JSON.stringify(messages).includes(JSON.stringify(fixture.input.holdout)));
     return { text: proposal(fixture.truth), provider: 'test', model: 'same' };
