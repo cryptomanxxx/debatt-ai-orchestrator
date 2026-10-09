@@ -58,3 +58,19 @@ test('rejects whitespace anywhere in HTTPS source URLs', () => {
     assert.throws(() => validateCorpus([{ ...paper('a', 'Experiment'), url }]), /HTTPS/);
   }
 });
+
+test('symbolic regression wins over broad scientific discovery and active learning', () => {
+  const result = planResearch([paper('x', 'Symbolic regression for scientific discovery', 'Active learning evaluation')]);
+  assert.equal(result.proposals[0].id, 'arp-symbolic-regression');
+});
+
+test('unicode-distinct citation ids have stable total ordering', () => {
+  const items = [paper('é', 'Active learning'), paper('é', 'Active learning')];
+  assert.deepEqual(planResearch(items), planResearch([...items].reverse()));
+});
+
+test('rejects whitespace anywhere in HTTPS citations', () => {
+  for (const url of ['https://example.com/a b', 'https://example.com/\t', 'https://example.com/\n']) {
+    assert.throws(() => validateCorpus([{ ...paper('x', 'Experiment'), url }]), /HTTPS/);
+  }
+});
