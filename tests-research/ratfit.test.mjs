@@ -152,14 +152,14 @@ test('rätt formel i motiveringen ersätter inte felaktiga JSON-koefficienter', 
 });
 
 
-test('stegvis feedback visar tre punkter först och låser holdout', async () => {
+test('stegvis feedback visar två punkter först och låser holdout', async () => {
   const fixtures = makeCases('20261009');
   let caseIndex = 0, calls = 0, toolCalls = 0;
   const report = await runExperiment('20261009', async messages => {
     calls++;
     const fixture = fixtures[caseIndex];
     if (messages.length === 2) {
-      assert.deepEqual(JSON.parse(messages[1].content).banked, fixture.input.banked.slice(0, 3));
+      assert.deepEqual(JSON.parse(messages[1].content).banked, fixture.input.banked.slice(0, 2));
       return { text: proposal(['0', '0', '0', '1']), provider: 'test', model: 'same' };
     }
     assert.equal(messages.length, 4);
@@ -175,5 +175,5 @@ test('stegvis feedback visar tre punkter först och låser holdout', async () =>
   assert.equal(calls, 6);
   assert.equal(toolCalls, 6);
   assert.equal(report.status, 'passed');
-  assert.ok(report.cases.every(c => c.staged && c.initialVisibleCount === 3 && !c.initialPassed && c.passed && c.correctionAttempted && c.attempts.length === 2));
+  assert.ok(report.cases.every(c => c.staged && c.initialVisibleCount === 2 && !c.initialPassed && c.passed && c.correctionAttempted && c.attempts.length === 2));
 });
