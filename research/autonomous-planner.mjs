@@ -6,8 +6,8 @@ import { pathToFileURL } from 'node:url';
 const THEMES = [
   { pattern: /hypothes|scientific discovery|research agent|autonomous research/i, theme: 'autonomous-research', question: 'Does evidence-grounded hypothesis selection outperform a fixed research catalog on held-out scientific tasks?', method: 'Compare fixed-catalog and literature-grounded planning with blinded expert ratings and equal budgets.' },
   { pattern: /experiment design|active learning|information gain|bayesian optimization/i, theme: 'experiment-design', question: 'Does uncertainty-aware experiment selection improve information gained per unit of compute?', method: 'Compare uncertainty-based selection against random and fixed-order baselines on identical synthetic benchmarks.' },
-  { pattern: /replicat|reproducib|benchmark|evaluation/i, theme: 'reproducibility', question: 'How often do reported agent-science results reproduce under independent reruns?', method: 'Pre-register acceptance criteria, rerun public benchmarks with fixed versions and compare effect sizes.' },
   { pattern: /symbolic regression|equation discover|rational function/i, theme: 'symbolic-regression', question: 'Does targeted measurement selection reduce incorrect symbolic hypotheses?', method: 'Compare passive observations against active selection with hidden holdouts and matched model-call budgets.' },
+  { pattern: /replicat|reproducib|benchmark|evaluation/i, theme: 'reproducibility', question: 'How often do reported agent-science results reproduce under independent reruns?', method: 'Pre-register acceptance criteria, rerun public benchmarks with fixed versions and compare effect sizes.' },
 ];
 const DEFAULT_THEME = { theme: 'literature-methods', question: 'Which reported method remains robust under a matched, independent replication?', method: 'Select a fully specified public benchmark and reproduce it against its published baseline.' };
 const normalize = value => typeof value === 'string' ? value.trim() : '';
@@ -20,7 +20,9 @@ export function validateCorpus(corpus) {
     if (!paper || typeof paper !== 'object' || Array.isArray(paper)) throw new Error(`Paper ${index} must be an object`);
     const id = normalize(paper.id), title = normalize(paper.title), abstract = normalize(paper.abstract);
     const url = normalize(paper.url), year = paper.year;
-    if (!id || !title || !abstract || !/^https:\/\//.test(url)) throw new Error(`Paper ${index} requires id, title, abstract and HTTPS url`);
+    let validUrl = false;
+    try { const parsed = new URL(url); validUrl = parsed.protocol === 'https:' && Boolean(parsed.hostname) && !/\\s/.test(url); } catch { /* invalid source URL */ }
+    if (!id || !title || !abstract || !validUrl) throw new Error(`Paper ${index} requires id, title, abstract and HTTPS url`);
     if (seen.has(id)) throw new Error(`Duplicate paper id: ${id}`);
     if (year !== undefined && (!Number.isInteger(year) || year < 1900 || year > 2100)) throw new Error(`Invalid year for ${id}`);
     seen.add(id);
@@ -40,7 +42,7 @@ export function planResearch(input, { maxProposals = 10 } = {}) {
     groups.set(match.theme, group);
   }
   const proposals = [...groups.values()].map(group => {
-    const citations = group.papers.map(({ id, title, url, year }) => ({ id, title, url, ...(year === undefined ? {} : { year }) }));
+    const citations = group.papers.map(({ id, title, url, year }) => ({ id, title, url, ...(year === undefined ? {} : { year }) })).sort((a, b) => a.id.localeCompare(b.id));
     // These are transparent heuristic *priorities*, not validated scientific merit scores.
     const scores = {
       scientific_significance: 2,
