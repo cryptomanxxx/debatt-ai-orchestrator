@@ -1,0 +1,20 @@
+{
+  "id": "shallow-water-hybrid-v1",
+  "lengthM": 200,
+  "depthM": 2,
+  "currentMps": 0.3,
+  "gravityMps2": 9.81,
+  "dragPerSecond": 0.003,
+  "dtSeconds": 2,
+  "steps": 80,
+  "burnInSteps": 20,
+  "forecastOrigins": [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70],
+  "horizonSteps": [2, 4],
+  "network": {"trainingSeed": 1729, "collocationSeed": 1730, "validationSeed": 1731, "samples": 256, "hidden": 16, "epochs": 2000, "learningRate": 0.01, "physicsWeight": 0.1, "stateScale": 0.05},
+  "ukf": {"alpha": 1, "beta": 2, "kappa": 0, "initialVariance": 0.0004, "processVariance": 1e-8, "measurementVariance": 1e-6, "adaptiveRate": 0.08, "maximumMeasurementVariance": 0.000064},
+  "cases": ["constant-noise", "noise-switch", "noise-switch-dropout"],
+  "noiseSwitchStep": 40,
+  "highNoiseMultiplier": 4,
+  "primaryRelativeGain": 0.05,
+  "primaryAbsoluteGain": 1e-10
+}

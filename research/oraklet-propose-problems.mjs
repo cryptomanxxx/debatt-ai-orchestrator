@@ -2,6 +2,7 @@ import { CATALOG } from './catalog.mjs';
 import { makeCatalogProblem } from './problem-bank-create-catalog.mjs';
 
 const DOMAINS=Object.freeze({
+  'shallow-water-hybrid':'fluid-state-estimation',
   'sympy-quadratic':'symbolic-mathematics',
   'sklearn-polynomial':'machine-learning',
   'dowhy-backdoor':'causal-inference',
