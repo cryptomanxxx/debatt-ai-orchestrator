@@ -37,7 +37,12 @@ class Default(WorkerEntrypoint):
                 if chunk.done:
                     break
                 if len(raw) + chunk.value.byteLength > 16384:
-                    await reader.cancel()
+                    # Return 413 even if cancelling the oversized request stream fails.
+                    # The response must not depend on a successful stream cancellation.
+                    try:
+                        await reader.cancel()
+                    except Exception:
+                        pass
                     return reply({'error': 'request_too_large'}, 413)
                 raw.extend(bytes(chunk.value.to_py()))
         except Exception:
