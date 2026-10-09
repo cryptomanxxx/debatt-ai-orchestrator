@@ -4,9 +4,9 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const THEMES = [
+  { pattern: /symbolic regression|equation discover|rational function/i, theme: 'symbolic-regression', question: 'Does targeted measurement selection reduce incorrect symbolic hypotheses?', method: 'Compare passive observations against active selection with hidden holdouts and matched model-call budgets.' },
   { pattern: /hypothes|scientific discovery|research agent|autonomous research/i, theme: 'autonomous-research', question: 'Does evidence-grounded hypothesis selection outperform a fixed research catalog on held-out scientific tasks?', method: 'Compare fixed-catalog and literature-grounded planning with blinded expert ratings and equal budgets.' },
   { pattern: /experiment design|active learning|information gain|bayesian optimization/i, theme: 'experiment-design', question: 'Does uncertainty-aware experiment selection improve information gained per unit of compute?', method: 'Compare uncertainty-based selection against random and fixed-order baselines on identical synthetic benchmarks.' },
-  { pattern: /symbolic regression|equation discover|rational function/i, theme: 'symbolic-regression', question: 'Does targeted measurement selection reduce incorrect symbolic hypotheses?', method: 'Compare passive observations against active selection with hidden holdouts and matched model-call budgets.' },
   { pattern: /replicat|reproducib|benchmark|evaluation/i, theme: 'reproducibility', question: 'How often do reported agent-science results reproduce under independent reruns?', method: 'Pre-register acceptance criteria, rerun public benchmarks with fixed versions and compare effect sizes.' },
 ];
 const DEFAULT_THEME = { theme: 'literature-methods', question: 'Which reported method remains robust under a matched, independent replication?', method: 'Select a fully specified public benchmark and reproduce it against its published baseline.' };
@@ -42,7 +42,7 @@ export function planResearch(input, { maxProposals = 10 } = {}) {
     groups.set(match.theme, group);
   }
   const proposals = [...groups.values()].map(group => {
-    const citations = group.papers.map(({ id, title, url, year }) => ({ id, title, url, ...(year === undefined ? {} : { year }) })).sort((a, b) => a.id.localeCompare(b.id));
+    const citations = group.papers.map(({ id, title, url, year }) => ({ id, title, url, ...(year === undefined ? {} : { year }) })).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     // These are transparent heuristic *priorities*, not validated scientific merit scores.
     const scores = {
       scientific_significance: 2,
@@ -70,7 +70,7 @@ export function planResearch(input, { maxProposals = 10 } = {}) {
       requires_human_approval: true,
     };
   });
-  proposals.sort((a, b) => b.evidence_count - a.evidence_count || a.id.localeCompare(b.id));
+  proposals.sort((a, b) => b.evidence_count - a.evidence_count || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return {
     schema_version: '0.1.0',
     mode: 'offline-heuristic-baseline',
