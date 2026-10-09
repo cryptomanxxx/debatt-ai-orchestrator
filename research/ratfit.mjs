@@ -2,7 +2,7 @@ import { ResearchError, diagnostic } from './errors.mjs';
 import { createHash } from 'node:crypto';
 
 export const UPSTREAM = '66b680ce742e654cfe86da4f072a69061fe182b1';
-export const PROMPT_VERSION = 'consistent-coefficients-v1';
+export const PROMPT_VERSION = 'consistent-coefficients-v2';
 export const LIMITATIONS = 'Syntetiskt metodtest med känd formelklass, inte en ny vetenskaplig upptäckt. Kontroll på ändligt många punkter är inget bevis för alla x. Ratfit returnerar en kontrollrapport, inte formelns koefficienter; modellens förslag kontrolleras separat.';
 
 function gcd(a, b) { a = a < 0n ? -a : a; while (b) [a, b] = [b, a % b]; return a; }
@@ -33,12 +33,14 @@ export function checkVisiblePoints(coefficients, banked) {
   });
 }
 
-export function correctionPrompt(banked, proposal, checks) {
+export function correctionPrompt(banked, proposal, checks, initialBanked = banked) {
+  const additionalBanked = banked.slice(initialBanked.length);
   return [
-    ...modelPrompt(banked),
+    ...modelPrompt(initialBanked),
     { role: 'assistant', content: JSON.stringify(proposal) },
     { role: 'user', content: JSON.stringify({
       instruction: 'Ditt förslag matchar inte alla givna punkter. Gör ett enda korrigeringsförsök utifrån exakt kontroll nedan. actual=null betyder division med noll. Bestäm och kontrollera den nya slutliga formeln mot alla sex givna punkter INNAN du skriver JSON. Ersätt coefficients med den slutliga formelns koefficienter i ordningen [a,b,c,d]; behåll inte gamla värden om formeln ändras. Det är coefficients som testas, inte formeln i reason. Skriv därefter en kort reason som beskriver just dessa koefficienter, utan mellanliggande försök. Samma JSON-format gäller. Du har fortfarande inte fått facit eller undanhållna kontrollpunkter.',
+      ...(additionalBanked.length ? { newlyRevealedPoints: additionalBanked } : {}),
       visibleChecks: checks,
     }) },
   ];
@@ -120,7 +122,8 @@ export async function runExperiment(seed, propose, callTool, onCommit = () => {}
       // No tool invocation or holdout evaluation occurs before this final proposal.
       if (correctionAttempted) operation = 'correction';
       const final = correctionAttempted
-        ? await attempt(correctionPrompt(fixture.input.banked, initial.proposal, initial.visibleChecks))
+        ? await attempt(correctionPrompt(fixture.input.banked, initial.proposal, initial.visibleChecks,
+            staged ? fixture.input.banked.slice(0, 2) : fixture.input.banked))
         : initial;
       const { proposal, provider, model } = final;
       const corrupted = structuredClone(fixture.input);
