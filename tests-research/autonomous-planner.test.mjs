@@ -1,0 +1,99 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { planResearch, validateCorpus } from '../research/autonomous-planner.mjs';
+
+const paper = (id, title, abstract = 'A reproducible evaluation of this approach.') => ({
+  id, title, abstract, url: `https://example.org/papers/${id}`, year: 2025,
+});
+
+test('planner creates traceable unverified proposals and does not execute', () => {
+  const result = planResearch([
+    paper('a', 'Active learning for experiment design'),
+    paper('b', 'Bayesian optimization and information gain'),
+    paper('c', 'Symbolic regression for rational functions'),
+  ]);
+  assert.equal(result.corpus_count, 3);
+  assert.equal(result.execution_enabled, false);
+  assert.equal(result.proposals.length, 2);
+  assert.equal(result.proposals[0].evidence_count, 2);
+  assert.equal(result.proposals[0].status, 'candidate_unverified');
+  assert.equal(result.proposals[0].requires_human_approval, true);
+  assert.equal(result.proposals[0].evidence[0].id, 'a');
+  assert.ok(result.proposals.some(x => x.id === 'arp-symbolic-regression'));
+  assert.ok(!result.proposals.some(x => x.id === 'arp-reproducibility'));
+  assert.match(result.selection_note, /not by verified scientific merit/);
+});
+
+test('complete reports are deterministic regardless of input order, including same-theme citations', () => {
+  const items = [paper('b', 'Active learning'), paper('a', 'Bayesian optimization'), paper('c', 'Symbolic regression')];
+  assert.deepEqual(planResearch(items), planResearch([...items].reverse()));
+});
+
+test('invalid or duplicate source metadata is rejected', () => {
+  assert.throws(() => validateCorpus([]), /non-empty/);
+  assert.throws(() => validateCorpus([paper('a', 'Experiment'), paper('a', 'Experiment')]), /Duplicate/);
+  assert.throws(() => validateCorpus([{ ...paper('a', 'Experiment'), url: 'http://insecure' }]), /HTTPS/);
+  assert.throws(() => planResearch([paper('a', 'Experiment')], { maxProposals: 0 }), /1\.\.100/);
+});
+
+test('no novelty claim from a single paper', () => {
+  const proposal = planResearch([paper('a', 'A scientific discovery agent')]).proposals[0];
+  assert.equal(proposal.scores.novelty, 1);
+  assert.ok(proposal.caveats.some(x => x.includes('Novelty requires')));
+});
+
+test('specific symbolic regression topic wins over broad research and active-learning keywords', () => {
+  for (const title of ['Symbolic regression for scientific discovery', 'Symbolic regression with active learning']) {
+    assert.equal(planResearch([paper('s', title)]).proposals[0].id, 'arp-symbolic-regression');
+  }
+});
+
+test('canonical ordering is stable for canonically equivalent Unicode IDs', () => {
+  const items = [paper('é', 'Active learning'), paper('e\u0301', 'Bayesian optimization')];
+  assert.deepEqual(planResearch(items), planResearch([...items].reverse()));
+});
+
+test('rejects whitespace anywhere in HTTPS source URLs', () => {
+  for (const url of ['https://example.org/a b', 'https://example.org/a\tb', 'https://example.org/a\nb']) {
+    assert.throws(() => validateCorpus([{ ...paper('a', 'Experiment'), url }]), /HTTPS/);
+  }
+});
+
+test('symbolic regression wins over broad scientific discovery and active learning', () => {
+  const result = planResearch([paper('x', 'Symbolic regression for scientific discovery', 'Active learning evaluation')]);
+  assert.equal(result.proposals[0].id, 'arp-symbolic-regression');
+});
+
+test('unicode-distinct citation ids have stable total ordering', () => {
+  const items = [paper('é', 'Active learning'), paper('é', 'Active learning')];
+  assert.deepEqual(planResearch(items), planResearch([...items].reverse()));
+});
+
+test('rejects whitespace anywhere in HTTPS citations', () => {
+  for (const url of ['https://example.com/a b', 'https://example.com/\t', 'https://example.com/\n']) {
+    assert.throws(() => validateCorpus([{ ...paper('x', 'Experiment'), url }]), /HTTPS/);
+  }
+});
+
+test('rejects non-string URL metadata', () => {
+  for (const url of [['https://example.org/paper'], { href: 'https://example.org/paper' }, 123, null]) {
+    assert.throws(() => validateCorpus([{ ...paper('a', 'Experiment'), url }]), /HTTPS/);
+  }
+});
+
+test('canonicalizes repairable HTTPS citations before emitting evidence', () => {
+  for (const url of ['https:///example.org/paper', 'https:////example.org/paper', 'https://\\example.org/paper']) {
+    const validated = validateCorpus([{ ...paper('a', 'Experiment'), url }]);
+    assert.equal(validated[0].url, 'https://example.org/paper');
+    const report = planResearch([{ ...paper('a', 'Experiment'), url }]);
+    assert.equal(report.proposals[0].evidence[0].url, 'https://example.org/paper');
+  }
+});
+
+test('accepts mixed-case HTTPS schemes and emits canonical citation URLs', () => {
+  for (const url of ['HTTPS://example.org/paper', 'HtTpS://example.org/paper']) {
+    const input = [{ ...paper('case', 'Experiment'), url }];
+    assert.equal(validateCorpus(input)[0].url, 'https://example.org/paper');
+    assert.equal(planResearch(input).proposals[0].evidence[0].url, 'https://example.org/paper');
+  }
+});
