@@ -56,9 +56,10 @@ export function overlap(a,b) {
     onlyRight:[...right].filter(d=>!left.has(d)).length };
 }
 
-export async function fetchJson(url, { apiKey, fetchImpl=fetch }={}) {
+export async function fetchJson(url, { apiKey, authBearer, fetchImpl=fetch }={}) {
   const headers = { accept:'application/json' };
   if (apiKey) headers['x-api-key'] = apiKey;
+  if (authBearer) headers.authorization = 'Bearer ' + authBearer;
   const response = await fetchImpl(url, { headers, signal:AbortSignal.timeout(15000) });
   if (!response.ok) throw new Error('HTTP '+response.status);
   return response.json();
@@ -71,12 +72,12 @@ export async function searchSource(source, query, limit, options={}) {
   if (source === 'openalex') {
     u.searchParams.set('search',query); u.searchParams.set('per-page',String(limit));
     u.searchParams.set('select','id,doi,display_name,publication_year,abstract_inverted_index,open_access,best_oa_location');
-    if (options.openAlexKey) u.searchParams.set('api_key',options.openAlexKey);
   } else {
     u.searchParams.set('query',query); u.searchParams.set('limit',String(limit));
     u.searchParams.set('fields','title,year,abstract,externalIds,isOpenAccess,openAccessPdf');
   }
-  const json = await fetchJson(u,{apiKey:source === 'semantic-scholar' ? options.semanticScholarKey : undefined,fetchImpl:options.fetchImpl});
+  const json = await fetchJson(u,{apiKey:source === 'semantic-scholar' ? options.semanticScholarKey : undefined,
+    authBearer:source === 'openalex' ? options.openAlexKey : undefined,fetchImpl:options.fetchImpl});
   const records = source === 'openalex' ? json.results : json.data;
   if (!Array.isArray(records)) throw new Error('Invalid API response from '+source);
   return records.map(p=>normalizePaper(source,p)).filter(Boolean);
@@ -84,6 +85,7 @@ export async function searchSource(source, query, limit, options={}) {
 
 export async function benchmark({ queries=DEFAULT_QUERIES, limit=10, fetchImpl=fetch, openAlexKey, semanticScholarKey }={}) {
   if (!Array.isArray(queries) || queries.length===0 || queries.length>20 || queries.some(q=>typeof q!=='string'||!q.trim()||q.length>200)) throw new Error('Invalid queries');
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Limit must be 1..100');
   const results=[];
   for (const query of queries) {
     const sources={}; const raw={};
@@ -94,7 +96,7 @@ export async function benchmark({ queries=DEFAULT_QUERIES, limit=10, fetchImpl=f
         sources[source]={status:'ok',latencyMs:Math.round(performance.now()-start),...summarize(raw[source])};
       } catch(e) {
         raw[source]=[];
-        sources[source]={status:'error',error:String(e.message).slice(0,160)};
+        sources[source]={status:'error',latencyMs:Math.round(performance.now()-start),error:String(e.message).slice(0,160)};
       }
     }
     results.push({query,sources,doiOverlap:sources.openalex.status==='ok'&&sources['semantic-scholar'].status==='ok' ? overlap(raw.openalex,raw['semantic-scholar']) : null});
