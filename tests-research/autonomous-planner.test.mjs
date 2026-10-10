@@ -89,3 +89,11 @@ test('canonicalizes repairable HTTPS citations before emitting evidence', () => 
     assert.equal(report.proposals[0].evidence[0].url, 'https://example.org/paper');
   }
 });
+
+test('accepts mixed-case HTTPS schemes and emits canonical citation URLs', () => {
+  for (const url of ['HTTPS://example.org/paper', 'HtTpS://example.org/paper']) {
+    const input = [{ ...paper('case', 'Experiment'), url }];
+    assert.equal(validateCorpus(input)[0].url, 'https://example.org/paper');
+    assert.equal(planResearch(input).proposals[0].evidence[0].url, 'https://example.org/paper');
+  }
+});
