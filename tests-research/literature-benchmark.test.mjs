@@ -40,3 +40,37 @@ test('fails closed for invalid inputs and reports provider errors',async()=>{
   assert.equal(report.results[0].sources.openalex.status,'error');
   assert.equal(report.results[0].doiOverlap,null);
 });
+
+test('sends OpenAlex key only as a bearer header, never in URL',async()=>{
+  const requests=[];
+  const fetchImpl=async(url,opts)=>{
+    requests.push({url:String(url),headers:opts.headers});
+    return {ok:true,json:async()=>String(url).includes('openalex')?{results:[]}:{data:[]}};
+  };
+  await benchmark({queries:['science'],limit:1,openAlexKey:'secret-openalex-key',semanticScholarKey:'secret-semantic-key',fetchImpl});
+  assert.equal(requests.length,2);
+  assert.equal(requests[0].headers.authorization,'Bearer secret-openalex-key');
+  assert.equal(requests[0].headers['x-api-key'],undefined);
+  assert.equal(requests[0].url.includes('secret-openalex-key'),false);
+  assert.equal(requests[0].url.includes('api_key'),false);
+  assert.equal(requests[1].headers['x-api-key'],'secret-semantic-key');
+  assert.equal(requests[1].headers.authorization,undefined);
+});
+test('rejects invalid limits before any provider request',async()=>{
+  let calls=0;
+  const fetchImpl=async()=>{calls++;throw Error('must not fetch');};
+  for (const limit of [0,-1,1.5,101,NaN,'10']) {
+    await assert.rejects(()=>benchmark({queries:['science'],limit,fetchImpl}),/Limit must be 1\.\.100/);
+  }
+  assert.equal(calls,0);
+});
+test('records elapsed latency for failed requests',async()=>{
+  const report=await benchmark({queries:['science'],fetchImpl:async()=>({ok:false,status:429})});
+  for (const source of ['openalex','semantic-scholar']) {
+    const result=report.results[0].sources[source];
+    assert.equal(result.status,'error');
+    assert.equal(result.error,'HTTP 429');
+    assert.equal(Number.isInteger(result.latencyMs),true);
+    assert.equal(result.latencyMs>=0,true);
+  }
+});
