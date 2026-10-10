@@ -80,3 +80,12 @@ test('rejects non-string URL metadata', () => {
     assert.throws(() => validateCorpus([{ ...paper('a', 'Experiment'), url }]), /HTTPS/);
   }
 });
+
+test('canonicalizes repairable HTTPS citations before emitting evidence', () => {
+  for (const url of ['https:///example.org/paper', 'https:////example.org/paper', 'https://\\example.org/paper']) {
+    const validated = validateCorpus([{ ...paper('a', 'Experiment'), url }]);
+    assert.equal(validated[0].url, 'https://example.org/paper');
+    const report = planResearch([{ ...paper('a', 'Experiment'), url }]);
+    assert.equal(report.proposals[0].evidence[0].url, 'https://example.org/paper');
+  }
+});
