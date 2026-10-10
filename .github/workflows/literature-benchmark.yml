@@ -28,7 +28,7 @@ jobs:
         with:
           node-version: '24'
       - name: Run offline regression tests
-        run: node --test tests-research/literature-benchmark.test.mjs
+        run: node --test tests-research/literature-benchmark.test.mjs tests-research/summarize-literature-benchmark.test.mjs
       - name: Run live benchmark
         env:
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
