@@ -1,0 +1,55 @@
+name: Literature benchmark (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Papers per query and source (5 predefined queries)'
+        type: choice
+        required: true
+        default: '10'
+        options:
+          - '5'
+          - '10'
+          - '20'
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run offline regression tests
+        run: node --test tests-research/literature-benchmark.test.mjs tests-research/summarize-literature-benchmark.test.mjs
+      - name: Run live benchmark
+        env:
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          SEMANTIC_SCHOLAR_API_KEY: ${{ secrets.SEMANTIC_SCHOLAR_API_KEY }}
+          BENCHMARK_LIMIT: ${{ inputs.limit }}
+        run: |
+          mkdir -p benchmark-output
+          node research/literature-benchmark.mjs "$BENCHMARK_LIMIT" benchmark-output/literature-benchmark.json
+      - name: Summarize result status
+        if: always()
+        run: |
+          if [ -f benchmark-output/literature-benchmark.json ]; then
+            node research/summarize-literature-benchmark.mjs benchmark-output/literature-benchmark.json >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Benchmark did not produce a report.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload benchmark artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: literature-benchmark-results
+          path: benchmark-output/literature-benchmark.json
+          if-no-files-found: warn
+          retention-days: 14

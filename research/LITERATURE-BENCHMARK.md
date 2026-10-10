@@ -4,6 +4,14 @@ This is a **metadata-only, opt-in benchmark** for Professor Oraklet. It does not
 
 ## Run
 
+### GitHub Actions (recommended)
+
+After this workflow is merged into `main`, open **Actions → Literature benchmark (manual) → Run workflow**, select 5, 10 or 20 papers per query and source, then inspect the run summary and download the `literature-benchmark-results` artifact (retained for 14 days). This workflow is **manual only**: it is never scheduled and does not modify the research agent. It executes offline tests before the live API calls. GitHub Actions runners require outbound network access.
+
+Optionally configure repository Actions secrets `OPENALEX_API_KEY` and `SEMANTIC_SCHOLAR_API_KEY`. Without them, the script attempts anonymous API access; providers may reject or throttle requests. Never put API keys in workflow inputs or commit them. Failed requests are recorded in the output as errors, not interpreted as zero matching papers. The run summary deliberately contains only aggregate metrics, not API credentials or raw paper records.
+
+### Local command
+
 Requires Node 24+. Network access is used only when the command is run explicitly.
 
 ```sh
