@@ -74,3 +74,9 @@ test('rejects whitespace anywhere in HTTPS citations', () => {
     assert.throws(() => validateCorpus([{ ...paper('x', 'Experiment'), url }]), /HTTPS/);
   }
 });
+
+test('rejects non-string URL metadata', () => {
+  for (const url of [['https://example.org/paper'], { href: 'https://example.org/paper' }, 123, null]) {
+    assert.throws(() => validateCorpus([{ ...paper('a', 'Experiment'), url }]), /HTTPS/);
+  }
+});
