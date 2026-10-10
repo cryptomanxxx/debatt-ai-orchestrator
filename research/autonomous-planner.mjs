@@ -21,7 +21,7 @@ export function validateCorpus(corpus) {
     const id = normalize(paper.id), title = normalize(paper.title), abstract = normalize(paper.abstract);
     const url = paper.url, year = paper.year;
     let validUrl = false;
-    try { const parsed = new URL(url); validUrl = typeof url === 'string' && parsed.protocol === 'https:' && Boolean(parsed.hostname) && !/\s/.test(url); } catch { /* invalid source URL */ }
+    try { const parsed = new URL(url); validUrl = typeof url === 'string' && url.startsWith('https://') && parsed.protocol === 'https:' && Boolean(parsed.hostname) && !/\s/.test(url); } catch { /* invalid source URL */ }
     if (!id || !title || !abstract || !validUrl) throw new Error(`Paper ${index} requires id, title, abstract and HTTPS url`);
     if (seen.has(id)) throw new Error(`Duplicate paper id: ${id}`);
     if (year !== undefined && (!Number.isInteger(year) || year < 1900 || year > 2100)) throw new Error(`Invalid year for ${id}`);
