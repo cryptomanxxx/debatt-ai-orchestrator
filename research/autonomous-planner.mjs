@@ -22,7 +22,7 @@ export function validateCorpus(corpus) {
     const rawUrl = paper.url, year = paper.year;
     let validUrl = false;
     let url;
-    if (typeof rawUrl === 'string' && rawUrl.startsWith('https://') && !/\s/.test(rawUrl)) {
+    if (typeof rawUrl === 'string' && /^https:\/\//i.test(rawUrl) && !/\s/.test(rawUrl)) {
       try {
         const parsed = new URL(rawUrl);
         validUrl = parsed.protocol === 'https:' && Boolean(parsed.hostname);
