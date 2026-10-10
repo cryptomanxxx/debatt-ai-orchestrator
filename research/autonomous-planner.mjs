@@ -19,9 +19,16 @@ export function validateCorpus(corpus) {
   return corpus.map((paper, index) => {
     if (!paper || typeof paper !== 'object' || Array.isArray(paper)) throw new Error(`Paper ${index} must be an object`);
     const id = normalize(paper.id), title = normalize(paper.title), abstract = normalize(paper.abstract);
-    const url = paper.url, year = paper.year;
+    const rawUrl = paper.url, year = paper.year;
     let validUrl = false;
-    try { const parsed = new URL(url); validUrl = typeof url === 'string' && url.startsWith('https://') && parsed.protocol === 'https:' && Boolean(parsed.hostname) && !/\s/.test(url); } catch { /* invalid source URL */ }
+    let url;
+    if (typeof rawUrl === 'string' && rawUrl.startsWith('https://') && !/\s/.test(rawUrl)) {
+      try {
+        const parsed = new URL(rawUrl);
+        validUrl = parsed.protocol === 'https:' && Boolean(parsed.hostname);
+        if (validUrl) url = parsed.href;
+      } catch { /* invalid source URL */ }
+    }
     if (!id || !title || !abstract || !validUrl) throw new Error(`Paper ${index} requires id, title, abstract and HTTPS url`);
     if (seen.has(id)) throw new Error(`Duplicate paper id: ${id}`);
     if (year !== undefined && (!Number.isInteger(year) || year < 1900 || year > 2100)) throw new Error(`Invalid year for ${id}`);
