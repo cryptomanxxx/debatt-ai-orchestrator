@@ -117,9 +117,10 @@ export async function benchmark({ queries=DEFAULT_QUERIES, limit=10, fetchImpl=f
   for (const query of queries) {
     const sources={}; const raw={};
     for (const source of ['openalex','semantic-scholar']) {
-      const start=performance.now();
+      let start=performance.now();
       try {
         if (requestsStarted++ > 0 && requestDelayMs) await sleep(requestDelayMs);
+        start=performance.now();
         const {value,attempts}=await retryTemporaryFailure(
           ()=>searchSource(source,query,limit,{fetchImpl,openAlexKey,semanticScholarKey}),{maxRetries,sleep});
         raw[source]=value;
