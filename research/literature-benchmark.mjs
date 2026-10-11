@@ -56,13 +56,37 @@ export function overlap(a,b) {
     onlyRight:[...right].filter(d=>!left.has(d)).length };
 }
 
+export class ProviderHttpError extends Error {
+  constructor(status) {
+    super('HTTP ' + status);
+    this.status = status;
+  }
+}
+
 export async function fetchJson(url, { apiKey, authBearer, fetchImpl=fetch }={}) {
   const headers = { accept:'application/json' };
   if (apiKey) headers['x-api-key'] = apiKey;
   if (authBearer) headers.authorization = 'Bearer ' + authBearer;
   const response = await fetchImpl(url, { headers, signal:AbortSignal.timeout(15000) });
-  if (!response.ok) throw new Error('HTTP '+response.status);
+  if (!response.ok) throw new ProviderHttpError(response.status);
   return response.json();
+}
+
+export const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+export async function retryTemporaryFailure(operation, { maxRetries=2, sleep=wait }={}) {
+  let attempts=0;
+  while (true) {
+    attempts++;
+    try { return {value:await operation(),attempts}; }
+    catch (error) {
+      if (!(error instanceof ProviderHttpError) || ![429,500,502,503,504].includes(error.status) || attempts>maxRetries) {
+        error.attempts=attempts;
+        throw error;
+      }
+      await sleep(1000 * 2 ** (attempts-1));
+    }
+  }
 }
 
 export async function searchSource(source, query, limit, options={}) {
@@ -83,20 +107,27 @@ export async function searchSource(source, query, limit, options={}) {
   return records.map(p=>normalizePaper(source,p)).filter(Boolean);
 }
 
-export async function benchmark({ queries=DEFAULT_QUERIES, limit=10, fetchImpl=fetch, openAlexKey, semanticScholarKey }={}) {
+export async function benchmark({ queries=DEFAULT_QUERIES, limit=10, fetchImpl=fetch, openAlexKey, semanticScholarKey, sleep=wait, requestDelayMs=1200, maxRetries=2 }={}) {
   if (!Array.isArray(queries) || queries.length===0 || queries.length>20 || queries.some(q=>typeof q!=='string'||!q.trim()||q.length>200)) throw new Error('Invalid queries');
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Limit must be 1..100');
+  if (!Number.isInteger(requestDelayMs) || requestDelayMs<0 || requestDelayMs>10000) throw new Error('Invalid request delay');
+  if (!Number.isInteger(maxRetries) || maxRetries<0 || maxRetries>3) throw new Error('Invalid retry count');
   const results=[];
+  let requestsStarted=0;
   for (const query of queries) {
     const sources={}; const raw={};
     for (const source of ['openalex','semantic-scholar']) {
       const start=performance.now();
       try {
-        raw[source]=await searchSource(source,query,limit,{fetchImpl,openAlexKey,semanticScholarKey});
-        sources[source]={status:'ok',latencyMs:Math.round(performance.now()-start),...summarize(raw[source])};
+        if (requestsStarted++ > 0 && requestDelayMs) await sleep(requestDelayMs);
+        const {value,attempts}=await retryTemporaryFailure(
+          ()=>searchSource(source,query,limit,{fetchImpl,openAlexKey,semanticScholarKey}),{maxRetries,sleep});
+        raw[source]=value;
+        sources[source]={status:'ok',attempts,latencyMs:Math.round(performance.now()-start),...summarize(raw[source])};
       } catch(e) {
         raw[source]=[];
-        sources[source]={status:'error',latencyMs:Math.round(performance.now()-start),error:String(e.message).slice(0,160)};
+        sources[source]={status:'error',attempts:e.attempts??1,httpStatus:e instanceof ProviderHttpError?e.status:null,
+          latencyMs:Math.round(performance.now()-start),error:String(e.message).slice(0,160)};
       }
     }
     results.push({query,sources,doiOverlap:sources.openalex.status==='ok'&&sources['semantic-scholar'].status==='ok' ? overlap(raw.openalex,raw['semantic-scholar']) : null});
