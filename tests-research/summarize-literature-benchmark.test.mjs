@@ -13,3 +13,22 @@ test('summarizes successful and failed sources without conflating missing metric
 test('rejects malformed reports',()=>{
   assert.throws(()=>formatBenchmarkSummary({}),/Invalid/);
 });
+
+test('renders titles, DOI and source links with safe Markdown and a preprint label',()=>{
+  const s=formatBenchmarkSummary({sourceNames:['arxiv'],results:[{query:'AI',sources:{arxiv:{status:'ok',
+    records:2,papers:[{title:'AI | [bad](javascript:alert(1)) <script>',doi:'10.1234/abc',sourceUrl:'https://arxiv.org/abs/2610.01234'},
+      {title:'No DOI',doi:null,sourceUrl:'javascript:alert(1)'}]}}}]});
+  assert.ok(s.includes('[View](https://arxiv.org/abs/2610.01234)'));
+  assert.ok(s.includes('[10.1234/abc](https://doi.org/10.1234/abc)'));
+  assert.ok(s.includes('preprint repository; newest submissions first'));
+  assert.ok(s.includes('\\|')); assert.ok(s.includes('&lt;script&gt;'));
+  assert.ok(s.includes('| No DOI | — | — |'));
+});
+
+test('summary bounds displayed records without losing the artifact metadata',()=>{
+  const papers=Array.from({length:25},(_,i)=>({title:'Paper '+i,doi:null,sourceUrl:null}));
+  const s=formatBenchmarkSummary({sourceNames:['core'],results:[{query:'AI',sources:{core:{status:'ok',records:25,papers}}}]});
+  assert.ok(s.includes('Paper 19'));assert.equal(s.includes('Paper 20'),false);
+  assert.ok(s.includes('all returned records are in the JSON artifact'));
+  assert.equal(papers.length,25);
+});

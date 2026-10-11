@@ -1,7 +1,29 @@
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 
-export const SOURCES = ['openalex','semantic-scholar','core'];
+export const SOURCES = ['openalex','semantic-scholar','core','arxiv'];
+
+export function safeSourceUrl(value) {
+  if (typeof value !== 'string' || /\s/.test(value)) return null;
+  try {
+    const u=new URL(value);
+    return ['https:','http:'].includes(u.protocol) && !u.username && !u.password ? u.href : null;
+  } catch { return null; }
+}
+
+export function parseArxivAtom(xml) {
+  if (typeof xml!=='string' || Buffer.byteLength(xml)>2_000_000) return Promise.reject(new Error('Invalid arXiv Atom response'));
+  return new Promise((resolve,reject)=>{
+    const child=execFile('python3',[fileURLToPath(new URL('./parse-arxiv-feed.py',import.meta.url))],
+      {timeout:5000,maxBuffer:2_000_000},(error,stdout)=>{
+        if (error) return reject(new Error('Invalid arXiv Atom response'));
+        try { resolve(JSON.parse(stdout)); } catch { reject(new Error('Invalid arXiv Atom response')); }
+      });
+    child.stdin.on('error',()=>{});
+    child.stdin.end(xml);
+  });
+}
 
 export const DEFAULT_QUERIES = [
   'physics informed neural networks turbulence',
@@ -32,12 +54,22 @@ export function normalizePaper(source, p) {
   const title = source === 'openalex' ? p.display_name : p.title;
   if (typeof title !== 'string' || !title.trim()) return null;
   const doi = normalizeDoi(p.doi ?? p.externalIds?.DOI ?? (Array.isArray(p.identifiers) ? p.identifiers.find(v=>typeof v==='string' && /^10\./.test(v)) : null));
-  const id = String(source === 'openalex' ? p.id ?? '' : source === 'core' ? p.id ?? '' : p.paperId ?? '');
+  const id = String(source === 'semantic-scholar' ? p.paperId ?? '' : p.id ?? '');
   if (!id) return null;
+  let sourceUrl=null;
+  if (source==='openalex' && /^https:\/\/openalex.org\/W\d+$/.test(id)) sourceUrl=id;
+  if (source==='semantic-scholar') sourceUrl=safeSourceUrl(p.url) ?? (/^[a-f0-9]{40}$/i.test(id) ? 'https://www.semanticscholar.org/paper/'+id : null);
+  if (source==='core' && /^\d+$/.test(id)) sourceUrl='https://core.ac.uk/works/'+id;
+  if (source==='arxiv') {
+    const match=id.match(/^https?:\/\/arxiv.org\/abs\/(\d{4}\.\d{4,5}(?:v\d+)?|[a-z-]+(?:\.[A-Z]{2})?\/\d{7}(?:v\d+)?)$/);
+    if (!match) return null;
+    sourceUrl='https://arxiv.org/abs/'+match[1];
+  }
   const abstract = source === 'openalex' ? abstractFromIndex(p.abstract_inverted_index) : p.abstract ?? null;
-  const oa = source === 'openalex' ? Boolean(p.best_oa_location?.landing_page_url || p.best_oa_location?.pdf_url || p.open_access?.is_oa) : source === 'core' ? Boolean(p.downloadUrl || p.sourceFulltextUrls?.length || p.fullTextLink) : Boolean(p.openAccessPdf?.url || p.isOpenAccess);
-  return { source, sourceId:id, doi, title:title.trim(), year:p.publication_year ?? p.year ?? (typeof p.yearPublished==='number'?p.yearPublished:null),
-    hasAbstract:typeof abstract === 'string' && abstract.trim().length > 0, hasOpenAccessSignal:oa };
+  const oa = source === 'arxiv' ? true : source === 'openalex' ? Boolean(p.best_oa_location?.landing_page_url || p.best_oa_location?.pdf_url || p.open_access?.is_oa) : source === 'core' ? Boolean(p.downloadUrl || p.sourceFulltextUrls?.length || p.fullTextLink) : Boolean(p.openAccessPdf?.url || p.isOpenAccess);
+  return { source, sourceId:id, sourceUrl, doi, title:title.trim().replace(/\s+/g,' ').slice(0,1000), year:p.publication_year ?? p.year ?? (typeof p.yearPublished==='number'?p.yearPublished:null),
+    ...(source==='arxiv'?{published:p.published,updated:p.updated,repositoryType:'preprint'}:{}),
+    hasAbstract:source==='arxiv' ? p.hasAbstract===true : typeof abstract === 'string' && abstract.trim().length > 0, hasOpenAccessSignal:oa };
 }
 
 export function summarize(papers) {
@@ -106,6 +138,21 @@ export async function retryTemporaryFailure(operation, { maxRetries=2, sleep=wai
 export async function searchSource(source, query, limit, options={}) {
   if (!SOURCES.includes(source)) throw new Error('Unsupported source');
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Limit must be 1..100');
+  if (typeof query!=='string' || !query.trim() || query.length>200) throw new Error('Invalid query');
+  if (source==='arxiv') {
+    const u=new URL('https://export.arxiv.org/api/query');
+    u.searchParams.set('search_query',query.trim().split(/\s+/).map(word=>'all:"'+word.replace(/["\\]/g,'')+'"').join(' AND '));
+    u.searchParams.set('start','0'); u.searchParams.set('max_results',String(limit));
+    u.searchParams.set('sortBy','submittedDate'); u.searchParams.set('sortOrder','descending');
+    // One connection and at least three seconds before every arXiv attempt,
+    // including retries; the benchmark runs providers sequentially.
+    await (options.sleep ?? wait)(3000);
+    const response=await (options.fetchImpl ?? fetch)(u,{headers:{accept:'application/atom+xml',
+      'user-agent':'Debatt-AI-Literature-Benchmark/0.4 (https://www.debatt-ai.se/universitet)'},signal:AbortSignal.timeout(15000)});
+    if (!response.ok) throw new ProviderHttpError(response.status,parseRetryAfter(response.headers?.get?.('retry-after')));
+    const records=await parseArxivAtom(await response.text());
+    return records.slice(0,limit).map(p=>normalizePaper(source,p)).filter(Boolean);
+  }
   const u = new URL(source === 'openalex' ? 'https://api.openalex.org/works' : source === 'core' ? 'https://api.core.ac.uk/v3/search/works/' : 'https://api.semanticscholar.org/graph/v1/paper/search');
   if (source === 'openalex') {
     u.searchParams.set('search',query); u.searchParams.set('per-page',String(limit));
@@ -116,13 +163,13 @@ export async function searchSource(source, query, limit, options={}) {
     u.searchParams.append('exclude','fullText');
   } else {
     u.searchParams.set('query',query); u.searchParams.set('limit',String(limit));
-    u.searchParams.set('fields','title,year,abstract,externalIds,isOpenAccess,openAccessPdf');
+    u.searchParams.set('fields','title,year,url,abstract,externalIds,isOpenAccess,openAccessPdf');
   }
   const json = await fetchJson(u,{apiKey:source === 'semantic-scholar' ? options.semanticScholarKey : undefined,
     authBearer:source === 'openalex' ? options.openAlexKey : source === 'core' ? options.coreApiKey : undefined,fetchImpl:options.fetchImpl});
   const records = source === 'semantic-scholar' ? json.data : json.results;
   if (!Array.isArray(records)) throw new Error('Invalid API response from '+source);
-  return records.map(p=>normalizePaper(source,p)).filter(Boolean);
+  return records.slice(0,limit).map(p=>normalizePaper(source,p)).filter(Boolean);
 }
 
 export async function benchmark({ queries=DEFAULT_QUERIES, sources=SOURCES, limit=10, fetchImpl=fetch, openAlexKey, semanticScholarKey, coreApiKey, sleep=wait, clock=()=>performance.now(), requestDelayMs=1200, maxRetries=2, maxBackoffMs=10000 }={}) {
@@ -143,9 +190,9 @@ export async function benchmark({ queries=DEFAULT_QUERIES, sources=SOURCES, limi
         if (requestsStarted++ > 0 && requestDelayMs) await sleep(requestDelayMs);
         start=clock();
         const {value,attempts}=await retryTemporaryFailure(
-          ()=>searchSource(source,query,limit,{fetchImpl,openAlexKey,semanticScholarKey,coreApiKey}),{maxRetries,sleep,maxBackoffMs});
+          ()=>searchSource(source,query,limit,{fetchImpl,openAlexKey,semanticScholarKey,coreApiKey,sleep}),{maxRetries,sleep,maxBackoffMs});
         raw[source]=value;
-        sources[source]={status:'ok',attempts,latencyMs:Math.round(clock()-start),...summarize(raw[source])};
+        sources[source]={status:'ok',attempts,latencyMs:Math.round(clock()-start),...summarize(raw[source]),papers:value};
       } catch(e) {
         raw[source]=[];
         sources[source]={status:'error',attempts:e.attempts??1,httpStatus:e instanceof ProviderHttpError?e.status:null,
