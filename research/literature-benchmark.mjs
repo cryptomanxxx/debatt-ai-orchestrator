@@ -155,7 +155,7 @@ export async function benchmark({ queries=DEFAULT_QUERIES, sources=SOURCES, limi
       const left=sourceNames[i],right=sourceNames[j];
       doiOverlaps[left+'__'+right]=sources[left].status==='ok'&&sources[right].status==='ok' ? overlap(raw[left],raw[right]) : null;
     }
-    results.push({query,sources,doiOverlap:doiOverlaps.openalex__semantic-scholar ?? null,doiOverlaps});
+    results.push({query,sources,doiOverlap:doiOverlaps['openalex__semantic-scholar'] ?? null,doiOverlaps});
   }
   return {schemaVersion:1,method:'metadata-only; source-specific ranking; no relevance or novelty ground truth',limit,sourceNames,results};
 }
