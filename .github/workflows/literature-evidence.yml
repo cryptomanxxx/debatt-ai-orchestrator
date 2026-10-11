@@ -30,6 +30,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - name: Run offline evidence and planner tests
         run: node --test tests-research/literature-evidence.test.mjs tests-research/autonomous-planner.test.mjs
       - name: Summarize saved literature and propose review candidates

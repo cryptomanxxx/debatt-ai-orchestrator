@@ -7,7 +7,7 @@ ATOM = "{http://www.w3.org/2005/Atom}"
 ARXIV = "{http://arxiv.org/schemas/atom}"
 
 
-def parse_feed(xml):
+def parse_feed(xml, include_abstract=False):
     if "<!DOCTYPE" in xml.upper() or "<!ENTITY" in xml.upper():
         raise ValueError("DTD and entities are not allowed")
     root = ET.fromstring(xml)
@@ -20,11 +20,14 @@ def parse_feed(xml):
         identifier = text(ATOM + "id")
         if identifier.startswith(("http://arxiv.org/api/errors", "https://arxiv.org/api/errors")):
             raise ValueError("arXiv returned an API error entry")
-        papers.append({"id": identifier, "title": text(ATOM + "title"),
+        paper = {"id": identifier, "title": text(ATOM + "title"),
                        "doi": text(ARXIV + "doi"),
                        "published": text(ATOM + "published"),
                        "updated": text(ATOM + "updated"),
-                       "hasAbstract": bool(text(ATOM + "summary"))})
+                       "hasAbstract": bool(text(ATOM + "summary"))}
+        if include_abstract:
+            paper["abstract"] = text(ATOM + "summary")
+        papers.append(paper)
     return papers
 
 
@@ -33,7 +36,7 @@ if __name__ == "__main__":
         xml = sys.stdin.read(2_000_001)
         if len(xml) > 2_000_000:
             raise ValueError("Feed too large")
-        print(json.dumps(parse_feed(xml)))
+        print(json.dumps(parse_feed(xml, include_abstract="--include-abstract" in sys.argv[1:])))
     except (ValueError, ET.ParseError):
         print("Invalid arXiv Atom response", file=sys.stderr)
         sys.exit(1)
