@@ -32,3 +32,16 @@ test('summary bounds displayed records without losing the artifact metadata',()=
   assert.ok(s.includes('all returned records are in the JSON artifact'));
   assert.equal(papers.length,25);
 });
+
+test('DOI resolver links preserve reserved suffix characters without query or fragment semantics',()=>{
+  for (const doi of ['10.1000/res#test','10.1000/res?test','10.1000/res%test',
+    '10.1000/res%23test','10.1000/a/b#c?d%e','10.1000/åäö']) {
+    const s=formatBenchmarkSummary({sourceNames:['core'],results:[{query:'AI',sources:{core:{status:'ok',records:1,
+      papers:[{title:'Paper',doi,sourceUrl:null}]}}}]});
+    const match=s.match(/\]\((https:\/\/doi\.org\/[^)]+)\)/);
+    assert.ok(match,doi);
+    const u=new URL(match[1]);
+    assert.equal(u.search,'');assert.equal(u.hash,'');
+    assert.equal(decodeURIComponent(u.pathname.slice(1)),doi);
+  }
+});

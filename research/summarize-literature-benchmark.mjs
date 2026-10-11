@@ -32,7 +32,8 @@ export function formatBenchmarkSummary(report) {
         '| Title | DOI | Source |', '| --- | --- | --- |');
       for (const paper of v.papers.slice(0,20)) {
         const doi=normalizeDoi(paper.doi);
-        rows.push('| '+clean(paper.title)+' | '+(doi?link(doi,'https://doi.org/'+doi):'—')+' | '+link('View',paper.sourceUrl)+' |');
+        const doiUrl=doi ? 'https://doi.org/'+doi.split('/').map(encodeURIComponent).join('/') : null;
+        rows.push('| '+clean(paper.title)+' | '+(doi?link(doi,doiUrl):'—')+' | '+link('View',paper.sourceUrl)+' |');
       }
       if (!v.papers.length) rows.push('| No returned records | — | — |');
       if (v.papers.length>20) rows.push('', 'First 20 records shown; all returned records are in the JSON artifact.');
