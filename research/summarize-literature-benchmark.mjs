@@ -6,7 +6,7 @@ export function formatBenchmarkSummary(report) {
   const rows=['## Literature source benchmark', '', '| Query | Source | Status | Papers | Abstracts | OA signals | Latency (ms) | Attempts | HTTP status |',
     '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |'];
   for (const item of report.results) {
-    for (const source of ['openalex','semantic-scholar']) {
+    for (const source of report.sourceNames ?? ['openalex','semantic-scholar']) {
       const v=item.sources?.[source];
       if (!v) throw new Error('Missing source result');
       const clean=s=>String(s).replace(/[|\r\n]/g,' ').slice(0,90);

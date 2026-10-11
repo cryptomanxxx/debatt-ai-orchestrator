@@ -1,6 +1,8 @@
 import { pathToFileURL } from 'node:url';
 import { writeFile } from 'node:fs/promises';
 
+export const SOURCES = ['openalex','semantic-scholar','core'];
+
 export const DEFAULT_QUERIES = [
   'physics informed neural networks turbulence',
   'active learning scientific experiment design',
@@ -29,12 +31,12 @@ export function normalizePaper(source, p) {
   if (!p || typeof p !== 'object') return null;
   const title = source === 'openalex' ? p.display_name : p.title;
   if (typeof title !== 'string' || !title.trim()) return null;
-  const doi = normalizeDoi(p.doi ?? p.externalIds?.DOI);
-  const id = String(source === 'openalex' ? p.id ?? '' : p.paperId ?? '');
+  const doi = normalizeDoi(p.doi ?? p.externalIds?.DOI ?? (Array.isArray(p.identifiers) ? p.identifiers.find(v=>typeof v==='string' && /^10\./.test(v)) : null));
+  const id = String(source === 'openalex' ? p.id ?? '' : source === 'core' ? p.id ?? '' : p.paperId ?? '');
   if (!id) return null;
   const abstract = source === 'openalex' ? abstractFromIndex(p.abstract_inverted_index) : p.abstract ?? null;
-  const oa = source === 'openalex' ? Boolean(p.best_oa_location?.landing_page_url || p.best_oa_location?.pdf_url || p.open_access?.is_oa) : Boolean(p.openAccessPdf?.url || p.isOpenAccess);
-  return { source, sourceId:id, doi, title:title.trim(), year:p.publication_year ?? p.year ?? null,
+  const oa = source === 'openalex' ? Boolean(p.best_oa_location?.landing_page_url || p.best_oa_location?.pdf_url || p.open_access?.is_oa) : source === 'core' ? Boolean(p.downloadUrl || p.sourceFulltextUrls?.length || p.fullTextLink) : Boolean(p.openAccessPdf?.url || p.isOpenAccess);
+  return { source, sourceId:id, doi, title:title.trim(), year:p.publication_year ?? p.year ?? (typeof p.yearPublished==='number'?p.yearPublished:null),
     hasAbstract:typeof abstract === 'string' && abstract.trim().length > 0, hasOpenAccessSignal:oa };
 }
 
@@ -102,40 +104,46 @@ export async function retryTemporaryFailure(operation, { maxRetries=2, sleep=wai
 }
 
 export async function searchSource(source, query, limit, options={}) {
-  if (!['openalex','semantic-scholar'].includes(source)) throw new Error('Unsupported source');
+  if (!SOURCES.includes(source)) throw new Error('Unsupported source');
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Limit must be 1..100');
-  const u = new URL(source === 'openalex' ? 'https://api.openalex.org/works' : 'https://api.semanticscholar.org/graph/v1/paper/search');
+  const u = new URL(source === 'openalex' ? 'https://api.openalex.org/works' : source === 'core' ? 'https://api.core.ac.uk/v3/search/works/' : 'https://api.semanticscholar.org/graph/v1/paper/search');
   if (source === 'openalex') {
     u.searchParams.set('search',query); u.searchParams.set('per-page',String(limit));
     u.searchParams.set('select','id,doi,display_name,publication_year,abstract_inverted_index,open_access,best_oa_location');
+  } else if (source === 'core') {
+    u.searchParams.set('q',query); u.searchParams.set('limit',String(limit));
+    // Serialize the exclusion array as repeated plain query keys (form/explode).
+    u.searchParams.append('exclude','fullText');
   } else {
     u.searchParams.set('query',query); u.searchParams.set('limit',String(limit));
     u.searchParams.set('fields','title,year,abstract,externalIds,isOpenAccess,openAccessPdf');
   }
   const json = await fetchJson(u,{apiKey:source === 'semantic-scholar' ? options.semanticScholarKey : undefined,
-    authBearer:source === 'openalex' ? options.openAlexKey : undefined,fetchImpl:options.fetchImpl});
-  const records = source === 'openalex' ? json.results : json.data;
+    authBearer:source === 'openalex' ? options.openAlexKey : source === 'core' ? options.coreApiKey : undefined,fetchImpl:options.fetchImpl});
+  const records = source === 'semantic-scholar' ? json.data : json.results;
   if (!Array.isArray(records)) throw new Error('Invalid API response from '+source);
   return records.map(p=>normalizePaper(source,p)).filter(Boolean);
 }
 
-export async function benchmark({ queries=DEFAULT_QUERIES, limit=10, fetchImpl=fetch, openAlexKey, semanticScholarKey, sleep=wait, clock=()=>performance.now(), requestDelayMs=1200, maxRetries=2, maxBackoffMs=10000 }={}) {
+export async function benchmark({ queries=DEFAULT_QUERIES, sources=SOURCES, limit=10, fetchImpl=fetch, openAlexKey, semanticScholarKey, coreApiKey, sleep=wait, clock=()=>performance.now(), requestDelayMs=1200, maxRetries=2, maxBackoffMs=10000 }={}) {
+  if (!Array.isArray(sources) || !sources.length || new Set(sources).size!==sources.length || sources.some(source=>!SOURCES.includes(source))) throw new Error('Invalid sources');
   if (!Array.isArray(queries) || queries.length===0 || queries.length>20 || queries.some(q=>typeof q!=='string'||!q.trim()||q.length>200)) throw new Error('Invalid queries');
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Limit must be 1..100');
   if (!Number.isInteger(requestDelayMs) || requestDelayMs<0 || requestDelayMs>10000) throw new Error('Invalid request delay');
   if (!Number.isInteger(maxRetries) || maxRetries<0 || maxRetries>3) throw new Error('Invalid retry count');
   if (!Number.isInteger(maxBackoffMs) || maxBackoffMs<0 || maxBackoffMs>60000) throw new Error('Invalid maximum backoff');
   const results=[];
+  const sourceNames=sources;
   let requestsStarted=0;
   for (const query of queries) {
     const sources={}; const raw={};
-    for (const source of ['openalex','semantic-scholar']) {
+    for (const source of sourceNames) {
       let start=clock();
       try {
         if (requestsStarted++ > 0 && requestDelayMs) await sleep(requestDelayMs);
         start=clock();
         const {value,attempts}=await retryTemporaryFailure(
-          ()=>searchSource(source,query,limit,{fetchImpl,openAlexKey,semanticScholarKey}),{maxRetries,sleep,maxBackoffMs});
+          ()=>searchSource(source,query,limit,{fetchImpl,openAlexKey,semanticScholarKey,coreApiKey}),{maxRetries,sleep,maxBackoffMs});
         raw[source]=value;
         sources[source]={status:'ok',attempts,latencyMs:Math.round(clock()-start),...summarize(raw[source])};
       } catch(e) {
@@ -144,9 +152,18 @@ export async function benchmark({ queries=DEFAULT_QUERIES, limit=10, fetchImpl=f
           latencyMs:Math.round(clock()-start),error:String(e.message).slice(0,160)};
       }
     }
-    results.push({query,sources,doiOverlap:sources.openalex.status==='ok'&&sources['semantic-scholar'].status==='ok' ? overlap(raw.openalex,raw['semantic-scholar']) : null});
+    const doiOverlaps={};
+    for (let i=0;i<sourceNames.length;i++) for (let j=i+1;j<sourceNames.length;j++) {
+      const left=sourceNames[i],right=sourceNames[j];
+      doiOverlaps[left+'__'+right]=sources[left].status==='ok'&&sources[right].status==='ok' ? overlap(raw[left],raw[right]) : null;
+    }
+    // Keep the legacy comparison oriented OpenAlex -> Semantic Scholar,
+    // independently of the caller's provider ordering.
+    const doiOverlap=sources.openalex?.status==='ok' && sources['semantic-scholar']?.status==='ok'
+      ? overlap(raw.openalex,raw['semantic-scholar']) : null;
+    results.push({query,sources,doiOverlap,doiOverlaps});
   }
-  return {schemaVersion:1,method:'metadata-only; source-specific ranking; no relevance or novelty ground truth',limit,results};
+  return {schemaVersion:1,method:'metadata-only; source-specific ranking; no relevance or novelty ground truth',limit,sourceNames,results};
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -158,7 +175,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exitCode=2;
   } else {
     try {
-      const result=await benchmark({limit,openAlexKey:process.env.OPENALEX_API_KEY,semanticScholarKey:process.env.SEMANTIC_SCHOLAR_API_KEY});
+      const result=await benchmark({limit,openAlexKey:process.env.OPENALEX_API_KEY,semanticScholarKey:process.env.SEMANTIC_SCHOLAR_API_KEY,coreApiKey:process.env.CORE_API_KEY});
       await writeFile(output,JSON.stringify(result,null,2)+'\n',{flag:'wx'});
       console.log('Wrote '+output);
     } catch(e) { console.error(e.message); process.exitCode=1; }
