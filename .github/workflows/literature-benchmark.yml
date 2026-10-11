@@ -12,6 +12,10 @@ on:
           - '5'
           - '10'
           - '20'
+      persist:
+        description: 'Persist metadata and search history to orchestrator Supabase (migration required)'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -32,7 +36,7 @@ jobs:
         with:
           node-version: '24'
       - name: Run offline regression tests
-        run: node --test tests-research/literature-benchmark.test.mjs tests-research/arxiv-literature.test.mjs tests-research/summarize-literature-benchmark.test.mjs
+        run: node --test tests-research/literature-benchmark.test.mjs tests-research/arxiv-literature.test.mjs tests-research/summarize-literature-benchmark.test.mjs tests-research/literature-database.test.mjs
       - name: Run live benchmark
         env:
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
@@ -50,6 +54,12 @@ jobs:
           else
             echo 'Benchmark did not produce a report.' >> "$GITHUB_STEP_SUMMARY"
           fi
+      - name: Persist literature metadata and search history
+        if: success() && inputs.persist
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: node research/literature-database.mjs benchmark-output/literature-benchmark.json
       - name: Upload benchmark artifact
         if: always()
         uses: actions/upload-artifact@v4

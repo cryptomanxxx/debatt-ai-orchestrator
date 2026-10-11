@@ -6,7 +6,7 @@ This is a **metadata-only, opt-in benchmark** for Professor Oraklet. It does not
 
 ### GitHub Actions (recommended)
 
-After this workflow is merged into `main`, open **Actions → Literature benchmark (manual) → Run workflow**, select 5, 10 or 20 papers per query and source, then inspect the run summary and download the `literature-benchmark-results` artifact (retained for 14 days). This workflow is **manual only**: it is never scheduled and does not modify the research agent. It executes offline tests before the live API calls. GitHub Actions runners require outbound network access.
+First apply the [literature database migration](LITERATURE-DATABASE.md) to the orchestrator Supabase project. Permanent metadata storage is enabled by default; uncheck **persist** for an artifact-only run. After this workflow is merged into `main`, open **Actions → Literature benchmark (manual) → Run workflow**, select 5, 10 or 20 papers per query and source, then inspect the run summary and download the `literature-benchmark-results` artifact (retained for 14 days). This workflow is **manual only**: it is never scheduled and does not modify the research agent. It executes offline tests before the live API calls. GitHub Actions runners require outbound network access.
 
 Optionally configure repository Actions secrets `OPENALEX_API_KEY`, `SEMANTIC_SCHOLAR_API_KEY`, and `CORE_API_KEY`. Without them, the script attempts anonymous API access; providers may reject or throttle requests. Never put API keys in workflow inputs or commit them. Failed requests are recorded in the output as errors, not interpreted as zero matching papers. The JSON artifact retains normalized paper metadata (title, DOI, source ID/link, year, and availability flags) alongside aggregate metrics. The run summary shows clickable title/DOI/source tables, up to 20 records per query/source; the artifact retains all returned records up to the requested limit. Neither output retains API credentials, abstracts, raw API responses or full texts. Older aggregate-only reports remain readable.
 
@@ -46,3 +46,7 @@ The Atom feed is parsed with Python's standard-library XML parser, with namespac
 References:
 - https://info.arxiv.org/help/api/user-manual.html
 - https://info.arxiv.org/help/api/tou.html (one connection and no more than one request every three seconds; descriptive metadata is CC0)
+
+## Permanent metadata and search history
+
+The manual workflow imports the report into the orchestrator Supabase project through one atomic backend RPC. Articles are matched by normalized DOI/arXiv ID or an existing provider record, never by title alone. Each search retains provider status, fetch time and ranked metadata snapshots. See [setup, schema and replay semantics](LITERATURE-DATABASE.md). A failed database import fails the job while preserving the JSON artifact for recovery. Local benchmark runs only write JSON; importing it is a separate explicit command.

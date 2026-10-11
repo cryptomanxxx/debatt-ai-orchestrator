@@ -1,8 +1,15 @@
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
+import { validLiteratureTime } from './literature-dates.mjs';
 
 export const SOURCES = ['openalex','semantic-scholar','core','arxiv'];
+
+export function normalizeArxivId(value) {
+  if (typeof value!=='string') return null;
+  const id=value.trim().replace(/^https?:\/\/(?:www\.)?arxiv.org\/abs\//i,'').replace(/^arxiv:/i,'').replace(/v\d+$/,'');
+  return /^(\d{4}\.\d{4,5}|[a-z-]+(?:\.[A-Z]{2})?\/\d{7})$/.test(id) ? id : null;
+}
 
 export function safeSourceUrl(value) {
   if (typeof value !== 'string' || /\s/.test(value)) return null;
@@ -50,17 +57,7 @@ export function abstractFromIndex(index) {
 }
 
 export function arxivPublicationYear(value) {
-  if (typeof value!=='string') return null;
-  const match=value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-](\d{2}):(\d{2}))$/i);
-  if (!match) return null;
-  const [,y,m,d,h,minute,second,,offsetHour,offsetMinute]=match;
-  const year=Number(y),month=Number(m),day=Number(d);
-  const leap=year%4===0 && (year%100!==0 || year%400===0);
-  const days=[31,leap?29:28,31,30,31,30,31,31,30,31,30,31];
-  if (month<1 || month>12 || day<1 || day>days[month-1] || Number(h)>23 || Number(minute)>59 || Number(second)>59
-    || Number(offsetHour??0)>23 || Number(offsetMinute??0)>59) return null;
-  const date=new Date(value);
-  return Number.isFinite(date.getTime()) ? date.getUTCFullYear() : null;
+  return validLiteratureTime(value,{requireTime:true}) ? new Date(value).getUTCFullYear() : null;
 }
 
 export function normalizePaper(source, p) {
@@ -68,6 +65,8 @@ export function normalizePaper(source, p) {
   const title = source === 'openalex' ? p.display_name : p.title;
   if (typeof title !== 'string' || !title.trim()) return null;
   const doi = normalizeDoi(p.doi ?? p.externalIds?.DOI ?? (Array.isArray(p.identifiers) ? p.identifiers.find(v=>typeof v==='string' && /^10\./.test(v)) : null));
+  const arxivId=normalizeArxivId(source==='arxiv' ? p.id : p.externalIds?.ArXiv ??
+    (Array.isArray(p.identifiers) ? p.identifiers.find(v=>typeof v==='string' && /arxiv/i.test(v)) : null));
   const id = String(source === 'semantic-scholar' ? p.paperId ?? '' : p.id ?? '');
   if (!id) return null;
   let sourceUrl=null;
@@ -81,9 +80,11 @@ export function normalizePaper(source, p) {
   }
   const abstract = source === 'openalex' ? abstractFromIndex(p.abstract_inverted_index) : p.abstract ?? null;
   const arxivYear=source==='arxiv' ? arxivPublicationYear(p.published) : null;
+  const dateValue=source==='openalex' ? p.publication_date : source==='semantic-scholar' ? p.publicationDate : source==='arxiv' ? p.published : null;
+  const published=validLiteratureTime(dateValue,{requireTime:source==='arxiv'}) ? dateValue : null;
   const oa = source === 'arxiv' ? true : source === 'openalex' ? Boolean(p.best_oa_location?.landing_page_url || p.best_oa_location?.pdf_url || p.open_access?.is_oa) : source === 'core' ? Boolean(p.downloadUrl || p.sourceFulltextUrls?.length || p.fullTextLink) : Boolean(p.openAccessPdf?.url || p.isOpenAccess);
-  return { source, sourceId:id, sourceUrl, doi, title:title.trim().replace(/\s+/g,' ').slice(0,1000), year:source==='arxiv' ? arxivYear : p.publication_year ?? p.year ?? (typeof p.yearPublished==='number'?p.yearPublished:null),
-    ...(source==='arxiv'?{published:p.published,updated:p.updated,repositoryType:'preprint'}:{}),
+  return { source, sourceId:id, sourceUrl, doi, arxivId, title:title.trim().replace(/\s+/g,' ').slice(0,1000), year:source==='arxiv' ? arxivYear : p.publication_year ?? p.year ?? (typeof p.yearPublished==='number'?p.yearPublished:null),
+    published, ...(source==='arxiv'?{updated:validLiteratureTime(p.updated,{requireTime:true})?p.updated:null,repositoryType:'preprint'}:{}),
     hasAbstract:source==='arxiv' ? p.hasAbstract===true : typeof abstract === 'string' && abstract.trim().length > 0, hasOpenAccessSignal:oa };
 }
 
@@ -171,14 +172,14 @@ export async function searchSource(source, query, limit, options={}) {
   const u = new URL(source === 'openalex' ? 'https://api.openalex.org/works' : source === 'core' ? 'https://api.core.ac.uk/v3/search/works/' : 'https://api.semanticscholar.org/graph/v1/paper/search');
   if (source === 'openalex') {
     u.searchParams.set('search',query); u.searchParams.set('per-page',String(limit));
-    u.searchParams.set('select','id,doi,display_name,publication_year,abstract_inverted_index,open_access,best_oa_location');
+    u.searchParams.set('select','id,doi,display_name,publication_year,publication_date,abstract_inverted_index,open_access,best_oa_location');
   } else if (source === 'core') {
     u.searchParams.set('q',query); u.searchParams.set('limit',String(limit));
     // Serialize the exclusion array as repeated plain query keys (form/explode).
     u.searchParams.append('exclude','fullText');
   } else {
     u.searchParams.set('query',query); u.searchParams.set('limit',String(limit));
-    u.searchParams.set('fields','title,year,url,abstract,externalIds,isOpenAccess,openAccessPdf');
+    u.searchParams.set('fields','title,year,publicationDate,url,abstract,externalIds,isOpenAccess,openAccessPdf');
   }
   const json = await fetchJson(u,{apiKey:source === 'semantic-scholar' ? options.semanticScholarKey : undefined,
     authBearer:source === 'openalex' ? options.openAlexKey : source === 'core' ? options.coreApiKey : undefined,fetchImpl:options.fetchImpl});
@@ -207,10 +208,10 @@ export async function benchmark({ queries=DEFAULT_QUERIES, sources=SOURCES, limi
         const {value,attempts}=await retryTemporaryFailure(
           ()=>searchSource(source,query,limit,{fetchImpl,openAlexKey,semanticScholarKey,coreApiKey,sleep}),{maxRetries,sleep,maxBackoffMs});
         raw[source]=value;
-        sources[source]={status:'ok',attempts,latencyMs:Math.round(clock()-start),...summarize(raw[source]),papers:value};
+        sources[source]={status:'ok',attempts,fetchedAt:new Date().toISOString(),latencyMs:Math.round(clock()-start),...summarize(raw[source]),papers:value};
       } catch(e) {
         raw[source]=[];
-        sources[source]={status:'error',attempts:e.attempts??1,httpStatus:e instanceof ProviderHttpError?e.status:null,
+        sources[source]={status:'error',attempts:e.attempts??1,fetchedAt:new Date().toISOString(),httpStatus:e instanceof ProviderHttpError?e.status:null,
           latencyMs:Math.round(clock()-start),error:String(e.message).slice(0,160)};
       }
     }

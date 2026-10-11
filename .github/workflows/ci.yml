@@ -3,6 +3,46 @@ on: [push, pull_request]
 permissions:
   contents: read
 jobs:
+  literature-database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test tests-research/literature-database.test.mjs
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Test migration, reconciliation and rollback in PostgreSQL
+        run: |
+          psql -v ON_ERROR_STOP=1 -c 'create role anon; create role authenticated; create role service_role bypassrls;'
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011131500_literature_database.sql
+          psql -v ON_ERROR_STOP=1 -f tests-literature-sql/upgrade-fixture.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011133000_literature_metadata_preservation.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011140000_literature_publication_backfill.sql
+          psql -v ON_ERROR_STOP=1 -f tests-literature-sql/upgrade-assertions.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011145500_literature_strict_dates.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011150500_literature_publication_precedence.sql
+          psql -v ON_ERROR_STOP=1 -f tests-literature-sql/catalog.sql
+          psql -v ON_ERROR_STOP=1 -f tests-literature-sql/strict-dates.sql
+          psql -v ON_ERROR_STOP=1 -f tests-literature-sql/publication-precedence.sql
   test:
     runs-on: ubuntu-latest
     steps:
