@@ -26,7 +26,7 @@ test('fetches and compares both providers with mocked responses',async()=>{
       ? {results:[{id:'W1',display_name:'Study',doi:'10.1234/xyz',abstract_inverted_index:{yes:[0]}}]}
       : {data:[{paperId:'S1',title:'Study',externalIds:{DOI:'10.1234/XYZ'},abstract:'yes'}]}};
   };
-  const report=await benchmark({queries:['science'],limit:2,fetchImpl,semanticScholarKey:'test-key',requestDelayMs:0,sleep:async()=>{}});
+  const report=await benchmark({sources:['openalex','semantic-scholar'],queries:['science'],limit:2,fetchImpl,semanticScholarKey:'test-key',requestDelayMs:0,sleep:async()=>{}});
   assert.equal(report.results[0].doiOverlap.commonDois,1);
   assert.equal(report.results[0].sources.openalex.records,1);
   assert.equal(urls.length,2);
@@ -35,8 +35,8 @@ test('fetches and compares both providers with mocked responses',async()=>{
 });
 test('fails closed for invalid inputs and reports provider errors',async()=>{
   await assert.rejects(()=>searchSource('unknown','x',10),/Unsupported/);
-  await assert.rejects(()=>benchmark({queries:[]}),/Invalid/);
-  const report=await benchmark({queries:['x'],fetchImpl:async()=>({ok:false,status:429}),requestDelayMs:0,maxRetries:0,sleep:async()=>{}});
+  await assert.rejects(()=>benchmark({sources:['openalex','semantic-scholar'],queries:[]}),/Invalid/);
+  const report=await benchmark({sources:['openalex','semantic-scholar'],queries:['x'],fetchImpl:async()=>({ok:false,status:429}),requestDelayMs:0,maxRetries:0,sleep:async()=>{}});
   assert.equal(report.results[0].sources.openalex.status,'error');
   assert.equal(report.results[0].doiOverlap,null);
 });
@@ -47,7 +47,7 @@ test('sends OpenAlex key only as a bearer header, never in URL',async()=>{
     requests.push({url:String(url),headers:opts.headers});
     return {ok:true,json:async()=>String(url).includes('openalex')?{results:[]}:{data:[]}};
   };
-  await benchmark({queries:['science'],limit:1,openAlexKey:'secret-openalex-key',semanticScholarKey:'secret-semantic-key',requestDelayMs:0,sleep:async()=>{},fetchImpl});
+  await benchmark({sources:['openalex','semantic-scholar'],queries:['science'],limit:1,openAlexKey:'secret-openalex-key',semanticScholarKey:'secret-semantic-key',requestDelayMs:0,sleep:async()=>{},fetchImpl});
   assert.equal(requests.length,2);
   assert.equal(requests[0].headers.authorization,'Bearer secret-openalex-key');
   assert.equal(requests[0].headers['x-api-key'],undefined);
@@ -60,12 +60,12 @@ test('rejects invalid limits before any provider request',async()=>{
   let calls=0;
   const fetchImpl=async()=>{calls++;throw Error('must not fetch');};
   for (const limit of [0,-1,1.5,101,NaN,'10']) {
-    await assert.rejects(()=>benchmark({queries:['science'],limit,fetchImpl}),/Limit must be 1\.\.100/);
+    await assert.rejects(()=>benchmark({sources:['openalex','semantic-scholar'],queries:['science'],limit,fetchImpl}),/Limit must be 1\.\.100/);
   }
   assert.equal(calls,0);
 });
 test('records elapsed latency for failed requests',async()=>{
-  const report=await benchmark({queries:['science'],requestDelayMs:0,maxRetries:0,sleep:async()=>{},fetchImpl:async()=>({ok:false,status:429})});
+  const report=await benchmark({sources:['openalex','semantic-scholar'],queries:['science'],requestDelayMs:0,maxRetries:0,sleep:async()=>{},fetchImpl:async()=>({ok:false,status:429})});
   for (const source of ['openalex','semantic-scholar']) {
     const result=report.results[0].sources[source];
     assert.equal(result.status,'error');
@@ -82,14 +82,14 @@ test('retries transient 429 twice and records successful attempts',async()=>{
     if (String(url).includes('openalex') && calls<=2) return {ok:false,status:429};
     return {ok:true,json:async()=>String(url).includes('openalex')?{results:[]}:{data:[]}};
   };
-  const result=await benchmark({queries:['test'],limit:1,fetchImpl,requestDelayMs:0,sleep:async(ms)=>sleeps.push(ms)});
+  const result=await benchmark({sources:['openalex','semantic-scholar'],queries:['test'],limit:1,fetchImpl,requestDelayMs:0,sleep:async(ms)=>sleeps.push(ms)});
   assert.equal(result.results[0].sources.openalex.status,'ok');
   assert.equal(result.results[0].sources.openalex.attempts,3);
   assert.deepEqual(sleeps,[2000,4000]);
   assert.equal(calls,4);
 });
 test('reports HTTP 429 after bounded retries and preserves next source',async()=>{
-  const result=await benchmark({queries:['test'],limit:1,requestDelayMs:0,maxRetries:1,sleep:async()=>{},
+  const result=await benchmark({sources:['openalex','semantic-scholar'],queries:['test'],limit:1,requestDelayMs:0,maxRetries:1,sleep:async()=>{},
     fetchImpl:async(url)=>String(url).includes('openalex')?{ok:false,status:429}:{ok:true,json:async()=>({data:[]})}});
   assert.equal(result.results[0].sources.openalex.httpStatus,429);
   assert.equal(result.results[0].sources.openalex.attempts,2);
@@ -97,21 +97,21 @@ test('reports HTTP 429 after bounded retries and preserves next source',async()=
 });
 test('does not retry permanent authentication errors',async()=>{
   let calls=0;
-  const result=await benchmark({queries:['test'],requestDelayMs:0,sleep:async()=>{},fetchImpl:async()=>{calls++;return {ok:false,status:401};}});
+  const result=await benchmark({sources:['openalex','semantic-scholar'],queries:['test'],requestDelayMs:0,sleep:async()=>{},fetchImpl:async()=>{calls++;return {ok:false,status:401};}});
   assert.equal(calls,2);
   assert.equal(result.results[0].sources.openalex.attempts,1);
   assert.equal(result.results[0].sources.openalex.httpStatus,401);
 });
 test('rejects invalid retry configuration before requests',async()=>{
   let calls=0;const fetchImpl=async()=>{calls++;throw Error('unexpected');};
-  await assert.rejects(()=>benchmark({queries:['x'],requestDelayMs:-1,fetchImpl}),/Invalid request delay/);
-  await assert.rejects(()=>benchmark({queries:['x'],maxRetries:4,fetchImpl}),/Invalid retry count/);
+  await assert.rejects(()=>benchmark({sources:['openalex','semantic-scholar'],queries:['x'],requestDelayMs:-1,fetchImpl}),/Invalid request delay/);
+  await assert.rejects(()=>benchmark({sources:['openalex','semantic-scholar'],queries:['x'],maxRetries:4,fetchImpl}),/Invalid retry count/);
   assert.equal(calls,0);
 });
 
 test('provider latency excludes artificial pacing time',async()=>{
   let now=0;
-  const report=await benchmark({queries:['x'],limit:1,requestDelayMs:1200,maxRetries:0,
+  const report=await benchmark({sources:['openalex','semantic-scholar'],queries:['x'],limit:1,requestDelayMs:1200,maxRetries:0,
     clock:()=>now,
     sleep:async(ms)=>{now+=ms;},
     fetchImpl:async(url)=>{
@@ -130,7 +130,7 @@ test('parses Retry-After seconds and HTTP dates safely',()=>{
 });
 test('honors Retry-After when longer than 429 backoff',async()=>{
   let calls=0;const sleeps=[];
-  const report=await benchmark({queries:['test'],requestDelayMs:0,maxRetries:1,
+  const report=await benchmark({sources:['openalex','semantic-scholar'],queries:['test'],requestDelayMs:0,maxRetries:1,
     sleep:async(ms)=>sleeps.push(ms),
     fetchImpl:async(url)=>{
       if(String(url).includes('openalex') && ++calls===1) return {ok:false,status:429,headers:{get:()=> '7'}};
@@ -141,7 +141,7 @@ test('honors Retry-After when longer than 429 backoff',async()=>{
 });
 test('caps excessive Retry-After and preserves other provider',async()=>{
   const sleeps=[];
-  const report=await benchmark({queries:['test'],requestDelayMs:0,maxRetries:1,maxBackoffMs:5000,
+  const report=await benchmark({sources:['openalex','semantic-scholar'],queries:['test'],requestDelayMs:0,maxRetries:1,maxBackoffMs:5000,
     sleep:async(ms)=>sleeps.push(ms),
     fetchImpl:async(url)=>String(url).includes('openalex')
       ? {ok:false,status:429,headers:{get:()=> '3600'}}
@@ -149,4 +149,38 @@ test('caps excessive Retry-After and preserves other provider',async()=>{
   assert.deepEqual(sleeps,[5000]);
   assert.equal(report.results[0].sources.openalex.httpStatus,429);
   assert.equal(report.results[0].sources['semantic-scholar'].status,'ok');
+});
+
+test('CORE metadata adapter sends key in header, not URL, and never stores full text',async()=>{
+  const requests=[];
+  const report=await benchmark({sources:['core'],queries:['turbulence'],limit:2,coreApiKey:'private-core-key',
+    requestDelayMs:0,sleep:async()=>{},fetchImpl:async(url,opts)=>{
+      requests.push({url:String(url),headers:opts.headers});
+      return {ok:true,json:async()=>({results:[{id:123,title:'CORE Study',doi:'10.1234/core',
+        abstract:'abstract',yearPublished:2025,downloadUrl:'https://example.org/article.pdf',
+        fullText:'private copyrighted full text'}]})};
+    }});
+  assert.equal(requests.length,1);
+  assert.match(requests[0].url,/api.core.ac.uk\/v3\/search\/works\/\?/);
+  assert.equal(requests[0].headers.authorization,'Bearer private-core-key');
+  assert.equal(requests[0].url.includes('private-core-key'),false);
+  assert.equal(report.results[0].sources.core.records,1);
+  assert.equal(report.results[0].sources.core.withAbstract,1);
+  assert.equal(report.results[0].sources.core.withOpenAccessSignal,1);
+  assert.equal(JSON.stringify(report).includes('private copyrighted full text'),false);
+});
+test('CORE failures are isolated and pairwise DOI comparisons remain meaningful',async()=>{
+  const report=await benchmark({sources:['openalex','semantic-scholar','core'],queries:['science'],limit:1,
+    requestDelayMs:0,maxRetries:0,sleep:async()=>{},
+    fetchImpl:async(url)=>{
+      const str=String(url);
+      if(str.includes('core.ac.uk')) return {ok:false,status:429};
+      return {ok:true,json:async()=>str.includes('openalex')
+        ? {results:[{id:'W1',display_name:'Study',doi:'10.1234/one'}]}
+        : {data:[{paperId:'S1',title:'Study',externalIds:{DOI:'10.1234/one'}}]}};
+    }});
+  assert.equal(report.results[0].sources.core.httpStatus,429);
+  assert.equal(report.results[0].sources.openalex.status,'ok');
+  assert.equal(report.results[0].doiOverlap.commonDois,1);
+  assert.equal(report.results[0].doiOverlaps['openalex__core'],null);
 });
