@@ -26,7 +26,7 @@ test('fetches and compares both providers with mocked responses',async()=>{
       ? {results:[{id:'W1',display_name:'Study',doi:'10.1234/xyz',abstract_inverted_index:{yes:[0]}}]}
       : {data:[{paperId:'S1',title:'Study',externalIds:{DOI:'10.1234/XYZ'},abstract:'yes'}]}};
   };
-  const report=await benchmark({queries:['science'],limit:2,fetchImpl,semanticScholarKey:'test-key',requestDelayMs:0});
+  const report=await benchmark({queries:['science'],limit:2,fetchImpl,semanticScholarKey:'test-key',requestDelayMs:0,sleep:async()=>{}});
   assert.equal(report.results[0].doiOverlap.commonDois,1);
   assert.equal(report.results[0].sources.openalex.records,1);
   assert.equal(urls.length,2);
@@ -36,7 +36,7 @@ test('fetches and compares both providers with mocked responses',async()=>{
 test('fails closed for invalid inputs and reports provider errors',async()=>{
   await assert.rejects(()=>searchSource('unknown','x',10),/Unsupported/);
   await assert.rejects(()=>benchmark({queries:[]}),/Invalid/);
-  const report=await benchmark({queries:['x'],fetchImpl:async()=>({ok:false,status:429}),requestDelayMs:0,maxRetries:0});
+  const report=await benchmark({queries:['x'],fetchImpl:async()=>({ok:false,status:429}),requestDelayMs:0,maxRetries:0,sleep:async()=>{}});
   assert.equal(report.results[0].sources.openalex.status,'error');
   assert.equal(report.results[0].doiOverlap,null);
 });
@@ -47,7 +47,7 @@ test('sends OpenAlex key only as a bearer header, never in URL',async()=>{
     requests.push({url:String(url),headers:opts.headers});
     return {ok:true,json:async()=>String(url).includes('openalex')?{results:[]}:{data:[]}};
   };
-  await benchmark({queries:['science'],limit:1,openAlexKey:'secret-openalex-key',semanticScholarKey:'secret-semantic-key',fetchImpl});
+  await benchmark({queries:['science'],limit:1,openAlexKey:'secret-openalex-key',semanticScholarKey:'secret-semantic-key',requestDelayMs:0,sleep:async()=>{},fetchImpl});
   assert.equal(requests.length,2);
   assert.equal(requests[0].headers.authorization,'Bearer secret-openalex-key');
   assert.equal(requests[0].headers['x-api-key'],undefined);
@@ -65,7 +65,7 @@ test('rejects invalid limits before any provider request',async()=>{
   assert.equal(calls,0);
 });
 test('records elapsed latency for failed requests',async()=>{
-  const report=await benchmark({queries:['science'],fetchImpl:async()=>({ok:false,status:429})});
+  const report=await benchmark({queries:['science'],requestDelayMs:0,maxRetries:0,sleep:async()=>{},fetchImpl:async()=>({ok:false,status:429})});
   for (const source of ['openalex','semantic-scholar']) {
     const result=report.results[0].sources[source];
     assert.equal(result.status,'error');
@@ -97,7 +97,7 @@ test('reports HTTP 429 after bounded retries and preserves next source',async()=
 });
 test('does not retry permanent authentication errors',async()=>{
   let calls=0;
-  const result=await benchmark({queries:['test'],requestDelayMs:0,fetchImpl:async()=>{calls++;return {ok:false,status:401};}});
+  const result=await benchmark({queries:['test'],requestDelayMs:0,sleep:async()=>{},fetchImpl:async()=>{calls++;return {ok:false,status:401};}});
   assert.equal(calls,2);
   assert.equal(result.results[0].sources.openalex.attempts,1);
   assert.equal(result.results[0].sources.openalex.httpStatus,401);
@@ -107,4 +107,12 @@ test('rejects invalid retry configuration before requests',async()=>{
   await assert.rejects(()=>benchmark({queries:['x'],requestDelayMs:-1,fetchImpl}),/Invalid request delay/);
   await assert.rejects(()=>benchmark({queries:['x'],maxRetries:4,fetchImpl}),/Invalid retry count/);
   assert.equal(calls,0);
+});
+
+test('provider latency excludes artificial pacing time',async()=>{
+  // Delayed mock sleep is observable via wall time, but provider latency should not include it.
+  const result=await benchmark({queries:['x'],limit:1,requestDelayMs:1200,maxRetries:0,
+    sleep:async()=>{await new Promise(resolve=>setTimeout(resolve,25));},
+    fetchImpl:async(url)=>({ok:true,json:async()=>String(url).includes('openalex')?{results:[]}:{data:[]}})});
+  assert.equal(result.results[0].sources['semantic-scholar'].latencyMs<20,true);
 });
