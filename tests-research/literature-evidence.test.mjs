@@ -1,0 +1,145 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { selectQueryEvidence,createLiteratureEvidenceClient,decodeAbstract,fetchOpenAlexAbstract,
+  validateFindings,buildEvidenceReport,renderEvidenceReport,hashText } from '../research/literature-evidence.mjs';
+import { createEvidenceSummarizer,main } from '../research/run-literature-evidence.mjs';
+import { mkdtemp,readFile,rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const uid=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+const json=x=>new Response(JSON.stringify(x),{headers:{'Content-Type':'application/json'}});
+const abstract='We compare a physics-informed estimator with a conventional filter. Performance improves on synthetic flows. Validation on real flows remains future work.';
+const index=text=>{const out={};text.split(' ').forEach((word,i)=>(out[word]??=[]).push(i));return out;};
+const findings=[{kind:'method',claim:'The authors compare estimators.',quote:'We compare a physics-informed estimator with a conventional filter.'},
+  {kind:'limitation',claim:'Real-flow validation is not included.',quote:'Validation on real flows remains future work.'}];
+const summary={text:JSON.stringify({findings}),provider:'test-model',model:'test'};
+function search(source='openalex',article=1,rank=1) {
+  return {id:uid(SOURCES.indexOf(source)+10),query:'fluid estimation',source,status:'ok',http_status:null,fetched_at:null,
+    literature_hit:[{rank,source_record_id:uid(SOURCES.indexOf(source)+20),metadata:{title:'Physics-informed flow estimation',source,
+      sourceId:source==='openalex'?'https://openalex.org/W123':'other-id',doi:'10.1234/example'},literature_source_record:{article_id:uid(article)}}]};
+}
+const SOURCES=['openalex','semantic-scholar','core','arxiv'];
+const input=()=>selectQueryEvidence({id:uid(100)},[search(),search('core')]);
+const loadAbstract=async()=>({status:'available',abstract,content:{provider:'openalex',url:'https://openalex.org/W123',scope:'abstract_only',sha256:hashText(abstract),fetched_at:'2026-10-11T16:00:00Z'}});
+
+test('database query preserves hit provenance, deduplicates canonical identities and bounds selection',()=>{
+  const a=search('arxiv',2),b=search('openalex',1),c=search('core',1);
+  const x=selectQueryEvidence({id:uid(100)},[a,b,c],{maxPapers:1});
+  assert.equal(x.total_articles,2);assert.equal(x.papers.length,1);assert.equal(x.papers[0].source_hits.length,2);
+  assert.equal(x.source_statuses.find(s=>s.source==='semantic-scholar').status,'not_searched');
+  assert.deepEqual(x,selectQueryEvidence({id:uid(100)},[c,b,a],{maxPapers:1}));
+  assert.throws(()=>selectQueryEvidence({id:uid(100)},[b,b]),/invalid/);
+  assert.throws(()=>selectQueryEvidence({id:uid(100)},[b],{maxPapers:11}),/invalid/);
+});
+test('failed searches remain failures without being conflated with successful zero results',()=>{
+  const failed={...search('semantic-scholar'),status:'error',http_status:429,literature_hit:[]};
+  const x=selectQueryEvidence({id:uid(100)},[search(),failed]);
+  assert.equal(x.source_statuses[1].status,'error');assert.equal(x.source_statuses[1].http_status,429);
+  assert.throws(()=>selectQueryEvidence({id:uid(100)},[{...failed,literature_hit:search().literature_hit}]),/invalid/);
+});
+test('read stored query uses backend header, explicit run, nested single statement and bounded requests',async()=>{
+  const calls=[];
+  const client=createLiteratureEvidenceClient({url:'https://example.supabase.co',secretKey:'secret',fetchImpl:async(url,opts)=>{
+    calls.push({url:String(url),opts});return calls.length===1?json([{id:uid(100)}]):json([search()]);
+  }});
+  const x=await client.readQuery({runId:uid(100),queryIndex:2});
+  assert.equal(x.query_index,2);assert.equal(calls.length,2);
+  for (const call of calls) {assert.equal(call.opts.headers.apikey,'secret');assert.equal(call.opts.headers.Authorization,undefined);assert.equal(call.opts.redirect,'error');}
+  const params=new URL(calls[1].url).searchParams;
+  assert.equal(params.get('query_index'),'eq.2');assert.match(params.get('select'),/literature_hit.*article_id/);
+  await assert.rejects(client.readQuery({runId:'not-a-uuid'}),/invalid/);assert.equal(calls.length,2);
+});
+test('OpenAlex reconstructs bounded abstracts, validates work identity and keeps credentials in headers',async()=>{
+  let call;
+  const result=await fetchOpenAlexAbstract(input().papers[0],{apiKey:'private-key',fetchImpl:async(url,opts)=>{
+    call={url:String(url),opts};return json({id:'https://openalex.org/W123',doi:'https://doi.org/10.1234/example',abstract_inverted_index:index(abstract)});
+  }});
+  assert.equal(result.abstract,abstract);assert.equal(result.content.sha256,hashText(abstract));
+  assert.equal(call.opts.headers.Authorization,'Bearer private-key');assert.ok(!call.url.includes('private-key'));
+  await assert.rejects(fetchOpenAlexAbstract(input().papers[0],{fetchImpl:async()=>json({id:'https://openalex.org/W456'})}),/identity/);
+  assert.throws(()=>decodeAbstract({same:[0],other:[0]}),/invalid/);
+  assert.throws(()=>decodeAbstract({same:[0,2]}),/invalid/);
+  assert.equal(decodeAbstract(null),null);
+});
+test('DOI lookup validates the returned DOI and records content URL separately from discovery source',async()=>{
+  const p=selectQueryEvidence({id:uid(100)},[search('core')]).papers[0];
+  let endpoint;
+  const x=await fetchOpenAlexAbstract(p,{fetchImpl:async url=>{endpoint=String(url);return json({id:'https://openalex.org/W987',doi:'10.1234/example',abstract_inverted_index:index(abstract)});}});
+  assert.match(endpoint,/works\/https:\/\/doi.org\/10.1234%2Fexample/);assert.equal(x.content.url,'https://openalex.org/W987');
+  await assert.rejects(fetchOpenAlexAbstract(p,{fetchImpl:async()=>json({id:'https://openalex.org/W987',doi:'10.1234/different'})}),/identity/);
+});
+test('summary rejects fabricated quotation, unsupported output fields and excessive findings',()=>{
+  assert.equal(validateFindings(summary.text,abstract).length,2);
+  for (const text of [JSON.stringify({findings:[{...findings[0],quote:'This statement does not exist in the abstract.'}]}),
+    JSON.stringify({findings,novelty:'proven'}),JSON.stringify({findings:[...findings,...findings]})]) {
+    assert.throws(()=>validateFindings(text,abstract),/evidence/);
+  }
+});
+test('planner receives matched evidence, unknown scores and tentative gaps without saving raw abstract',async()=>{
+  const report=await buildEvidenceReport(input(),{id:uid(200),loadAbstract,summarize:async()=>summary});
+  assert.equal(report.status,'completed');assert.equal(report.budget.model_calls,1);
+  const proposal=report.planner.proposals[0];assert.equal(proposal.id,'arp-fluid-state-estimation');
+  assert.equal(proposal.scores.novelty,null);assert.equal(proposal.priority_score,null);
+  assert.equal(proposal.gap_candidates[0].status,'candidate_needs_literature_review');
+  assert.equal(proposal.evidence[0].source_hits.length,2);assert.equal(report.planner.execution_enabled,false);
+  assert.ok(!JSON.stringify(report).includes(abstract));assert.match(renderEvidenceReport(report),/Human review required/);
+});
+test('missing abstracts and failed model responses are isolated with no invented evidence or leaked errors',async()=>{
+  const x=selectQueryEvidence({id:uid(100)},[search(),search('arxiv',2)]);
+  let modelCalls=0;
+  const report=await buildEvidenceReport(x,{id:uid(200),loadAbstract:async p=>p.article_id===uid(1)?loadAbstract():({status:'unavailable',reason:'abstract_missing'}),
+    summarize:async()=>{modelCalls++;throw new Error('secret payload private-key');}});
+  assert.equal(report.status,'insufficient_evidence');assert.equal(modelCalls,1);assert.equal(report.planner.proposals.length,0);
+  assert.equal(report.papers[0].reason,'evidence_processing_failed');assert.ok(!JSON.stringify(report).includes('private-key'));
+});
+test('a malformed summary cannot erase an independently successful paper',async()=>{
+  const x=selectQueryEvidence({id:uid(100)},[search(),search('core',2)]);let calls=0;
+  const r=await buildEvidenceReport(x,{id:uid(200),loadAbstract,summarize:async()=>++calls===1?summary:{...summary,text:'not json'}});
+  assert.equal(r.status,'partial');assert.equal(r.coverage.summarized,1);assert.equal(r.planner.proposals[0].evidence_count,1);
+});
+test('orchestrator calls enforce real model responses and requested completion budget',async()=>{
+  let opts;
+  const summarize=createEvidenceSummarizer({key:'x'.repeat(24),fetchImpl:async(url,o)=>{opts=o;return json({mock:false,answer:summary.text,provider:'groq',model:'m',inference:{completionTokenLimit:4096}});}});
+  assert.equal((await summarize({source_text:abstract})).provider,'groq');assert.equal(JSON.parse(opts.body).completionTokenLimit,4096);
+  for (const payload of [{mock:true,answer:'x'},{mock:false,answer:'x',provider:'groq',model:'m',inference:{completionTokenLimit:1024}}]) {
+    await assert.rejects(createEvidenceSummarizer({key:'x'.repeat(24),fetchImpl:async()=>json(payload)})({}),/invalid_model_response|model_budget_not_applied/);
+  }
+});
+test('report persistence is one guarded backend insert and retains no update capability',async()=>{
+  const report=await buildEvidenceReport(input(),{id:uid(200),loadAbstract,summarize:async()=>summary});let saved;
+  const client=createLiteratureEvidenceClient({url:'https://example.supabase.co',secretKey:'secret',fetchImpl:async(url,o)=>{
+    saved={url:String(url),options:o};return json([{id:report.id}]);
+  }});
+  await client.saveReport(report);assert.equal(saved.options.method,'POST');
+  assert.equal(JSON.parse(saved.options.body).literature_run_id,uid(100));assert.match(saved.url,/literature_planner_run$/);
+  assert.equal(saved.options.headers.Authorization,undefined);
+});
+test('manual runner completes the database-to-model-to-planner flow and preserves artifacts on failed storage',async()=>{
+  const cwd=process.cwd(),fetchOriginal=globalThis.fetch,directory=await mkdtemp(join(tmpdir(),'literature-evidence-'));
+  let failSave=false;
+  globalThis.fetch=async(url,o)=>{
+    const target=String(url);
+    if (target.includes('/rest/v1/literature_run')) return json([{id:uid(100)}]);
+    if (target.includes('/rest/v1/literature_search')) return json([search()]);
+    if (target.includes('api.openalex.org')) return json({id:'https://openalex.org/W123',abstract_inverted_index:index(abstract)});
+    if (target.includes('/v1/query')) return json({mock:false,answer:summary.text,provider:'groq',model:'m',inference:{completionTokenLimit:4096}});
+    if (target.includes('/rest/v1/literature_planner_run')) {
+      if (!o.method) return json([]);
+      if (failSave) return new Response('database unavailable',{status:503});
+      const payload=JSON.parse(o.body);return json([{id:payload.id}]);
+    }
+    throw new Error('Unexpected request');
+  };
+  try {
+    process.chdir(directory);
+    const env={SUPABASE_URL:'https://example.supabase.co',SUPABASE_SECRET_KEY:'secret',ORCHESTRATOR_API_KEY:'x'.repeat(24),LITERATURE_RUN_ID:uid(100)};
+    await main(env);
+    let report=JSON.parse(await readFile('reports/literature-evidence/report.json','utf8'));
+    assert.equal(report.status,'completed');assert.equal(report.planner.proposals.length,1);
+    failSave=true;await assert.rejects(main(env),/literature_http_503/);
+    report=JSON.parse(await readFile('reports/literature-evidence/report.json','utf8'));
+    assert.equal(report.coverage.summarized,1);
+    assert.match(await readFile('reports/literature-evidence/report.md','utf8'),/Source excerpt/);
+  } finally {globalThis.fetch=fetchOriginal;process.chdir(cwd);await rm(directory,{recursive:true,force:true});}
+});

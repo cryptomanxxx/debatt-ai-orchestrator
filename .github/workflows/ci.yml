@@ -40,9 +40,11 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f tests-literature-sql/upgrade-assertions.sql
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011145500_literature_strict_dates.sql
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011150500_literature_publication_precedence.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011180000_literature_planner_reports.sql
           psql -v ON_ERROR_STOP=1 -f tests-literature-sql/catalog.sql
           psql -v ON_ERROR_STOP=1 -f tests-literature-sql/strict-dates.sql
           psql -v ON_ERROR_STOP=1 -f tests-literature-sql/publication-precedence.sql
+          psql -v ON_ERROR_STOP=1 -f tests-literature-sql/planner-reports.sql
   test:
     runs-on: ubuntu-latest
     steps:

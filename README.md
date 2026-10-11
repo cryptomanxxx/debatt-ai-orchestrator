@@ -57,6 +57,8 @@ See the [experiment catalog](research/EXPERIMENTS.md), [hypothesis protocols](re
 
 The repository also contains a persistent Problem Bank and Research Loop integration for tracking catalog-backed problems, hypotheses, attempts and results. A separate proposal workflow produces deterministic catalog-based research suggestions for review. These provide a foundation for broader autonomy; they do not yet generate unrestricted new experiments. See [Problem Bank](research/PROBLEM-BANK.md) and [Research Loop](research/RESEARCH-LOOP.md).
 
+The [literature evidence planner](research/LITERATURE-EVIDENCE.md) connects saved literature searches to abstract-level model summaries with source quotations and traceable, review-only hypothesis/experiment templates. Explicit reported limitations become research-gap candidates requiring further review. Portfolio merit scores remain unknown; this is a bounded planning baseline, not validated gap discovery or autonomous experiment execution.
+
 ## Architecture
 
 The repository has two connected execution paths:

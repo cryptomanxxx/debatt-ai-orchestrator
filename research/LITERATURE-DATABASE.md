@@ -1,5 +1,7 @@
 # Oraklet's persistent literature catalog
 
+Saved searches can now feed the manual [literature evidence planner](LITERATURE-EVIDENCE.md). It adds a separate report-table migration and retains abstract-level summaries and traceable planning candidates.
+
 The manual literature benchmark can retain metadata and search history in the **separate orchestrator Supabase project** used by the Problem Bank. Use that project's existing `SUPABASE_URL` repository variable and `SUPABASE_SECRET_KEY` Actions secret (`sb_secret_...`). Do not use the Debatt-AI website database or its legacy service-role key. This implementation does not create a Supabase project or apply a migration remotely.
 
 ## Enable storage
