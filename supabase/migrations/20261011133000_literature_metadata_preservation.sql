@@ -4,18 +4,35 @@ select pg_advisory_xact_lock(20261011,1315);
 alter table public.literature_source_record
   add column if not exists metadata_fetched_at timestamptz;
 
--- Recover the newest known snapshot if reports were imported out of order.
--- Timestamped observations take precedence over unknown fetch times.
-with newest as (
-  select distinct on (h.source_record_id) h.source_record_id,h.metadata,s.fetched_at
+-- A unique newest dated observation can repair an out-of-order import.
+-- Tied or unknown times cannot establish order: retain current metadata.
+with observations as (
+  select h.source_record_id,h.metadata,s.fetched_at
   from public.literature_hit h
   join public.literature_search s on s.id=h.search_id
-  join public.literature_run r on r.id=s.run_id
-  order by h.source_record_id,s.fetched_at desc nulls last,r.ingested_at desc,h.rank desc,s.id
+), latest as (
+  select source_record_id,max(fetched_at) as fetched_at
+  from observations group by source_record_id
+), candidates as (
+  select o.source_record_id,l.fetched_at,count(*) as candidate_count,
+    jsonb_agg(o.metadata) as snapshots
+  from observations o join latest l using(source_record_id)
+  where o.fetched_at is not distinct from l.fetched_at
+  group by o.source_record_id,l.fetched_at
 )
 update public.literature_source_record current_record
-  set metadata=newest.metadata,metadata_fetched_at=newest.fetched_at
-  from newest where current_record.id=newest.source_record_id;
+  set metadata=case
+        when c.fetched_at is not null and c.candidate_count=1
+        then c.snapshots->0 else current_record.metadata end,
+      metadata_fetched_at=case
+        when c.fetched_at is not null and (c.candidate_count=1 or exists(
+          select 1 from jsonb_array_elements(c.snapshots) snapshot
+          where snapshot=current_record.metadata
+        )) then c.fetched_at else current_record.metadata_fetched_at end
+  from candidates c
+  where current_record.id=c.source_record_id
+    and (current_record.metadata_fetched_at is null or
+      c.fetched_at>=current_record.metadata_fetched_at);
 
 create or replace function public.ingest_literature_run(p_payload jsonb) returns jsonb
 language plpgsql security invoker set search_path = public, pg_temp as $$
