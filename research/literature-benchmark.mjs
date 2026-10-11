@@ -112,8 +112,8 @@ export async function searchSource(source, query, limit, options={}) {
     u.searchParams.set('select','id,doi,display_name,publication_year,abstract_inverted_index,open_access,best_oa_location');
   } else if (source === 'core') {
     u.searchParams.set('q',query); u.searchParams.set('limit',String(limit));
-    // CORE's SearchParameters.exclude is an array of response fields.
-    u.searchParams.append('exclude[]','fullText');
+    // Serialize the exclusion array as repeated plain query keys (form/explode).
+    u.searchParams.append('exclude','fullText');
   } else {
     u.searchParams.set('query',query); u.searchParams.set('limit',String(limit));
     u.searchParams.set('fields','title,year,abstract,externalIds,isOpenAccess,openAccessPdf');

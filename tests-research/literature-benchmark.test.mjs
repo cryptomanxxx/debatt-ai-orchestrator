@@ -155,7 +155,8 @@ test('CORE metadata adapter excludes full text and sends key only in header',asy
   const requests=[];
   const report=await benchmark({sources:['core'],queries:['turbulence'],limit:2,coreApiKey:'private-core-key',
     requestDelayMs:0,sleep:async()=>{},fetchImpl:async(url,opts)=>{
-      assert.deepEqual(url.searchParams.getAll('exclude[]'),['fullText']);
+      assert.deepEqual(url.searchParams.getAll('exclude'),['fullText']);
+      assert.equal(url.searchParams.has('exclude[]'),false);
       requests.push({url:String(url),headers:opts.headers});
       return {ok:true,json:async()=>({results:[{id:123,title:'CORE Study',doi:'10.1234/core',
         abstract:'abstract',yearPublished:2025,downloadUrl:'https://example.org/article.pdf',
@@ -172,7 +173,8 @@ test('CORE metadata adapter excludes full text and sends key only in header',asy
 });
 test('anonymous CORE searches also exclude full text',async()=>{
   const papers=await searchSource('core','science',1,{fetchImpl:async(url,opts)=>{
-    assert.deepEqual(url.searchParams.getAll('exclude[]'),['fullText']);
+    assert.deepEqual(url.searchParams.getAll('exclude'),['fullText']);
+    assert.equal(url.searchParams.has('exclude[]'),false);
     assert.equal(opts.headers.authorization,undefined);
     return {ok:true,json:async()=>({results:[]})};
   }});
@@ -187,7 +189,8 @@ test('default benchmark visits all three sources for every query without leaking
       if (url.hostname==='api.core.ac.uk') {
         assert.equal(opts.headers.authorization,'Bearer core-test');
         assert.equal(opts.headers['x-api-key'],undefined);
-        assert.deepEqual(url.searchParams.getAll('exclude[]'),['fullText']);
+        assert.deepEqual(url.searchParams.getAll('exclude'),['fullText']);
+        assert.equal(url.searchParams.has('exclude[]'),false);
       } else if (url.hostname==='api.openalex.org') {
         assert.equal(opts.headers.authorization,'Bearer alex-test');
         assert.equal(opts.headers['x-api-key'],undefined);
