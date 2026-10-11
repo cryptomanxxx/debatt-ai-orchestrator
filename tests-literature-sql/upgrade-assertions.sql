@@ -30,6 +30,19 @@ begin
    raise exception 'upgrade used invalid evidence';
  end if;
  if (select count(*) from public.literature_hit)<>11 then raise exception 'upgrade changed history'; end if;
+ if exists(select 1 from public.literature_article where title in ('Unknown publication string','Invalid calendar evidence') and published is not null) then
+   raise exception 'upgrade used invalid publication strings';
+ end if;
+ if (select published from public.literature_article where title='Mixed publication evidence') is distinct from '2024-02-29' then
+   raise exception 'malformed publication string blocked valid recovery';
+ end if;
+ if (select published from public.literature_article where title='Valid timestamp') is distinct from '2024-02-29T23:59:59.123+02:00' then
+   raise exception 'valid publication timestamp not recovered';
+ end if;
+ if (select published from public.literature_article where title='Conflicting publication dates') is not null
+   or (select year from public.literature_article where title='Conflicting publication dates') is distinct from 2024 then
+   raise exception 'valid date conflicts not preserved for review';
+ end if;
  delete from public.literature_hit;
  delete from public.literature_search;
  delete from public.literature_run;

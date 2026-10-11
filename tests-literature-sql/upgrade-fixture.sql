@@ -52,4 +52,21 @@ insert into public.literature_source_record(article_id,source,source_id,metadata
  ('10000000-0000-0000-0000-000000000005','core','upgrade-conflict-b','{"year":2024,"published":"2023-01-01"}'),
  ('10000000-0000-0000-0000-000000000006','core','upgrade-known','{"year":2021,"published":"2021-01-01"}'),
  ('10000000-0000-0000-0000-000000000007','core','upgrade-invalid','{"year":2147483647,"published":{}}');
+insert into public.literature_article(id,title) values
+ ('10000000-0000-0000-0000-000000000008','Unknown publication string'),
+ ('10000000-0000-0000-0000-000000000009','Mixed publication evidence'),
+ ('10000000-0000-0000-0000-000000000010','Valid timestamp'),
+ ('10000000-0000-0000-0000-000000000011','Invalid calendar evidence'),
+ ('10000000-0000-0000-0000-000000000012','Conflicting publication dates');
+insert into public.literature_source_record(article_id,source,source_id,metadata) values
+ ('10000000-0000-0000-0000-000000000008','core','upgrade-unknown-date','{"published":"unknown"}'),
+ ('10000000-0000-0000-0000-000000000009','core','upgrade-mixed-invalid','{"published":"unknown"}'),
+ ('10000000-0000-0000-0000-000000000009','core','upgrade-mixed-valid','{"published":"2024-02-29"}'),
+ ('10000000-0000-0000-0000-000000000010','core','upgrade-valid-timestamp','{"published":"2024-02-29T23:59:59.123+02:00"}'),
+ ('10000000-0000-0000-0000-000000000011','core','upgrade-invalid-leap-day','{"published":"2023-02-29"}'),
+ ('10000000-0000-0000-0000-000000000011','core','upgrade-invalid-month','{"published":"2024-13-01"}'),
+ ('10000000-0000-0000-0000-000000000011','core','upgrade-invalid-time','{"published":"2024-01-01T24:00:00Z"}'),
+ ('10000000-0000-0000-0000-000000000011','core','upgrade-invalid-offset','{"published":"2024-01-01T12:00:00+99:00"}'),
+ ('10000000-0000-0000-0000-000000000012','core','upgrade-date-conflict-a','{"year":2024,"published":"2024-01-01"}'),
+ ('10000000-0000-0000-0000-000000000012','core','upgrade-date-conflict-b','{"year":2024,"published":"2024-02-01"}');
 commit;
