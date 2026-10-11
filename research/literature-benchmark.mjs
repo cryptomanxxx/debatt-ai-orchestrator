@@ -67,7 +67,10 @@ export class ProviderHttpError extends Error {
 export function parseRetryAfter(value, now=Date.now()) {
   if (typeof value !== 'string' || !value.trim()) return null;
   const trimmed=value.trim();
-  const milliseconds=/^\d+(?:\.\d+)?$/.test(trimmed) ? Number(trimmed)*1000 : Date.parse(trimmed)-now;
+  const isSeconds=/^\d+(?:\.\d+)?$/.test(trimmed);
+  const isHttpDate=/^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(trimmed);
+  if (!isSeconds && !isHttpDate) return null;
+  const milliseconds=isSeconds ? Number(trimmed)*1000 : Date.parse(trimmed)-now;
   return Number.isFinite(milliseconds) ? Math.max(0,Math.ceil(milliseconds)) : null;
 }
 
@@ -82,7 +85,7 @@ export async function fetchJson(url, { apiKey, authBearer, fetchImpl=fetch }={})
 
 export const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-export async function retryTemporaryFailure(operation, { maxRetries=2, sleep=wait, maxBackoffMs=10000 }={}) {
+export async function retryTemporaryFailure(operation, { maxRetries=2, sleep=wait, maxBackoffMs=10000, requestTimeoutMs=15000 }={}) {
   let attempts=0;
   while (true) {
     attempts++;
