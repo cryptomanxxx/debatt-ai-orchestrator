@@ -41,6 +41,40 @@ test('fails closed for invalid inputs and reports provider errors',async()=>{
   assert.equal(report.results[0].doiOverlap,null);
 });
 
+test('legacy DOI overlap keeps its orientation for every three-provider ordering',async()=>{
+  const orders=[
+    ['openalex','semantic-scholar','core'],['openalex','core','semantic-scholar'],
+    ['semantic-scholar','openalex','core'],['semantic-scholar','core','openalex'],
+    ['core','openalex','semantic-scholar'],['core','semantic-scholar','openalex'],
+  ];
+  for (const sources of orders) {
+    const report=await benchmark({sources,queries:['science'],requestDelayMs:0,maxRetries:0,
+      fetchImpl:async(url)=>({ok:true,json:async()=>{
+        if (url.hostname==='api.openalex.org') return {results:[
+          {id:'W1',display_name:'Shared',doi:'10.1234/shared'},
+          {id:'W2',display_name:'Alex only',doi:'10.1234/alex'},
+        ]};
+        if (url.hostname==='api.semanticscholar.org') return {data:[
+          {paperId:'S1',title:'Shared',externalIds:{DOI:'10.1234/shared'}},
+          {paperId:'S2',title:'Scholar only 1',externalIds:{DOI:'10.1234/scholar1'}},
+          {paperId:'S3',title:'Scholar only 2',externalIds:{DOI:'10.1234/scholar2'}},
+        ]};
+        return {results:[]};
+      }})});
+    assert.deepEqual(report.results[0].doiOverlap,{commonDois:1,onlyLeft:1,onlyRight:2},sources.join(','));
+  }
+});
+
+test('legacy DOI overlap is unavailable when either legacy source is absent or fails',async()=>{
+  for (const sources of [['core'],['semantic-scholar','core'],['core','openalex'],['semantic-scholar','openalex']]) {
+    const report=await benchmark({sources,queries:['science'],requestDelayMs:0,maxRetries:0,
+      fetchImpl:async(url)=>url.hostname==='api.openalex.org'
+        ? {ok:false,status:401}
+        : {ok:true,json:async()=>url.hostname==='api.semanticscholar.org'?{data:[]}:{results:[]}}});
+    assert.equal(report.results[0].doiOverlap,null);
+  }
+});
+
 test('sends OpenAlex key only as a bearer header, never in URL',async()=>{
   const requests=[];
   const fetchImpl=async(url,opts)=>{

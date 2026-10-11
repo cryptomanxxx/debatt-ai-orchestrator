@@ -157,7 +157,11 @@ export async function benchmark({ queries=DEFAULT_QUERIES, sources=SOURCES, limi
       const left=sourceNames[i],right=sourceNames[j];
       doiOverlaps[left+'__'+right]=sources[left].status==='ok'&&sources[right].status==='ok' ? overlap(raw[left],raw[right]) : null;
     }
-    results.push({query,sources,doiOverlap:doiOverlaps['openalex__semantic-scholar'] ?? null,doiOverlaps});
+    // Keep the legacy comparison oriented OpenAlex -> Semantic Scholar,
+    // independently of the caller's provider ordering.
+    const doiOverlap=sources.openalex?.status==='ok' && sources['semantic-scholar']?.status==='ok'
+      ? overlap(raw.openalex,raw['semantic-scholar']) : null;
+    results.push({query,sources,doiOverlap,doiOverlaps});
   }
   return {schemaVersion:1,method:'metadata-only; source-specific ranking; no relevance or novelty ground truth',limit,sourceNames,results};
 }
