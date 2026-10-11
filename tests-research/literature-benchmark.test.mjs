@@ -151,10 +151,11 @@ test('caps excessive Retry-After and preserves other provider',async()=>{
   assert.equal(report.results[0].sources['semantic-scholar'].status,'ok');
 });
 
-test('CORE metadata adapter sends key in header, not URL, and never stores full text',async()=>{
+test('CORE metadata adapter excludes full text and sends key only in header',async()=>{
   const requests=[];
   const report=await benchmark({sources:['core'],queries:['turbulence'],limit:2,coreApiKey:'private-core-key',
     requestDelayMs:0,sleep:async()=>{},fetchImpl:async(url,opts)=>{
+      assert.deepEqual(url.searchParams.getAll('exclude[]'),['fullText']);
       requests.push({url:String(url),headers:opts.headers});
       return {ok:true,json:async()=>({results:[{id:123,title:'CORE Study',doi:'10.1234/core',
         abstract:'abstract',yearPublished:2025,downloadUrl:'https://example.org/article.pdf',
@@ -168,6 +169,41 @@ test('CORE metadata adapter sends key in header, not URL, and never stores full 
   assert.equal(report.results[0].sources.core.withAbstract,1);
   assert.equal(report.results[0].sources.core.withOpenAccessSignal,1);
   assert.equal(JSON.stringify(report).includes('private copyrighted full text'),false);
+});
+test('anonymous CORE searches also exclude full text',async()=>{
+  const papers=await searchSource('core','science',1,{fetchImpl:async(url,opts)=>{
+    assert.deepEqual(url.searchParams.getAll('exclude[]'),['fullText']);
+    assert.equal(opts.headers.authorization,undefined);
+    return {ok:true,json:async()=>({results:[]})};
+  }});
+  assert.deepEqual(papers,[]);
+});
+test('default benchmark visits all three sources for every query without leaking keys',async()=>{
+  const hosts=[];
+  const report=await benchmark({queries:['science','turbulence'],limit:1,
+    openAlexKey:'alex-test',semanticScholarKey:'scholar-test',coreApiKey:'core-test',
+    requestDelayMs:0,sleep:async()=>{},fetchImpl:async(url,opts)=>{
+      hosts.push(url.hostname);
+      if (url.hostname==='api.core.ac.uk') {
+        assert.equal(opts.headers.authorization,'Bearer core-test');
+        assert.equal(opts.headers['x-api-key'],undefined);
+        assert.deepEqual(url.searchParams.getAll('exclude[]'),['fullText']);
+      } else if (url.hostname==='api.openalex.org') {
+        assert.equal(opts.headers.authorization,'Bearer alex-test');
+        assert.equal(opts.headers['x-api-key'],undefined);
+      } else {
+        assert.equal(opts.headers['x-api-key'],'scholar-test');
+        assert.equal(opts.headers.authorization,undefined);
+      }
+      return {ok:true,json:async()=>url.hostname==='api.semanticscholar.org'?{data:[]}:{results:[]}};
+    }});
+  assert.deepEqual(hosts,['api.openalex.org','api.semanticscholar.org','api.core.ac.uk',
+    'api.openalex.org','api.semanticscholar.org','api.core.ac.uk']);
+  assert.equal(report.results.length,2);
+  for (const result of report.results) {
+    assert.deepEqual(Object.keys(result.sources),['openalex','semantic-scholar','core']);
+    for (const source of Object.values(result.sources)) assert.equal(source.status,'ok');
+  }
 });
 test('CORE failures are isolated and pairwise DOI comparisons remain meaningful',async()=>{
   const report=await benchmark({sources:['openalex','semantic-scholar','core'],queries:['science'],limit:1,

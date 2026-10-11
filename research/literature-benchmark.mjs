@@ -112,6 +112,8 @@ export async function searchSource(source, query, limit, options={}) {
     u.searchParams.set('select','id,doi,display_name,publication_year,abstract_inverted_index,open_access,best_oa_location');
   } else if (source === 'core') {
     u.searchParams.set('q',query); u.searchParams.set('limit',String(limit));
+    // CORE's SearchParameters.exclude is an array of response fields.
+    u.searchParams.append('exclude[]','fullText');
   } else {
     u.searchParams.set('query',query); u.searchParams.set('limit',String(limit));
     u.searchParams.set('fields','title,year,abstract,externalIds,isOpenAccess,openAccessPdf');
@@ -135,13 +137,13 @@ export async function benchmark({ queries=DEFAULT_QUERIES, sources=SOURCES, limi
   let requestsStarted=0;
   for (const query of queries) {
     const sources={}; const raw={};
-    for (const source of sources) {
+    for (const source of sourceNames) {
       let start=clock();
       try {
         if (requestsStarted++ > 0 && requestDelayMs) await sleep(requestDelayMs);
         start=clock();
         const {value,attempts}=await retryTemporaryFailure(
-          ()=>searchSource(source,query,limit,{fetchImpl,openAlexKey,semanticScholarKey}),{maxRetries,sleep,maxBackoffMs});
+          ()=>searchSource(source,query,limit,{fetchImpl,openAlexKey,semanticScholarKey,coreApiKey}),{maxRetries,sleep,maxBackoffMs});
         raw[source]=value;
         sources[source]={status:'ok',attempts,latencyMs:Math.round(clock()-start),...summarize(raw[source])};
       } catch(e) {
