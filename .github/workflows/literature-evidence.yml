@@ -1,0 +1,51 @@
+name: Literature evidence planner (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      literature_run_id:
+        description: 'Stored literature run UUID (blank uses newest imported run)'
+        type: string
+        default: ''
+      query_index:
+        description: 'Zero-based query index within the run (default first query)'
+        type: choice
+        default: '0'
+        options: ['0','1','2','3','4']
+      max_papers:
+        description: 'Maximum selected articles and model calls'
+        type: choice
+        default: '5'
+        options: ['5','10']
+permissions:
+  contents: read
+concurrency:
+  group: literature-evidence-planner
+  cancel-in-progress: false
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run offline evidence and planner tests
+        run: node --test tests-research/literature-evidence.test.mjs tests-research/autonomous-planner.test.mjs
+      - name: Summarize saved literature and propose review candidates
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          LITERATURE_RUN_ID: ${{ inputs.literature_run_id }}
+          LITERATURE_QUERY_INDEX: ${{ inputs.query_index }}
+          LITERATURE_MAX_PAPERS: ${{ inputs.max_papers }}
+        run: node research/run-literature-evidence.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: literature-evidence-report
+          path: reports/literature-evidence/
+          retention-days: 30
+          if-no-files-found: warn

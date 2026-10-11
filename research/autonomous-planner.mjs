@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const THEMES = [
+  { pattern: /turbulen|fluid|physics.informed|kalman|state estimation/i, theme: 'fluid-state-estimation', question: 'Does a physics-informed estimator improve held-out state estimation under changing flow conditions?', method: 'Compare a physics-informed estimator with a conventional filter and a data-only model using identical observations, held-out conditions and matched compute budgets.' },
   { pattern: /symbolic regression|equation discover|rational function/i, theme: 'symbolic-regression', question: 'Does targeted measurement selection reduce incorrect symbolic hypotheses?', method: 'Compare passive observations against active selection with hidden holdouts and matched model-call budgets.' },
   { pattern: /hypothes|scientific discovery|research agent|autonomous research/i, theme: 'autonomous-research', question: 'Does evidence-grounded hypothesis selection outperform a fixed research catalog on held-out scientific tasks?', method: 'Compare fixed-catalog and literature-grounded planning with blinded expert ratings and equal budgets.' },
   { pattern: /experiment design|active learning|information gain|bayesian optimization/i, theme: 'experiment-design', question: 'Does uncertainty-aware experiment selection improve information gained per unit of compute?', method: 'Compare uncertainty-based selection against random and fixed-order baselines on identical synthetic benchmarks.' },
@@ -87,6 +88,36 @@ export function planResearch(input, { maxProposals = 10 } = {}) {
     selection_note: 'Ranked by supporting-paper count, not by verified scientific merit. Scores are illustrative and must not be used as automated funding or execution decisions.',
     execution_enabled: false,
   };
+}
+
+// Bridge for abstract-level evidence. Quote matching is not semantic verification.
+export function planEvidenceResearch(papers) {
+  const eligible = papers.filter(p => p.status === 'summarized' && p.findings.length > 0);
+  if (!eligible.length) return { mode: 'abstract-evidence-baseline', proposals: [], execution_enabled: false };
+  const baseline = planResearch(eligible.map(p => ({ id:p.article_id, title:p.title,
+    url:p.content.url, abstract:p.findings.map(f => f.claim).join(' ') })));
+  const byId = new Map(eligible.map(p => [p.article_id,p]));
+  return { mode:'abstract-evidence-baseline', execution_enabled:false,
+    selection_note:'Grouped by heuristic topic; evidence count is not scientific merit. No validated gap or novelty claim.',
+    proposals:baseline.proposals.map(proposal => {
+      const evidence = proposal.evidence.map(citation => {
+        const p=byId.get(citation.id);
+        return { ...citation, content_sha256:p.content.sha256, analyzed_content_sha256:p.content.analyzed_sha256,
+          truncated:p.content.truncated, findings_ref:{article_id:p.article_id,path:'papers[].findings'},
+          provenance_ref:{article_id:p.article_id,path:'papers[].source_hits'}, evidence_scope:p.content.truncated?'abstract_prefix':'abstract_only', verification:'quote_match_only' };
+      });
+      const gaps = evidence.flatMap(e => byId.get(e.id).findings.filter(f => f.kind==='limitation').map(f => ({
+        status:'candidate_needs_literature_review', article_id:e.id, reported_limitation:f.claim,
+        supporting_quote:f.quote, content_sha256:e.content_sha256,analyzed_content_sha256:e.analyzed_content_sha256,
+        follow_up:'Check the full paper and subsequent literature before treating this limitation as an unresolved research gap.'
+      })));
+      return { ...proposal, evidence, gap_candidates:gaps,
+        scores:Object.fromEntries(Object.keys(proposal.scores).map(k => [k,null])), priority_score:null,
+        caveats:['Methods, results and limitations are model interpretations of abstracts, with matching source quotations.',
+          'Quote matching checks provenance, not entailment, scientific correctness or replication.',
+          'Absence of a result in this sample is not evidence that nobody has studied it.',
+          'Hypothesis and experiment templates require review; all portfolio scores remain unknown.'] };
+    }) };
 }
 
 function main() {
