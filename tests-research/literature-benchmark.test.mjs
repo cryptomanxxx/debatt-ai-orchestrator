@@ -216,7 +216,7 @@ test('anonymous CORE searches also exclude full text',async()=>{
 });
 test('default benchmark visits all three sources for every query without leaking keys',async()=>{
   const hosts=[];
-  const report=await benchmark({queries:['science','turbulence'],limit:1,
+  const report=await benchmark({sources:['openalex','semantic-scholar','core'],queries:['science','turbulence'],limit:1,
     openAlexKey:'alex-test',semanticScholarKey:'scholar-test',coreApiKey:'core-test',
     requestDelayMs:0,sleep:async()=>{},fetchImpl:async(url,opts)=>{
       hosts.push(url.hostname);
