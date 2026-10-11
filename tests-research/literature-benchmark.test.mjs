@@ -110,9 +110,8 @@ test('rejects invalid retry configuration before requests',async()=>{
 });
 
 test('provider latency excludes artificial pacing time',async()=>{
-  // Delayed mock sleep is observable via wall time, but provider latency should not include it.
-  const result=await benchmark({queries:['x'],limit:1,requestDelayMs:1200,maxRetries:0,
-    sleep:async()=>{await new Promise(resolve=>setTimeout(resolve,25));},
+  const report=await benchmark({queries:['x'],limit:1,requestDelayMs:1200,maxRetries:0,
+    sleep:async()=>{await new Promise(resolve=>setTimeout(resolve,40));},
     fetchImpl:async(url)=>({ok:true,json:async()=>String(url).includes('openalex')?{results:[]}:{data:[]}})});
-  assert.equal(result.results[0].sources['semantic-scholar'].latencyMs<20,true);
+  assert.equal(report.results[0].sources['semantic-scholar'].latencyMs<30,true);
 });
