@@ -3,8 +3,8 @@ import { pathToFileURL } from 'node:url';
 
 export function formatBenchmarkSummary(report) {
   if (!report || !Array.isArray(report.results)) throw new Error('Invalid benchmark report');
-  const rows=['## Literature source benchmark', '', '| Query | Source | Status | Papers | Abstracts | OA signals | Latency (ms) |',
-    '| --- | --- | --- | ---: | ---: | ---: | ---: |'];
+  const rows=['## Literature source benchmark', '', '| Query | Source | Status | Papers | Abstracts | OA signals | Latency (ms) | Attempts | HTTP status |',
+    '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |'];
   for (const item of report.results) {
     for (const source of ['openalex','semantic-scholar']) {
       const v=item.sources?.[source];
