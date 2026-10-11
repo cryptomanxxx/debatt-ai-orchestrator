@@ -34,6 +34,9 @@ jobs:
         run: |
           psql -v ON_ERROR_STOP=1 -c 'create role anon; create role authenticated; create role service_role bypassrls;'
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011131500_literature_database.sql
+          psql -v ON_ERROR_STOP=1 -f tests-literature-sql/upgrade-fixture.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011133000_literature_metadata_preservation.sql
+          psql -v ON_ERROR_STOP=1 -f tests-literature-sql/upgrade-assertions.sql
           psql -v ON_ERROR_STOP=1 -f tests-literature-sql/catalog.sql
   test:
     runs-on: ubuntu-latest

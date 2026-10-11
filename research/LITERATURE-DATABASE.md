@@ -5,7 +5,7 @@ The manual literature benchmark can retain metadata and search history in the **
 ## Enable storage
 
 1. Open the orchestrator project's Supabase SQL Editor.
-2. Run `supabase/migrations/20261011131500_literature_database.sql` once. It creates five tables and the backend RPC in one transaction. Existing Problem Bank tables are unaffected.
+2. Run `supabase/migrations/20261011131500_literature_database.sql` once, then run `supabase/migrations/20261011133000_literature_metadata_preservation.sql`. The first creates five tables and the backend RPC; the second upgrades metadata preservation without recreating tables. If the first migration was already applied, run **only the second**. Existing Problem Bank tables are unaffected.
 3. Confirm the repository's `SUPABASE_URL` variable and `SUPABASE_SECRET_KEY` secret refer to this project.
 4. Run **Actions → Literature benchmark (manual)** with **persist** enabled (the default). Check the persistence step and inspect the `literature_*` tables in Supabase Table Editor.
 
@@ -16,14 +16,14 @@ If setup is incomplete, turn **persist** off for a JSON-only benchmark. Enabled 
 | Table | Purpose |
 | --- | --- |
 | `literature_article` | Canonical article UUID, title, normalized DOI, versionless arXiv ID, publication year/date when supplied, first/last observation |
-| `literature_source_record` | Provider and provider record ID, article reference, latest whitelisted metadata, first/last import time |
+| `literature_source_record` | Provider and provider record ID, article reference, latest whitelisted metadata, metadata fetch time, first/last import time |
 | `literature_run` | Unique import key, content hash, GitHub run link and import time |
 | `literature_search` | Run, query/index, source, success/error, fetch time, attempts, HTTP status and latency |
 | `literature_hit` | Search, one-based rank, source record and immutable metadata snapshot |
 
-Missing publication dates remain null rather than being inferred from a year. Each source's link lives in its metadata and historical hit snapshots. Fetch time lives on the associated search; import time is distinct. Failed provider requests are saved as searches with no hits, preserving the difference between an error and a successful empty response.
+Missing publication dates remain null rather than being inferred from a year. Each source's link lives in its metadata and historical hit snapshots. Fetch time lives on each search and `literature_source_record.metadata_fetched_at`; import time is distinct. Newer dated observations update current source metadata. Older observations remain in hit snapshots and cannot replace newer current metadata. Unknown fetch times cannot overwrite dated metadata; when neither observation has a date, import order is used. Equal fetch times use the latest import. `first_seen`/`last_seen` are import timestamps, not provider fetch timestamps. The upgrade restores the newest dated snapshot from existing history. Failed provider requests are saved as searches with no hits, preserving the difference between an error and a successful empty response.
 
-DOI and arXiv IDs are unique article identities; arXiv versions share one article. A known provider record can enrich an existing article. A later record containing both DOI and arXiv ID reconciles previously separate records if their identifiers are compatible. Contradictory identifiers stop the entire import for investigation; nothing is partially saved. Equal or similar titles do not merge articles. Title-match suggestions and manual review tooling are future work.
+DOI and arXiv IDs are unique article identities; arXiv versions share one article. A known provider record can enrich an existing article. A later record containing both DOI and arXiv ID reconciles previously separate records if their identifiers are compatible, retaining any known publication year/date from the merged records. Contradictory identifiers stop the entire import for investigation; nothing is partially saved. Equal or similar titles do not merge articles. Title-match suggestions and manual review tooling are future work.
 
 Source metadata can change between searches. Updating a source record never rewrites historical hit metadata or rank, including repeated hits for the same source ID. An advisory transaction lock serializes catalog imports to protect reconciliation.
 
