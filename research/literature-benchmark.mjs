@@ -57,10 +57,21 @@ export function overlap(a,b) {
 }
 
 export class ProviderHttpError extends Error {
-  constructor(status) {
+  constructor(status, retryAfterMs=null) {
     super('HTTP ' + status);
     this.status = status;
+    this.retryAfterMs = retryAfterMs;
   }
+}
+
+export function parseRetryAfter(value, now=Date.now()) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const trimmed=value.trim();
+  const isSeconds=/^\d+(?:\.\d+)?$/.test(trimmed);
+  const isHttpDate=/^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(trimmed);
+  if (!isSeconds && !isHttpDate) return null;
+  const milliseconds=isSeconds ? Number(trimmed)*1000 : Date.parse(trimmed)-now;
+  return Number.isFinite(milliseconds) ? Math.max(0,Math.ceil(milliseconds)) : null;
 }
 
 export async function fetchJson(url, { apiKey, authBearer, fetchImpl=fetch }={}) {
@@ -68,13 +79,13 @@ export async function fetchJson(url, { apiKey, authBearer, fetchImpl=fetch }={})
   if (apiKey) headers['x-api-key'] = apiKey;
   if (authBearer) headers.authorization = 'Bearer ' + authBearer;
   const response = await fetchImpl(url, { headers, signal:AbortSignal.timeout(15000) });
-  if (!response.ok) throw new ProviderHttpError(response.status);
+  if (!response.ok) throw new ProviderHttpError(response.status,parseRetryAfter(response.headers?.get?.('retry-after')));
   return response.json();
 }
 
 export const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-export async function retryTemporaryFailure(operation, { maxRetries=2, sleep=wait }={}) {
+export async function retryTemporaryFailure(operation, { maxRetries=2, sleep=wait, maxBackoffMs=10000, requestTimeoutMs=15000 }={}) {
   let attempts=0;
   while (true) {
     attempts++;
@@ -84,7 +95,8 @@ export async function retryTemporaryFailure(operation, { maxRetries=2, sleep=wai
         error.attempts=attempts;
         throw error;
       }
-      await sleep(1000 * 2 ** (attempts-1));
+      const backoff=error.status===429 ? 2000 * 2 ** (attempts-1) : 1000 * 2 ** (attempts-1);
+      await sleep(Math.min(maxBackoffMs,Math.max(backoff,error.retryAfterMs??0)));
     }
   }
 }
@@ -107,11 +119,12 @@ export async function searchSource(source, query, limit, options={}) {
   return records.map(p=>normalizePaper(source,p)).filter(Boolean);
 }
 
-export async function benchmark({ queries=DEFAULT_QUERIES, limit=10, fetchImpl=fetch, openAlexKey, semanticScholarKey, sleep=wait, clock=()=>performance.now(), requestDelayMs=1200, maxRetries=2 }={}) {
+export async function benchmark({ queries=DEFAULT_QUERIES, limit=10, fetchImpl=fetch, openAlexKey, semanticScholarKey, sleep=wait, clock=()=>performance.now(), requestDelayMs=1200, maxRetries=2, maxBackoffMs=10000 }={}) {
   if (!Array.isArray(queries) || queries.length===0 || queries.length>20 || queries.some(q=>typeof q!=='string'||!q.trim()||q.length>200)) throw new Error('Invalid queries');
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Limit must be 1..100');
   if (!Number.isInteger(requestDelayMs) || requestDelayMs<0 || requestDelayMs>10000) throw new Error('Invalid request delay');
   if (!Number.isInteger(maxRetries) || maxRetries<0 || maxRetries>3) throw new Error('Invalid retry count');
+  if (!Number.isInteger(maxBackoffMs) || maxBackoffMs<0 || maxBackoffMs>60000) throw new Error('Invalid maximum backoff');
   const results=[];
   let requestsStarted=0;
   for (const query of queries) {
@@ -122,7 +135,7 @@ export async function benchmark({ queries=DEFAULT_QUERIES, limit=10, fetchImpl=f
         if (requestsStarted++ > 0 && requestDelayMs) await sleep(requestDelayMs);
         start=clock();
         const {value,attempts}=await retryTemporaryFailure(
-          ()=>searchSource(source,query,limit,{fetchImpl,openAlexKey,semanticScholarKey}),{maxRetries,sleep});
+          ()=>searchSource(source,query,limit,{fetchImpl,openAlexKey,semanticScholarKey}),{maxRetries,sleep,maxBackoffMs});
         raw[source]=value;
         sources[source]={status:'ok',attempts,latencyMs:Math.round(clock()-start),...summarize(raw[source])};
       } catch(e) {

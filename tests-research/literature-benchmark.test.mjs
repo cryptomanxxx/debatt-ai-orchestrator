@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeDoi, abstractFromIndex, normalizePaper, summarize, overlap, searchSource, benchmark } from '../research/literature-benchmark.mjs';
+import { normalizeDoi, abstractFromIndex, normalizePaper, summarize, overlap, searchSource, benchmark, parseRetryAfter } from '../research/literature-benchmark.mjs';
 
 test('normalizes DOI and reconstructs OpenAlex abstracts',()=>{
   assert.equal(normalizeDoi('https://doi.org/10.1234/ABC'),'10.1234/abc');
@@ -85,7 +85,7 @@ test('retries transient 429 twice and records successful attempts',async()=>{
   const result=await benchmark({queries:['test'],limit:1,fetchImpl,requestDelayMs:0,sleep:async(ms)=>sleeps.push(ms)});
   assert.equal(result.results[0].sources.openalex.status,'ok');
   assert.equal(result.results[0].sources.openalex.attempts,3);
-  assert.deepEqual(sleeps,[1000,2000]);
+  assert.deepEqual(sleeps,[2000,4000]);
   assert.equal(calls,4);
 });
 test('reports HTTP 429 after bounded retries and preserves next source',async()=>{
@@ -120,4 +120,33 @@ test('provider latency excludes artificial pacing time',async()=>{
     }});
   assert.equal(report.results[0].sources.openalex.latencyMs,7);
   assert.equal(report.results[0].sources['semantic-scholar'].latencyMs,7);
+});
+
+test('parses Retry-After seconds and HTTP dates safely',()=>{
+  assert.equal(parseRetryAfter('2.5'),2500);
+  assert.equal(parseRetryAfter('Wed, 21 Oct 2026 07:28:00 GMT',Date.parse('2026-10-21T07:27:57Z')),3000);
+  assert.equal(parseRetryAfter('nonsense'),null);
+  assert.equal(parseRetryAfter('-3'),null);
+});
+test('honors Retry-After when longer than 429 backoff',async()=>{
+  let calls=0;const sleeps=[];
+  const report=await benchmark({queries:['test'],requestDelayMs:0,maxRetries:1,
+    sleep:async(ms)=>sleeps.push(ms),
+    fetchImpl:async(url)=>{
+      if(String(url).includes('openalex') && ++calls===1) return {ok:false,status:429,headers:{get:()=> '7'}};
+      return {ok:true,json:async()=>String(url).includes('openalex')?{results:[]}:{data:[]}};
+    }});
+  assert.deepEqual(sleeps,[7000]);
+  assert.equal(report.results[0].sources.openalex.attempts,2);
+});
+test('caps excessive Retry-After and preserves other provider',async()=>{
+  const sleeps=[];
+  const report=await benchmark({queries:['test'],requestDelayMs:0,maxRetries:1,maxBackoffMs:5000,
+    sleep:async(ms)=>sleeps.push(ms),
+    fetchImpl:async(url)=>String(url).includes('openalex')
+      ? {ok:false,status:429,headers:{get:()=> '3600'}}
+      : {ok:true,json:async()=>({data:[]})}});
+  assert.deepEqual(sleeps,[5000]);
+  assert.equal(report.results[0].sources.openalex.httpStatus,429);
+  assert.equal(report.results[0].sources['semantic-scholar'].status,'ok');
 });
