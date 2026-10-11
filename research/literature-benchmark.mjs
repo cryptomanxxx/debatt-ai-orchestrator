@@ -19,10 +19,10 @@ export function safeSourceUrl(value) {
   } catch { return null; }
 }
 
-export function parseArxivAtom(xml) {
+export function parseArxivAtom(xml,{includeAbstract=false}={}) {
   if (typeof xml!=='string' || Buffer.byteLength(xml)>2_000_000) return Promise.reject(new Error('Invalid arXiv Atom response'));
   return new Promise((resolve,reject)=>{
-    const child=execFile('python3',[fileURLToPath(new URL('./parse-arxiv-feed.py',import.meta.url))],
+    const child=execFile('python3',[fileURLToPath(new URL('./parse-arxiv-feed.py',import.meta.url)),...(includeAbstract?['--include-abstract']:[])],
       {timeout:5000,maxBuffer:2_000_000},(error,stdout)=>{
         if (error) return reject(new Error('Invalid arXiv Atom response'));
         try { resolve(JSON.parse(stdout)); } catch { reject(new Error('Invalid arXiv Atom response')); }

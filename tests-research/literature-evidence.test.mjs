@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { selectQueryEvidence,createLiteratureEvidenceClient,decodeAbstract,fetchOpenAlexAbstract,
-  validateFindings,buildEvidenceReport,renderEvidenceReport,hashText,evidencePrompt,EVIDENCE_MESSAGE_LIMIT,reportStorageBytes,assertReportStorageSize,evidenceReportByteBound } from '../research/literature-evidence.mjs';
+  validateFindings,buildEvidenceReport,renderEvidenceReport,hashText,evidencePrompt,EVIDENCE_MESSAGE_LIMIT,reportStorageBytes,assertReportStorageSize,evidenceReportByteBound,fetchArxivAbstract,createLiteratureAbstractLoader,inspectFindings } from '../research/literature-evidence.mjs';
 import { createEvidenceSummarizer,main } from '../research/run-literature-evidence.mjs';
 import { mkdtemp,readFile,rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -194,11 +194,17 @@ test('report persistence is one guarded backend insert and retains no update cap
 });
 test('manual runner completes the database-to-model-to-planner flow and preserves artifacts on failed storage',async()=>{
   const cwd=process.cwd(),fetchOriginal=globalThis.fetch,directory=await mkdtemp(join(tmpdir(),'literature-evidence-'));
-  let failSave=false;
+  let failSave=false,arxivOnly=false;
   globalThis.fetch=async(url,o)=>{
     const target=String(url);
     if (target.includes('/rest/v1/literature_run')) return json([{id:uid(100)}]);
-    if (target.includes('/rest/v1/literature_search')) return json([search()]);
+    if (target.includes('/rest/v1/literature_search')) {
+      const stored=search(arxivOnly?'arxiv':'openalex');
+      if (arxivOnly) Object.assign(stored.literature_hit[0].literature_source_record.canonical,{doi:null,arxiv_id:'2609.32552'});
+      if (arxivOnly) stored.literature_hit[0].metadata.doi=null;
+      return json([stored]);
+    }
+    if (target.includes('export.arxiv.org')) return new Response(atom());
     if (target.includes('api.openalex.org')) return json({id:'https://openalex.org/W123',abstract_inverted_index:index(abstract)});
     if (target.includes('/v1/query')) return json({mock:false,answer:summary.text,provider:'groq',model:'m',inference:{completionTokenLimit:4096}});
     if (target.includes('/rest/v1/literature_planner_run')) {
@@ -214,6 +220,9 @@ test('manual runner completes the database-to-model-to-planner flow and preserve
     await main(env);
     let report=JSON.parse(await readFile('reports/literature-evidence/report.json','utf8'));
     assert.equal(report.status,'completed');assert.equal(report.planner.proposals.length,1);
+    arxivOnly=true;await main(env);
+    report=JSON.parse(await readFile('reports/literature-evidence/report.json','utf8'));
+    assert.equal(report.status,'completed');assert.equal(report.papers[0].content.provider,'arxiv');
     failSave=true;await assert.rejects(main(env),/literature_http_503/);
     report=JSON.parse(await readFile('reports/literature-evidence/report.json','utf8'));
     assert.equal(report.coverage.summarized,1);
@@ -285,7 +294,7 @@ test('worst-case escaped controls fit the pre-inference byte bound without dupli
   const escapedSummary={text:JSON.stringify({findings:Array.from({length:3},()=>({kind:'limitation',claim:'\u0001'.repeat(500),quote:text.slice(0,280)}))}),provider:'\u0001'.repeat(200),model:'\u0001'.repeat(200)};
   const bound=evidenceReportByteBound(selected);assert.ok(bound<=500_000);
   const report=await buildEvidenceReport(selected,{id:uid(200),
-    loadAbstract:async()=>({status:'available',abstract:text,content:{url:'https://openalex.org/W'+'9'.repeat(490),sha256:hashText(text),fetched_at:'2026-10-11T16:00:00Z'}}),
+    loadAbstract:async()=>({status:'available',abstract:text,content:{provider:'openalex',url:'https://openalex.org/W'+'9'.repeat(490),sha256:hashText(text),fetched_at:'2026-10-11T16:00:00Z'}}),
     summarize:async()=>escapedSummary});
   assert.equal(report.status,'completed');assert.equal(report.budget.model_calls,10);
   assert.equal(report.planner.proposals[0].gap_candidates.length,30);
@@ -311,4 +320,72 @@ test('PostgreSQL-incompatible null characters and oversized content metadata fai
     loadAbstract:async()=>({...await loadAbstract(),content:{... (await loadAbstract()).content,url:'https://openalex.org/W'+'1'.repeat(512)}}),
     summarize:async()=>{calls++;return summary;}});
   assert.equal(calls,0);assert.equal(report.papers[0].reason,'invalid_abstract_content');
+});
+
+
+const atom=(id='2609.32552v1',text=abstract)=>`<feed xmlns="http://www.w3.org/2005/Atom"><entry><id>http://arxiv.org/abs/${id}</id><title>Fluid study</title><summary>${text}</summary></entry></feed>`;
+const arxivPaper=()=>({...input().papers[0],lookup_identifiers:{doi:null,arxiv_id:'2609.32552',openalex_records:[]},source_hits:[{source:'arxiv',source_id:'http://arxiv.org/abs/2609.32552v1',doi:null}]});
+
+test('arXiv-only article retrieves bounded abstract by canonical identity, preserving version and excluding PDF',async()=>{
+  const calls=[];
+  const loaded=await fetchArxivAbstract(arxivPaper(),{fetchImpl:async(url,options)=>{
+    calls.push({url:String(url),options});return new Response(atom());
+  }});
+  assert.equal(loaded.abstract,abstract);assert.equal(loaded.content.provider,'arxiv');
+  assert.equal(loaded.content.url,'https://arxiv.org/abs/2609.32552v1');
+  assert.equal(loaded.content.sha256,hashText(abstract));assert.equal(calls.length,1);
+  const url=new URL(calls[0].url);assert.equal(url.origin,'https://export.arxiv.org');
+  assert.equal(url.searchParams.get('id_list'),'2609.32552');assert.equal(url.searchParams.get('max_results'),'1');
+  assert.equal(calls[0].options.redirect,'error');assert.equal(calls[0].options.headers,undefined);
+  const selected=input();selected.papers=[arxivPaper()];
+  const report=await buildEvidenceReport(selected,{id:uid(200),loadAbstract:async()=>loaded,summarize:async()=>summary});
+  assert.equal(report.status,'completed');assert.equal(report.papers[0].content.provider,'arxiv');
+  assert.equal(report.planner.proposals[0].evidence[0].url,loaded.content.url);
+  assert.ok(!JSON.stringify(report).includes(abstract));
+});
+
+test('arXiv missing, wrong identity, invalid XML, unsafe entities and oversized feeds fail closed',async()=>{
+  for (const xml of [atom('2609.32553v1'),'<feed xmlns="http://www.w3.org/2005/Atom"/>',
+    '<!DOCTYPE feed [<!ENTITY secret "secret">]>'+atom(),'<broken>',atom('2609.32552v1',abstract.repeat(100))]) {
+    await assert.rejects(fetchArxivAbstract(arxivPaper(),{fetchImpl:async()=>new Response(xml)}));
+  }
+  const missing=await fetchArxivAbstract(arxivPaper(),{fetchImpl:async()=>new Response(atom('2609.32552v1',''))});
+  assert.equal(missing.reason,'abstract_missing');
+  await assert.rejects(fetchArxivAbstract(arxivPaper(),{fetchImpl:async()=>new Response('x'.repeat(2_000_001))}),/response_too_large/);
+  await assert.rejects(fetchArxivAbstract(arxivPaper(),{fetchImpl:async()=>new Response('secret',{status:429})}),/literature_http_429/);
+  let calls=0;
+  const invalid={...arxivPaper(),lookup_identifiers:{arxiv_id:'../../secret'}};
+  assert.equal((await fetchArxivAbstract(invalid,{fetchImpl:async()=>{calls++;}})).status,'unavailable');assert.equal(calls,0);
+  const old={...arxivPaper(),lookup_identifiers:{arxiv_id:'math.GT/0309136'}};
+  assert.equal((await fetchArxivAbstract(old,{fetchImpl:async()=>new Response(atom('math.GT/0309136v2'))})).content.url,'https://arxiv.org/abs/math.GT/0309136v2');
+});
+
+test('loader chooses one provider and spaces arXiv attempts by three seconds, including failed attempts',async()=>{
+  let time=0;const starts=[],delays=[];
+  const loader=createLiteratureAbstractLoader({clock:()=>time,sleep:async ms=>{delays.push(ms);time+=ms;},apiKey:'must-not-leak',fetchImpl:async(url,options)=>{
+    if (url.hostname==='api.openalex.org') return json({id:'https://openalex.org/W123',abstract_inverted_index:index(abstract)});
+    assert.equal(options.headers,undefined);starts.push(time);
+    if (starts.length===1) return new Response('',{status:429});
+    return new Response(atom());
+  }});
+  await assert.rejects(loader(arxivPaper()),/429/);time+=1000;
+  await loader(input().papers[0]);await loader(arxivPaper());await loader(arxivPaper());
+  assert.deepEqual(starts,[0,3000,6000]);assert.deepEqual(delays,[2000,3000]);
+});
+
+test('mixed findings keep exact quotes only, record bounded rejection diagnostics and mark report partial',async()=>{
+  const forged={kind:'limitation',claim:'Untrusted fabricated claim.',quote:'This fabricated quote does not appear in the source.'};
+  const response={...summary,text:JSON.stringify({findings:[findings[0],forged,findings[1]]})};
+  const checked=inspectFindings(response.text,abstract);
+  assert.equal(checked.findings.length,2);assert.deepEqual(checked.validation,{accepted_findings:2,rejected_findings:1,
+    rejected:[{index:1,reason:'invalid_finding_or_unmatched_quote'}]});
+  const report=await buildEvidenceReport(input(),{id:uid(200),loadAbstract,summarize:async()=>response});
+  assert.equal(report.status,'partial');assert.equal(report.papers[0].status,'summarized');
+  assert.equal(report.papers[0].model.name,'test');assert.equal(report.papers[0].validation.rejected_findings,1);
+  assert.ok(!JSON.stringify(report).includes(forged.claim));assert.ok(!JSON.stringify(report).includes(forged.quote));
+  assert.match(renderEvidenceReport(report),/Findings accepted\/rejected: 2\/1/);
+  assert.equal(report.planner.proposals[0].gap_candidates.length,1);
+  const failed=await buildEvidenceReport(input(),{id:uid(201),loadAbstract,summarize:async()=>({...summary,text:JSON.stringify({findings:[forged]})})});
+  assert.equal(failed.status,'insufficient_evidence');assert.equal(failed.papers[0].reason,'unmatched_evidence_quote');
+  assert.equal(failed.papers[0].validation.rejected_findings,1);assert.equal(failed.papers[0].model.name,'test');
 });

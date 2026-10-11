@@ -105,3 +105,10 @@ test('unsafe source links and malformed arXiv identifiers are not retained',()=>
   assert.equal(normalizePaper('semantic-scholar',{paperId:'invalid',title:'Paper',url:'javascript:alert(1)'}).sourceUrl,null);
   assert.equal(normalizePaper('arxiv',{id:'https://evil.test/abs/2610.01234',title:'Paper'}),null);
 });
+
+
+test('abstract extraction is opt-in and does not alter metadata-only parser output',async()=>{
+  const metadata=await parseArxivAtom(feed);assert.equal(Object.hasOwn(metadata[0],'abstract'),false);
+  const evidence=await parseArxivAtom(feed,{includeAbstract:true});assert.equal(evidence[0].abstract,'Abstract only');
+  const {abstract,...withoutAbstract}=evidence[0];assert.deepEqual(withoutAbstract,metadata[0]);
+});

@@ -1,7 +1,7 @@
 import { mkdir,writeFile,appendFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
-import { EVIDENCE_MESSAGE_LIMIT,boundedJson,createLiteratureEvidenceClient,fetchOpenAlexAbstract,buildEvidenceReport,renderEvidenceReport,validateEvidenceOptions } from './literature-evidence.mjs';
+import { EVIDENCE_MESSAGE_LIMIT,boundedJson,createLiteratureEvidenceClient,createLiteratureAbstractLoader,buildEvidenceReport,renderEvidenceReport,validateEvidenceOptions } from './literature-evidence.mjs';
 
 export function createEvidenceSummarizer({key,fetchImpl=fetch}) {
   if (typeof key!=='string'||key.length<24) throw new Error('missing_orchestrator_key');
@@ -33,7 +33,7 @@ export async function main(env=process.env) {
   await client.checkReportStorage();
   const input=await client.readQuery({runId:env.LITERATURE_RUN_ID||null,...options});
   const report=await buildEvidenceReport(input,{id:randomUUID(),summarize,
-    loadAbstract:paper=>fetchOpenAlexAbstract(paper,{apiKey:env.OPENALEX_API_KEY||''})});
+    loadAbstract:createLiteratureAbstractLoader({apiKey:env.OPENALEX_API_KEY||''})});
   report.code_commit=env.GITHUB_SHA||null;
   await writeFile(directory+'/report.json',JSON.stringify(report,null,2)+'\n');
   const markdown=renderEvidenceReport(report);
