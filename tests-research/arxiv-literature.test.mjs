@@ -28,9 +28,19 @@ test('arXiv parses namespaces, entities and optional DOI without fetching PDFs o
   assert.equal(papers[0].sourceUrl,'https://arxiv.org/abs/2610.01234v2');
   assert.equal(papers[0].hasAbstract,true);
   assert.equal(papers[0].repositoryType,'preprint');
+  assert.equal(papers[0].year,2026);
+  assert.equal(papers[1].year,null);
   assert.equal(papers[1].doi,null);
   assert.equal(papers[1].sourceUrl,'https://arxiv.org/abs/math.GT/0309136v1');
   assert.equal('abstract' in papers[0],false);
+});
+
+test('arXiv year comes from original publication, not update date, and invalid dates stay null',()=>{
+  const paper={id:'http://arxiv.org/abs/2610.01234v2',title:'Paper',published:'2024-02-29T12:00:00Z',updated:'2026-10-01T00:00:00Z'};
+  assert.equal(normalizePaper('arxiv',paper).year,2024);
+  for (const published of [undefined,null,2026,'','not a date','2026-02-30T00:00:00Z','2026-13-01T00:00:00Z']) {
+    assert.equal(normalizePaper('arxiv',{...paper,published}).year,null);
+  }
 });
 
 test('invalid XML and Atom error entries fail, while a valid empty feed succeeds',async()=>{

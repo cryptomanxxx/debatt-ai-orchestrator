@@ -66,8 +66,13 @@ export function normalizePaper(source, p) {
     sourceUrl='https://arxiv.org/abs/'+match[1];
   }
   const abstract = source === 'openalex' ? abstractFromIndex(p.abstract_inverted_index) : p.abstract ?? null;
+  let arxivYear=null;
+  if (source==='arxiv' && typeof p.published==='string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(p.published)) {
+    const date=new Date(p.published);
+    if (Number.isFinite(date.getTime()) && date.toISOString().replace('.000Z','Z')===p.published) arxivYear=date.getUTCFullYear();
+  }
   const oa = source === 'arxiv' ? true : source === 'openalex' ? Boolean(p.best_oa_location?.landing_page_url || p.best_oa_location?.pdf_url || p.open_access?.is_oa) : source === 'core' ? Boolean(p.downloadUrl || p.sourceFulltextUrls?.length || p.fullTextLink) : Boolean(p.openAccessPdf?.url || p.isOpenAccess);
-  return { source, sourceId:id, sourceUrl, doi, title:title.trim().replace(/\s+/g,' ').slice(0,1000), year:p.publication_year ?? p.year ?? (typeof p.yearPublished==='number'?p.yearPublished:null),
+  return { source, sourceId:id, sourceUrl, doi, title:title.trim().replace(/\s+/g,' ').slice(0,1000), year:source==='arxiv' ? arxivYear : p.publication_year ?? p.year ?? (typeof p.yearPublished==='number'?p.yearPublished:null),
     ...(source==='arxiv'?{published:p.published,updated:p.updated,repositoryType:'preprint'}:{}),
     hasAbstract:source==='arxiv' ? p.hasAbstract===true : typeof abstract === 'string' && abstract.trim().length > 0, hasOpenAccessSignal:oa };
 }
