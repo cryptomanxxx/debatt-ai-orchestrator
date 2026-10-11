@@ -6,6 +6,7 @@ import { createEvidenceSummarizer,main } from '../research/run-literature-eviden
 import { mkdtemp,readFile,rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { literaturePayload } from '../research/literature-database.mjs';
 
 const uid=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const json=x=>new Response(JSON.stringify(x),{headers:{'Content-Type':'application/json'}});
@@ -15,14 +16,28 @@ const findings=[{kind:'method',claim:'The authors compare estimators.',quote:'We
   {kind:'limitation',claim:'Real-flow validation is not included.',quote:'Validation on real flows remains future work.'}];
 const summary={text:JSON.stringify({findings}),provider:'test-model',model:'test'};
 function search(source='openalex',article=1,rank=1) {
+  // Use the production importer, rather than inventing a persisted metadata shape.
+  const sourceId=source==='openalex'?'https://openalex.org/W123':'other-id';
+  const payload=literaturePayload({sourceNames:[source],results:[{query:'fluid estimation',sources:{[source]:{
+    status:'ok',records:1,papers:[{title:'Physics-informed flow estimation',source,sourceId,doi:'10.1234/example'}]
+  }}}]},{runKey:'evidence-fixture'});
   return {id:uid(SOURCES.indexOf(source)+10),query:'fluid estimation',source,status:'ok',http_status:null,fetched_at:null,
-    literature_hit:[{rank,source_record_id:uid(SOURCES.indexOf(source)+20),metadata:{title:'Physics-informed flow estimation',source,
-      sourceId:source==='openalex'?'https://openalex.org/W123':'other-id',doi:'10.1234/example'},literature_source_record:{article_id:uid(article),
+    literature_hit:[{rank,source_record_id:uid(SOURCES.indexOf(source)+20),metadata:payload.searches[0].papers[0],
+      literature_source_record:{id:uid(SOURCES.indexOf(source)+20),source,source_id:sourceId,article_id:uid(article),
         canonical:{id:uid(article),doi:'10.1234/example',arxiv_id:null,openalex_records:[]}}}]};
 }
 const SOURCES=['openalex','semantic-scholar','core','arxiv'];
 const input=()=>selectQueryEvidence({id:uid(100)},[search(),search('core')]);
 const loadAbstract=async()=>({status:'available',abstract,content:{provider:'openalex',url:'https://openalex.org/W123',scope:'abstract_only',sha256:hashText(abstract),fetched_at:'2026-10-11T16:00:00Z'}});
+
+test('production metadata without source is accepted and relational provenance mismatches are rejected',()=>{
+  const stored=search();assert.equal(Object.hasOwn(stored.literature_hit[0].metadata,'source'),false);
+  assert.equal(selectQueryEvidence({id:uid(100)},[stored]).papers[0].source_hits[0].source,'openalex');
+  for (const replacement of [{source:'core'},{source_id:'different-provider-id'},{id:uid(99)}]) {
+    const invalid=search();Object.assign(invalid.literature_hit[0].literature_source_record,replacement);
+    assert.throws(()=>selectQueryEvidence({id:uid(100)},[invalid]),/invalid_literature_hit_response/);
+  }
+});
 
 test('database query preserves hit provenance, deduplicates canonical identities and bounds selection',()=>{
   const a=search('arxiv',2),b=search('openalex',1),c=search('core',1);

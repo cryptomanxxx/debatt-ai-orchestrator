@@ -60,7 +60,7 @@ export function createLiteratureEvidenceClient({url,secretKey,fetchImpl=fetch}) 
       const searchUrl=new URL('/rest/v1/literature_search',url);
       searchUrl.searchParams.set('run_id','eq.'+run.id);
       searchUrl.searchParams.set('query_index','eq.'+queryIndex);
-      searchUrl.searchParams.set('select','id,query,source,status,http_status,fetched_at,literature_hit(rank,metadata,source_record_id,literature_source_record(article_id,canonical:literature_article(id,doi,arxiv_id,openalex_records:literature_source_record(id,source,source_id))))');
+      searchUrl.searchParams.set('select','id,query,source,status,http_status,fetched_at,literature_hit(rank,metadata,source_record_id,literature_source_record(id,source,source_id,article_id,canonical:literature_article(id,doi,arxiv_id,openalex_records:literature_source_record(id,source,source_id))))');
       const related='literature_hit.literature_source_record.canonical.openalex_records';
       searchUrl.searchParams.set(related+'.source','eq.openalex');
       searchUrl.searchParams.set(related+'.order','source_id.asc,id.asc');
@@ -91,8 +91,9 @@ export function selectQueryEvidence(run,searches,{queryIndex=0,maxPapers=5}={}) 
       throw new Error('invalid_literature_search_response');
     seenSources.add(s.source);
     for (const h of s.literature_hit) {
-      const articleId=requireUuid(h.literature_source_record?.article_id),m=h.metadata;
-      const canonical=h.literature_source_record.canonical;
+      const sourceRecord=h.literature_source_record;
+      const articleId=requireUuid(sourceRecord?.article_id),m=h.metadata;
+      const canonical=sourceRecord.canonical;
       if (canonical?.id!==articleId||!Array.isArray(canonical.openalex_records)||canonical.openalex_records.length>10)
         throw new Error('invalid_canonical_article_response');
       const lookup={doi:normalizeDoi(canonical.doi),arxiv_id:canonical.arxiv_id??null,
@@ -103,7 +104,9 @@ export function selectQueryEvidence(run,searches,{queryIndex=0,maxPapers=5}={}) 
         }).sort((a,b)=>a.source_id<b.source_id?-1:a.source_id>b.source_id?1:a.source_record_id<b.source_record_id?-1:a.source_record_id>b.source_record_id?1:0)};
       requireUuid(h.source_record_id);
       if (!Number.isInteger(h.rank)||h.rank<1||h.rank>100||typeof m?.title!=='string'||!m.title.trim()||m.title.length>1000
-        ||m.source!==s.source||typeof m.sourceId!=='string'||m.sourceId.length>1000) throw new Error('invalid_literature_hit_response');
+        ||sourceRecord.id!==h.source_record_id||sourceRecord.source!==s.source
+        ||typeof m.sourceId!=='string'||!m.sourceId||m.sourceId.length>500||sourceRecord.source_id!==m.sourceId)
+        throw new Error('invalid_literature_hit_response');
       const a=articles.get(articleId)??{article_id:articleId,lookup_identifiers:lookup,source_hits:[],rank:h.rank};
       if (JSON.stringify(a.lookup_identifiers)!==JSON.stringify(lookup)) throw new Error('inconsistent_canonical_article_response');
       a.rank=Math.min(a.rank,h.rank);
