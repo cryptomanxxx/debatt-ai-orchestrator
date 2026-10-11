@@ -2,11 +2,12 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { SOURCES, normalizeDoi, normalizeArxivId, safeSourceUrl } from './literature-benchmark.mjs';
+import { validLiteratureTime } from './literature-dates.mjs';
 
 const boundedText=(value,max)=>typeof value==='string' && value.trim() && value.length<=max;
-const optionalTime=value=>{
+const optionalTime=(value,requireTime=false)=>{
   if (value==null) return null;
-  if (typeof value!=='string' || value.length>50 || !Number.isFinite(Date.parse(value))) throw Error('invalid_literature_timestamp');
+  if (!validLiteratureTime(value,{requireTime})) throw Error('invalid_literature_timestamp');
   return value;
 };
 const optionalInteger=value=>{
@@ -32,10 +33,10 @@ export function literaturePayload(report,{runKey,originUrl=null}={}) {
         const doi=normalizeDoi(p.doi), arxivId=normalizeArxivId(p.arxivId ?? (source==='arxiv'?p.sourceId:null));
         if (p.doi!=null && !doi || p.arxivId!=null && !arxivId) throw Error('invalid_literature_identifier');
         return {sourceId:p.sourceId,title:p.title,doi,arxivId,sourceUrl:safeSourceUrl(p.sourceUrl),
-          year:optionalInteger(p.year),published:optionalTime(p.published),updated:optionalTime(p.updated),
+          year:optionalInteger(p.year),published:optionalTime(p.published),updated:optionalTime(p.updated,true),
           hasAbstract:p.hasAbstract===true,hasOpenAccessSignal:p.hasOpenAccessSignal===true};
       });
-      searches.push({queryIndex,query:result.query,source,status:v.status,fetchedAt:optionalTime(v.fetchedAt),
+      searches.push({queryIndex,query:result.query,source,status:v.status,fetchedAt:optionalTime(v.fetchedAt,true),
         attempts:optionalInteger(v.attempts),httpStatus:optionalInteger(v.httpStatus),latencyMs:optionalInteger(v.latencyMs),papers});
     }
   }

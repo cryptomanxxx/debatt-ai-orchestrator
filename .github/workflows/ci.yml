@@ -38,7 +38,9 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011133000_literature_metadata_preservation.sql
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011140000_literature_publication_backfill.sql
           psql -v ON_ERROR_STOP=1 -f tests-literature-sql/upgrade-assertions.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011145500_literature_strict_dates.sql
           psql -v ON_ERROR_STOP=1 -f tests-literature-sql/catalog.sql
+          psql -v ON_ERROR_STOP=1 -f tests-literature-sql/strict-dates.sql
   test:
     runs-on: ubuntu-latest
     steps:

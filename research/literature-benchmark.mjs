@@ -1,6 +1,7 @@
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
+import { validLiteratureTime } from './literature-dates.mjs';
 
 export const SOURCES = ['openalex','semantic-scholar','core','arxiv'];
 
@@ -56,17 +57,7 @@ export function abstractFromIndex(index) {
 }
 
 export function arxivPublicationYear(value) {
-  if (typeof value!=='string') return null;
-  const match=value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-](\d{2}):(\d{2}))$/i);
-  if (!match) return null;
-  const [,y,m,d,h,minute,second,,offsetHour,offsetMinute]=match;
-  const year=Number(y),month=Number(m),day=Number(d);
-  const leap=year%4===0 && (year%100!==0 || year%400===0);
-  const days=[31,leap?29:28,31,30,31,30,31,31,30,31,30,31];
-  if (month<1 || month>12 || day<1 || day>days[month-1] || Number(h)>23 || Number(minute)>59 || Number(second)>59
-    || Number(offsetHour??0)>23 || Number(offsetMinute??0)>59) return null;
-  const date=new Date(value);
-  return Number.isFinite(date.getTime()) ? date.getUTCFullYear() : null;
+  return validLiteratureTime(value,{requireTime:true}) ? new Date(value).getUTCFullYear() : null;
 }
 
 export function normalizePaper(source, p) {
@@ -90,10 +81,10 @@ export function normalizePaper(source, p) {
   const abstract = source === 'openalex' ? abstractFromIndex(p.abstract_inverted_index) : p.abstract ?? null;
   const arxivYear=source==='arxiv' ? arxivPublicationYear(p.published) : null;
   const dateValue=source==='openalex' ? p.publication_date : source==='semantic-scholar' ? p.publicationDate : source==='arxiv' ? p.published : null;
-  const published=typeof dateValue==='string' && dateValue.length<=50 && Number.isFinite(Date.parse(dateValue)) ? dateValue : null;
+  const published=validLiteratureTime(dateValue,{requireTime:source==='arxiv'}) ? dateValue : null;
   const oa = source === 'arxiv' ? true : source === 'openalex' ? Boolean(p.best_oa_location?.landing_page_url || p.best_oa_location?.pdf_url || p.open_access?.is_oa) : source === 'core' ? Boolean(p.downloadUrl || p.sourceFulltextUrls?.length || p.fullTextLink) : Boolean(p.openAccessPdf?.url || p.isOpenAccess);
   return { source, sourceId:id, sourceUrl, doi, arxivId, title:title.trim().replace(/\s+/g,' ').slice(0,1000), year:source==='arxiv' ? arxivYear : p.publication_year ?? p.year ?? (typeof p.yearPublished==='number'?p.yearPublished:null),
-    published, ...(source==='arxiv'?{updated:p.updated,repositoryType:'preprint'}:{}),
+    published, ...(source==='arxiv'?{updated:validLiteratureTime(p.updated,{requireTime:true})?p.updated:null,repositoryType:'preprint'}:{}),
     hasAbstract:source==='arxiv' ? p.hasAbstract===true : typeof abstract === 'string' && abstract.trim().length > 0, hasOpenAccessSignal:oa };
 }
 
