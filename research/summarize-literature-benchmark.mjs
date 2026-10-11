@@ -11,7 +11,7 @@ export function formatBenchmarkSummary(report) {
       if (!v) throw new Error('Missing source result');
       const clean=s=>String(s).replace(/[|\r\n]/g,' ').slice(0,90);
       rows.push('| '+[clean(item.query),source,v.status,v.records??'—',v.withAbstract??'—',
-        v.withOpenAccessSignal??'—',v.latencyMs??'—'].join(' | ')+' |');
+        v.withOpenAccessSignal??'—',v.latencyMs??'—',v.attempts??'—',v.httpStatus??'—'].join(' | ')+' |');
     }
   }
   rows.push('', 'Metadata coverage indicators only. Provider errors are not zero search results. No relevance or novelty ground truth.');
