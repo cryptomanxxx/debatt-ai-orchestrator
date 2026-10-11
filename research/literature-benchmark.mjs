@@ -107,7 +107,7 @@ export async function searchSource(source, query, limit, options={}) {
   return records.map(p=>normalizePaper(source,p)).filter(Boolean);
 }
 
-export async function benchmark({ queries=DEFAULT_QUERIES, limit=10, fetchImpl=fetch, openAlexKey, semanticScholarKey, sleep=wait, requestDelayMs=1200, maxRetries=2 }={}) {
+export async function benchmark({ queries=DEFAULT_QUERIES, limit=10, fetchImpl=fetch, openAlexKey, semanticScholarKey, sleep=wait, clock=()=>performance.now(), requestDelayMs=1200, maxRetries=2 }={}) {
   if (!Array.isArray(queries) || queries.length===0 || queries.length>20 || queries.some(q=>typeof q!=='string'||!q.trim()||q.length>200)) throw new Error('Invalid queries');
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Limit must be 1..100');
   if (!Number.isInteger(requestDelayMs) || requestDelayMs<0 || requestDelayMs>10000) throw new Error('Invalid request delay');
@@ -117,18 +117,18 @@ export async function benchmark({ queries=DEFAULT_QUERIES, limit=10, fetchImpl=f
   for (const query of queries) {
     const sources={}; const raw={};
     for (const source of ['openalex','semantic-scholar']) {
-      let start=performance.now();
+      let start=clock();
       try {
         if (requestsStarted++ > 0 && requestDelayMs) await sleep(requestDelayMs);
-        start=performance.now();
+        start=clock();
         const {value,attempts}=await retryTemporaryFailure(
           ()=>searchSource(source,query,limit,{fetchImpl,openAlexKey,semanticScholarKey}),{maxRetries,sleep});
         raw[source]=value;
-        sources[source]={status:'ok',attempts,latencyMs:Math.round(performance.now()-start),...summarize(raw[source])};
+        sources[source]={status:'ok',attempts,latencyMs:Math.round(clock()-start),...summarize(raw[source])};
       } catch(e) {
         raw[source]=[];
         sources[source]={status:'error',attempts:e.attempts??1,httpStatus:e instanceof ProviderHttpError?e.status:null,
-          latencyMs:Math.round(performance.now()-start),error:String(e.message).slice(0,160)};
+          latencyMs:Math.round(clock()-start),error:String(e.message).slice(0,160)};
       }
     }
     results.push({query,sources,doiOverlap:sources.openalex.status==='ok'&&sources['semantic-scholar'].status==='ok' ? overlap(raw.openalex,raw['semantic-scholar']) : null});
