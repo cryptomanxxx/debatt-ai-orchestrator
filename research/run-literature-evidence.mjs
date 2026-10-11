@@ -1,16 +1,18 @@
 import { mkdir,writeFile,appendFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
-import { boundedJson,createLiteratureEvidenceClient,fetchOpenAlexAbstract,buildEvidenceReport,renderEvidenceReport,validateEvidenceOptions } from './literature-evidence.mjs';
+import { EVIDENCE_MESSAGE_LIMIT,boundedJson,createLiteratureEvidenceClient,fetchOpenAlexAbstract,buildEvidenceReport,renderEvidenceReport,validateEvidenceOptions } from './literature-evidence.mjs';
 
 export function createEvidenceSummarizer({key,fetchImpl=fetch}) {
   if (typeof key!=='string'||key.length<24) throw new Error('missing_orchestrator_key');
   return async prompt=>{
+    const message=JSON.stringify(prompt);
+    if (typeof message!=='string'||message.length>EVIDENCE_MESSAGE_LIMIT) throw new Error('evidence_prompt_too_large');
     let response;
     try {response=await fetchImpl('https://debatt-ai-orchestrator.xx8031126.workers.dev/v1/query',{
       method:'POST',redirect:'error',signal:AbortSignal.timeout(55000),
       headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},
-      body:JSON.stringify({message:JSON.stringify(prompt),mode:'default',completionTokenLimit:4096})});}
+      body:JSON.stringify({message,mode:'default',completionTokenLimit:4096})});}
     catch {throw new Error('literature_transport_error');}
     if (!response.ok) {await response.body?.cancel();throw new Error('literature_http_'+response.status);}
     const data=await boundedJson(response,65536);

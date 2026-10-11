@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { selectQueryEvidence,createLiteratureEvidenceClient,decodeAbstract,fetchOpenAlexAbstract,
-  validateFindings,buildEvidenceReport,renderEvidenceReport,hashText } from '../research/literature-evidence.mjs';
+  validateFindings,buildEvidenceReport,renderEvidenceReport,hashText,evidencePrompt,EVIDENCE_MESSAGE_LIMIT } from '../research/literature-evidence.mjs';
 import { createEvidenceSummarizer,main } from '../research/run-literature-evidence.mjs';
 import { mkdtemp,readFile,rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -98,6 +98,45 @@ test('summary rejects fabricated quotation, unsupported output fields and excess
     JSON.stringify({findings,novelty:'proven'}),JSON.stringify({findings:[...findings,...findings]})]) {
     assert.throws(()=>validateFindings(text,abstract),/evidence/);
   }
+});
+test('complete serialized prompts fit the 8000-character contract including JSON escaping and Unicode',()=>{
+  assert.equal(evidencePrompt({title:'Short title'},abstract).source_text,abstract);
+  assert.equal(evidencePrompt({title:'Short title'},abstract).source_text_is_truncated,false);
+  for (const text of ['a'.repeat(12000),'α"\\\n😀'.repeat(1500)]) {
+    const prompt=evidencePrompt({title:'"\\'.repeat(500)},text);
+    assert.ok(JSON.stringify(prompt).length<=EVIDENCE_MESSAGE_LIMIT);
+    assert.equal(prompt.source_text_is_truncated,true);
+    assert.ok(text.startsWith(prompt.source_text));
+    assert.ok(!/[\uD800-\uDBFF]$/.test(prompt.source_text));
+    assert.ok(prompt.source_text.length>20);
+  }
+});
+test('truncated evidence reports preserve full and analyzed hashes and reject quotations from unseen text',async()=>{
+  const tail='Only the final unseen part mentions this limitation.';
+  const text=findings[0].quote+' '+('padding '.repeat(1300))+tail;
+  const load=async()=>({status:'available',abstract:text,content:{provider:'openalex',url:'https://openalex.org/W123',sha256:hashText(text)}});
+  let sent;
+  const report=await buildEvidenceReport(input(),{id:uid(200),loadAbstract:load,summarize:async prompt=>{
+    sent=prompt;return {...summary,text:JSON.stringify({findings:[findings[0]]})};
+  }});
+  assert.equal(report.status,'completed');assert.equal(report.papers[0].content.truncated,true);
+  assert.equal(report.papers[0].content.sha256,hashText(text));
+  assert.equal(report.papers[0].content.analyzed_sha256,hashText(sent.source_text));
+  assert.equal(report.planner.proposals[0].evidence[0].evidence_scope,'abstract_prefix');
+  assert.ok(!sent.source_text.includes(tail));assert.ok(!JSON.stringify(report).includes(sent.source_text));
+  const rejected=await buildEvidenceReport(input(),{id:uid(201),loadAbstract:load,summarize:async()=>({...summary,
+    text:JSON.stringify({findings:[{kind:'limitation',claim:'A limitation.',quote:tail}]})})});
+  assert.equal(rejected.papers[0].reason,'unmatched_evidence_quote');
+});
+test('summarizer refuses oversized serialized input before HTTP and sends fitted long prompts unchanged',async()=>{
+  let calls=0,sent;
+  const summarize=createEvidenceSummarizer({key:'x'.repeat(24),fetchImpl:async(url,o)=>{
+    calls++;sent=JSON.parse(o.body).message;
+    return json({mock:false,answer:summary.text,provider:'groq',model:'m',inference:{completionTokenLimit:4096}});
+  }});
+  await assert.rejects(summarize({source_text:'x'.repeat(8000)}),/evidence_prompt_too_large/);assert.equal(calls,0);
+  const prompt=evidencePrompt({title:'Title'},'x'.repeat(12000));
+  await summarize(prompt);assert.equal(calls,1);assert.equal(sent,JSON.stringify(prompt));assert.ok(sent.length<=8000);
 });
 test('planner receives matched evidence, unknown scores and tentative gaps without saving raw abstract',async()=>{
   const report=await buildEvidenceReport(input(),{id:uid(200),loadAbstract,summarize:async()=>summary});

@@ -102,12 +102,13 @@ export function planEvidenceResearch(papers) {
     proposals:baseline.proposals.map(proposal => {
       const evidence = proposal.evidence.map(citation => {
         const p=byId.get(citation.id);
-        return { ...citation, content_sha256:p.content.sha256, findings:p.findings,
-          source_hits:p.source_hits, evidence_scope:'abstract_only', verification:'quote_match_only' };
+        return { ...citation, content_sha256:p.content.sha256, analyzed_content_sha256:p.content.analyzed_sha256,
+          truncated:p.content.truncated, findings:p.findings,
+          source_hits:p.source_hits, evidence_scope:p.content.truncated?'abstract_prefix':'abstract_only', verification:'quote_match_only' };
       });
       const gaps = evidence.flatMap(e => e.findings.filter(f => f.kind==='limitation').map(f => ({
         status:'candidate_needs_literature_review', article_id:e.id, reported_limitation:f.claim,
-        supporting_quote:f.quote, content_sha256:e.content_sha256,
+        supporting_quote:f.quote, content_sha256:e.content_sha256,analyzed_content_sha256:e.analyzed_content_sha256,
         follow_up:'Check the full paper and subsequent literature before treating this limitation as an unresolved research gap.'
       })));
       return { ...proposal, evidence, gap_candidates:gaps,
