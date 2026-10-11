@@ -106,15 +106,23 @@ export function planEvidenceResearch(papers) {
           truncated:p.content.truncated, findings_ref:{article_id:p.article_id,path:'papers[].findings'},
           provenance_ref:{article_id:p.article_id,path:'papers[].source_hits'}, evidence_scope:p.content.truncated?'abstract_prefix':'abstract_only', verification:'quote_match_only' };
       });
-      const gaps = evidence.flatMap(e => byId.get(e.id).findings.filter(f => f.kind==='limitation').map(f => ({
+      const gaps = evidence.flatMap(e => byId.get(e.id).findings.map((f,index)=>({f,index})).filter(({f}) => f.kind==='limitation'&&f.limitation_status==='remaining'&&f.context_quote).map(({f,index}) => ({
         status:'candidate_needs_literature_review', article_id:e.id, reported_limitation:f.claim,
-        supporting_quote:f.quote, content_sha256:e.content_sha256,analyzed_content_sha256:e.analyzed_content_sha256,
+        supporting_quote:f.quote,limitation_assessment:'unverified_model_interpretation',
+        context_ref:{article_id:e.id,finding_index:index,path:'papers[].findings[].context_quote'}, content_sha256:e.content_sha256,analyzed_content_sha256:e.analyzed_content_sha256,
         follow_up:'Check the full paper and subsequent literature before treating this limitation as an unresolved research gap.'
       })));
-      return { ...proposal, evidence, gap_candidates:gaps,
+      const limitationReview=evidence.flatMap(e=>byId.get(e.id).findings.flatMap((f,index)=>
+        f.kind==='limitation'&&(f.limitation_status!=='remaining'||!f.context_quote)?[{
+          article_id:e.id,finding_index:index,limitation_status:f.limitation_status??'unclear',
+          status:'excluded_from_gap_candidates',
+          reason:f.limitation_status==='prior_work'?'Earlier-work problem or motivation; not established as remaining.':'Insufficient context to establish a remaining limitation.'
+        }]:[]));
+      return { ...proposal, evidence, gap_candidates:gaps,limitation_review:limitationReview,
         scores:Object.fromEntries(Object.keys(proposal.scores).map(k => [k,null])), priority_score:null,
         caveats:['Methods, results and limitations are model interpretations of abstracts, with matching source quotations.',
           'Quote matching checks provenance, not entailment, scientific correctness or replication.',
+          'Limitation context classification is an unverified model interpretation; prior-work and unclear cases are excluded from gap candidates.',
           'Absence of a result in this sample is not evidence that nobody has studied it.',
           'Hypothesis and experiment templates require review; all portfolio scores remain unknown.'] };
     }) };
