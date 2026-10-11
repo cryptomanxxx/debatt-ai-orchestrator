@@ -17,7 +17,8 @@ const summary={text:JSON.stringify({findings}),provider:'test-model',model:'test
 function search(source='openalex',article=1,rank=1) {
   return {id:uid(SOURCES.indexOf(source)+10),query:'fluid estimation',source,status:'ok',http_status:null,fetched_at:null,
     literature_hit:[{rank,source_record_id:uid(SOURCES.indexOf(source)+20),metadata:{title:'Physics-informed flow estimation',source,
-      sourceId:source==='openalex'?'https://openalex.org/W123':'other-id',doi:'10.1234/example'},literature_source_record:{article_id:uid(article)}}]};
+      sourceId:source==='openalex'?'https://openalex.org/W123':'other-id',doi:'10.1234/example'},literature_source_record:{article_id:uid(article),
+        canonical:{id:uid(article),doi:'10.1234/example',arxiv_id:null,openalex_records:[]}}}]};
 }
 const SOURCES=['openalex','semantic-scholar','core','arxiv'];
 const input=()=>selectQueryEvidence({id:uid(100)},[search(),search('core')]);
@@ -48,7 +49,29 @@ test('read stored query uses backend header, explicit run, nested single stateme
   for (const call of calls) {assert.equal(call.opts.headers.apikey,'secret');assert.equal(call.opts.headers.Authorization,undefined);assert.equal(call.opts.redirect,'error');}
   const params=new URL(calls[1].url).searchParams;
   assert.equal(params.get('query_index'),'eq.2');assert.match(params.get('select'),/literature_hit.*article_id/);
+  assert.match(params.get('select'),/canonical:literature_article.*openalex_records/);
+  assert.equal(params.get('literature_hit.literature_source_record.canonical.openalex_records.source'),'eq.openalex');
   await assert.rejects(client.readQuery({runId:'not-a-uuid'}),/invalid/);assert.equal(calls.length,2);
+});
+test('historical DOI-less hit resolves through later canonical DOI or OpenAlex enrichment without rewriting provenance',async()=>{
+  for (const withOpenAlex of [false,true]) {
+    const old=search('arxiv');old.literature_hit[0].metadata.doi=null;
+    const canonical=old.literature_hit[0].literature_source_record.canonical;
+    if (withOpenAlex) {
+      canonical.doi=null;
+      canonical.openalex_records=[{id:uid(99),source:'openalex',source_id:'https://openalex.org/W987'}];
+    }
+    const paper=selectQueryEvidence({id:uid(100)},[old]).papers[0];let endpoint;
+    const result=await fetchOpenAlexAbstract(paper,{fetchImpl:async url=>{
+      endpoint=String(url);return json({id:'https://openalex.org/W987',doi:'10.1234/example',abstract_inverted_index:index(abstract)});
+    }});
+    assert.equal(result.status,'available');
+    assert.match(endpoint,withOpenAlex?/works\/W987/:/doi.org\/10.1234%2Fexample/);
+    assert.equal(paper.source_hits[0].doi,null);assert.equal(paper.source_hits[0].source,'arxiv');
+    assert.equal(paper.source_hits[0].source_id,'other-id');
+  }
+  const wrong=search();wrong.literature_hit[0].literature_source_record.canonical.id=uid(99);
+  assert.throws(()=>selectQueryEvidence({id:uid(100)},[wrong]),/canonical/);
 });
 test('OpenAlex reconstructs bounded abstracts, validates work identity and keeps credentials in headers',async()=>{
   let call;

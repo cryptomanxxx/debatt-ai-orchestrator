@@ -59,7 +59,11 @@ export function createLiteratureEvidenceClient({url,secretKey,fetchImpl=fetch}) 
       const searchUrl=new URL('/rest/v1/literature_search',url);
       searchUrl.searchParams.set('run_id','eq.'+run.id);
       searchUrl.searchParams.set('query_index','eq.'+queryIndex);
-      searchUrl.searchParams.set('select','id,query,source,status,http_status,fetched_at,literature_hit(rank,metadata,source_record_id,literature_source_record(article_id))');
+      searchUrl.searchParams.set('select','id,query,source,status,http_status,fetched_at,literature_hit(rank,metadata,source_record_id,literature_source_record(article_id,canonical:literature_article(id,doi,arxiv_id,openalex_records:literature_source_record(id,source,source_id))))');
+      const related='literature_hit.literature_source_record.canonical.openalex_records';
+      searchUrl.searchParams.set(related+'.source','eq.openalex');
+      searchUrl.searchParams.set(related+'.order','source_id.asc,id.asc');
+      searchUrl.searchParams.set(related+'.limit','10');
       searchUrl.searchParams.set('limit','5');
       const searches=await requestJson(fetchImpl,searchUrl,{headers});
       return selectQueryEvidence(run,searches,{queryIndex,maxPapers});
@@ -87,10 +91,20 @@ export function selectQueryEvidence(run,searches,{queryIndex=0,maxPapers=5}={}) 
     seenSources.add(s.source);
     for (const h of s.literature_hit) {
       const articleId=requireUuid(h.literature_source_record?.article_id),m=h.metadata;
+      const canonical=h.literature_source_record.canonical;
+      if (canonical?.id!==articleId||!Array.isArray(canonical.openalex_records)||canonical.openalex_records.length>10)
+        throw new Error('invalid_canonical_article_response');
+      const lookup={doi:normalizeDoi(canonical.doi),arxiv_id:canonical.arxiv_id??null,
+        openalex_records:canonical.openalex_records.map(r=>{
+          requireUuid(r.id);
+          if (r.source!=='openalex'||!/^https:\/\/openalex.org\/W\d+$/.test(r.source_id??'')) throw new Error('invalid_canonical_article_response');
+          return {source_record_id:r.id,source_id:r.source_id};
+        }).sort((a,b)=>a.source_id<b.source_id?-1:a.source_id>b.source_id?1:a.source_record_id<b.source_record_id?-1:a.source_record_id>b.source_record_id?1:0)};
       requireUuid(h.source_record_id);
       if (!Number.isInteger(h.rank)||h.rank<1||h.rank>100||typeof m?.title!=='string'||!m.title.trim()||m.title.length>1000
         ||m.source!==s.source||typeof m.sourceId!=='string'||m.sourceId.length>1000) throw new Error('invalid_literature_hit_response');
-      const a=articles.get(articleId)??{article_id:articleId,source_hits:[],rank:h.rank};
+      const a=articles.get(articleId)??{article_id:articleId,lookup_identifiers:lookup,source_hits:[],rank:h.rank};
+      if (JSON.stringify(a.lookup_identifiers)!==JSON.stringify(lookup)) throw new Error('inconsistent_canonical_article_response');
       a.rank=Math.min(a.rank,h.rank);
       a.source_hits.push({search_id:s.id,source_record_id:h.source_record_id,source:s.source,rank:h.rank,
         source_id:m.sourceId,title:m.title,doi:normalizeDoi(m.doi)});
@@ -130,8 +144,9 @@ export function decodeAbstract(index) {
   return text;
 }
 export async function fetchOpenAlexAbstract(paper,{fetchImpl=fetch,apiKey='',now=()=>new Date().toISOString()}={}) {
-  const direct=paper.source_hits.find(h=>h.source==='openalex'&&/^https:\/\/openalex.org\/W\d+$/.test(h.source_id));
-  const doi=paper.source_hits.map(h=>h.doi).find(Boolean);
+  const direct=paper.lookup_identifiers?.openalex_records?.[0]
+    ??paper.source_hits.find(h=>h.source==='openalex'&&/^https:\/\/openalex.org\/W\d+$/.test(h.source_id));
+  const doi=paper.lookup_identifiers?.doi??paper.source_hits.map(h=>h.doi).find(Boolean);
   if (!direct&&!doi) return {status:'unavailable',reason:'no_openalex_id_or_doi'};
   const endpoint=new URL('https://api.openalex.org/works/'+(direct?direct.source_id.split('/').at(-1):'https://doi.org/'+encodeURIComponent(doi)));
   endpoint.searchParams.set('select','id,doi,abstract_inverted_index');
