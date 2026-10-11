@@ -110,8 +110,14 @@ test('rejects invalid retry configuration before requests',async()=>{
 });
 
 test('provider latency excludes artificial pacing time',async()=>{
-  const result=await benchmark({queries:['x'],limit:1,requestDelayMs:1200,maxRetries:0,
-    sleep:async()=>{await new Promise(resolve=>setTimeout(resolve,120));},
-    fetchImpl:async(url)=>({ok:true,json:async()=>String(url).includes('openalex')?{results:[]}:{data:[]}})});
-  assert.equal(result.results[0].sources['semantic-scholar'].latencyMs<100,true);
+  let now=0;
+  const report=await benchmark({queries:['x'],limit:1,requestDelayMs:1200,maxRetries:0,
+    clock:()=>now,
+    sleep:async(ms)=>{now+=ms;},
+    fetchImpl:async(url)=>{
+      now+=7;
+      return {ok:true,json:async()=>String(url).includes('openalex')?{results:[]}:{data:[]}};
+    }});
+  assert.equal(report.results[0].sources.openalex.latencyMs,7);
+  assert.equal(report.results[0].sources['semantic-scholar'].latencyMs,7);
 });
