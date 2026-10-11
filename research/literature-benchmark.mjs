@@ -49,6 +49,20 @@ export function abstractFromIndex(index) {
   return tokens.sort((a,b) => a[0]-b[0]).map(x => x[1]).join(' ') || null;
 }
 
+export function arxivPublicationYear(value) {
+  if (typeof value!=='string') return null;
+  const match=value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-](\d{2}):(\d{2}))$/i);
+  if (!match) return null;
+  const [,y,m,d,h,minute,second,,offsetHour,offsetMinute]=match;
+  const year=Number(y),month=Number(m),day=Number(d);
+  const leap=year%4===0 && (year%100!==0 || year%400===0);
+  const days=[31,leap?29:28,31,30,31,30,31,31,30,31,30,31];
+  if (month<1 || month>12 || day<1 || day>days[month-1] || Number(h)>23 || Number(minute)>59 || Number(second)>59
+    || Number(offsetHour??0)>23 || Number(offsetMinute??0)>59) return null;
+  const date=new Date(value);
+  return Number.isFinite(date.getTime()) ? date.getUTCFullYear() : null;
+}
+
 export function normalizePaper(source, p) {
   if (!p || typeof p !== 'object') return null;
   const title = source === 'openalex' ? p.display_name : p.title;
@@ -66,11 +80,7 @@ export function normalizePaper(source, p) {
     sourceUrl='https://arxiv.org/abs/'+match[1];
   }
   const abstract = source === 'openalex' ? abstractFromIndex(p.abstract_inverted_index) : p.abstract ?? null;
-  let arxivYear=null;
-  if (source==='arxiv' && typeof p.published==='string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(p.published)) {
-    const date=new Date(p.published);
-    if (Number.isFinite(date.getTime()) && date.toISOString().replace('.000Z','Z')===p.published) arxivYear=date.getUTCFullYear();
-  }
+  const arxivYear=source==='arxiv' ? arxivPublicationYear(p.published) : null;
   const oa = source === 'arxiv' ? true : source === 'openalex' ? Boolean(p.best_oa_location?.landing_page_url || p.best_oa_location?.pdf_url || p.open_access?.is_oa) : source === 'core' ? Boolean(p.downloadUrl || p.sourceFulltextUrls?.length || p.fullTextLink) : Boolean(p.openAccessPdf?.url || p.isOpenAccess);
   return { source, sourceId:id, sourceUrl, doi, title:title.trim().replace(/\s+/g,' ').slice(0,1000), year:source==='arxiv' ? arxivYear : p.publication_year ?? p.year ?? (typeof p.yearPublished==='number'?p.yearPublished:null),
     ...(source==='arxiv'?{published:p.published,updated:p.updated,repositoryType:'preprint'}:{}),

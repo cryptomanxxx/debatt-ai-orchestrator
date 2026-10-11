@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { benchmark, searchSource, parseArxivAtom, normalizePaper } from '../research/literature-benchmark.mjs';
+import { benchmark, searchSource, parseArxivAtom, normalizePaper, arxivPublicationYear } from '../research/literature-benchmark.mjs';
 
 const feed=`<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom" xmlns:a="http://arxiv.org/schemas/atom">
 <entry><id>http://arxiv.org/abs/2610.01234v2</id><title> AI &amp; turbulence
@@ -40,6 +40,24 @@ test('arXiv year comes from original publication, not update date, and invalid d
   assert.equal(normalizePaper('arxiv',paper).year,2024);
   for (const published of [undefined,null,2026,'','not a date','2026-02-30T00:00:00Z','2026-13-01T00:00:00Z']) {
     assert.equal(normalizePaper('arxiv',{...paper,published}).year,null);
+  }
+});
+
+test('arXiv year accepts documented offsets and fractional seconds, using the UTC year',async()=>{
+  const offsetFeed=feed.replace('2026-10-01T00:00:00Z','2007-02-27T16:02:02-05:00');
+  const papers=await searchSource('arxiv','AI',2,{sleep:async()=>{},fetchImpl:async()=>({ok:true,text:async()=>offsetFeed})});
+  assert.equal(papers[0].year,2007);
+  assert.equal(papers[0].published,'2007-02-27T16:02:02-05:00');
+  for (const [date,year] of [
+    ['2026-01-01T00:30:00+02:00',2025],
+    ['2025-12-31T23:30:00-02:00',2026],
+    ['2024-02-29T12:00:00.123456+05:30',2024],
+    ['2026-10-01T00:00:00.5Z',2026],
+  ]) assert.equal(arxivPublicationYear(date),year,date);
+  for (const date of ['2026-02-30T00:00:00-05:00','2026-01-01T24:00:00Z',
+    '2026-01-01T12:60:00+01:00','2026-01-01T12:00:00+24:00',
+    '2026-01-01T12:00:00+01:60','2026-01-01T12:00:00']) {
+    assert.equal(arxivPublicationYear(date),null,date);
   }
 });
 
