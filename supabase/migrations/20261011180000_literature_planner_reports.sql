@@ -20,6 +20,6 @@ create table public.literature_planner_run (
 );
 create index on public.literature_planner_run(literature_run_id,query_index,created_at desc);
 alter table public.literature_planner_run enable row level security;
-revoke all on public.literature_planner_run from public,anon,authenticated;
+revoke all on public.literature_planner_run from public,anon,authenticated,service_role;
 grant select,insert on public.literature_planner_run to service_role;
 commit;

@@ -11,9 +11,20 @@ do $$ begin
     raise exception 'planner report not readable';
   end if;
   begin
-    update public.literature_planner_run set query_index=1;
+    update public.literature_planner_run set report=report;
     raise exception 'unexpected backend update access';
   exception when insufficient_privilege then null; end;
+  begin
+    delete from public.literature_planner_run;
+    raise exception 'unexpected backend delete access';
+  exception when insufficient_privilege then null; end;
+  begin
+    truncate public.literature_planner_run;
+    raise exception 'unexpected backend truncate access';
+  exception when insufficient_privilege then null; end;
+  if has_table_privilege('service_role','public.literature_planner_run','UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') then
+    raise exception 'unexpected mutation privileges';
+  end if;
 end $$;
 reset role;
 do $$ declare role_name text; begin
