@@ -9,6 +9,15 @@ export const reportStorageBytes=value=>Buffer.byteLength(JSON.stringify(value,nu
 export function assertReportStorageSize(report) {
   if (reportStorageBytes(report)>500_000) throw new Error('evidence_report_too_large');
 }
+// Every accepted UTF-16 code unit can cost up to six JSON bytes (e.g. \u0001).
+// Findings appear once on papers and at most once again as limitation candidates.
+// The 5k/article + 10k/report allowance covers fixed keys, hashes, enums,
+// candidate templates, pretty-JSON whitespace, timestamps and commit metadata.
+export function evidenceReportByteBound(input) {
+  return reportStorageBytes(input)+10_000+input.papers.reduce((bytes,paper)=>bytes+
+    2*3*(500+280)*6 + 2*200*6 + 3*512 +
+    Buffer.byteLength(JSON.stringify(paper.title),'utf8') + 5_000,0);
+}
 export const hashText=text=>createHash('sha256').update(text).digest('hex');
 const normalized=text=>text.replace(/\s+/g,' ').trim();
 const requireUuid=value=>{if (!UUID.test(value??'')) throw new Error('invalid_literature_id'); return value;};
@@ -148,7 +157,7 @@ export function decodeAbstract(index) {
   if (typeof index!=='object'||Array.isArray(index)||Object.keys(index).length>2000) throw new Error('invalid_abstract_index');
   const words=new Map();
   for (const [word,positions] of Object.entries(index)) {
-    if (!word||word.length>200||!Array.isArray(positions)||positions.length>2000) throw new Error('invalid_abstract_index');
+    if (!word||word.includes('\u0000')||word.length>200||!Array.isArray(positions)||positions.length>2000) throw new Error('invalid_abstract_index');
     for (const position of positions) {
       if (!Number.isInteger(position)||position<0||position>=2000||words.has(position)) throw new Error('invalid_abstract_index');
       words.set(position,word);
@@ -168,7 +177,7 @@ export async function fetchOpenAlexAbstract(paper,{fetchImpl=fetch,apiKey='',now
   const endpoint=new URL('https://api.openalex.org/works/'+(direct?direct.source_id.split('/').at(-1):'https://doi.org/'+encodeURIComponent(doi)));
   endpoint.searchParams.set('select','id,doi,abstract_inverted_index');
   const work=await requestJson(fetchImpl,endpoint,{headers:apiKey?{Authorization:'Bearer '+apiKey}:{}});
-  if (!/^https:\/\/openalex.org\/W\d+$/.test(work?.id??'')||(direct?work.id!==direct.source_id:normalizeDoi(work.doi)!==doi))
+  if (typeof work?.id!=='string'||work.id.length>512||!/^https:\/\/openalex.org\/W\d+$/.test(work.id)||(direct?work.id!==direct.source_id:normalizeDoi(work.doi)!==doi))
     throw new Error('abstract_identity_mismatch');
   const abstract=decodeAbstract(work.abstract_inverted_index);
   if (!abstract) return {status:'unavailable',reason:'abstract_missing'};
@@ -196,19 +205,19 @@ export function validateFindings(text,abstract) {
   return data.findings.map(f=>{
     if (!f||Object.keys(f).sort().join(',')!=='claim,kind,quote'||!['method','result','limitation'].includes(f.kind)
       ||typeof f.claim!=='string'||!f.claim.trim()||f.claim.length>500||typeof f.quote!=='string'||f.quote.trim().length<20||f.quote.length>280
-      ||!abstract.includes(f.quote)) throw new Error('unmatched_evidence_quote');
+      ||f.claim.includes('\u0000')||f.quote.includes('\u0000')||!abstract.includes(f.quote)) throw new Error('unmatched_evidence_quote');
     return {kind:f.kind,claim:f.claim.trim(),quote:f.quote,verification:'quote_match_only'};
   });
 }
 const SAFE_ERRORS=new Set(['abstract_identity_mismatch','invalid_abstract_index','abstract_outside_bounds','invalid_evidence_summary',
-  'unmatched_evidence_quote','invalid_model_response','model_budget_not_applied','literature_transport_error','response_too_large','invalid_json_response','evidence_prompt_too_large']);
+  'unmatched_evidence_quote','invalid_abstract_content','invalid_model_response','model_budget_not_applied','literature_transport_error','response_too_large','invalid_json_response','evidence_prompt_too_large']);
 const safeReason=error=>SAFE_ERRORS.has(error?.message)||/^literature_http_\d{3}$/.test(error?.message??'')?error.message:'evidence_processing_failed';
 export async function buildEvidenceReport(input,{loadAbstract=fetchOpenAlexAbstract,summarize,id,now=()=>new Date().toISOString()}={}) {
   requireUuid(id);
   if (!Array.isArray(input.papers)||input.papers.length>10||typeof summarize!=='function') throw new Error('invalid_evidence_options');
-  // Reserve room for bounded findings, model metadata and planner candidates.
-  // Reject oversized metadata before either abstract retrieval or paid inference.
-  if (reportStorageBytes(input)>100_000) throw new Error('evidence_input_too_large');
+  // Reserve the maximum escaped byte cost, not ordinary Unicode byte length.
+  // This runs before abstract retrieval and paid inference.
+  if (reportStorageBytes(input)>100_000||evidenceReportByteBound(input)>500_000) throw new Error('evidence_input_too_large');
   const papers=[];let modelCalls=0,contentCalls=0;
   for (const paper of input.papers) {
     const record={...paper,status:'unavailable',findings:[]};
@@ -217,12 +226,20 @@ export async function buildEvidenceReport(input,{loadAbstract=fetchOpenAlexAbstr
       const loaded=await loadAbstract(paper);
       if (loaded.status!=='available') record.reason=loaded.reason;
       else {
+        if (typeof loaded.content?.url!=='string'||loaded.content.url.length>512||
+          !/^https:\/\/openalex.org\/W\d+$/.test(loaded.content.url)||
+          typeof loaded.content.fetched_at!=='string'||loaded.content.fetched_at.length>40||
+          !/^[a-f0-9]{64}$/.test(loaded.content.sha256??'')) throw new Error('invalid_abstract_content');
         const prompt=evidencePrompt(paper,loaded.abstract);
-        record.content={...loaded.content,analyzed_sha256:hashText(prompt.source_text),
+        record.content={provider:'openalex',scope:'abstract_only',url:loaded.content.url,
+          fetched_at:loaded.content.fetched_at,sha256:loaded.content.sha256,analyzed_sha256:hashText(prompt.source_text),
           original_characters:loaded.abstract.length,analyzed_characters:prompt.source_text.length,
           truncated:prompt.source_text_is_truncated};
         modelCalls++;
         const summary=await summarize(prompt);
+        if (typeof summary.provider!=='string'||typeof summary.model!=='string'||
+          summary.provider.length>200||summary.model.length>200||
+          summary.provider.includes('\u0000')||summary.model.includes('\u0000')) throw new Error('invalid_model_response');
         record.findings=validateFindings(summary.text,prompt.source_text);
         record.model={provider:summary.provider,name:summary.model};
         record.status=record.findings.length?'summarized':'insufficient_evidence';

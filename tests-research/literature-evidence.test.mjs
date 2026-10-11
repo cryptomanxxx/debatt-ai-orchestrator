@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { selectQueryEvidence,createLiteratureEvidenceClient,decodeAbstract,fetchOpenAlexAbstract,
-  validateFindings,buildEvidenceReport,renderEvidenceReport,hashText,evidencePrompt,EVIDENCE_MESSAGE_LIMIT,reportStorageBytes,assertReportStorageSize } from '../research/literature-evidence.mjs';
+  validateFindings,buildEvidenceReport,renderEvidenceReport,hashText,evidencePrompt,EVIDENCE_MESSAGE_LIMIT,reportStorageBytes,assertReportStorageSize,evidenceReportByteBound } from '../research/literature-evidence.mjs';
 import { createEvidenceSummarizer,main } from '../research/run-literature-evidence.mjs';
 import { mkdtemp,readFile,rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -129,7 +129,7 @@ test('complete serialized prompts fit the 8000-character contract including JSON
 test('truncated evidence reports preserve full and analyzed hashes and reject quotations from unseen text',async()=>{
   const tail='Only the final unseen part mentions this limitation.';
   const text=findings[0].quote+' '+('padding '.repeat(1300))+tail;
-  const load=async()=>({status:'available',abstract:text,content:{provider:'openalex',url:'https://openalex.org/W123',sha256:hashText(text)}});
+  const load=async()=>({status:'available',abstract:text,content:{provider:'openalex',url:'https://openalex.org/W123',sha256:hashText(text),fetched_at:'2026-10-11T16:00:00Z'}});
   let sent;
   const report=await buildEvidenceReport(input(),{id:uid(200),loadAbstract:load,summarize:async prompt=>{
     sent=prompt;return {...summary,text:JSON.stringify({findings:[findings[0]]})};
@@ -275,4 +275,40 @@ test('ten articles with maximum finding lengths and Unicode fit the unchanged re
     summarize:async()=>maximalSummary});
   assert.equal(report.budget.model_calls,10);assert.equal(report.status,'completed');
   assert.ok(report.planner.proposals.length);assertReportStorageSize(report);
+});
+
+
+test('worst-case escaped controls fit the pre-inference byte bound without duplicated findings',async()=>{
+  const selected=input();
+  selected.papers=Array.from({length:10},(_,i)=>({...structuredClone(selected.papers[0]),article_id:uid(i+1),title:'Physics-informed flow '+ 'x'.repeat(978)}));
+  const text=('\u0001'.repeat(200)+' ').repeat(10).trim();
+  const escapedSummary={text:JSON.stringify({findings:Array.from({length:3},()=>({kind:'limitation',claim:'\u0001'.repeat(500),quote:text.slice(0,280)}))}),provider:'\u0001'.repeat(200),model:'\u0001'.repeat(200)};
+  const bound=evidenceReportByteBound(selected);assert.ok(bound<=500_000);
+  const report=await buildEvidenceReport(selected,{id:uid(200),
+    loadAbstract:async()=>({status:'available',abstract:text,content:{url:'https://openalex.org/W'+'9'.repeat(490),sha256:hashText(text),fetched_at:'2026-10-11T16:00:00Z'}}),
+    summarize:async()=>escapedSummary});
+  assert.equal(report.status,'completed');assert.equal(report.budget.model_calls,10);
+  assert.equal(report.planner.proposals[0].gap_candidates.length,30);
+  assert.ok(reportStorageBytes(report)<=bound);assertReportStorageSize(report);
+  for (const e of report.planner.proposals[0].evidence) {
+    assert.equal(e.findings,undefined);assert.equal(e.findings_ref.path,'papers[].findings');
+  }
+  // Still below the old 100k check, but no space for worst-case generated data.
+  const oversized=structuredClone(selected);
+  for (const paper of oversized.papers) paper.title='Physics-informed flow '+ '\u0001'.repeat(978);
+  assert.ok(reportStorageBytes(oversized)<100_000);assert.ok(evidenceReportByteBound(oversized)>500_000);
+  let calls=0;
+  await assert.rejects(buildEvidenceReport(oversized,{id:uid(201),
+    loadAbstract:async()=>{calls++;},summarize:async()=>{calls++;}}),/evidence_input_too_large/);
+  assert.equal(calls,0);
+});
+
+test('PostgreSQL-incompatible null characters and oversized content metadata fail before inference',async()=>{
+  assert.throws(()=>decodeAbstract({['\u0000'.repeat(40)]:[0]}),/invalid_abstract_index/);
+  assert.throws(()=>validateFindings(JSON.stringify({findings:[{kind:'method',claim:'\u0000',quote:findings[0].quote}]}),abstract),/unmatched/);
+  let calls=0;
+  const report=await buildEvidenceReport(input(),{id:uid(200),
+    loadAbstract:async()=>({...await loadAbstract(),content:{... (await loadAbstract()).content,url:'https://openalex.org/W'+'1'.repeat(512)}}),
+    summarize:async()=>{calls++;return summary;}});
+  assert.equal(calls,0);assert.equal(report.papers[0].reason,'invalid_abstract_content');
 });
