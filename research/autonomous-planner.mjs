@@ -104,7 +104,7 @@ export function planEvidenceResearch(papers) {
         const p=byId.get(citation.id);
         return { ...citation, content_sha256:p.content.sha256, analyzed_content_sha256:p.content.analyzed_sha256,
           truncated:p.content.truncated, findings:p.findings,
-          source_hits:p.source_hits, evidence_scope:p.content.truncated?'abstract_prefix':'abstract_only', verification:'quote_match_only' };
+          provenance_ref:{article_id:p.article_id,path:'papers[].source_hits'}, evidence_scope:p.content.truncated?'abstract_prefix':'abstract_only', verification:'quote_match_only' };
       });
       const gaps = evidence.flatMap(e => e.findings.filter(f => f.kind==='limitation').map(f => ({
         status:'candidate_needs_literature_review', article_id:e.id, reported_limitation:f.claim,

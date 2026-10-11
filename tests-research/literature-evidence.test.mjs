@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { selectQueryEvidence,createLiteratureEvidenceClient,decodeAbstract,fetchOpenAlexAbstract,
-  validateFindings,buildEvidenceReport,renderEvidenceReport,hashText,evidencePrompt,EVIDENCE_MESSAGE_LIMIT } from '../research/literature-evidence.mjs';
+  validateFindings,buildEvidenceReport,renderEvidenceReport,hashText,evidencePrompt,EVIDENCE_MESSAGE_LIMIT,reportStorageBytes,assertReportStorageSize } from '../research/literature-evidence.mjs';
 import { createEvidenceSummarizer,main } from '../research/run-literature-evidence.mjs';
 import { mkdtemp,readFile,rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -159,7 +159,7 @@ test('planner receives matched evidence, unknown scores and tentative gaps witho
   const proposal=report.planner.proposals[0];assert.equal(proposal.id,'arp-fluid-state-estimation');
   assert.equal(proposal.scores.novelty,null);assert.equal(proposal.priority_score,null);
   assert.equal(proposal.gap_candidates[0].status,'candidate_needs_literature_review');
-  assert.equal(proposal.evidence[0].source_hits.length,2);assert.equal(report.planner.execution_enabled,false);
+  assert.equal(proposal.evidence[0].source_hits,undefined);assert.equal(proposal.evidence[0].provenance_ref.article_id,report.papers[0].article_id);assert.equal(report.planner.execution_enabled,false);
   assert.ok(!JSON.stringify(report).includes(abstract));assert.match(renderEvidenceReport(report),/Human review required/);
 });
 test('missing abstracts and failed model responses are isolated with no invented evidence or leaked errors',async()=>{
@@ -219,4 +219,60 @@ test('manual runner completes the database-to-model-to-planner flow and preserve
     assert.equal(report.coverage.summarized,1);
     assert.match(await readFile('reports/literature-evidence/report.md','utf8'),/Source excerpt/);
   } finally {globalThis.fetch=fetchOriginal;process.chdir(cwd);await rm(directory,{recursive:true,force:true});}
+});
+
+
+test('400 reconciled provider hits retain bounded provenance and fit storage after analysis',async()=>{
+  const searches=SOURCES.map(source=>{
+    const s=search(source);const template=s.literature_hit[0];
+    s.literature_hit=Array.from({length:100},(_,i)=>{
+      const h=structuredClone(template);h.rank=i+1;h.source_record_id=uid(1000+SOURCES.indexOf(source)*100+i);
+      h.literature_source_record.id=h.source_record_id;
+      h.metadata.title='水'.repeat(1000);
+      h.metadata.sourceId=source==='openalex'?'https://openalex.org/W'+String(i+1).padStart(477,'1'):'水'.repeat(500);
+      h.literature_source_record.source_id=h.metadata.sourceId;return h;
+    });return s;
+  });
+  const selected=selectQueryEvidence({id:uid(100)},searches);
+  const p=selected.papers[0];assert.equal(p.source_hits.length,4);
+  assert.deepEqual(p.provenance,{total_hits:400,retained_hits:4,
+    source_counts:Object.fromEntries(SOURCES.map(s=>[s,100])),truncated:true});
+  assert.deepEqual(selected,selectQueryEvidence({id:uid(100)},searches.toReversed()));
+  let calls=0;
+  const report=await buildEvidenceReport(selected,{id:uid(200),loadAbstract,summarize:async()=>{calls++;return summary;}});
+  assert.equal(calls,1);assert.ok(reportStorageBytes(report)<500_000);assertReportStorageSize(report);
+  for (const proposal of report.planner.proposals) for (const e of proposal.evidence) {
+    assert.equal(e.source_hits,undefined);assert.equal(e.provenance_ref.article_id,p.article_id);
+  }
+  assert.match(renderEvidenceReport(report),/4\/400/);
+});
+
+test('oversized metadata fails before retrieval or inference and oversized reports before HTTP',async()=>{
+  const selected=input();selected.query='水'.repeat(40_000);
+  let calls=0;
+  await assert.rejects(buildEvidenceReport(selected,{id:uid(200),loadAbstract:async()=>{calls++;},summarize:async()=>{calls++;}}),/evidence_input_too_large/);
+  assert.equal(calls,0);
+  const client=createLiteratureEvidenceClient({url:'https://example.supabase.co',secretKey:'secret',fetchImpl:async()=>{calls++;}});
+  await assert.rejects(client.saveReport({id:uid(200),literature_run_id:uid(100),query:'水'.repeat(170_000)}),/evidence_report_too_large/);
+  assert.equal(calls,0);
+});
+
+test('ten articles with maximum finding lengths and Unicode fit the unchanged report cap',async()=>{
+  const searches=SOURCES.map(source=>{
+    const s=search(source);
+    s.literature_hit=Array.from({length:10},(_,i)=>{
+      const h=structuredClone(s.literature_hit[0]);h.rank=i+1;
+      h.literature_source_record.article_id=uid(i+1);h.literature_source_record.canonical.id=uid(i+1);
+      h.metadata.title='Physics-informed flow '+ 'x'.repeat(978);
+      h.metadata.sourceId='x'.repeat(500);h.literature_source_record.source_id=h.metadata.sourceId;return h;
+    });return s;
+  });
+  const selected=selectQueryEvidence({id:uid(100)},searches,{maxPapers:10});
+  const text='水'.repeat(2000);
+  const maximalSummary={text:JSON.stringify({findings:['method','result','limitation'].map(kind=>({kind,claim:'水'.repeat(500),quote:'水'.repeat(280)}))}),provider:'水'.repeat(200),model:'水'.repeat(200)};
+  const report=await buildEvidenceReport(selected,{id:uid(200),
+    loadAbstract:async()=>({status:'available',abstract:text,content:{provider:'openalex',url:'https://openalex.org/W123',scope:'abstract_only',sha256:hashText(text),fetched_at:'2026-10-11T16:00:00Z'}}),
+    summarize:async()=>maximalSummary});
+  assert.equal(report.budget.model_calls,10);assert.equal(report.status,'completed');
+  assert.ok(report.planner.proposals.length);assertReportStorageSize(report);
 });

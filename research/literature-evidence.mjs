@@ -4,6 +4,11 @@ import { planEvidenceResearch } from './autonomous-planner.mjs';
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const EVIDENCE_MESSAGE_LIMIT=8000;
+// Pretty JSON conservatively includes more whitespace than PostgreSQL jsonb::text.
+export const reportStorageBytes=value=>Buffer.byteLength(JSON.stringify(value,null,2),'utf8');
+export function assertReportStorageSize(report) {
+  if (reportStorageBytes(report)>500_000) throw new Error('evidence_report_too_large');
+}
 export const hashText=text=>createHash('sha256').update(text).digest('hex');
 const normalized=text=>text.replace(/\s+/g,' ').trim();
 const requireUuid=value=>{if (!UUID.test(value??'')) throw new Error('invalid_literature_id'); return value;};
@@ -70,6 +75,7 @@ export function createLiteratureEvidenceClient({url,secretKey,fetchImpl=fetch}) 
       return selectQueryEvidence(run,searches,{queryIndex,maxPapers});
     },
     async saveReport(report) {
+      assertReportStorageSize(report);
       requireUuid(report.id);requireUuid(report.literature_run_id);
       const payload={id:report.id,literature_run_id:report.literature_run_id,query_index:report.query_index,report};
       const endpoint=new URL('/rest/v1/literature_planner_run',url);
@@ -119,6 +125,13 @@ export function selectQueryEvidence(run,searches,{queryIndex=0,maxPapers=5}={}) 
   for (const a of all) {
     a.source_hits.sort((x,y)=>SOURCES.indexOf(x.source)-SOURCES.indexOf(y.source)||x.rank-y.rank);
     a.title=a.source_hits[0].title;
+    // The complete history remains in literature_hit. Retain the best ranked
+    // observation per provider, with explicit counts for omitted observations.
+    a.provenance={total_hits:a.source_hits.length,retained_hits:0,
+      source_counts:Object.fromEntries(SOURCES.map(source=>[source,a.source_hits.filter(h=>h.source===source).length]))};
+    a.source_hits=a.source_hits.filter((h,i,hits)=>hits.findIndex(x=>x.source===h.source)===i);
+    a.provenance.retained_hits=a.source_hits.length;
+    a.provenance.truncated=a.provenance.total_hits>a.provenance.retained_hits;
   }
   all.sort((a,b)=>a.rank-b.rank||(a.article_id<b.article_id?-1:1));
   return {literature_run_id:run.id,query_index:queryIndex,query,
@@ -193,6 +206,9 @@ const safeReason=error=>SAFE_ERRORS.has(error?.message)||/^literature_http_\d{3}
 export async function buildEvidenceReport(input,{loadAbstract=fetchOpenAlexAbstract,summarize,id,now=()=>new Date().toISOString()}={}) {
   requireUuid(id);
   if (!Array.isArray(input.papers)||input.papers.length>10||typeof summarize!=='function') throw new Error('invalid_evidence_options');
+  // Reserve room for bounded findings, model metadata and planner candidates.
+  // Reject oversized metadata before either abstract retrieval or paid inference.
+  if (reportStorageBytes(input)>100_000) throw new Error('evidence_input_too_large');
   const papers=[];let modelCalls=0,contentCalls=0;
   for (const paper of input.papers) {
     const record={...paper,status:'unavailable',findings:[]};
@@ -230,6 +246,7 @@ export function renderEvidenceReport(report) {
     '','Evidence is abstract-only. Quote matching does not verify scientific correctness.',''];
   for (const p of report.papers) {
     lines.push(`## ${md(p.title)}`,`Status: ${p.status}${p.reason?' ('+p.reason+')':''}.`);
+    if (p.provenance) lines.push(`Source observations retained: ${p.provenance.retained_hits}/${p.provenance.total_hits}. Complete history remains in the literature database.`);
     if (p.content) lines.push(`Source: ${p.content.url}. Content SHA-256: ${p.content.sha256}.`,
       `Analyzed ${p.content.analyzed_characters}/${p.content.original_characters} characters. Truncated: ${p.content.truncated}. Analyzed SHA-256: ${p.content.analyzed_sha256}.`);
     for (const f of p.findings) lines.push(`- ${f.kind}: ${md(f.claim)}`,`  Source excerpt: “${md(f.quote)}”`);
