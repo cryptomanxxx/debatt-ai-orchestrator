@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { followUpPlan, runFollowUp, createFollowUpClient } from '../research/literature-follow-up.mjs';
+import { followUpPlan, runFollowUp, createFollowUpClient, followUpOriginUrl } from '../research/literature-follow-up.mjs';
 import { literaturePayload } from '../research/literature-database.mjs';
 import { SOURCES } from '../research/literature-benchmark.mjs';
 
@@ -64,4 +64,24 @@ test('database preflight, exact parent identity and receipt failures are enforce
   const broken=createFollowUpClient({url:'https://test.supabase.co',secretKey:'sb_secret_test',fetchImpl:async()=>Response.json({}, {status:404})});
   await assert.rejects(()=>broken.checkStorage(),/follow_up_database_http_404/);
   await assert.rejects(()=>client.saveReport({}),/invalid_follow_up_report/);
+});
+
+test('uppercase UUID input matches canonical PostgreSQL report identity and rejects a different report',async()=>{
+  const id='abcdef12-abcd-4abc-8def-abcdef123456';
+  let endpoint;
+  const client=createFollowUpClient({url:'https://test.supabase.co',secretKey:'sb_secret_test',fetchImpl:async u=>{
+    endpoint=new URL(u);return Response.json([{id,report:{...fixture(),id}}]);
+  }});
+  assert.equal((await client.readReport(id.toUpperCase())).id,id);
+  assert.equal(endpoint.searchParams.get('id'),'eq.'+id);
+  await assert.rejects(()=>client.readReport(parentId),/parent_report_not_found/);
+});
+
+test('provenance uses the executing fork or renamed repository, without guessing missing context',()=>{
+  for(const repository of ['another-owner/fork','new-owner/renamed.repo']) {
+    assert.equal(followUpOriginUrl({GITHUB_REPOSITORY:repository,GITHUB_RUN_ID:'123'}),`https://github.com/${repository}/actions/runs/123`);
+  }
+  for(const env of [{},{GITHUB_RUN_ID:'123'},{GITHUB_REPOSITORY:'owner/repo'},
+    {GITHUB_REPOSITORY:'owner/repo?bad',GITHUB_RUN_ID:'123'},
+    {GITHUB_REPOSITORY:'owner/repo',GITHUB_RUN_ID:'123/other'}]) assert.equal(followUpOriginUrl(env),null);
 });

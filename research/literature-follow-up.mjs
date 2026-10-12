@@ -52,6 +52,7 @@ export function createFollowUpClient({url, secretKey, fetchImpl = fetch}) {
     },
     async readReport(id) {
       if (!uuid(id)) throw Error('invalid_parent_report_id');
+      id = id.toLowerCase(); // PostgreSQL returns UUIDs in canonical lowercase.
       const rows = await request('literature_planner_run',{id:'eq.' + id,select:'id,report',limit:'1'});
       if (!Array.isArray(rows) || rows.length !== 1 || rows[0].id !== id || rows[0].report?.id !== id) throw Error('parent_report_not_found');
       return rows[0].report;
@@ -93,6 +94,13 @@ export function renderFollowUp(report) {
     'Review related and subsequent work, contrary results and full-paper assumptions before assessing a gap.', ''].join('\n');
 }
 
+export function followUpOriginUrl(env) {
+  const repository = env.GITHUB_REPOSITORY, runId = env.GITHUB_RUN_ID;
+  if (typeof repository !== 'string' || !/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(repository)
+    || typeof runId !== 'string' || !/^[1-9][0-9]*$/.test(runId)) return null;
+  return `https://github.com/${repository}/actions/runs/${runId}`;
+}
+
 export async function main(env = process.env) {
   const client = createFollowUpClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY});
   await client.checkStorage(); // Fail before provider requests if migration is missing.
@@ -103,7 +111,7 @@ export async function main(env = process.env) {
   const report = await runFollowUp(plan,{id,
     searchOptions:{openAlexKey:env.OPENALEX_API_KEY,semanticScholarKey:env.SEMANTIC_SCHOLAR_API_KEY,coreApiKey:env.CORE_API_KEY},
     persist:searches => persistLiteratureReport(searches,{url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY,
-      runKey:'follow-up:' + id,originUrl:env.GITHUB_RUN_ID ? `https://github.com/cryptomanxxx/debatt-ai-orchestrator/actions/runs/${env.GITHUB_RUN_ID}` : null})});
+      runKey:'follow-up:' + id,originUrl:followUpOriginUrl(env)})});
   report.code_commit = env.GITHUB_SHA ?? null;
   await writeFile(directory + '/report.json',JSON.stringify(report,null,2) + '\n');
   const markdown = renderFollowUp(report);
