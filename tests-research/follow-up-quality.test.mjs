@@ -174,3 +174,21 @@ test('strong title leads with no loader identity report a content limitation sep
   assert.equal(canonical.selection_review.rejected_for_domain,2);
   assert.throws(()=>prioritizeFollowUp(papers,{...review,quality_context:{...c,domain_terms:'turbulence'}}),/invalid_follow_up_quality_context/);
 });
+
+test('long accepted seed terms cannot truncate fixed method and turbulence query anchors',()=>{
+  const longTerms=['a'.repeat(80),'b'.repeat(80),'c'.repeat(80)].join(' ');
+  const title='Physics informed neural networks '+longTerms;
+  const question='Does '+longTerms+' improve state estimation?';
+  const stored={id:uid(90),schema_version:'literature-evidence-1',query:'physics informed neural networks turbulence',
+    papers:[{article_id:uid(91),title,findings:[]}],
+    planner:{proposals:[{id:'arp-fluid-state-estimation',research_question:question,evidence:[{id:uid(91)}]}]}};
+  const plan=followUpPlan(stored,'arp-fluid-state-estimation');
+  assert.equal(plan.queries.length,2);
+  assert.ok(plan.queries.every(q=>q.length<=200&&/\bturbulence\b/.test(q)));
+  assert.match(plan.queries[0],/^pinn turbulence /);
+  assert.match(plan.queries[1],/^physics informed neural networks turbulence /);
+  assert.doesNotThrow(()=>prioritizeFollowUp([],{...review,quality_context:plan.quality_context}));
+  const limitation=qualitySeeds({paper:{title},candidate:{research_question:question},
+    limitation:{claim:longTerms,context_quote:longTerms},researchQuery:stored.query});
+  assert.ok(limitation.queries.every(q=>q.length<=200&&/\bturbulence\b/.test(q)));
+});

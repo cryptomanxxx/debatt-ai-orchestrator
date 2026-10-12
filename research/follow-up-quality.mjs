@@ -34,9 +34,10 @@ export function qualitySeeds({paper,limitation,candidate,researchQuery=''}) {
   const topic = nonMethodTerms(limitation?.claim ?? candidate.research_question).slice(0,3);
   const context = limitation?.context_quote ?? paper.title;
   const solution = /transformation[- ]embedded/i.test(context) ? ['transformation','embedded'] : nonMethodTerms(context).slice(0,3);
+  // Keep fixed method/domain anchors before terms that may exceed the query bound.
   const seeds = [
-    [method?.short,...topic,domainQuery].filter(Boolean).join(' '),
-    [...solution,method?.expanded,domainQuery].filter(Boolean).join(' '),
+    [method?.short,domainQuery,...topic].filter(Boolean).join(' '),
+    (domainQuery ? [method?.expanded,domainQuery,...solution] : [...solution,method?.expanded]).filter(Boolean).join(' '),
   ].map(q => q.slice(0,200).trim());
   return {queries:[...new Set(seeds)].filter(q => q.length >= 3),
     quality_context:{method_aliases:method?.aliases ?? [],topic_terms:topic,solution_terms:solution,domain_terms:domain,
