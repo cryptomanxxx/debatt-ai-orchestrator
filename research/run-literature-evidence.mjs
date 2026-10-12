@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { EVIDENCE_MESSAGE_LIMIT,boundedJson,createLiteratureEvidenceClient,createLiteratureAbstractLoader,buildEvidenceReport,renderEvidenceReport,validateEvidenceOptions } from './literature-evidence.mjs';
 
 import { createAnalysisRegistryClient } from './literature-analysis-registry.mjs';
+import { createFollowUpClient } from './literature-follow-up.mjs';
 import { createAbstractArchiveClient,createArchivedAbstractLoader } from './literature-abstract-archive.mjs';
 
 export async function readEvidenceModelProfile({key,fetchImpl=fetch}) {
@@ -55,10 +56,14 @@ export async function main(env=process.env) {
   await analysisStore.checkStorage();
   const modelProfile=await readEvidenceModelProfile({key:env.ORCHESTRATOR_API_KEY});
   const summarize=createEvidenceSummarizer({key:env.ORCHESTRATOR_API_KEY,profile:modelProfile});
-  const input=await client.readQuery({runId:env.LITERATURE_RUN_ID||null,...options});
+  const followUpReview=env.FOLLOW_UP_REPORT_ID?await createFollowUpClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY}).readFollowUp(env.FOLLOW_UP_REPORT_ID):null;
+  if (followUpReview && env.LITERATURE_RUN_ID && env.LITERATURE_RUN_ID.toLowerCase()!==followUpReview.literature_run_id)
+    throw Error('follow_up_run_mismatch');
+  const input=await client.readQuery({runId:followUpReview?.literature_run_id??(env.LITERATURE_RUN_ID||null),...options,followUpReview});
   const report=await buildEvidenceReport(input,{id:randomUUID(),summarize,analysisStore,modelProfile,
     loadAbstract:createArchivedAbstractLoader({client:archive,loadAbstract:createLiteratureAbstractLoader({apiKey:env.OPENALEX_API_KEY||''})})});
   report.code_commit=env.GITHUB_SHA||null;
+  if (input.selection_review) report.selection_review=input.selection_review;
   await writeFile(directory+'/report.json',JSON.stringify(report,null,2)+'\n');
   const markdown=renderEvidenceReport(report);
   await writeFile(directory+'/report.md',markdown);

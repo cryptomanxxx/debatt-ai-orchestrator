@@ -109,7 +109,8 @@ test('limitation follow-up searches both the problem and proposed response with 
   const auto=followUpPlan(report,'arp-fluid-state-estimation');
   assert.deepEqual(auto.finding_ref,{article_id:'paper-1',finding_index:0});
   assert.match(auto.queries[0],/misaligned velocity/);
-  assert.match(auto.queries[1],/transformation embedded pinns/);
+  assert.equal(auto.queries[0],'pinn misaligned velocity measurements');
+  assert.equal(auto.queries[1],'transformation embedded physics informed neural networks');
   assert.equal(auto.limitation_review,'reported_response_requires_review');
   const exact=followUpPlan(report,'arp-fluid-state-estimation',{articleId:'paper-1',findingIndex:'0'});
   assert.deepEqual(exact,auto);

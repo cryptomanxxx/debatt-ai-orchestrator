@@ -16,6 +16,10 @@ on:
         type: choice
         default: '5'
         options: ['5','10']
+      follow_up_report_id:
+        description: 'Optional saved follow-up report UUID: prioritize title anchors and exclude confirmed origin articles'
+        type: string
+        default: ''
 permissions:
   contents: read
 concurrency:
@@ -34,7 +38,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Run offline evidence and planner tests
-        run: node --test tests-research/literature-evidence.test.mjs tests-research/literature-abstract-archive.test.mjs tests-research/autonomous-planner.test.mjs tests-research/literature-analysis-registry.test.mjs
+        run: node --test tests-research/literature-evidence.test.mjs tests-research/follow-up-quality.test.mjs tests-research/literature-abstract-archive.test.mjs tests-research/autonomous-planner.test.mjs tests-research/literature-analysis-registry.test.mjs
       - name: Summarize saved literature and propose review candidates
         env:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
@@ -44,6 +48,7 @@ jobs:
           LITERATURE_RUN_ID: ${{ inputs.literature_run_id }}
           LITERATURE_QUERY_INDEX: ${{ inputs.query_index }}
           LITERATURE_MAX_PAPERS: ${{ inputs.max_papers }}
+          FOLLOW_UP_REPORT_ID: ${{ inputs.follow_up_report_id }}
         run: node research/run-literature-evidence.mjs
       - uses: actions/upload-artifact@v4
         if: always()

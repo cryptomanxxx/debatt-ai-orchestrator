@@ -36,7 +36,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Test follow-up contracts
-        run: node --test tests-research/literature-follow-up.test.mjs tests-research/literature-benchmark.test.mjs tests-research/literature-database.test.mjs
+        run: node --test tests-research/literature-follow-up.test.mjs tests-research/follow-up-quality.test.mjs tests-research/literature-benchmark.test.mjs tests-research/literature-database.test.mjs
       - name: Search and persist candidate review leads
         env:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
