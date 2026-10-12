@@ -30,7 +30,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Test pipeline and selection contracts
-        run: node --test tests-research/research-pipeline.test.mjs tests-research/follow-up-quality.test.mjs tests-research/literature-follow-up.test.mjs
+        run: node --test tests-research/research-pipeline.test.mjs tests-research/follow-up-quality.test.mjs tests-research/literature-follow-up.test.mjs tests-research/finding-diagnostics.test.mjs
       - name: Collect, analyze and follow up
         env:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}

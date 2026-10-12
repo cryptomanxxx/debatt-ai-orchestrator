@@ -118,3 +118,30 @@ test('anchor threshold uses the union of configured and matched terms, not the s
   assert.equal(evaluate('PINN sparse',{...c,topic_terms:['sparse'],solution_terms:['sparse','sensor']}).papers.length,0);
   assert.equal(evaluate('PINN',{...c,topic_terms:[],solution_terms:[]}).papers.length,0);
 });
+
+test('selection prioritizes loader-compatible identities, new leads and abstract hints before provider rank',()=>{
+  const title='PINN turbulence sparse measurements';
+  const c={...context,topic_terms:['turbulence','sparse','measurements'],solution_terms:[]};
+  const original={...origins[0],title};
+  const papers=[
+    {article_id:uid(80),rank:1,title,lookup_identifiers:{doi:null,arxiv_id:null,openalex_records:[]},source_hits:[]},
+    {article_id:uid(81),rank:2,title,doi:'10.1234/copy'},
+    {article_id:uid(82),rank:10,title:'New '+title,doi:'10.1234/new',has_abstract_signal:true},
+    {article_id:uid(83),rank:3,title:'Another '+title,doi:'10.1234/other'},
+  ];
+  const selected=prioritizeFollowUp(papers,{...review,quality_context:c,origin_articles:[original]});
+  assert.equal(selected.papers[0].article_id,uid(82));
+  assert.equal(selected.papers[1].article_id,uid(83));
+  assert.equal(selected.papers[2].article_id,uid(81));
+  assert.equal(selected.summary.rejected_for_no_abstract_identifier,1);
+  assert.equal(selected.summary.eligible,3);assert.equal(selected.summary.eligible_title_leads,4);
+  assert.equal(selected.papers[0].selection_review.abstract_access.has_abstract_signal,true);
+});
+
+test('strong title leads with no loader identity report a content limitation separately from relevance',()=>{
+  const result=prioritizeFollowUp([{article_id:uid(80),rank:1,title:'PINN transformation embedded',
+    lookup_identifiers:{doi:null,arxiv_id:null,openalex_records:[]},source_hits:[]}],review);
+  assert.equal(result.papers.length,0);
+  assert.equal(result.summary.outcome,'insufficient_abstract_identifiers');
+  assert.equal(result.summary.rejected_for_weak_anchors,0);
+});

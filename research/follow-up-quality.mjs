@@ -43,6 +43,17 @@ export function originArticles(papers) {
     sources:(p.source_hits ?? []).map(h => ({source:h.source,source_id:h.source_id}))}));
 }
 
+export function abstractAccess(paper) {
+  const lookup=paper.lookup_identifiers;
+  const hasIdentifier=Boolean(normalizeDoi(lookup?.doi??paper.doi)||normalizeArxivId(lookup?.arxiv_id??paper.arxivId)
+    ||lookup?.openalex_records?.length || (paper.source_hits??[]).some(h=>
+      normalizeDoi(h.doi)||(h.source==='openalex'&&/^https:\/\/openalex.org\/W\d+$/.test(h.source_id??'')))
+    ||(paper.source==='openalex'&&/^https:\/\/openalex.org\/W\d+$/.test(paper.sourceId??'')));
+  return {identifier_status:hasIdentifier?'available':lookup?'missing':'unknown',
+    has_abstract_signal:paper.has_abstract_signal===true||paper.hasAbstract===true,
+    note:'Metadata signal and loader-compatible identity only; actual abstract availability is not verified.'};
+}
+
 export function reviewHit(paper, context, origins) {
   const lookup = paper.lookup_identifiers ?? {};
   const doi = normalizeDoi(paper.doi ?? lookup.doi), arxiv = normalizeArxivId(paper.arxivId ?? lookup.arxiv_id);
@@ -58,6 +69,7 @@ export function reviewHit(paper, context, origins) {
   return {origin_relation:exact ? 'confirmed_origin' : possible ? 'possible_origin_title' : 'not_matched_to_origin',
     origin_article_id:exact?.article_id ?? possible?.article_id ?? null,
     matched_method:method,matched_topic:topic,matched_solution:solution,
+    abstract_access:abstractAccess(paper),
     anchor_score:(method.length ? 2 : 0) + (topic.length || solution.length ? 1 : 0),
     reason:'Title token/phrase overlap only; not semantic relevance, novelty or independence.'};
 }
@@ -84,13 +96,20 @@ export function prioritizeFollowUp(papers, review) {
     const r=p.selection_review;
     return r.matched_method.length>0 && new Set([...r.matched_topic,...r.matched_solution]).size>=requiredMatches;
   });
-  eligible.sort((a,b) => b.selection_review.anchor_score - a.selection_review.anchor_score
+  const selectable=eligible.filter(p=>p.selection_review.abstract_access.identifier_status!=='missing');
+  const accessRank=p=>p.selection_review.abstract_access.identifier_status==='available'?1:0;
+  const titleCopy=p=>p.selection_review.origin_relation==='possible_origin_title'?1:0;
+  selectable.sort((a,b) => accessRank(b)-accessRank(a) || titleCopy(a)-titleCopy(b)
+    || Number(b.selection_review.abstract_access.has_abstract_signal)-Number(a.selection_review.abstract_access.has_abstract_signal)
+    || b.selection_review.anchor_score - a.selection_review.anchor_score
     || a.rank - b.rank || (a.article_id < b.article_id ? -1 : a.article_id > b.article_id ? 1 : 0));
-  return {papers:eligible,summary:{policy:c.policy,reviewed:reviewed.length,
+  return {papers:selectable,summary:{policy:c.policy,reviewed:reviewed.length,
     confirmed_origin:reviewed.filter(p => p.selection_review.origin_relation === 'confirmed_origin').length,
     possible_origin_title:reviewed.filter(p => p.selection_review.origin_relation === 'possible_origin_title').length,
-    eligible:eligible.length,rejected_for_weak_anchors:nonOrigin.length-eligible.length,
-    outcome:eligible.length?'eligible_title_leads':'insufficient_relevant_hits',
+    eligible:selectable.length,eligible_title_leads:eligible.length,
+    rejected_for_no_abstract_identifier:eligible.length-selectable.length,
+    rejected_for_weak_anchors:nonOrigin.length-eligible.length,
+    outcome:selectable.length?'eligible_title_leads':eligible.length?'insufficient_abstract_identifiers':'insufficient_relevant_hits',
     required_anchor_terms:requiredMatches,
     eligibility_rule:'Recognized method plus two distinct terms across the combined problem/solution vocabulary (one only if the entire vocabulary has one). Titles only; omitted terms can cause false negatives.',
     follow_up_report_id:review.id}};

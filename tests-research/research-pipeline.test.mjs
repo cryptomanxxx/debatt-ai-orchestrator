@@ -23,10 +23,12 @@ test('one chain propagates exact IDs, isolates artifacts and keeps total model c
   assert.deepEqual(calls,['collect','evidence','follow','evidence']);assert.equal(result.status,'completed');assert.equal(result.budget.known_model_calls,5);
 });
 test('insufficient relevant follow-up is an explicit successful outcome and consumes no follow-up model call',async()=>{
+  for(const outcome of ['insufficient_relevant_hits','insufficient_abstract_identifiers']) {
   const result=await runPipeline({}, {preflight:async()=>{},readQuery:canonicalReader,collect:async()=>({status:'partial',literature_run_id:'run'}),
-    evidence:async e=>e.FOLLOW_UP_REPORT_ID?{id:'final',status:'insufficient_evidence',budget:{model_calls:0},selection_review:{outcome:'insufficient_relevant_hits'}}:
+    evidence:async e=>e.FOLLOW_UP_REPORT_ID?{id:'final',status:'insufficient_evidence',budget:{model_calls:0},selection_review:{outcome}}:
       {id:'initial',status:'completed',budget:{model_calls:1},planner:{proposals:[candidate]}},followUp:async()=>follow()});
-  assert.equal(result.status,'insufficient_relevant_hits');assert.equal(result.budget.known_model_calls,1);
+  assert.equal(result.status,outcome);assert.equal(result.budget.known_model_calls,1);
+  }
 });
 test('missing candidates and failed stages stop the chain, preserve checkpoints and hide raw diagnostics',async()=>{
   let following=0;

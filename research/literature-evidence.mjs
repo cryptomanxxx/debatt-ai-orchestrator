@@ -127,9 +127,10 @@ export function selectQueryEvidence(run,searches,{queryIndex=0,maxPapers=5,follo
         ||sourceRecord.id!==h.source_record_id||sourceRecord.source!==s.source
         ||typeof m.sourceId!=='string'||!m.sourceId||m.sourceId.length>500||sourceRecord.source_id!==m.sourceId)
         throw new Error('invalid_literature_hit_response');
-      const a=articles.get(articleId)??{article_id:articleId,lookup_identifiers:lookup,source_hits:[],rank:h.rank};
+      const a=articles.get(articleId)??{article_id:articleId,lookup_identifiers:lookup,source_hits:[],rank:h.rank,has_abstract_signal:false};
       if (JSON.stringify(a.lookup_identifiers)!==JSON.stringify(lookup)) throw new Error('inconsistent_canonical_article_response');
       a.rank=Math.min(a.rank,h.rank);
+      a.has_abstract_signal ||= m.hasAbstract===true;
       a.source_hits.push({search_id:s.id,source_record_id:h.source_record_id,source:s.source,rank:h.rank,
         source_id:m.sourceId,title:m.title,doi:normalizeDoi(m.doi)});
       articles.set(articleId,a);
@@ -248,18 +249,34 @@ export function evidencePrompt(paper,abstract) {
   }
   return make(points.slice(0,low).join(''));
 }
+const FINDING_DIAGNOSTICS=new Set(['invalid_finding_fields','invalid_finding_kind','invalid_claim',
+  'quote_not_string','quote_length_outside_bounds','quote_null_character','quote_not_exact','quote_whitespace_variant',
+  'invalid_limitation_status','context_quote_not_string','context_quote_length_outside_bounds',
+  'context_quote_null_character','context_quote_not_exact','context_quote_whitespace_variant']);
+const rejectFinding=reason=>{const error=new Error('unmatched_evidence_quote');error.findingReason=reason;throw error;};
+function checkQuotation(quote,abstract,prefix='quote') {
+  if (typeof quote!=='string') rejectFinding(prefix+'_not_string');
+  if (quote.trim().length<20||quote.length>280) rejectFinding(prefix+'_length_outside_bounds');
+  if (quote.includes('\u0000')) rejectFinding(prefix+'_null_character');
+  if (!abstract.includes(quote)) {
+    const whitespaceOnly=normalized(abstract).includes(normalized(quote));
+    rejectFinding(prefix+(whitespaceOnly?'_whitespace_variant':'_not_exact'));
+  }
+}
 export function validateFindings(text,abstract) {
   let data;try {data=JSON.parse(text);} catch {throw new Error('invalid_evidence_summary');}
   if (!data||Object.keys(data).join(',')!=='findings'||!Array.isArray(data.findings)||data.findings.length>3) throw new Error('invalid_evidence_summary');
   return data.findings.map(f=>{
     const keys=f&&Object.keys(f).sort().join(',');
     const contextual=f?.kind==='limitation'&&keys==='claim,context_quote,kind,limitation_status,quote';
-    if (!f||(!contextual&&keys!=='claim,kind,quote')||!['method','result','limitation'].includes(f.kind)
-      ||typeof f.claim!=='string'||!f.claim.trim()||f.claim.length>500||typeof f.quote!=='string'||f.quote.trim().length<20||f.quote.length>280
-      ||f.claim.includes('\u0000')||f.quote.includes('\u0000')||!abstract.includes(f.quote)) throw new Error('unmatched_evidence_quote');
-    if (contextual&&(!['remaining','prior_work','unclear'].includes(f.limitation_status)||
-      typeof f.context_quote!=='string'||f.context_quote.trim().length<20||f.context_quote.length>280||
-      f.context_quote.includes('\u0000')||!abstract.includes(f.context_quote))) throw new Error('unmatched_evidence_quote');
+    if (!f||(!contextual&&keys!=='claim,kind,quote')) rejectFinding('invalid_finding_fields');
+    if (!['method','result','limitation'].includes(f.kind)) rejectFinding('invalid_finding_kind');
+    if (typeof f.claim!=='string'||!f.claim.trim()||f.claim.length>500||f.claim.includes('\u0000')) rejectFinding('invalid_claim');
+    checkQuotation(f.quote,abstract);
+    if (contextual) {
+      if (!['remaining','prior_work','unclear'].includes(f.limitation_status)) rejectFinding('invalid_limitation_status');
+      checkQuotation(f.context_quote,abstract,'context_quote');
+    }
     return {kind:f.kind,claim:f.claim.trim(),quote:f.quote,verification:'quote_match_only',
       ...(f.kind==='limitation'?{limitation_status:contextual?f.limitation_status:'unclear',
         context_quote:contextual?f.context_quote:null,limitation_assessment:'unverified_model_interpretation'}:{})};
@@ -272,7 +289,7 @@ export function inspectFindings(text,abstract) {
   const findings=[],rejected=[];
   data.findings.forEach((finding,index)=>{
     try {findings.push(...validateFindings(JSON.stringify({findings:[finding]}),abstract));}
-    catch {rejected.push({index,reason:'invalid_finding_or_unmatched_quote'});}
+    catch(error) {rejected.push({index,reason:FINDING_DIAGNOSTICS.has(error.findingReason)?error.findingReason:'invalid_finding_or_unmatched_quote'});}
   });
   return {findings,validation:{accepted_findings:findings.length,rejected_findings:rejected.length,rejected}};
 }
@@ -333,11 +350,21 @@ export async function buildEvidenceReport(input,{loadAbstract=createLiteratureAb
     papers.push(record);
   }
   const n=papers.filter(p=>p.status==='summarized').length;
+  const validationStats={accepted_findings:0,rejected_findings:0,rejections_by_reason:{}};
+  for (const paper of papers) {
+    validationStats.accepted_findings+=paper.validation?.accepted_findings??0;
+    validationStats.rejected_findings+=paper.validation?.rejected_findings??0;
+    for (const item of paper.validation?.rejected??[]) {
+      const reason=FINDING_DIAGNOSTICS.has(item.reason)?item.reason:'invalid_finding_or_unmatched_quote';
+      validationStats.rejections_by_reason[reason]=(validationStats.rejections_by_reason[reason]??0)+1;
+    }
+  }
   return {schema_version:'literature-evidence-1',id,literature_run_id:input.literature_run_id,query_index:input.query_index,
     query:input.query,created_at:now(),status:n===0?'insufficient_evidence':n===papers.length&&!papers.some(p=>p.validation?.rejected_findings)?'completed':'partial',
     source_statuses:input.source_statuses,coverage:{selected:papers.length,summarized:n,available_articles:input.total_articles,selection:input.selection},
     budget:{max_model_calls:papers.length,model_calls:modelCalls,content_attempts:contentCalls,completion_tokens_per_call:4096},
     analysis_stats:{reused:papers.filter(p=>p.analysis?.cache_hit).length,saved:papers.filter(p=>p.analysis&&!p.analysis.cache_hit).length},
+    validation_stats:validationStats,
     model_profile:modelProfile,
     archive_stats:{saved_versions:papers.filter(p=>p.archive?.inserted_version).length,
       reused_abstracts:papers.filter(p=>p.archive?.cache_hit).length,
@@ -353,16 +380,19 @@ export function renderEvidenceReport(report) {
     `Model calls: ${report.budget.model_calls}. Reused analyses: ${report.analysis_stats?.reused??0}.`,
     '','Evidence is abstract-only. Quote matching does not verify scientific correctness.',''];
   if (report.selection_review) lines.push(`Follow-up selection: ${report.selection_review.confirmed_origin} confirmed origin articles excluded; ${report.selection_review.possible_origin_title} possible title matches flagged.`,
-    `Eligibility: ${report.selection_review.eligible} title leads; ${report.selection_review.rejected_for_weak_anchors} weak-anchor hits rejected. Outcome: ${md(report.selection_review.outcome)}.`,
+    `Eligibility: ${report.selection_review.eligible} selectable leads; ${report.selection_review.rejected_for_weak_anchors} weak-anchor hits rejected; ${report.selection_review.rejected_for_no_abstract_identifier??0} skipped without an abstract identifier. Outcome: ${md(report.selection_review.outcome)}.`,
     `Follow-up report: ${md(report.selection_review.follow_up_report_id)}.`, '');
+  if (report.validation_stats?.rejected_findings) lines.push('Rejection totals: '+Object.entries(report.validation_stats.rejections_by_reason).map(([reason,count])=>`${md(reason)}: ${count}`).join('; ')+'.','');
   for (const p of report.papers) {
     lines.push(`## ${md(p.title)}`,`Status: ${p.status}${p.reason?' ('+p.reason+')':''}.`);
     if (p.selection_review) lines.push(`Selection: ${md(p.selection_review.origin_relation)}; title anchor score ${p.selection_review.anchor_score}.`,
       `Matched method: ${p.selection_review.matched_method.map(md).join(', ')||'none'}; topic: ${p.selection_review.matched_topic.map(md).join(', ')||'none'}; solution: ${p.selection_review.matched_solution.map(md).join(', ')||'none'}.`,
       md(p.selection_review.reason));
+    if (p.selection_review?.abstract_access) lines.push(`Abstract identifier: ${p.selection_review.abstract_access.identifier_status}; provider abstract signal: ${p.selection_review.abstract_access.has_abstract_signal}. Availability unverified.`);
     if (p.archive) lines.push(`Saved abstract version: ${p.archive.version_id}. Reused cached text: ${p.archive.cache_hit}.`);
     if (p.analysis) lines.push(`Saved evidence analysis: ${p.analysis.id}. Reused analysis: ${p.analysis.cache_hit}.`);
     if (p.validation) lines.push(`Findings accepted/rejected: ${p.validation.accepted_findings}/${p.validation.rejected_findings}.`);
+    if (p.validation?.rejected?.length) lines.push('Rejected finding reasons: '+p.validation.rejected.map(r=>`${r.index}: ${md(r.reason)}`).join('; ')+'.');
     if (p.provenance) lines.push(`Source observations retained: ${p.provenance.retained_hits}/${p.provenance.total_hits}. Complete history remains in the literature database.`);
     if (p.content) lines.push(`Source: ${p.content.url}. Content SHA-256: ${p.content.sha256}.`,
       `Analyzed ${p.content.analyzed_characters}/${p.content.original_characters} characters. Truncated: ${p.content.truncated}. Analyzed SHA-256: ${p.content.analyzed_sha256}.`);
