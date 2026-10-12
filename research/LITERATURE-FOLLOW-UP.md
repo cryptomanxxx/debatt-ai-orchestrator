@@ -53,3 +53,7 @@ limit 20;
 The returned `literature_run_id` can be explicitly passed to **Literature evidence planner (manual)** with `query_index=0` or `1` to analyze retrieved abstracts. Those are indices of the follow-up queries, not the original five daily queries. Always pass explicit run IDs when comparing reports: the planner's blank-ID default uses the newest import, which may now be a follow-up run.
 
 The next stage is to assess these leads against the precise proposed intervention, baselines and remaining limitations, and then specify a preregistered experiment. Portfolio scores and novelty remain unknown in this release.
+
+For new follow-up plans whose parent query explicitly contains `turbulence`, both search queries retain that domain anchor. Selection additionally requires a title term from the bounded turbulence/fluid-mechanics vocabulary and reports domain rejections separately. Generic `state estimation` or `power flow` titles alone cannot satisfy this gate. This is a conservative title heuristic: relevant titles can omit the domain and be rejected; a match does not establish semantic relevance. Other areas and historical follow-up reports without domain terms retain the previous gates. Start a new pipeline to apply this policy.
+
+Evidence extraction asks for short contiguous quote clauses (preferably 40–200 characters) and a separate length check for each quote and context quote. The enforced 20–280 character limits and exact character matching remain unchanged; no quotations are automatically shortened or repaired, and no retry calls are added.
