@@ -28,13 +28,18 @@ test('cache keys use stable source records and current canonical enrichment',()=
 });
 test('fresh cache verifies complete text/hash/identity and preserves version without provider calls',async()=>{
   let calls=0,request;
-  const db=client(async(url,options)=>{request={url:String(url),options};return json([row()]);});
+  const db=client(async(url,options)=>{
+    request={url:String(url),options};const params=new URL(String(url)).searchParams;
+    // PostgREST scalar eq binds the entire suffix, including any quotes.
+    return json([row()].filter(r=>['source_record_id','provider','lookup_id'].every(
+      column=>params.get(column)?.slice(3)===r[column])));
+  });
   const loader=createArchivedAbstractLoader({client:db,now:()=>current+1000,loadAbstract:async()=>{calls++;throw Error('unexpected provider');}});
   const result=await loader(paper());assert.equal(result.abstract,text);assert.equal(result.archive.version_id,uid(30));
   assert.equal(result.archive.cache_hit,true);assert.equal(calls,0);
   assert.equal(request.options.headers.apikey,'private');assert.equal(request.options.headers.Authorization,undefined);
   assert.equal(request.options.redirect,'error');
-  const params=new URL(request.url).searchParams;assert.equal(params.get('lookup_id'),'eq.'+JSON.stringify(key.lookupId));
+  const params=new URL(request.url).searchParams;assert.equal(params.get('lookup_id'),'eq.'+key.lookupId);
   assert.equal(params.get('limit'),'1');assert.match(params.get('select'),/literature_abstract_blob/);
 });
 test('expired or absent cache retrieves and persists text before analysis; unchanged receipt retains ID',async()=>{
@@ -74,4 +79,24 @@ test('archive preflight and failed writes avoid paid calls; successful analysis 
   assert.equal(report.planner.proposals[0].evidence[0].abstract_version_id,uid(30));
   assert.equal(report.archive_stats.reused_abstracts,1);assert.equal(report.archive_stats.new_content_bytes,0);
   assert.ok(!JSON.stringify(report).includes(text));
+});
+
+
+test('scalar cache filters preserve exact work/DOI/arXiv identifiers and cannot create extra URL parameters',async()=>{
+  for (const identifier of [key.lookupId,'10.1234/example','2610.01234','math.GT/0309136',
+    '10.1234/path(a,b):x."y\\z?foo=1&bar=2#q','10.1234/研究']) {
+    const isArxiv=identifier==='2610.01234'||identifier==='math.GT/0309136';
+    const lookup={...key,provider:isArxiv?'arxiv':'openalex',lookupId:identifier};
+    const stored={...row(),provider:lookup.provider,lookup_id:identifier,
+      source_url:isArxiv?'https://arxiv.org/abs/'+identifier+'v1':key.lookupId};
+    const db=client(async url=>{
+      const params=new URL(String(url)).searchParams;
+      assert.equal(params.get('foo'),null);assert.equal(params.get('bar'),null);
+      assert.equal(new URL(String(url)).hash,'');
+      return json(['source_record_id','provider','lookup_id'].every(
+        column=>params.get(column)?.slice(3)===stored[column])?[stored]:[]);
+    });
+    const result=await db.read(lookup,{now:current+1000});
+    assert.equal(result.archive.cache_hit,true);assert.equal(result.archive.version_id,stored.id);
+  }
 });
