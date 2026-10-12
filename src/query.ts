@@ -1,6 +1,7 @@
 import type { Config } from './config.ts';
 import type { Mode } from './router.ts';
 import { CalculationError } from './tools/calculator.ts';
+import { defaultModelProfile } from './models/profile.ts';
 import { orchestrate } from './orchestrator.ts';
 import { BOOTLOOPS_TOOL, validateRatfitInput, runBootLoops } from './tools/registry.ts';
 import type { BootLoopsExecutor } from './tools/registry.ts';
@@ -31,10 +32,19 @@ export async function executeQuery(input: unknown, config: Config, bootloops?: B
     || typeof mode !== 'string' || !['default', 'reasoning', 'auto'].includes(mode)
     || ![1024, 4096].includes(completionTokenLimit as number))
     return { status: 400, data: { error: 'invalid_request' } };
+  const profile = defaultModelProfile(config);
+  if ('expectedModelFingerprint' in request) {
+    if (mode !== 'default' || typeof request.expectedModelFingerprint !== 'string'
+      || !/^[a-f0-9]{64}$/.test(request.expectedModelFingerprint))
+      return { status: 400, data: { error: 'invalid_model_fingerprint' } };
+    if (request.expectedModelFingerprint !== profile.fingerprint)
+      return { status: 409, data: { error: 'model_profile_changed' } };
+  }
   if (mode === 'reasoning' && config.provider !== 'mock' && !config.reasoningModel)
     return { status: 400, data: { error: 'reasoning_not_configured' } };
   try {
-    return { status: 200, data: await orchestrate(message.trim(), mode as Mode, config, completionTokenLimit as CompletionTokenLimit) };
+    return { status: 200, data: { ...await orchestrate(message.trim(), mode as Mode, config, completionTokenLimit as CompletionTokenLimit),
+      ...(mode === 'default' ? { modelFingerprint: profile.fingerprint } : {}) } };
   } catch (error) {
     if (error instanceof CalculationError) return { status: 400, data: { error: error.message } };
     if (error instanceof ModelRequestError) return { status: 502,

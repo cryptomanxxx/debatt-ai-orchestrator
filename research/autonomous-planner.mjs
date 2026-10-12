@@ -1,5 +1,6 @@
 // Autonomous Research Planner v0.1: reproducible, offline literature-to-proposal baseline.
 // No claim of novelty is made without independent literature review.
+import { candidateProtocol,portfolioAssessment,gapReviewPlan } from './research-candidate-protocols.mjs';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
@@ -103,12 +104,13 @@ export function planEvidenceResearch(papers) {
       const evidence = proposal.evidence.map(citation => {
         const p=byId.get(citation.id);
         return { ...citation, content_sha256:p.content.sha256, analyzed_content_sha256:p.content.analyzed_sha256,
-          truncated:p.content.truncated, ...(p.archive?{abstract_version_id:p.archive.version_id}:{}),findings_ref:{article_id:p.article_id,path:'papers[].findings'},
+          truncated:p.content.truncated, ...(p.archive?{abstract_version_id:p.archive.version_id}:{}),...(p.analysis?{analysis_id:p.analysis.id}:{}),findings_ref:{article_id:p.article_id,path:'papers[].findings'},
           provenance_ref:{article_id:p.article_id,path:'papers[].source_hits'}, evidence_scope:p.content.truncated?'abstract_prefix':'abstract_only', verification:'quote_match_only' };
       });
       const gaps = evidence.flatMap(e => byId.get(e.id).findings.map((f,index)=>({f,index})).filter(({f}) => f.kind==='limitation'&&f.limitation_status==='remaining'&&f.context_quote).map(({f,index}) => ({
-        status:'candidate_needs_literature_review', article_id:e.id, reported_limitation:f.claim,
-        supporting_quote:f.quote,limitation_assessment:'unverified_model_interpretation',
+        id:`gap-${e.id}-${index}-${e.analyzed_content_sha256.slice(0,12)}`,finding_index:index,
+        status:'candidate_needs_literature_review', article_id:e.id, finding_ref:{article_id:e.id,finding_index:index,path:'papers[].findings'},
+        limitation_assessment:'unverified_model_interpretation',
         context_ref:{article_id:e.id,finding_index:index,path:'papers[].findings[].context_quote'}, content_sha256:e.content_sha256,analyzed_content_sha256:e.analyzed_content_sha256,
         follow_up:'Check the full paper and subsequent literature before treating this limitation as an unresolved research gap.'
       })));
@@ -119,6 +121,8 @@ export function planEvidenceResearch(papers) {
           reason:f.limitation_status==='prior_work'?'Earlier-work problem or motivation; not established as remaining.':'Insufficient context to establish a remaining limitation.'
         }]:[]));
       return { ...proposal, evidence, gap_candidates:gaps,limitation_review:limitationReview,
+        gap_review_plan:gapReviewPlan(gaps),experiment_protocol:candidateProtocol(proposal),
+        portfolio_assessment:portfolioAssessment(),
         scores:Object.fromEntries(Object.keys(proposal.scores).map(k => [k,null])), priority_score:null,
         caveats:['Methods, results and limitations are model interpretations of abstracts, with matching source quotations.',
           'Quote matching checks provenance, not entailment, scientific correctness or replication.',

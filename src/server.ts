@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { loadConfig } from './config.ts';
 import type { Config } from './config.ts';
+import { defaultModelProfile } from './models/profile.ts';
 import { executeQuery } from './query.ts';
 import { executeBootLoopsPython } from './tools/bootloops-node.ts';
 export function createApp(config: Config) {
@@ -12,10 +13,12 @@ export function createApp(config: Config) {
       res.end(JSON.stringify(data));
     };
     if (req.method === 'GET' && req.url === '/health') return send(200, { status: 'ok', service: 'debatt-ai-orchestrator' });
-    if (req.method !== 'POST' || req.url !== '/v1/query') return send(404, { error: 'not_found' });
+    const profile = req.method === 'GET' && req.url === '/v1/model-profile';
+    if (!profile && (req.method !== 'POST' || req.url !== '/v1/query')) return send(404, { error: 'not_found' });
     const actual = Buffer.from(req.headers.authorization ?? '');
     const expected = Buffer.from(`Bearer ${config.apiKey}`);
     if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return send(401, { error: 'unauthorized' });
+    if (profile) return send(200, defaultModelProfile(config));
     if (req.headers['content-type']?.split(';')[0].trim() !== 'application/json') return send(415, { error: 'application_json_required' });
     let body = '';
     const chunks: Buffer[] = [];

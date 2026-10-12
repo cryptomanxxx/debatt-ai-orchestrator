@@ -198,6 +198,11 @@ test('manual runner completes the database-to-model-to-planner flow and preserve
   let failSave=false,arxivOnly=false;
   globalThis.fetch=async(url,o)=>{
     const target=String(url);
+    if (target.includes('/rest/v1/literature_evidence_analysis')) return json([]);
+    if (target.endsWith('/v1/model-profile')) return json({provider:'openai',model:'m',fingerprint:'a'.repeat(64),mode:'default',completionTokenLimit:4096});
+    if (target.includes('/rest/v1/rpc/save_literature_analysis')) {
+      const p=JSON.parse(o.body).p_payload;return json({...p,id:uid(902),created_at:'2026-10-12T18:00:00Z'});
+    }
     if (target.includes('/rest/v1/literature_abstract_')) return json([]);
     if (target.includes('/rest/v1/rpc/save_literature_abstract')) {
       const p=JSON.parse(o.body).p_payload;
@@ -214,7 +219,7 @@ test('manual runner completes the database-to-model-to-planner flow and preserve
     }
     if (target.includes('export.arxiv.org')) return new Response(atom());
     if (target.includes('api.openalex.org')) return json({id:'https://openalex.org/W123',abstract_inverted_index:index(abstract)});
-    if (target.includes('/v1/query')) return json({mock:false,answer:summary.text,provider:'groq',model:'m',inference:{completionTokenLimit:4096}});
+    if (target.includes('/v1/query')) return json({mock:false,answer:summary.text,provider:'openai',model:'m',modelFingerprint:'a'.repeat(64),inference:{completionTokenLimit:4096}});
     if (target.includes('/rest/v1/literature_planner_run')) {
       if (!o.method) return json([]);
       if (failSave) return new Response('database unavailable',{status:503});
@@ -417,7 +422,8 @@ test('prior-work obstacle is excluded while remaining limitation keeps matched c
     summarize:async()=>({...summary,text:JSON.stringify({findings:sourceFindings})})});
   assert.equal(report.status,'completed');assert.equal(report.papers[0].findings.length,3);
   const proposal=report.planner.proposals[0];assert.equal(proposal.gap_candidates.length,1);
-  assert.equal(proposal.gap_candidates[0].reported_limitation,sourceFindings[1].claim);
+  assert.equal(proposal.gap_candidates[0].reported_limitation,undefined);
+  assert.equal(proposal.gap_candidates[0].finding_ref.finding_index,1);
   assert.equal(proposal.gap_candidates[0].limitation_assessment,'unverified_model_interpretation');
   assert.equal(proposal.gap_candidates[0].context_quote,undefined);
   assert.equal(proposal.gap_candidates[0].context_ref.finding_index,1);
