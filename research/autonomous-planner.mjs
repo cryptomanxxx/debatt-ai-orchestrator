@@ -1,6 +1,7 @@
 // Autonomous Research Planner v0.1: reproducible, offline literature-to-proposal baseline.
 // No claim of novelty is made without independent literature review.
 import { candidateProtocol,portfolioAssessment,gapReviewPlan } from './research-candidate-protocols.mjs';
+import { effectiveLimitationStatus,reportedResponse } from './limitation-review.mjs';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
@@ -107,7 +108,7 @@ export function planEvidenceResearch(papers) {
           truncated:p.content.truncated, ...(p.archive?{abstract_version_id:p.archive.version_id}:{}),...(p.analysis?{analysis_id:p.analysis.id}:{}),findings_ref:{article_id:p.article_id,path:'papers[].findings'},
           provenance_ref:{article_id:p.article_id,path:'papers[].source_hits'}, evidence_scope:p.content.truncated?'abstract_prefix':'abstract_only', verification:'quote_match_only' };
       });
-      const gaps = evidence.flatMap(e => byId.get(e.id).findings.map((f,index)=>({f,index})).filter(({f}) => f.kind==='limitation'&&f.limitation_status==='remaining'&&f.context_quote).map(({f,index}) => ({
+      const gaps = evidence.flatMap(e => byId.get(e.id).findings.map((f,index)=>({f,index})).filter(({f}) => f.kind==='limitation'&&effectiveLimitationStatus(f)==='remaining'&&f.context_quote).map(({f,index}) => ({
         id:`gap-${e.id}-${index}-${e.analyzed_content_sha256.slice(0,12)}`,finding_index:index,
         status:'candidate_needs_literature_review', article_id:e.id, finding_ref:{article_id:e.id,finding_index:index,path:'papers[].findings'},
         limitation_assessment:'unverified_model_interpretation',
@@ -115,10 +116,11 @@ export function planEvidenceResearch(papers) {
         follow_up:'Check the full paper and subsequent literature before treating this limitation as an unresolved research gap.'
       })));
       const limitationReview=evidence.flatMap(e=>byId.get(e.id).findings.flatMap((f,index)=>
-        f.kind==='limitation'&&(f.limitation_status!=='remaining'||!f.context_quote)?[{
-          article_id:e.id,finding_index:index,limitation_status:f.limitation_status??'unclear',
+        f.kind==='limitation'&&(effectiveLimitationStatus(f)!=='remaining'||!f.context_quote)?[{
+          article_id:e.id,finding_index:index,limitation_status:effectiveLimitationStatus(f),
+          model_limitation_status:f.limitation_status??'unclear',
           status:'excluded_from_gap_candidates',
-          reason:f.limitation_status==='prior_work'?'Earlier-work problem or motivation; not established as remaining.':'Insufficient context to establish a remaining limitation.'
+          reason:reportedResponse(f)?'The quoted context reports a proposed response; its adequacy and any residual limitation require review.':f.limitation_status==='prior_work'?'Earlier-work problem or motivation; not established as remaining.':'Insufficient context to establish a remaining limitation.'
         }]:[]));
       return { ...proposal, evidence, gap_candidates:gaps,limitation_review:limitationReview,
         gap_review_plan:gapReviewPlan(gaps),experiment_protocol:candidateProtocol(proposal),

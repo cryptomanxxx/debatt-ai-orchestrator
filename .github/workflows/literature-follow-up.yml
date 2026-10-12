@@ -10,6 +10,14 @@ on:
         description: 'Exact candidate ID from that report (for example arp-fluid-state-estimation)'
         type: string
         required: true
+      limitation_article_id:
+        description: 'Optional exact article ID for a limitation (blank selects automatically)'
+        type: string
+        default: ''
+      limitation_finding_index:
+        description: 'Optional zero-based finding index 0–2; provide together with article ID'
+        type: string
+        default: ''
 permissions:
   contents: read
 concurrency:
@@ -38,6 +46,8 @@ jobs:
           CORE_API_KEY: ${{ secrets.CORE_API_KEY }}
           PLANNER_REPORT_ID: ${{ inputs.planner_report_id }}
           RESEARCH_CANDIDATE_ID: ${{ inputs.candidate_id }}
+          LIMITATION_ARTICLE_ID: ${{ inputs.limitation_article_id }}
+          LIMITATION_FINDING_INDEX: ${{ inputs.limitation_finding_index }}
         run: node research/literature-follow-up.mjs
       - uses: actions/upload-artifact@v4
         if: always()

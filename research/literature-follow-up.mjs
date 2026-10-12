@@ -4,13 +4,14 @@ import { pathToFileURL } from 'node:url';
 import { benchmark, SOURCES } from './literature-benchmark.mjs';
 import { persistLiteratureReport } from './literature-database.mjs';
 import { boundedJson } from './literature-evidence.mjs';
+import { reportedResponse,effectiveLimitationStatus } from './limitation-review.mjs';
 
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const keywords = text => [...new Set(text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])]
   .filter(word => word.length > 2 && !['does','the','with','and','under','which','from','for','how','can','are'].includes(word))
   .slice(0,12).join(' ').slice(0,200).trim();
 
-export function followUpPlan(report, candidateId) {
+export function followUpPlan(report, candidateId, {articleId = '', findingIndex = ''} = {}) {
   if (report?.schema_version !== 'literature-evidence-1' || !uuid(report.id)
     || !Array.isArray(report.papers) || report.papers.length > 10
     || !Array.isArray(report.planner?.proposals) || report.planner.proposals.length > 10
@@ -21,14 +22,43 @@ export function followUpPlan(report, candidateId) {
   if (typeof candidate.research_question !== 'string' || candidate.research_question.length > 2000
     || !Array.isArray(candidate.evidence) || !candidate.evidence.length || candidate.evidence.length > 10) throw Error('invalid_candidate');
   // Query generation is deterministic. Source content never becomes a URL or code.
-  const seed = candidate.evidence[0];
-  const paper = report.papers.find(p => p.article_id === seed.id);
+  const explicit = articleId !== '' || findingIndex !== '';
+  const evidenceIds = new Set(candidate.evidence.map(e => e.id));
+  let limitation;
+  if (explicit) {
+    if (typeof articleId !== 'string' || !evidenceIds.has(articleId)
+      || !/^[0-2]$/.test(String(findingIndex))) throw Error('invalid_limitation_selection');
+    const paper = report.papers.find(p => p.article_id === articleId);
+    const index = Number(findingIndex), finding = paper?.findings?.[index];
+    if (finding?.kind !== 'limitation') throw Error('limitation_not_found');
+    limitation = {paper,finding,index};
+  } else {
+    // Prefer an ambiguous reported response, then a remaining limitation.
+    const choices = report.papers.filter(p => evidenceIds.has(p.article_id)).flatMap(p =>
+      (p.findings ?? []).map((finding,index) => ({paper:p,finding,index})))
+      .filter(({finding}) => finding.kind === 'limitation' && finding.limitation_status !== 'prior_work');
+    limitation = choices.find(({finding}) => reportedResponse(finding)) ??
+      choices.find(({finding}) => effectiveLimitationStatus(finding) === 'remaining');
+  }
+  const paper = limitation?.paper ?? report.papers.find(p => p.article_id === candidate.evidence[0].id);
   if (!paper || typeof paper.title !== 'string' || paper.title.length > 1000) throw Error('invalid_seed_reference');
-  const queries = [...new Set([keywords(candidate.research_question), keywords(paper.title)])];
+  let seeds = [candidate.research_question,paper.title];
+  if (limitation) {
+    const f = limitation.finding;
+    if (typeof f.claim !== 'string' || f.claim.length > 500 || typeof f.quote !== 'string'
+      || f.quote.length > 280 || (f.context_quote != null && (typeof f.context_quote !== 'string' || f.context_quote.length > 280)))
+      throw Error('invalid_limitation_seed');
+    const response = reportedResponse(f);
+    seeds = [f.claim, response?.solution_seed ?? f.context_quote ?? paper.title];
+  }
+  const queries = [...new Set(seeds.map(keywords))];
   if (queries.some(q => q.length < 3)) throw Error('empty_follow_up_query');
   return { parent_report_id: report.id, candidate_id: candidateId,
     research_question: candidate.research_question, seed_article_id: paper.article_id, queries,
-    query_origin: 'deterministic_keywords_from_candidate_question_and_first_evidence_title',
+    query_origin: limitation ? 'deterministic_keywords_from_limitation_and_reported_response_or_context' : 'deterministic_keywords_from_candidate_question_and_first_evidence_title',
+    ...(limitation ? {finding_ref:{article_id:paper.article_id,finding_index:limitation.index},
+      model_limitation_status:limitation.finding.limitation_status ?? 'unclear',
+      limitation_review:reportedResponse(limitation.finding)?.assessment ?? 'unverified_model_interpretation'} : {}),
     limitations: ['Keyword truncation and provider ranking can omit relevant work.',
       'These searches retrieve metadata leads, not verified gaps, contradictions or novelty.'] };
 }
@@ -105,7 +135,8 @@ export async function main(env = process.env) {
   const client = createFollowUpClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY});
   await client.checkStorage(); // Fail before provider requests if migration is missing.
   const parent = await client.readReport(env.PLANNER_REPORT_ID);
-  const plan = followUpPlan(parent,env.RESEARCH_CANDIDATE_ID);
+  const plan = followUpPlan(parent,env.RESEARCH_CANDIDATE_ID,{
+    articleId:env.LIMITATION_ARTICLE_ID ?? '',findingIndex:env.LIMITATION_FINDING_INDEX ?? ''});
   const id = randomUUID(), directory = 'reports/literature-follow-up';
   await mkdir(directory,{recursive:true});
   const report = await runFollowUp(plan,{id,
