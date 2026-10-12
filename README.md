@@ -59,6 +59,8 @@ The repository also contains a persistent Problem Bank and Research Loop integra
 
 The [literature evidence planner](research/LITERATURE-EVIDENCE.md) connects saved literature searches to persistent, deduplicated abstracts and abstract-level model summaries with source quotations and traceable, review-only hypothesis/experiment templates. Explicit reported limitations become research-gap candidates requiring further review. Portfolio merit scores remain unknown; this is a bounded planning baseline, not validated gap discovery or autonomous experiment execution.
 
+The [daily literature collector](research/LITERATURE-COLLECTION.md) refreshes the five predefined research queries, saves metadata/search history, and archives or reuses at most 50 selected abstracts per run without any model calls. It runs daily and can be started manually; full text/PDF collection remains separate.
+
 ## Architecture
 
 The repository has two connected execution paths:
