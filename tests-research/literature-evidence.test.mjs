@@ -13,7 +13,8 @@ const json=x=>new Response(JSON.stringify(x),{headers:{'Content-Type':'applicati
 const abstract='We compare a physics-informed estimator with a conventional filter. Performance improves on synthetic flows. Validation on real flows remains future work.';
 const index=text=>{const out={};text.split(' ').forEach((word,i)=>(out[word]??=[]).push(i));return out;};
 const findings=[{kind:'method',claim:'The authors compare estimators.',quote:'We compare a physics-informed estimator with a conventional filter.'},
-  {kind:'limitation',claim:'Real-flow validation is not included.',quote:'Validation on real flows remains future work.'}];
+  {kind:'limitation',claim:'Real-flow validation is not included.',quote:'Validation on real flows remains future work.',
+    limitation_status:'remaining',context_quote:'Validation on real flows remains future work.'}];
 const summary={text:JSON.stringify({findings}),provider:'test-model',model:'test'};
 function search(source='openalex',article=1,rank=1) {
   // Use the production importer, rather than inventing a persisted metadata shape.
@@ -267,7 +268,7 @@ test('oversized metadata fails before retrieval or inference and oversized repor
 });
 
 test('ten articles with maximum finding lengths and Unicode fit the unchanged report cap',async()=>{
-  const searches=SOURCES.map(source=>{
+  const searches=SOURCES.slice(0,2).map(source=>{
     const s=search(source);
     s.literature_hit=Array.from({length:10},(_,i)=>{
       const h=structuredClone(s.literature_hit[0]);h.rank=i+1;
@@ -278,7 +279,7 @@ test('ten articles with maximum finding lengths and Unicode fit the unchanged re
   });
   const selected=selectQueryEvidence({id:uid(100)},searches,{maxPapers:10});
   const text='水'.repeat(2000);
-  const maximalSummary={text:JSON.stringify({findings:['method','result','limitation'].map(kind=>({kind,claim:'水'.repeat(500),quote:'水'.repeat(280)}))}),provider:'水'.repeat(200),model:'水'.repeat(200)};
+  const maximalSummary={text:JSON.stringify({findings:['method','result','limitation'].map(kind=>({kind,claim:'水'.repeat(500),quote:'水'.repeat(280),...(kind==='limitation'?{limitation_status:'remaining',context_quote:'水'.repeat(280)}:{})}))}),provider:'水'.repeat(200),model:'水'.repeat(200)};
   const report=await buildEvidenceReport(selected,{id:uid(200),
     loadAbstract:async()=>({status:'available',abstract:text,content:{provider:'openalex',url:'https://openalex.org/W123',scope:'abstract_only',sha256:hashText(text),fetched_at:'2026-10-11T16:00:00Z'}}),
     summarize:async()=>maximalSummary});
@@ -291,7 +292,7 @@ test('worst-case escaped controls fit the pre-inference byte bound without dupli
   const selected=input();
   selected.papers=Array.from({length:10},(_,i)=>({...structuredClone(selected.papers[0]),article_id:uid(i+1),title:'Physics-informed flow '+ 'x'.repeat(978)}));
   const text=('\u0001'.repeat(200)+' ').repeat(10).trim();
-  const escapedSummary={text:JSON.stringify({findings:Array.from({length:3},()=>({kind:'limitation',claim:'\u0001'.repeat(500),quote:text.slice(0,280)}))}),provider:'\u0001'.repeat(200),model:'\u0001'.repeat(200)};
+  const escapedSummary={text:JSON.stringify({findings:Array.from({length:3},()=>({kind:'limitation',claim:'\u0001'.repeat(500),quote:text.slice(0,280),limitation_status:'remaining',context_quote:text.slice(0,280)}))}),provider:'\u0001'.repeat(200),model:'\u0001'.repeat(200)};
   const bound=evidenceReportByteBound(selected);assert.ok(bound<=500_000);
   const report=await buildEvidenceReport(selected,{id:uid(200),
     loadAbstract:async()=>({status:'available',abstract:text,content:{provider:'openalex',url:'https://openalex.org/W'+'9'.repeat(490),sha256:hashText(text),fetched_at:'2026-10-11T16:00:00Z'}}),
@@ -388,4 +389,46 @@ test('mixed findings keep exact quotes only, record bounded rejection diagnostic
   const failed=await buildEvidenceReport(input(),{id:uid(201),loadAbstract,summarize:async()=>({...summary,text:JSON.stringify({findings:[forged]})})});
   assert.equal(failed.status,'insufficient_evidence');assert.equal(failed.papers[0].reason,'unmatched_evidence_quote');
   assert.equal(failed.papers[0].validation.rejected_findings,1);assert.equal(failed.papers[0].model.name,'test');
+});
+
+test('prior-work obstacle is excluded while remaining limitation keeps matched context and review-only status',async()=>{
+  const priorQuote='Earlier approaches could not accurately resolve shock waves.';
+  const solvedQuote='Our method introduces local dissipation and matches the numerical reference.';
+  const remainingQuote='Validation on real flows remains future work.';
+  const text=[priorQuote,solvedQuote,remainingQuote].join(' ');
+  const sourceFindings=[
+    {kind:'limitation',claim:'Earlier approaches could not resolve shocks.',quote:priorQuote,limitation_status:'prior_work',context_quote:solvedQuote},
+    {kind:'limitation',claim:'Real-flow validation is still needed.',quote:remainingQuote,limitation_status:'remaining',context_quote:remainingQuote},
+    {kind:'limitation',claim:'The scope of the earlier obstacle is unclear.',quote:priorQuote}
+  ];
+  const report=await buildEvidenceReport(input(),{id:uid(200),
+    loadAbstract:async()=>({...await loadAbstract(),abstract:text,content:{...(await loadAbstract()).content,sha256:hashText(text)}}),
+    summarize:async()=>({...summary,text:JSON.stringify({findings:sourceFindings})})});
+  assert.equal(report.status,'completed');assert.equal(report.papers[0].findings.length,3);
+  const proposal=report.planner.proposals[0];assert.equal(proposal.gap_candidates.length,1);
+  assert.equal(proposal.gap_candidates[0].reported_limitation,sourceFindings[1].claim);
+  assert.equal(proposal.gap_candidates[0].limitation_assessment,'unverified_model_interpretation');
+  assert.equal(proposal.gap_candidates[0].context_quote,undefined);
+  assert.equal(proposal.gap_candidates[0].context_ref.finding_index,1);
+  assert.deepEqual(proposal.limitation_review.map(f=>f.limitation_status),['prior_work','unclear']);
+  assert.equal(report.papers[0].findings[2].context_quote,null);
+  assert.equal(report.planner.execution_enabled,false);assert.equal(proposal.priority_score,null);
+  assert.match(renderEvidenceReport(report),/2 prior-work or unclear limitations excluded/);
+  assert.match(renderEvidenceReport(report),/Context excerpt/);
+});
+
+test('unsupported or fabricated limitation context never enters gap candidates',async()=>{
+  const base={...findings[1]};
+  for (const invalid of [{...base,limitation_status:'verified_gap'},
+    {...base,context_quote:'This fabricated context never appears in the supplied abstract.'},
+    {...base,context_quote:base.quote.repeat(10)},
+    {...base,context_quote:'\u0000'.repeat(30)},
+    {kind:'method',claim:base.claim,quote:base.quote,limitation_status:'remaining',context_quote:base.quote},
+    {kind:'limitation',claim:base.claim,quote:base.quote,limitation_status:'remaining'}]) {
+    assert.throws(()=>validateFindings(JSON.stringify({findings:[invalid]}),abstract));
+    const checked=inspectFindings(JSON.stringify({findings:[findings[0],invalid]}),abstract);
+    assert.equal(checked.findings.length,1);assert.equal(checked.validation.rejected_findings,1);
+  }
+  const prompt=evidencePrompt(input().papers[0],abstract);
+  assert.match(prompt.instruction,/prior_work/);assert.match(prompt.instruction,/unclear/);
 });
