@@ -271,8 +271,8 @@ export function inspectFindings(text,abstract) {
   return {findings,validation:{accepted_findings:findings.length,rejected_findings:rejected.length,rejected}};
 }
 const SAFE_ERRORS=new Set(['abstract_identity_mismatch','invalid_abstract_index','abstract_outside_bounds','invalid_evidence_summary',
-  'unmatched_evidence_quote','invalid_arxiv_response','invalid_abstract_content','invalid_model_response','model_budget_not_applied','literature_transport_error','response_too_large','invalid_json_response','evidence_prompt_too_large']);
-const safeReason=error=>SAFE_ERRORS.has(error?.message)||/^literature_http_\d{3}$/.test(error?.message??'')?error.message:'evidence_processing_failed';
+  'invalid_archived_abstract','invalid_abstract_archive_response','abstract_archive_transport_error','unmatched_evidence_quote','invalid_arxiv_response','invalid_abstract_content','invalid_model_response','model_budget_not_applied','literature_transport_error','response_too_large','invalid_json_response','evidence_prompt_too_large']);
+const safeReason=error=>SAFE_ERRORS.has(error?.message)||/^(literature|abstract_archive)_http_\d{3}$/.test(error?.message??'')?error.message:'evidence_processing_failed';
 export async function buildEvidenceReport(input,{loadAbstract=createLiteratureAbstractLoader(),summarize,id,now=()=>new Date().toISOString()}={}) {
   requireUuid(id);
   if (!Array.isArray(input.papers)||input.papers.length>10||typeof summarize!=='function') throw new Error('invalid_evidence_options');
@@ -292,6 +292,7 @@ export async function buildEvidenceReport(input,{loadAbstract=createLiteratureAb
             (loaded.content.provider==='arxiv'&&loaded.content.url.startsWith('https://arxiv.org/abs/')&&!/\s/.test(loaded.content.url)&&normalizeArxivId(loaded.content.url)&&normalizeArxivId(loaded.content.url)===normalizeArxivId(paper.lookup_identifiers?.arxiv_id)))||
           typeof loaded.content.fetched_at!=='string'||loaded.content.fetched_at.length>40||
           !/^[a-f0-9]{64}$/.test(loaded.content.sha256??'')) throw new Error('invalid_abstract_content');
+        if (loaded.archive) record.archive={...loaded.archive};
         const prompt=evidencePrompt(paper,loaded.abstract);
         record.content={provider:loaded.content.provider,scope:'abstract_only',url:loaded.content.url,
           fetched_at:loaded.content.fetched_at,sha256:loaded.content.sha256,analyzed_sha256:hashText(prompt.source_text),
@@ -316,6 +317,9 @@ export async function buildEvidenceReport(input,{loadAbstract=createLiteratureAb
     query:input.query,created_at:now(),status:n===0?'insufficient_evidence':n===papers.length&&!papers.some(p=>p.validation?.rejected_findings)?'completed':'partial',
     source_statuses:input.source_statuses,coverage:{selected:papers.length,summarized:n,available_articles:input.total_articles,selection:input.selection},
     budget:{max_model_calls:papers.length,model_calls:modelCalls,content_attempts:contentCalls,completion_tokens_per_call:4096},
+    archive_stats:{saved_versions:papers.filter(p=>p.archive?.inserted_version).length,
+      reused_abstracts:papers.filter(p=>p.archive?.cache_hit).length,
+      new_content_bytes:papers.reduce((n,p)=>n+(p.archive?.stored_bytes??0),0)},
     papers,planner:planEvidenceResearch(papers),limitations:['Abstract-only model interpretations; exact quotations establish provenance, not scientific truth.',
       'Missing content and failed sources reduce coverage. No exhaustive novelty search, full-paper analysis or experiment execution.']};
 }
@@ -327,6 +331,7 @@ export function renderEvidenceReport(report) {
     '','Evidence is abstract-only. Quote matching does not verify scientific correctness.',''];
   for (const p of report.papers) {
     lines.push(`## ${md(p.title)}`,`Status: ${p.status}${p.reason?' ('+p.reason+')':''}.`);
+    if (p.archive) lines.push(`Saved abstract version: ${p.archive.version_id}. Reused cached text: ${p.archive.cache_hit}.`);
     if (p.validation) lines.push(`Findings accepted/rejected: ${p.validation.accepted_findings}/${p.validation.rejected_findings}.`);
     if (p.provenance) lines.push(`Source observations retained: ${p.provenance.retained_hits}/${p.provenance.total_hits}. Complete history remains in the literature database.`);
     if (p.content) lines.push(`Source: ${p.content.url}. Content SHA-256: ${p.content.sha256}.`,

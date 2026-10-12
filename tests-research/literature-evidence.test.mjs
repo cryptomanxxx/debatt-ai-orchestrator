@@ -198,6 +198,13 @@ test('manual runner completes the database-to-model-to-planner flow and preserve
   let failSave=false,arxivOnly=false;
   globalThis.fetch=async(url,o)=>{
     const target=String(url);
+    if (target.includes('/rest/v1/literature_abstract_')) return json([]);
+    if (target.includes('/rest/v1/rpc/save_literature_abstract')) {
+      const p=JSON.parse(o.body).p_payload;
+      return json({id:uid(901),contentHash:p.contentHash,sourceRecordId:p.sourceRecordId,provider:p.provider,
+        lookupId:p.lookupId,sourceUrl:p.sourceUrl,fetchedAt:p.fetchedAt,lastFetchedAt:p.fetchedAt,
+        insertedBlob:true,insertedVersion:true,byteCount:Buffer.byteLength(p.abstract,'utf8')});
+    }
     if (target.includes('/rest/v1/literature_run')) return json([{id:uid(100)}]);
     if (target.includes('/rest/v1/literature_search')) {
       const stored=search(arxivOnly?'arxiv':'openalex');
@@ -221,6 +228,9 @@ test('manual runner completes the database-to-model-to-planner flow and preserve
     await main(env);
     let report=JSON.parse(await readFile('reports/literature-evidence/report.json','utf8'));
     assert.equal(report.status,'completed');assert.equal(report.planner.proposals.length,1);
+    assert.equal(report.papers[0].archive.version_id,uid(901));
+    assert.equal(report.planner.proposals[0].evidence[0].abstract_version_id,uid(901));
+    assert.equal(report.archive_stats.saved_versions,1);
     arxivOnly=true;await main(env);
     report=JSON.parse(await readFile('reports/literature-evidence/report.json','utf8'));
     assert.equal(report.status,'completed');assert.equal(report.papers[0].content.provider,'arxiv');
@@ -295,7 +305,8 @@ test('worst-case escaped controls fit the pre-inference byte bound without dupli
   const escapedSummary={text:JSON.stringify({findings:Array.from({length:3},()=>({kind:'limitation',claim:'\u0001'.repeat(500),quote:text.slice(0,280),limitation_status:'remaining',context_quote:text.slice(0,280)}))}),provider:'\u0001'.repeat(200),model:'\u0001'.repeat(200)};
   const bound=evidenceReportByteBound(selected);assert.ok(bound<=500_000);
   const report=await buildEvidenceReport(selected,{id:uid(200),
-    loadAbstract:async()=>({status:'available',abstract:text,content:{provider:'openalex',url:'https://openalex.org/W'+'9'.repeat(490),sha256:hashText(text),fetched_at:'2026-10-11T16:00:00Z'}}),
+    loadAbstract:async()=>({status:'available',abstract:text,content:{provider:'openalex',url:'https://openalex.org/W'+'9'.repeat(490),sha256:hashText(text),fetched_at:'2026-10-11T16:00:00Z'},
+      archive:{version_id:uid(901),source_record_id:uid(20),last_fetched_at:'2026-10-12T12:00:00Z',cache_hit:false,inserted_blob:true,inserted_version:true,stored_bytes:6000}}),
     summarize:async()=>escapedSummary});
   assert.equal(report.status,'completed');assert.equal(report.budget.model_calls,10);
   assert.equal(report.planner.proposals[0].gap_candidates.length,30);
