@@ -159,7 +159,7 @@ export function selectQueryEvidence(run,searches,{queryIndex=0,maxPapers=5,follo
     }),
     total_articles:all.length,papers:(reviewed?.papers??all).slice(0,maxPapers),
     ...(reviewed?{selection_review:reviewed.summary}:{}),
-    selection:reviewed?'Title anchor overlap, then source rank and canonical UUID; confirmed origin articles excluded from analysis, retained in catalog. No merit or novelty judgment.':'Lowest source rank, then canonical UUID; selection is not a relevance or merit judgment.'};
+    selection:reviewed?reviewed.summary.selection_description:'Lowest source rank, then canonical UUID; selection is not a relevance or merit judgment.'};
 }
 
 // Strictly reconstruct bounded OpenAlex abstract indexes; never retain raw responses.
@@ -378,6 +378,7 @@ export function renderEvidenceReport(report) {
   const lines=['# Oraklet: literature evidence and research candidates','',`Status: ${report.status}. Query: ${md(report.query)}.`,
     `Summarized ${report.coverage.summarized}/${report.coverage.selected} selected articles (${report.coverage.available_articles} available).`,
     `Model calls: ${report.budget.model_calls}. Reused analyses: ${report.analysis_stats?.reused??0}.`,
+    `Selection policy: ${md(report.coverage.selection)}.`,
     '','Evidence is abstract-only. Quote matching does not verify scientific correctness.',''];
   if (report.selection_review) lines.push(`Follow-up selection: ${report.selection_review.confirmed_origin} confirmed origin articles excluded; ${report.selection_review.possible_origin_title} possible title matches flagged.`,
     `Eligibility: ${report.selection_review.eligible} selectable leads; ${report.selection_review.rejected_for_weak_anchors} weak-anchor hits rejected; ${report.selection_review.rejected_for_no_abstract_identifier??0} skipped without an abstract identifier. Outcome: ${md(report.selection_review.outcome)}.`,

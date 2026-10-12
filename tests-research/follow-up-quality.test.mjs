@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {qualitySeeds,reviewHit,prioritizeFollowUp} from '../research/follow-up-quality.mjs';
+import {qualitySeeds,reviewHit,prioritizeFollowUp,FOLLOW_UP_SELECTION_DESCRIPTION} from '../research/follow-up-quality.mjs';
 import {selectQueryEvidence,buildEvidenceReport} from '../research/literature-evidence.mjs';
 import {RESEARCH_AREAS} from '../research/research-pipeline.mjs';
 import {followUpPlan} from '../research/literature-follow-up.mjs';
@@ -50,6 +50,8 @@ test('all canonical hits are ranked before applying the selected-paper budget; u
   const input=selectQueryEvidence({id:uid(100)},searches,{maxPapers:1,followUpReview:review});
   assert.equal(input.papers[0].article_id,uid(12));
   assert.equal(input.total_articles,12);assert.equal(input.selection_review.confirmed_origin,1);
+  assert.equal(input.selection,FOLLOW_UP_SELECTION_DESCRIPTION);
+  assert.equal(input.selection,input.selection_review.selection_description);
   assert.throws(()=>selectQueryEvidence({id:uid(101)},searches,{followUpReview:review}),/follow_up_query_mismatch/);
   assert.equal(selectQueryEvidence({id:uid(100)},searches,{maxPapers:1}).papers[0].article_id,uid(1));
 });
@@ -136,6 +138,8 @@ test('selection prioritizes loader-compatible identities, new leads and abstract
   assert.equal(selected.summary.rejected_for_no_abstract_identifier,1);
   assert.equal(selected.summary.eligible,3);assert.equal(selected.summary.eligible_title_leads,4);
   assert.equal(selected.papers[0].selection_review.abstract_access.has_abstract_signal,true);
+  assert.equal(selected.summary.selection_description,FOLLOW_UP_SELECTION_DESCRIPTION);
+  assert.match(selected.summary.selection_description,/usable abstract identifiers, new leads before possible title copies, provider abstract signals, title anchor score, source rank, then canonical UUID/);
 });
 
 test('strong title leads with no loader identity report a content limitation separately from relevance',()=>{

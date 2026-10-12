@@ -1,5 +1,7 @@
 import { normalizeDoi, normalizeArxivId } from './literature-benchmark.mjs';
 
+export const FOLLOW_UP_SELECTION_DESCRIPTION='Strict method and combined problem/solution title anchors; exclude confirmed origin articles and records without loader-compatible abstract identifiers, retaining them in the catalog. Rank by usable abstract identifiers, new leads before possible title copies, provider abstract signals, title anchor score, source rank, then canonical UUID. Abstract signals are unverified; no merit, novelty or independence judgment.';
+
 const words = text => (String(text ?? '').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []);
 const stop = new Set(('does the with and under which from for how can are leading proposal significantly reduce reduces reduced improve improves improved accuracy performance affect affects affected correct correcting spatially work paper study method approach using used use remains remaining requires required future limitation limitations enough appropriately distributed new reported this that into based to of out held conditions changing networks neural physics informed pinn pinns').split(' '));
 const terms = text => [...new Set(words(text))].filter(w => w.length > 2 && !stop.has(w));
@@ -104,6 +106,7 @@ export function prioritizeFollowUp(papers, review) {
     || b.selection_review.anchor_score - a.selection_review.anchor_score
     || a.rank - b.rank || (a.article_id < b.article_id ? -1 : a.article_id > b.article_id ? 1 : 0));
   return {papers:selectable,summary:{policy:c.policy,reviewed:reviewed.length,
+    selection_description:FOLLOW_UP_SELECTION_DESCRIPTION,
     confirmed_origin:reviewed.filter(p => p.selection_review.origin_relation === 'confirmed_origin').length,
     possible_origin_title:reviewed.filter(p => p.selection_review.origin_relation === 'possible_origin_title').length,
     eligible:selectable.length,eligible_title_leads:eligible.length,
