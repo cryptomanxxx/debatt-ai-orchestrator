@@ -90,7 +90,7 @@ export async function runPipeline(env,{collect,evidence,followUp,preflight,readQ
         {directory:'reports/research-pipeline/follow-up-evidence',allowInsufficient:true});
       modelCount(final,options.followUpQuota);stage.status=final.status;stage.report_id=final.id;
       report.selection_review=final.selection_review??null;
-      report.status=final.selection_review?.outcome==='insufficient_relevant_hits'?'insufficient_relevant_hits':
+      report.status=['insufficient_relevant_hits','insufficient_abstract_identifiers'].includes(final.selection_review?.outcome)?final.selection_review.outcome:
         final.status==='insufficient_evidence'?'insufficient_evidence':report.stages.some(s=>s.status==='partial')?'partial':'completed';
     }
   } catch {

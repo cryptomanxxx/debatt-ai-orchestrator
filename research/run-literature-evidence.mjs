@@ -70,7 +70,7 @@ export async function main(env=process.env,{directory='reports/literature-eviden
   // Reports exist before attempting storage, so a write failure is recoverable.
   await client.saveReport(report);
   console.log(JSON.stringify({saved:true,report_id:report.id,status:report.status,coverage:report.coverage,model_calls:report.budget.model_calls}));
-  if (report.status==='insufficient_evidence'&&!allowInsufficient&&input.selection_review?.outcome!=='insufficient_relevant_hits')
+  if (report.status==='insufficient_evidence'&&!allowInsufficient&&!['insufficient_relevant_hits','insufficient_abstract_identifiers'].includes(input.selection_review?.outcome))
     throw new Error('no_usable_evidence_report_saved');
   return report;
 }

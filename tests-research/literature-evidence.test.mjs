@@ -395,10 +395,11 @@ test('mixed findings keep exact quotes only, record bounded rejection diagnostic
   const response={...summary,text:JSON.stringify({findings:[findings[0],forged,findings[1]]})};
   const checked=inspectFindings(response.text,abstract);
   assert.equal(checked.findings.length,2);assert.deepEqual(checked.validation,{accepted_findings:2,rejected_findings:1,
-    rejected:[{index:1,reason:'invalid_finding_or_unmatched_quote'}]});
+    rejected:[{index:1,reason:'quote_not_exact'}]});
   const report=await buildEvidenceReport(input(),{id:uid(200),loadAbstract,summarize:async()=>response});
   assert.equal(report.status,'partial');assert.equal(report.papers[0].status,'summarized');
   assert.equal(report.papers[0].model.name,'test');assert.equal(report.papers[0].validation.rejected_findings,1);
+  assert.equal(report.validation_stats.rejections_by_reason.quote_not_exact,1);
   assert.ok(!JSON.stringify(report).includes(forged.claim));assert.ok(!JSON.stringify(report).includes(forged.quote));
   assert.match(renderEvidenceReport(report),/Findings accepted\/rejected: 2\/1/);
   assert.equal(report.planner.proposals[0].gap_candidates.length,1);

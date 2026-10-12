@@ -24,6 +24,14 @@ Before model inference, a new lead must match a recognized method phrase in its 
 
 When none qualify, the evidence report uses its existing database-compatible `insufficient_evidence` status with `selection_review.outcome=insufficient_relevant_hits`. The pipeline summary exposes `insufficient_relevant_hits` and exits successfully with zero follow-up model calls. A stopped search is not proof of novelty or absence of related work. If initial analysis yields no usable candidate, the chain stops at `insufficient_evidence`.
 
+Eligible canonical records without an OpenAlex work ID, DOI or usable arXiv identity are skipped before the analysis budget. The identifier check also honors DOI/OpenAlex fallback identities on retained source observations, as the existing loader does. Remaining records prioritize loader-compatible identifiers, new leads over possible title copies, then provider abstract signals, title score and source rank. An abstract signal is only metadata; it does not guarantee that a provider will return text. If strong title leads exist but none have usable identifiers, the separate `insufficient_abstract_identifiers` outcome explains why no analysis was attempted.
+
+## Finding validation diagnostics
+
+New evidence reports retain specific rejection codes and aggregate `validation_stats.rejections_by_reason`: unsupported finding fields/kind, invalid claim, quote/context type, bounds, null character, non-exact quote or whitespace-only variation. Diagnostics contain only controlled codes and indices, not rejected model text or complete abstracts. Valid findings retain the existing registry schema and cache behavior; rejected/partial interpretations remain uncached.
+
+Whitespace-only variation is diagnosed by comparing normalized whitespace, but it is still rejected. There is no fuzzy matching, punctuation substitution, number correction, quote repair or additional model retry. Quotes must remain exact contiguous excerpts. Older reports stored a generic code and cannot retrospectively reveal the precise cause; the next live run will supply that evidence. No new SQL migration is needed.
+
 ## Reports and failures
 
 The single `research-pipeline-report` artifact contains separate collection, initial evidence, follow-up and final evidence folders plus `pipeline.json`/`pipeline.md`. It is retained for 30 days. Each completed operation also persists its usual immutable data in Supabase; report links remain traceable after artifact expiry. The aggregate pipeline checkpoint itself is an artifact, not a new database table.
