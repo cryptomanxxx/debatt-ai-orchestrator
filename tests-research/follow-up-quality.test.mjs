@@ -108,3 +108,13 @@ test('all recognized method phrases are removed from problem and solution anchor
   assert.deepEqual(quality.quality_context.topic_terms,['sparse','sensor','observations']);
   assert.equal(prioritizeFollowUp([{article_id:uid(80),rank:1,title}],{...review,quality_context:quality.quality_context}).papers.length,1);
 });
+
+test('anchor threshold uses the union of configured and matched terms, not the smaller bucket',()=>{
+  const c={...context,topic_terms:['turbulence'],solution_terms:['sparse','sensor','measurements']};
+  const evaluate=(title,quality_context=c)=>prioritizeFollowUp([{article_id:uid(80),rank:1,title}],{...review,quality_context});
+  assert.equal(evaluate('PINN turbulence').papers.length,0);
+  assert.equal(evaluate('PINN turbulence sparse').papers.length,1);
+  assert.equal(evaluate('PINN turbulence',{...c,solution_terms:['turbulence']}).papers.length,1);
+  assert.equal(evaluate('PINN sparse',{...c,topic_terms:['sparse'],solution_terms:['sparse','sensor']}).papers.length,0);
+  assert.equal(evaluate('PINN',{...c,topic_terms:[],solution_terms:[]}).papers.length,0);
+});

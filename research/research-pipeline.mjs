@@ -1,10 +1,10 @@
 import {mkdir,writeFile,appendFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
-import {DEFAULT_QUERIES,normalizeDoi,normalizeArxivId} from './literature-benchmark.mjs';
+import {DEFAULT_QUERIES} from './literature-benchmark.mjs';
 import {main as collect} from './collect-literature.mjs';
 import {main as evidence} from './run-literature-evidence.mjs';
 import {main as followUp,createFollowUpClient} from './literature-follow-up.mjs';
-import {prioritizeFollowUp} from './follow-up-quality.mjs';
+import {createLiteratureEvidenceClient} from './literature-evidence.mjs';
 
 export const RESEARCH_AREAS = Object.freeze({
   'PINNs and turbulence':DEFAULT_QUERIES[0],
@@ -27,31 +27,24 @@ export function choosePipelineCandidate(report) {
     ||(a.id<b.id?-1:a.id>b.id?1:0))[0]??null;
 }
 
-export function countDistinctLeads(papers,eligibleIds=null) {
-  // Join shared stable identities transitively; titles alone never establish identity.
-  const parent=papers.map((_,i)=>i),seen=new Map();
-  const root=i=>{while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i];}return i;};
-  papers.forEach((p,i)=>{
-    const doi=normalizeDoi(p.doi??p.lookup_identifiers?.doi);
-    const arxiv=normalizeArxivId(p.arxivId??p.lookup_identifiers?.arxiv_id??(p.source==='arxiv'?p.sourceId:null));
-    const keys=[...(doi?['doi:'+doi]:[]),...(arxiv?['arxiv:'+arxiv]:[]),
-      ...(p.source&&p.sourceId?['source:'+p.source+':'+p.sourceId]:[])];
-    for(const key of keys){if(seen.has(key))parent[root(i)]=root(seen.get(key));else seen.set(key,i);}
-  });
-  return new Set(papers.flatMap((p,i)=>eligibleIds===null||eligibleIds.has(p.article_id)?[root(i)]:[])).size;
-}
-export function chooseFollowUpQuery(report) {
-  const counts=report.searches.results.map((r,index)=>{
-    const observations=Object.entries(r.sources).flatMap(([source,v])=>(v.papers??[])
-      .map((p,i)=>({...p,source,rank:i+1,article_id:source+':'+p.sourceId})));
-    const eligibleIds=new Set(prioritizeFollowUp(observations,report).papers.map(p=>p.article_id));
-    return {index,count:countDistinctLeads(observations,eligibleIds)};
-  });
+export async function chooseFollowUpQuery(report,readQuery) {
+  if (typeof readQuery!=='function'||!Array.isArray(report.queries)||report.queries.length<1||report.queries.length>2)
+    throw Error('invalid_query_selection_context');
+  const counts=[];
+  for (let index=0;index<report.queries.length;index++) {
+    // Use the same canonical grouping, title precedence and origin policy as final analysis.
+    const input=await readQuery({runId:report.literature_run_id,queryIndex:index,maxPapers:10,followUpReview:report});
+    const count=input.selection_review?.eligible;
+    if (input.literature_run_id!==report.literature_run_id||input.query_index!==index
+      ||input.selection_review?.follow_up_report_id!==report.id||!Number.isInteger(count)||count<0||count>400)
+      throw Error('invalid_canonical_query_count');
+    counts.push({index,count});
+  }
   counts.sort((a,b)=>b.count-a.count||a.index-b.index);
-  return counts[0]?.index??0;
+  return counts[0].index;
 }
 
-export async function runPipeline(env,{collect,evidence,followUp,preflight,checkpoint=async()=>{}}) {
+export async function runPipeline(env,{collect,evidence,followUp,preflight,readQuery,checkpoint=async()=>{}}) {
   const options=pipelineOptions(env);
   const report={schema_version:'research-pipeline-1',created_at:new Date().toISOString(),
     status:'running',area:options.area,query:options.query,
@@ -87,7 +80,9 @@ export async function runPipeline(env,{collect,evidence,followUp,preflight,check
       const follow=await followUp({...env,PLANNER_REPORT_ID:initial.id,RESEARCH_CANDIDATE_ID:candidate.id,
         LIMITATION_ARTICLE_ID:'',LIMITATION_FINDING_INDEX:''},{directory:'reports/research-pipeline/follow-up'});
       stage.status=follow.status;stage.model_calls=0;stage.report_id=follow.id;stage.literature_run_id=follow.literature_run_id;
-      const queryIndex=chooseFollowUpQuery(follow);
+      await begin('follow_up_selection');
+      const queryIndex=await chooseFollowUpQuery(follow,readQuery);
+      stage.status='completed';stage.query_index=queryIndex;
       await begin('follow_up_evidence',options.followUpQuota);
       stage.query_index=queryIndex;
       const final=await evidence({...env,FOLLOW_UP_REPORT_ID:follow.id,LITERATURE_RUN_ID:'',LITERATURE_QUERY_INDEX:String(queryIndex),
@@ -120,6 +115,7 @@ export async function main(env=process.env) {
   const directory='reports/research-pipeline';await mkdir(directory,{recursive:true});
   const checkpoint=r=>writeFile(directory+'/pipeline.json',JSON.stringify(r,null,2)+'\n');
   const report=await runPipeline(env,{collect,evidence,followUp,checkpoint,
+    readQuery:options=>createLiteratureEvidenceClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY}).readQuery(options),
     preflight:()=>createFollowUpClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY}).checkStorage()});
   const markdown=renderPipeline(report);await writeFile(directory+'/pipeline.md',markdown);
   if (env.GITHUB_STEP_SUMMARY) await appendFile(env.GITHUB_STEP_SUMMARY,markdown);

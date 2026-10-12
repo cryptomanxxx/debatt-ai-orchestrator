@@ -78,11 +78,11 @@ export function prioritizeFollowUp(papers, review) {
   // Confirmed origin records remain in the search/catalog and audit counts.
   // Do not spend the selected-paper budget treating them as additional evidence.
   const nonOrigin = reviewed.filter(p => p.selection_review.origin_relation !== 'confirmed_origin');
+  const vocabulary=new Set([...c.topic_terms,...c.solution_terms]);
+  const requiredMatches=vocabulary.size===1?1:2;
   const eligible = nonOrigin.filter(p => {
     const r=p.selection_review;
-    return r.matched_method.length>0 &&
-      ((c.topic_terms.length>0 && r.matched_topic.length>=Math.min(2,c.topic_terms.length)) ||
-       (c.solution_terms.length>0 && r.matched_solution.length>=Math.min(2,c.solution_terms.length)));
+    return r.matched_method.length>0 && new Set([...r.matched_topic,...r.matched_solution]).size>=requiredMatches;
   });
   eligible.sort((a,b) => b.selection_review.anchor_score - a.selection_review.anchor_score
     || a.rank - b.rank || (a.article_id < b.article_id ? -1 : a.article_id > b.article_id ? 1 : 0));
@@ -91,6 +91,7 @@ export function prioritizeFollowUp(papers, review) {
     possible_origin_title:reviewed.filter(p => p.selection_review.origin_relation === 'possible_origin_title').length,
     eligible:eligible.length,rejected_for_weak_anchors:nonOrigin.length-eligible.length,
     outcome:eligible.length?'eligible_title_leads':'insufficient_relevant_hits',
-    eligibility_rule:'Recognized method plus at least two problem or solution terms (one if only one configured). Titles only; omitted terms can cause false negatives.',
+    required_anchor_terms:requiredMatches,
+    eligibility_rule:'Recognized method plus two distinct terms across the combined problem/solution vocabulary (one only if the entire vocabulary has one). Titles only; omitted terms can cause false negatives.',
     follow_up_report_id:review.id}};
 }
