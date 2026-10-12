@@ -133,6 +133,28 @@ export async function fetchJson(url, { apiKey, authBearer, fetchImpl=fetch }={})
   return response.json();
 }
 
+// Bulk responses can contain up to 1,000 records even though only the requested
+// local sample is retained. Bound the single batch; never follow its page token.
+async function fetchSemanticBulk(url,{apiKey,fetchImpl=fetch}={}) {
+  const headers={accept:'application/json'};
+  if (apiKey) headers['x-api-key']=apiKey;
+  const response=await fetchImpl(url,{headers,redirect:'error',signal:AbortSignal.timeout(15000)});
+  if (!response.ok) {await response.body?.cancel();throw new ProviderHttpError(response.status,parseRetryAfter(response.headers?.get?.('retry-after')));}
+  const reader=response.body?.getReader();
+  if (!reader) throw new Error('Invalid Semantic Scholar bulk response');
+  const chunks=[];let bytes=0;
+  try {
+    while (true) {
+      const {value,done}=await reader.read();if(done) break;
+      bytes+=value.byteLength;
+      if(bytes>5_000_000) {await reader.cancel();throw new Error('Semantic Scholar bulk response too large');}
+      chunks.push(Buffer.from(value));
+    }
+    try {return JSON.parse(Buffer.concat(chunks).toString('utf8'));}
+    catch {throw new Error('Invalid Semantic Scholar bulk response');}
+  } finally {reader.releaseLock();}
+}
+
 export const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function retryTemporaryFailure(operation, { maxRetries=2, sleep=wait, maxBackoffMs=10000, requestTimeoutMs=15000 }={}) {
@@ -169,7 +191,10 @@ export async function searchSource(source, query, limit, options={}) {
     const records=await parseArxivAtom(await response.text());
     return records.slice(0,limit).map(p=>normalizePaper(source,p)).filter(Boolean);
   }
-  const u = new URL(source === 'openalex' ? 'https://api.openalex.org/works' : source === 'core' ? 'https://api.core.ac.uk/v3/search/works/' : 'https://api.semanticscholar.org/graph/v1/paper/search');
+  const semanticMode=options.semanticScholarMode??'relevance';
+  if (!['relevance','bulk'].includes(semanticMode)) throw new Error('Invalid Semantic Scholar search mode');
+  const bulk=source==='semantic-scholar'&&semanticMode==='bulk';
+  const u = new URL(source === 'openalex' ? 'https://api.openalex.org/works' : source === 'core' ? 'https://api.core.ac.uk/v3/search/works/' : 'https://api.semanticscholar.org/graph/v1/paper/search'+(bulk?'/bulk':''));
   if (source === 'openalex') {
     u.searchParams.set('search',query); u.searchParams.set('per-page',String(limit));
     u.searchParams.set('select','id,doi,display_name,publication_year,publication_date,abstract_inverted_index,open_access,best_oa_location');
@@ -178,23 +203,29 @@ export async function searchSource(source, query, limit, options={}) {
     // Serialize the exclusion array as repeated plain query keys (form/explode).
     u.searchParams.append('exclude','fullText');
   } else {
-    u.searchParams.set('query',query); u.searchParams.set('limit',String(limit));
+    u.searchParams.set('query',query);
+    if(bulk) u.searchParams.set('sort','publicationDate:desc');
+    else u.searchParams.set('limit',String(limit));
     u.searchParams.set('fields','title,year,publicationDate,url,abstract,externalIds,isOpenAccess,openAccessPdf');
   }
-  const json = await fetchJson(u,{apiKey:source === 'semantic-scholar' ? options.semanticScholarKey : undefined,
+  const json = bulk?await fetchSemanticBulk(u,{apiKey:options.semanticScholarKey,fetchImpl:options.fetchImpl}):await fetchJson(u,{apiKey:source === 'semantic-scholar' ? options.semanticScholarKey : undefined,
     authBearer:source === 'openalex' ? options.openAlexKey : source === 'core' ? options.coreApiKey : undefined,fetchImpl:options.fetchImpl});
   const records = source === 'semantic-scholar' ? json.data : json.results;
-  if (!Array.isArray(records)) throw new Error('Invalid API response from '+source);
+  if (!Array.isArray(records)||(bulk&&records.length>1000)) throw new Error('Invalid API response from '+source);
   return records.slice(0,limit).map(p=>normalizePaper(source,p)).filter(Boolean);
 }
 
-export async function benchmark({ queries=DEFAULT_QUERIES, sources=SOURCES, limit=10, fetchImpl=fetch, openAlexKey, semanticScholarKey, coreApiKey, sleep=wait, clock=()=>performance.now(), requestDelayMs=1200, maxRetries=2, maxBackoffMs=10000 }={}) {
+export async function benchmark({ queries=DEFAULT_QUERIES, sources=SOURCES, limit=10, fetchImpl=fetch, openAlexKey, semanticScholarKey, coreApiKey, semanticScholarMode='relevance',sleep=wait, clock=()=>performance.now(), requestDelayMs=1200, maxRetries=2, maxBackoffMs=10000 }={}) {
   if (!Array.isArray(sources) || !sources.length || new Set(sources).size!==sources.length || sources.some(source=>!SOURCES.includes(source))) throw new Error('Invalid sources');
   if (!Array.isArray(queries) || queries.length===0 || queries.length>20 || queries.some(q=>typeof q!=='string'||!q.trim()||q.length>200)) throw new Error('Invalid queries');
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Limit must be 1..100');
   if (!Number.isInteger(requestDelayMs) || requestDelayMs<0 || requestDelayMs>10000) throw new Error('Invalid request delay');
   if (!Number.isInteger(maxRetries) || maxRetries<0 || maxRetries>3) throw new Error('Invalid retry count');
   if (!Number.isInteger(maxBackoffMs) || maxBackoffMs<0 || maxBackoffMs>60000) throw new Error('Invalid maximum backoff');
+  if (!['relevance','bulk'].includes(semanticScholarMode)) throw new Error('Invalid Semantic Scholar search mode');
+  const sourceMethods=Object.fromEntries(sources.map(source=>[source,source==='semantic-scholar'?
+    (semanticScholarMode==='bulk'?'bulk_keyword_publication_date_desc':'relevance_search'):
+    source==='arxiv'?'newest_submissions':'provider_search']));
   const results=[];
   const sourceNames=sources;
   let requestsStarted=0;
@@ -206,12 +237,12 @@ export async function benchmark({ queries=DEFAULT_QUERIES, sources=SOURCES, limi
         if (requestsStarted++ > 0 && requestDelayMs) await sleep(requestDelayMs);
         start=clock();
         const {value,attempts}=await retryTemporaryFailure(
-          ()=>searchSource(source,query,limit,{fetchImpl,openAlexKey,semanticScholarKey,coreApiKey,sleep}),{maxRetries,sleep,maxBackoffMs});
+          ()=>searchSource(source,query,limit,{fetchImpl,openAlexKey,semanticScholarKey,coreApiKey,semanticScholarMode,sleep}),{maxRetries,sleep,maxBackoffMs});
         raw[source]=value;
-        sources[source]={status:'ok',attempts,fetchedAt:new Date().toISOString(),latencyMs:Math.round(clock()-start),...summarize(raw[source]),papers:value};
+        sources[source]={status:'ok',retrievalMethod:sourceMethods[source],attempts,fetchedAt:new Date().toISOString(),latencyMs:Math.round(clock()-start),...summarize(raw[source]),papers:value};
       } catch(e) {
         raw[source]=[];
-        sources[source]={status:'error',attempts:e.attempts??1,fetchedAt:new Date().toISOString(),httpStatus:e instanceof ProviderHttpError?e.status:null,
+        sources[source]={status:'error',retrievalMethod:sourceMethods[source],attempts:e.attempts??1,fetchedAt:new Date().toISOString(),httpStatus:e instanceof ProviderHttpError?e.status:null,
           latencyMs:Math.round(clock()-start),error:String(e.message).slice(0,160)};
       }
     }
@@ -226,7 +257,7 @@ export async function benchmark({ queries=DEFAULT_QUERIES, sources=SOURCES, limi
       ? overlap(raw.openalex,raw['semantic-scholar']) : null;
     results.push({query,sources,doiOverlap,doiOverlaps});
   }
-  return {schemaVersion:1,method:'metadata-only; source-specific ranking; no relevance or novelty ground truth',limit,sourceNames,results};
+  return {schemaVersion:1,method:'metadata-only; source-specific ranking; no relevance or novelty ground truth',limit,sourceNames,sourceMethods,results};
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

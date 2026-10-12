@@ -63,6 +63,7 @@ export async function collectSavedAbstracts({runId,queryCount,readQuery,loadAbst
 export function renderCollection(report) {
   const s=report.abstracts;
   return ['# Daily literature collection',`Status: ${report.status}.`,
+    'Semantic Scholar: bulk keyword search, newest publication dates first (not relevance ranking).',
     `Saved metadata run: ${report.literature_run_id??'not saved'}.`,
     report.metadata?`Searches: ${report.metadata.successful_searches} successful, ${report.metadata.failed_searches} failed.`:'Metadata collection not completed.',
     s?`Abstracts: ${s.available}/${s.selected} available; ${s.reused} reused; ${s.new_versions} new versions; ${s.new_content_bytes} new text bytes.`:'Abstract collection not completed.',
@@ -80,7 +81,7 @@ export async function main(env=process.env,{runBenchmark=benchmark,pause=wait}={
   const repo=env.GITHUB_REPOSITORY,id=env.GITHUB_RUN_ID,attempt=env.GITHUB_RUN_ATTEMPT??'1';
   if ((repo&&!/^[\w.-]+\/[\w.-]+$/.test(repo))||(id&&!/^\d+$/.test(id))||!/^\d+$/.test(attempt)) throw new Error('invalid_collection_origin');
   const originUrl=repo&&id?`https://github.com/${repo}/actions/runs/${id}`:null;
-  const runKey=originUrl?`github:${repo}:collection:${id}:${attempt}`:'local:collection:'+randomUUID();
+  const runKey=originUrl?`github:${repo}:collection:s2-bulk-date-desc:${id}:${attempt}`:'local:collection:s2-bulk-date-desc:'+randomUUID();
   const directory='reports/literature-collection';await mkdir(directory,{recursive:true});
   const deadline=Date.now()+20*60*1000;
   const report={schema_version:'literature-collection-1',created_at:new Date().toISOString(),status:'running',
@@ -99,9 +100,11 @@ export async function main(env=process.env,{runBenchmark=benchmark,pause=wait}={
       if (!response.ok) {await response.body?.cancel();throw new Error('collection_metadata_storage_unavailable');}
       await response.body?.cancel();
     }
-    const raw=await runBenchmark({queries:DEFAULT_QUERIES,sources:SOURCES,limit:10,maxRetries:1,maxBackoffMs:5000,
+    const raw=await runBenchmark({queries:DEFAULT_QUERIES,sources:SOURCES,semanticScholarMode:'bulk',limit:10,maxRetries:1,maxBackoffMs:5000,
       openAlexKey:env.OPENALEX_API_KEY,semanticScholarKey:env.SEMANTIC_SCHOLAR_API_KEY,coreApiKey:env.CORE_API_KEY});
     const metadata=sanitizeBenchmark(raw);
+    report.source_methods=metadata.sourceMethods;
+    report.catalog_run_key=runKey;
     await writeFile(directory+'/searches.json',JSON.stringify(metadata,null,2)+'\n');
     const statuses=raw.results.flatMap(r=>Object.values(r.sources));
     report.metadata={queries:raw.results.length,successful_searches:statuses.filter(s=>s.status==='ok').length,

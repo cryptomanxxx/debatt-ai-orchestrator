@@ -50,7 +50,7 @@ test('manual/scheduled runner persists metadata and cached abstracts without any
     if(u.searchParams.get('limit')==='0') return new Response(storageFails?'': '[]',{status:storageFails?404:200});
     if(u.pathname==='/rest/v1/rpc/ingest_literature_run') {
       metadataWrites++;const p=JSON.parse(options.body).p_payload;
-      assert.ok(p.runKey.includes(':collection:'));return new Response(JSON.stringify({runId:uid(100),replayed:false}));
+      assert.ok(p.runKey.includes(':collection:s2-bulk-date-desc:'));return new Response(JSON.stringify({runId:uid(100),replayed:false}));
     }
     if(u.pathname==='/rest/v1/literature_run') return new Response(JSON.stringify([{id:uid(100)}]));
     if(u.pathname==='/rest/v1/literature_search') return new Response(JSON.stringify([{id:uid(10),query:'flow',source:'openalex',status:'ok',literature_hit:[{
@@ -80,13 +80,15 @@ test('manual/scheduled runner persists metadata and cached abstracts without any
     const env={SUPABASE_URL:'https://example.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_fixture',
       GITHUB_REPOSITORY:'cryptomanxxx/debatt-ai-orchestrator',GITHUB_RUN_ID:'123',LITERATURE_MAX_ABSTRACTS:'50'};
     const deps={pause:async ms=>pauses.push(ms),runBenchmark:async options=>{
-        assert.equal(options.limit,10);assert.equal(options.maxRetries,1);assert.equal(options.queries.length,5);
-        return {sourceNames:['openalex'],results:[{query:'flow',sources:{openalex:{status:'ok',records:1,papers:[{
+        assert.equal(options.limit,10);assert.equal(options.semanticScholarMode,'bulk');assert.equal(options.maxRetries,1);assert.equal(options.queries.length,5);
+        return {sourceMethods:{'semantic-scholar':'bulk_keyword_publication_date_desc'},sourceNames:['openalex'],results:[{query:'flow',sources:{openalex:{status:'ok',records:1,papers:[{
           source:'openalex',title:'Flow estimation',sourceId:'https://openalex.org/W123',sourceUrl:'https://openalex.org/W123',doi:null
         }]}}}]};
       }};
     const report=await main(env,deps);
-    assert.equal(report.status,'completed');assert.equal(report.abstracts.reused,1);assert.equal(report.model_calls,0);
+    assert.equal(report.status,'completed');assert.equal(report.abstracts.reused,1);
+    assert.equal(report.source_methods['semantic-scholar'],'bulk_keyword_publication_date_desc');
+    assert.ok(report.catalog_run_key.includes('s2-bulk-date-desc'));assert.equal(report.model_calls,0);
     assert.equal(providerCalls,0);assert.equal(metadataWrites,1);assert.deepEqual(pauses,[]);
     assert.ok(!(await readFile('reports/literature-collection/collection.json','utf8')).includes(text));
     const md=await readFile('reports/literature-collection/collection.md','utf8');assert.match(md,/Model calls: 0/);
