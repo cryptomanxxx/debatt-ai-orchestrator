@@ -61,7 +61,7 @@ The [literature evidence planner](research/LITERATURE-EVIDENCE.md) connects save
 
 The [daily literature collector](research/LITERATURE-COLLECTION.md) refreshes the five predefined research queries, saves metadata/search history, and archives or reuses at most 50 selected abstracts per run without any model calls. It runs daily and can be started manually; full text/PDF collection remains separate.
 
-The manual [evidence registry](research/LITERATURE-EVIDENCE-REGISTRY.md) stores version-bound, quote-checked abstract interpretations and reuses identical analyses without another model call. Research candidates include explicit gap-review tasks, structured experiment drafts and evidence requirements for six portfolio dimensions. Follow-up gap searches and experiment execution are not enabled by these drafts; scores remain unknown.
+The manual [evidence registry](research/LITERATURE-EVIDENCE-REGISTRY.md) stores version-bound, quote-checked abstract interpretations and reuses identical analyses without another model call. Research candidates include explicit gap-review tasks, structured experiment drafts and evidence requirements for six portfolio dimensions. The separate [bounded follow-up workflow](research/LITERATURE-FOLLOW-UP.md) searches for related-work metadata and persists traceable review leads for one selected candidate. Novelty and portfolio scores remain unknown; experiment execution remains disabled.
 
 ## Architecture
 
