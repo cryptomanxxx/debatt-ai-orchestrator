@@ -28,7 +28,7 @@ export function formatBenchmarkSummary(report) {
       const v=item.sources[source];
       // Older aggregate-only artifacts remain readable.
       if (!Array.isArray(v.papers)) continue;
-      rows.push('', '**'+clean(source)+(source==='arxiv'?' (preprint repository; newest submissions first)':'')+'**', '',
+      rows.push('', '**'+clean(source)+(source==='semantic-scholar'&&v.retrievalMethod==='bulk_keyword_publication_date_desc'?' (bulk keyword search; newest publication dates first)':'')+(source==='arxiv'?' (preprint repository; newest submissions first)':'')+'**', '',
         '| Title | DOI | Source |', '| --- | --- | --- |');
       for (const paper of v.papers.slice(0,20)) {
         const doi=normalizeDoi(paper.doi);

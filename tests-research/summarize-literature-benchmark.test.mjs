@@ -45,3 +45,11 @@ test('DOI resolver links preserve reserved suffix characters without query or fr
     assert.equal(decodeURIComponent(u.pathname.slice(1)),doi);
   }
 });
+
+
+test('bulk source ordering is explicitly labelled in benchmark summaries',()=>{
+  const report={sourceNames:['semantic-scholar'],results:[{query:'science',sources:{'semantic-scholar':{
+    status:'ok',records:0,papers:[],retrievalMethod:'bulk_keyword_publication_date_desc'
+  }}}]};
+  assert.match(formatBenchmarkSummary(report),/bulk keyword search; newest publication dates first/);
+});

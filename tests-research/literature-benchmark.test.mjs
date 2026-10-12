@@ -257,3 +257,43 @@ test('CORE failures are isolated and pairwise DOI comparisons remain meaningful'
   assert.equal(report.results[0].doiOverlap.commonDois,1);
   assert.equal(report.results[0].doiOverlaps['openalex__core'],null);
 });
+
+test('explicit Semantic Scholar bulk mode uses one bounded batch and retains only the local sample',async()=>{
+  const calls=[];
+  const records=Array.from({length:20},(_,i)=>({paperId:'S'+i,title:'Study '+i,year:2026,abstract:'An abstract.',
+    externalIds:{DOI:'10.1234/p'+i},url:'https://www.semanticscholar.org/paper/S'+i}));
+  const papers=await searchSource('semantic-scholar','physics informed neural networks turbulence',10,{
+    semanticScholarMode:'bulk',semanticScholarKey:'fixture-key',fetchImpl:async(url,opts)=>{
+      calls.push({url,opts});return new Response(JSON.stringify({total:220,token:'do-not-follow',data:records}));
+    }});
+  assert.equal(papers.length,10);assert.equal(papers[0].sourceId,'S0');assert.equal(papers[9].sourceId,'S9');
+  assert.equal(papers[0].hasAbstract,true);assert.equal(Object.hasOwn(papers[0],'abstract'),false);
+  assert.equal(calls.length,1);const {url,opts}=calls[0];
+  assert.equal(url.pathname,'/graph/v1/paper/search/bulk');assert.equal(url.searchParams.get('sort'),'publicationDate:desc');
+  assert.equal(url.searchParams.has('limit'),false);assert.equal(url.searchParams.has('token'),false);
+  assert.equal(opts.headers['x-api-key'],'fixture-key');assert.equal(opts.redirect,'error');
+  assert.ok(!String(url).includes('fixture-key'));
+});
+test('bulk mode rejects malformed/oversized responses and preserves HTTP rate-limit failures',async()=>{
+  for(const body of ['not JSON',JSON.stringify({data:{}}),'x'.repeat(5_000_001)]) {
+    await assert.rejects(searchSource('semantic-scholar','science',10,{semanticScholarMode:'bulk',fetchImpl:async()=>new Response(body)}));
+  }
+  const report=await benchmark({sources:['semantic-scholar'],queries:['science'],limit:10,semanticScholarMode:'bulk',
+    maxRetries:0,requestDelayMs:0,fetchImpl:async()=>new Response('',{status:429})});
+  assert.equal(report.results[0].sources['semantic-scholar'].status,'error');
+  assert.equal(report.results[0].sources['semantic-scholar'].httpStatus,429);
+  assert.equal(report.sourceMethods['semantic-scholar'],'bulk_keyword_publication_date_desc');
+  assert.equal(report.results[0].sources['semantic-scholar'].retrievalMethod,'bulk_keyword_publication_date_desc');
+});
+test('relevance remains the default and bulk method is explicit on successful benchmark reports',async()=>{
+  let calls=0;
+  await assert.rejects(benchmark({semanticScholarMode:'unknown',fetchImpl:async()=>{calls++;}}),/Invalid Semantic Scholar/);
+  assert.equal(calls,0);
+  const raw={data:[{paperId:'S1',title:'Study',abstract:'Abstract.'}]};
+  const standard=await benchmark({sources:['semantic-scholar'],queries:['science'],requestDelayMs:0,
+    fetchImpl:async url=>{assert.equal(url.pathname,'/graph/v1/paper/search');return new Response(JSON.stringify(raw));}});
+  assert.equal(standard.sourceMethods['semantic-scholar'],'relevance_search');
+  const bulk=await benchmark({sources:['semantic-scholar'],queries:['science'],semanticScholarMode:'bulk',requestDelayMs:0,
+    fetchImpl:async()=>new Response(JSON.stringify(raw))});
+  assert.equal(bulk.results[0].sources['semantic-scholar'].retrievalMethod,'bulk_keyword_publication_date_desc');
+});
