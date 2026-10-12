@@ -4,7 +4,6 @@ import { boundedJson,hashText,createLiteratureAbstractLoader } from './literatur
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const WORK=/^https:\/\/openalex.org\/W\d+$/;
 const DAY=24*60*60*1000;
-const equality=value=>'eq."'+value.replaceAll('\\','\\\\').replaceAll('"','\\"')+'"';
 const timestamp=value=>typeof value==='string'&&value.length<=40&&Number.isFinite(Date.parse(value));
 export function abstractLookup(paper) {
   const direct=paper.lookup_identifiers?.openalex_records?.[0]??paper.source_hits.find(h=>h.source==='openalex'&&WORK.test(h.source_id));
@@ -46,8 +45,10 @@ export function createAbstractArchiveClient({url,secretKey,fetchImpl=fetch}) {
       }
     },
     async read(key,{now=Date.now()}={}) {
+      // Scalar eq consumes the entire value literally; adding list/logic quotes
+      // changes the lookup key. URLSearchParams handles URL encoding separately.
       const params=new URLSearchParams({select:'id,source_record_id,provider,lookup_id,source_url,content_hash,fetched_at,last_fetched_at,literature_abstract_blob(content_hash,abstract_text,byte_count)',
-        source_record_id:'eq.'+key.sourceRecordId,provider:'eq.'+key.provider,lookup_id:equality(key.lookupId),
+        source_record_id:'eq.'+key.sourceRecordId,provider:'eq.'+key.provider,lookup_id:'eq.'+key.lookupId,
         order:'last_fetched_at.desc,created_at.desc,id.asc',limit:'1'});
       const rows=await request('/rest/v1/literature_abstract_version?'+params);
       if (!Array.isArray(rows)||rows.length>1) throw new Error('invalid_abstract_archive_response');
