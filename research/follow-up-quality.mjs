@@ -9,19 +9,29 @@ const METHODS = [
   {pattern:/kalman/i,short:'kalman',expanded:'kalman filter',aliases:['kalman']},
   {pattern:/symbolic regression/i,short:'symbolic regression',expanded:'symbolic regression',aliases:['symbolic regression']},
   {pattern:/neural operators?/i,short:'neural operator',expanded:'neural operator',aliases:['neural operator','neural operators']},
+  {pattern:/\bactive learning\b/i,short:'active learning',expanded:'active learning',aliases:['active learning']},
+  {pattern:/\bbayesian optim(?:ization|isation)\b/i,short:'bayesian optimization',expanded:'bayesian optimization',aliases:['bayesian optimization','bayesian optimisation']},
+  {pattern:/\b(?:experiment|experimental) design\b/i,short:'experiment design',expanded:'experimental design',aliases:['experiment design','experimental design']},
+  {pattern:/\bcausal (?:inference|discovery|estimation)\b/i,short:'causal inference',expanded:'causal inference',aliases:['causal inference','causal discovery','causal estimation']},
+  {pattern:/\bmixture of experts\b|\bmoe\b/i,short:'moe',expanded:'mixture of experts',aliases:['moe','mixture of experts']},
 ];
 
-export function qualitySeeds({paper,limitation,candidate}) {
-  const method = METHODS.find(m => m.pattern.test(paper.title + ' ' + (limitation?.context_quote ?? '')));
-  const topic = terms(limitation?.claim ?? candidate.research_question).slice(0,3);
+export function qualitySeeds({paper,limitation,candidate,researchQuery=''}) {
+  const sourceText=titleKey(paper.title + ' ' + (limitation?.context_quote ?? ''));
+  const sourceMethod=METHODS.find(m => m.pattern.test(sourceText));
+  const method=sourceMethod ?? METHODS.find(m => m.pattern.test(titleKey(researchQuery)));
+  const methodWords=new Set((method?.aliases??[]).flatMap(words));
+  const nonMethodTerms=text=>terms(text).filter(t=>!methodWords.has(t));
+  const topic = nonMethodTerms(limitation?.claim ?? candidate.research_question).slice(0,3);
   const context = limitation?.context_quote ?? paper.title;
-  const solution = /transformation[- ]embedded/i.test(context) ? ['transformation','embedded'] : terms(context).slice(0,3);
+  const solution = /transformation[- ]embedded/i.test(context) ? ['transformation','embedded'] : nonMethodTerms(context).slice(0,3);
   const seeds = [
     [method?.short,...topic].filter(Boolean).join(' '),
     [...solution,method?.expanded].filter(Boolean).join(' '),
   ].map(q => q.slice(0,200).trim());
   return {queries:[...new Set(seeds)].filter(q => q.length >= 3),
     quality_context:{method_aliases:method?.aliases ?? [],topic_terms:topic,solution_terms:solution,
+      method_anchor_source:sourceMethod?'source_title_or_context':method?'parent_research_query':'not_recognized',
       policy:'title_anchor_overlap_v1; heuristic selection, not scientific merit'}};
 }
 

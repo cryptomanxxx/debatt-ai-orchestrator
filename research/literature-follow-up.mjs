@@ -52,7 +52,7 @@ export function followUpPlan(report, candidateId, {articleId = '', findingIndex 
     const response = reportedResponse(f);
     seeds = [f.claim, response?.solution_seed ?? f.context_quote ?? paper.title];
   }
-  const quality = qualitySeeds({paper,limitation:limitation?.finding,candidate});
+  const quality = qualitySeeds({paper,limitation:limitation?.finding,candidate,researchQuery:report.query??''});
   const queries = quality.queries.length ? quality.queries : [...new Set(seeds.map(keywords))];
   if (queries.some(q => q.length < 3)) throw Error('empty_follow_up_query');
   return { parent_report_id: report.id, candidate_id: candidateId,

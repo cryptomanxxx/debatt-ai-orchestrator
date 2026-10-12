@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {qualitySeeds,reviewHit,prioritizeFollowUp} from '../research/follow-up-quality.mjs';
 import {selectQueryEvidence,buildEvidenceReport} from '../research/literature-evidence.mjs';
+import {RESEARCH_AREAS} from '../research/research-pipeline.mjs';
+import {followUpPlan} from '../research/literature-follow-up.mjs';
 const uid=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const context={method_aliases:['pinn','pinns','physics informed neural networks'],topic_terms:['misaligned','velocity','measurements'],solution_terms:['transformation','embedded'],policy:'title_anchor_overlap_v1'};
 const origins=[{article_id:uid(1),title:'Original PINN study',doi:'10.1234/origin',arxiv_id:'2306.01065',sources:[{source:'core',source_id:'123'}]}];
@@ -58,4 +60,38 @@ test('an empty strict selection saves an insufficient-evidence report without re
     {id:uid(101),loadAbstract:async()=>assert.fail('no retrieval for rejected hits'),summarize:async()=>assert.fail('no inference for rejected hits')});
   assert.equal(report.status,'insufficient_evidence');assert.equal(report.budget.model_calls,0);
   assert.equal(report.coverage.selected,0);assert.equal(report.planner.proposals.length,0);
+});
+
+test('every advertised research area recognizes its configured method and allows strong problem leads',()=>{
+  for (const [area,query] of Object.entries(RESEARCH_AREAS)) {
+    // Some retrieved titles omit the method; the explicit parent query supplies it.
+    const quality=qualitySeeds({paper:{title:'Limited sparse sensor observations'},
+      limitation:{claim:'Sparse sensor observations limit reconstruction.'},candidate:{},researchQuery:query});
+    const c=quality.quality_context;
+    assert.ok(c.method_aliases.length>0,area);
+    assert.equal(c.method_anchor_source,'parent_research_query',area);
+    const lead={article_id:uid(80),rank:1,title:c.method_aliases[0]+' sparse sensor observations'};
+    assert.equal(prioritizeFollowUp([lead],{...review,quality_context:c}).papers.length,1,area);
+    const methodOnly={...lead,title:c.method_aliases[0]};
+    assert.equal(prioritizeFollowUp([methodOnly],{...review,quality_context:c}).papers.length,0,area);
+    const stored={id:uid(90),schema_version:'literature-evidence-1',query,
+      papers:[{article_id:uid(91),title:'Limited sparse sensor observations',findings:[]}],
+      planner:{proposals:[{id:'arp-reproducibility',research_question:'Do sparse sensor observations limit reconstruction?',evidence:[{id:uid(91)}]}]}};
+    const plan=followUpPlan(stored,'arp-reproducibility');
+    assert.deepEqual(plan.quality_context.method_aliases,c.method_aliases,area);
+    assert.equal(plan.quality_context.method_anchor_source,'parent_research_query',area);
+  }
+});
+
+test('source methods take precedence and aliases handle punctuation without double-counting method tokens',()=>{
+  for (const title of ['Active-learning sensor allocation','Causal inference sensor allocation','Mixture-of-experts sensor allocation','Bayesian optimisation sensor allocation']) {
+    const quality=qualitySeeds({paper:{title},candidate:{research_question:title},researchQuery:'Kalman filter estimation'});
+    const c=quality.quality_context;
+    assert.equal(c.method_anchor_source,'source_title_or_context');assert.ok(!c.method_aliases.includes('kalman'));
+    assert.deepEqual(c.topic_terms,['sensor','allocation']);assert.deepEqual(c.solution_terms,['sensor','allocation']);
+    assert.equal(prioritizeFollowUp([{article_id:uid(80),rank:1,title:c.method_aliases[0]}],{...review,quality_context:c}).papers.length,0);
+  }
+  const unknown=qualitySeeds({paper:{title:'Unknown technique for sensor allocation'},candidate:{research_question:'Sensor allocation'},researchQuery:'Unknown technique'});
+  assert.equal(unknown.quality_context.method_anchor_source,'not_recognized');
+  assert.equal(prioritizeFollowUp([{article_id:uid(80),rank:1,title:'Unknown technique for sensor allocation'}],{...review,quality_context:unknown.quality_context}).papers.length,0);
 });
