@@ -1,0 +1,48 @@
+name: Literature follow-up (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      planner_report_id:
+        description: 'Saved evidence planner report UUID'
+        type: string
+        required: true
+      candidate_id:
+        description: 'Exact candidate ID from that report (for example arp-fluid-state-estimation)'
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: literature-benchmark-live
+  cancel-in-progress: false
+jobs:
+  follow-up:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test follow-up contracts
+        run: node --test tests-research/literature-follow-up.test.mjs tests-research/literature-benchmark.test.mjs tests-research/literature-database.test.mjs
+      - name: Search and persist candidate review leads
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          SEMANTIC_SCHOLAR_API_KEY: ${{ secrets.SEMANTIC_SCHOLAR_API_KEY }}
+          CORE_API_KEY: ${{ secrets.CORE_API_KEY }}
+          PLANNER_REPORT_ID: ${{ inputs.planner_report_id }}
+          RESEARCH_CANDIDATE_ID: ${{ inputs.candidate_id }}
+        run: node research/literature-follow-up.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: literature-follow-up-report
+          path: reports/literature-follow-up/
+          retention-days: 30
+          if-no-files-found: warn
