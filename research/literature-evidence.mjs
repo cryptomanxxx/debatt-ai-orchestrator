@@ -353,6 +353,7 @@ export function renderEvidenceReport(report) {
     `Model calls: ${report.budget.model_calls}. Reused analyses: ${report.analysis_stats?.reused??0}.`,
     '','Evidence is abstract-only. Quote matching does not verify scientific correctness.',''];
   if (report.selection_review) lines.push(`Follow-up selection: ${report.selection_review.confirmed_origin} confirmed origin articles excluded; ${report.selection_review.possible_origin_title} possible title matches flagged.`,
+    `Eligibility: ${report.selection_review.eligible} title leads; ${report.selection_review.rejected_for_weak_anchors} weak-anchor hits rejected. Outcome: ${md(report.selection_review.outcome)}.`,
     `Follow-up report: ${md(report.selection_review.follow_up_report_id)}.`, '');
   for (const p of report.papers) {
     lines.push(`## ${md(p.title)}`,`Status: ${p.status}${p.reason?' ('+p.reason+')':''}.`);

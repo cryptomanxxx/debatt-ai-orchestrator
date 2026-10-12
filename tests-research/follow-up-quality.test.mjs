@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {qualitySeeds,reviewHit,prioritizeFollowUp} from '../research/follow-up-quality.mjs';
-import {selectQueryEvidence} from '../research/literature-evidence.mjs';
+import {selectQueryEvidence,buildEvidenceReport} from '../research/literature-evidence.mjs';
+import {RESEARCH_AREAS} from '../research/research-pipeline.mjs';
+import {followUpPlan} from '../research/literature-follow-up.mjs';
 const uid=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const context={method_aliases:['pinn','pinns','physics informed neural networks'],topic_terms:['misaligned','velocity','measurements'],solution_terms:['transformation','embedded'],policy:'title_anchor_overlap_v1'};
 const origins=[{article_id:uid(1),title:'Original PINN study',doi:'10.1234/origin',arxiv_id:'2306.01065',sources:[{source:'core',source_id:'123'}]}];
@@ -28,8 +30,18 @@ test('ranking requires bounded phrase overlap, origins are excluded but title-on
   assert.equal(result.papers[0].article_id,uid(3));
   assert.equal(result.papers[0].selection_review.anchor_score,3);
   assert.equal(result.summary.confirmed_origin,1);assert.equal(result.summary.possible_origin_title,1);
-  assert.ok(result.papers.some(p=>p.article_id===uid(4)));
+  assert.equal(result.summary.rejected_for_weak_anchors,2);
   assert.equal(reviewHit({title:'Spinning measurements'},context,origins).matched_method.length,0);
+});
+
+test('method-only and unrelated titles do not enter the analysis budget; possible origin title with strong anchors remains eligible',()=>{
+  const weak=[{article_id:uid(2),rank:1,title:'PINNs for blood flow'},
+    {article_id:uid(3),rank:2,title:'Misaligned velocity measurements'}];
+  const result=prioritizeFollowUp(weak,review);
+  assert.equal(result.papers.length,0);assert.equal(result.summary.outcome,'insufficient_relevant_hits');
+  const original={...origins[0],title:'PINNs with misaligned velocity measurements'};
+  const copy=prioritizeFollowUp([{article_id:uid(4),rank:1,title:original.title}],{...review,origin_articles:[original]});
+  assert.equal(copy.papers.length,1);assert.equal(copy.papers[0].selection_review.origin_relation,'possible_origin_title');
 });
 test('all canonical hits are ranked before applying the selected-paper budget; unrelated run IDs fail closed',()=>{
   const hits=Array.from({length:12},(_,i)=>({rank:i+1,source_record_id:uid(200+i),metadata:{title:i===11?'PINN misaligned velocity measurements':i===0?'Original PINN study':'Unrelated work',sourceId:`https://openalex.org/W${i+1}`},
@@ -40,4 +52,69 @@ test('all canonical hits are ranked before applying the selected-paper budget; u
   assert.equal(input.total_articles,12);assert.equal(input.selection_review.confirmed_origin,1);
   assert.throws(()=>selectQueryEvidence({id:uid(101)},searches,{followUpReview:review}),/follow_up_query_mismatch/);
   assert.equal(selectQueryEvidence({id:uid(100)},searches,{maxPapers:1}).papers[0].article_id,uid(1));
+});
+
+test('an empty strict selection saves an insufficient-evidence report without retrieving content or calling a model',async()=>{
+  const report=await buildEvidenceReport({literature_run_id:uid(100),query_index:0,query:'pinn misaligned velocity measurements',
+    papers:[],total_articles:20,source_statuses:[],selection:'Strict title anchors'},
+    {id:uid(101),loadAbstract:async()=>assert.fail('no retrieval for rejected hits'),summarize:async()=>assert.fail('no inference for rejected hits')});
+  assert.equal(report.status,'insufficient_evidence');assert.equal(report.budget.model_calls,0);
+  assert.equal(report.coverage.selected,0);assert.equal(report.planner.proposals.length,0);
+});
+
+test('every advertised research area recognizes its configured method and allows strong problem leads',()=>{
+  for (const [area,query] of Object.entries(RESEARCH_AREAS)) {
+    // Some retrieved titles omit the method; the explicit parent query supplies it.
+    const quality=qualitySeeds({paper:{title:'Limited sparse sensor observations'},
+      limitation:{claim:'Sparse sensor observations limit reconstruction.'},candidate:{},researchQuery:query});
+    const c=quality.quality_context;
+    assert.ok(c.method_aliases.length>0,area);
+    assert.equal(c.method_anchor_source,'parent_research_query',area);
+    const lead={article_id:uid(80),rank:1,title:c.method_aliases[0]+' sparse sensor observations'};
+    assert.equal(prioritizeFollowUp([lead],{...review,quality_context:c}).papers.length,1,area);
+    const methodOnly={...lead,title:c.method_aliases[0]};
+    assert.equal(prioritizeFollowUp([methodOnly],{...review,quality_context:c}).papers.length,0,area);
+    const stored={id:uid(90),schema_version:'literature-evidence-1',query,
+      papers:[{article_id:uid(91),title:'Limited sparse sensor observations',findings:[]}],
+      planner:{proposals:[{id:'arp-reproducibility',research_question:'Do sparse sensor observations limit reconstruction?',evidence:[{id:uid(91)}]}]}};
+    const plan=followUpPlan(stored,'arp-reproducibility');
+    assert.deepEqual(plan.quality_context.method_aliases,c.method_aliases,area);
+    assert.equal(plan.quality_context.method_anchor_source,'parent_research_query',area);
+  }
+});
+
+test('source methods take precedence and aliases handle punctuation without double-counting method tokens',()=>{
+  for (const title of ['Active-learning sensor allocation','Causal inference sensor allocation','Mixture-of-experts sensor allocation','Bayesian optimisation sensor allocation']) {
+    const quality=qualitySeeds({paper:{title},candidate:{research_question:title},researchQuery:'Kalman filter estimation'});
+    const c=quality.quality_context;
+    assert.equal(c.method_anchor_source,'source_title_or_context');assert.ok(!c.method_aliases.includes('kalman'));
+    assert.deepEqual(c.topic_terms,['sensor','allocation']);assert.deepEqual(c.solution_terms,['sensor','allocation']);
+    assert.equal(prioritizeFollowUp([{article_id:uid(80),rank:1,title:c.method_aliases[0]}],{...review,quality_context:c}).papers.length,0);
+  }
+  const unknown=qualitySeeds({paper:{title:'Unknown technique for sensor allocation'},candidate:{research_question:'Sensor allocation'},researchQuery:'Unknown technique'});
+  assert.equal(unknown.quality_context.method_anchor_source,'not_recognized');
+  assert.equal(prioritizeFollowUp([{article_id:uid(80),rank:1,title:'Unknown technique for sensor allocation'}],{...review,quality_context:unknown.quality_context}).papers.length,0);
+});
+
+test('all recognized method phrases are removed from problem and solution anchors',()=>{
+  for(const title of ['Bayesian optimization for experimental design','Active learning with Bayesian optimization for experimental design','PINNs with Kalman filters']) {
+    const quality=qualitySeeds({paper:{title},candidate:{research_question:title}});
+    assert.deepEqual(quality.quality_context.topic_terms,[],title);
+    assert.deepEqual(quality.quality_context.solution_terms,[],title);
+    assert.equal(prioritizeFollowUp([{article_id:uid(80),rank:1,title}],{...review,quality_context:quality.quality_context}).papers.length,0,title);
+  }
+  const title='Bayesian optimization for experimental design with sparse sensor observations';
+  const quality=qualitySeeds({paper:{title},candidate:{research_question:title}});
+  assert.deepEqual(quality.quality_context.topic_terms,['sparse','sensor','observations']);
+  assert.equal(prioritizeFollowUp([{article_id:uid(80),rank:1,title}],{...review,quality_context:quality.quality_context}).papers.length,1);
+});
+
+test('anchor threshold uses the union of configured and matched terms, not the smaller bucket',()=>{
+  const c={...context,topic_terms:['turbulence'],solution_terms:['sparse','sensor','measurements']};
+  const evaluate=(title,quality_context=c)=>prioritizeFollowUp([{article_id:uid(80),rank:1,title}],{...review,quality_context});
+  assert.equal(evaluate('PINN turbulence').papers.length,0);
+  assert.equal(evaluate('PINN turbulence sparse').papers.length,1);
+  assert.equal(evaluate('PINN turbulence',{...c,solution_terms:['turbulence']}).papers.length,1);
+  assert.equal(evaluate('PINN sparse',{...c,topic_terms:['sparse'],solution_terms:['sparse','sensor']}).papers.length,0);
+  assert.equal(evaluate('PINN',{...c,topic_terms:[],solution_terms:[]}).papers.length,0);
 });

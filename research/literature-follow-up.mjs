@@ -52,7 +52,7 @@ export function followUpPlan(report, candidateId, {articleId = '', findingIndex 
     const response = reportedResponse(f);
     seeds = [f.claim, response?.solution_seed ?? f.context_quote ?? paper.title];
   }
-  const quality = qualitySeeds({paper,limitation:limitation?.finding,candidate});
+  const quality = qualitySeeds({paper,limitation:limitation?.finding,candidate,researchQuery:report.query??''});
   const queries = quality.queries.length ? quality.queries : [...new Set(seeds.map(keywords))];
   if (queries.some(q => q.length < 3)) throw Error('empty_follow_up_query');
   return { parent_report_id: report.id, candidate_id: candidateId,
@@ -146,13 +146,13 @@ export function followUpOriginUrl(env) {
   return `https://github.com/${repository}/actions/runs/${runId}`;
 }
 
-export async function main(env = process.env) {
+export async function main(env = process.env,{directory='reports/literature-follow-up'}={}) {
   const client = createFollowUpClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY});
   await client.checkStorage(); // Fail before provider requests if migration is missing.
   const parent = await client.readReport(env.PLANNER_REPORT_ID);
   const plan = followUpPlan(parent,env.RESEARCH_CANDIDATE_ID,{
     articleId:env.LIMITATION_ARTICLE_ID ?? '',findingIndex:env.LIMITATION_FINDING_INDEX ?? ''});
-  const id = randomUUID(), directory = 'reports/literature-follow-up';
+  const id = randomUUID();
   await mkdir(directory,{recursive:true});
   const report = await runFollowUp(plan,{id,
     searchOptions:{openAlexKey:env.OPENALEX_API_KEY,semanticScholarKey:env.SEMANTIC_SCHOLAR_API_KEY,coreApiKey:env.CORE_API_KEY},
@@ -166,6 +166,7 @@ export async function main(env = process.env) {
   await client.saveReport(report);
   console.log(JSON.stringify({saved:true,id,status:report.status,literature_run_id:report.literature_run_id,model_calls:0}));
   if (report.status === 'failed') throw Error('all_follow_up_searches_failed');
+  return report;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch(() => {console.error('Literature follow-up failed. Inspect report artifact and summary if available.');process.exitCode = 1;});

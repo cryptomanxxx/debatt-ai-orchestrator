@@ -43,12 +43,11 @@ export function createEvidenceSummarizer({key,profile=null,fetchImpl=fetch}) {
   };
 }
 
-export async function main(env=process.env) {
+export async function main(env=process.env,{directory='reports/literature-evidence',allowInsufficient=false}={}) {
   const options=validateEvidenceOptions({queryIndex:Number(env.LITERATURE_QUERY_INDEX??0),maxPapers:Number(env.LITERATURE_MAX_PAPERS??5)});
   const client=createLiteratureEvidenceClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY});
   const archive=createAbstractArchiveClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY});
   const analysisStore=createAnalysisRegistryClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY});
-  const directory='reports/literature-evidence';
   await mkdir(directory,{recursive:true});
   // Missing migration/configuration must fail before any model calls are spent.
   await client.checkReportStorage();
@@ -71,7 +70,9 @@ export async function main(env=process.env) {
   // Reports exist before attempting storage, so a write failure is recoverable.
   await client.saveReport(report);
   console.log(JSON.stringify({saved:true,report_id:report.id,status:report.status,coverage:report.coverage,model_calls:report.budget.model_calls}));
-  if (report.status==='insufficient_evidence') throw new Error('no_usable_evidence_report_saved');
+  if (report.status==='insufficient_evidence'&&!allowInsufficient&&input.selection_review?.outcome!=='insufficient_relevant_hits')
+    throw new Error('no_usable_evidence_report_saved');
+  return report;
 }
 if (process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href) {
   main().catch(()=>{console.error('Literature evidence run failed. Inspect the report artifact and step summary, if produced.');process.exitCode=1;});

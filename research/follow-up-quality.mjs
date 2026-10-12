@@ -6,22 +6,34 @@ const terms = text => [...new Set(words(text))].filter(w => w.length > 2 && !sto
 const titleKey = title => words(String(title ?? '').normalize('NFKC')).join(' ');
 const METHODS = [
   {pattern:/\bpinns?\b|physics[- ]informed neural networks?/i,short:'pinn',expanded:'physics informed neural networks',aliases:['pinn','pinns','physics informed neural network','physics informed neural networks']},
-  {pattern:/kalman/i,short:'kalman',expanded:'kalman filter',aliases:['kalman']},
+  {pattern:/kalman/i,short:'kalman',expanded:'kalman filter',aliases:['kalman','kalman filter','kalman filters','kalman filtering']},
   {pattern:/symbolic regression/i,short:'symbolic regression',expanded:'symbolic regression',aliases:['symbolic regression']},
   {pattern:/neural operators?/i,short:'neural operator',expanded:'neural operator',aliases:['neural operator','neural operators']},
+  {pattern:/\bactive learning\b/i,short:'active learning',expanded:'active learning',aliases:['active learning']},
+  {pattern:/\bbayesian optim(?:ization|isation)\b/i,short:'bayesian optimization',expanded:'bayesian optimization',aliases:['bayesian optimization','bayesian optimisation']},
+  {pattern:/\b(?:experiment|experimental) design\b/i,short:'experiment design',expanded:'experimental design',aliases:['experiment design','experimental design']},
+  {pattern:/\bcausal (?:inference|discovery|estimation)\b/i,short:'causal inference',expanded:'causal inference',aliases:['causal inference','causal discovery','causal estimation']},
+  {pattern:/\bmixture of experts\b|\bmoe\b/i,short:'moe',expanded:'mixture of experts',aliases:['moe','mixture of experts']},
 ];
 
-export function qualitySeeds({paper,limitation,candidate}) {
-  const method = METHODS.find(m => m.pattern.test(paper.title + ' ' + (limitation?.context_quote ?? '')));
-  const topic = terms(limitation?.claim ?? candidate.research_question).slice(0,3);
+export function qualitySeeds({paper,limitation,candidate,researchQuery=''}) {
+  const sourceText=titleKey(paper.title + ' ' + (limitation?.context_quote ?? ''));
+  const sourceMethod=METHODS.find(m => m.pattern.test(sourceText));
+  const method=sourceMethod ?? METHODS.find(m => m.pattern.test(titleKey(researchQuery)));
+  const allSeedText=titleKey([sourceText,researchQuery,limitation?.claim,candidate.research_question].filter(Boolean).join(' '));
+  const recognized=METHODS.filter(m=>m.pattern.test(allSeedText));
+  const methodWords=new Set(recognized.flatMap(m=>m.aliases).flatMap(words));
+  const nonMethodTerms=text=>terms(text).filter(t=>!methodWords.has(t));
+  const topic = nonMethodTerms(limitation?.claim ?? candidate.research_question).slice(0,3);
   const context = limitation?.context_quote ?? paper.title;
-  const solution = /transformation[- ]embedded/i.test(context) ? ['transformation','embedded'] : terms(context).slice(0,3);
+  const solution = /transformation[- ]embedded/i.test(context) ? ['transformation','embedded'] : nonMethodTerms(context).slice(0,3);
   const seeds = [
     [method?.short,...topic].filter(Boolean).join(' '),
     [...solution,method?.expanded].filter(Boolean).join(' '),
   ].map(q => q.slice(0,200).trim());
   return {queries:[...new Set(seeds)].filter(q => q.length >= 3),
     quality_context:{method_aliases:method?.aliases ?? [],topic_terms:topic,solution_terms:solution,
+      method_anchor_source:sourceMethod?'source_title_or_context':method?'parent_research_query':'not_recognized',
       policy:'title_anchor_overlap_v1; heuristic selection, not scientific merit'}};
 }
 
@@ -65,11 +77,21 @@ export function prioritizeFollowUp(papers, review) {
   const reviewed = papers.map(p => ({...p,selection_review:reviewHit(p,c,review.origin_articles)}));
   // Confirmed origin records remain in the search/catalog and audit counts.
   // Do not spend the selected-paper budget treating them as additional evidence.
-  const eligible = reviewed.filter(p => p.selection_review.origin_relation !== 'confirmed_origin');
+  const nonOrigin = reviewed.filter(p => p.selection_review.origin_relation !== 'confirmed_origin');
+  const vocabulary=new Set([...c.topic_terms,...c.solution_terms]);
+  const requiredMatches=vocabulary.size===1?1:2;
+  const eligible = nonOrigin.filter(p => {
+    const r=p.selection_review;
+    return r.matched_method.length>0 && new Set([...r.matched_topic,...r.matched_solution]).size>=requiredMatches;
+  });
   eligible.sort((a,b) => b.selection_review.anchor_score - a.selection_review.anchor_score
     || a.rank - b.rank || (a.article_id < b.article_id ? -1 : a.article_id > b.article_id ? 1 : 0));
   return {papers:eligible,summary:{policy:c.policy,reviewed:reviewed.length,
     confirmed_origin:reviewed.filter(p => p.selection_review.origin_relation === 'confirmed_origin').length,
     possible_origin_title:reviewed.filter(p => p.selection_review.origin_relation === 'possible_origin_title').length,
+    eligible:eligible.length,rejected_for_weak_anchors:nonOrigin.length-eligible.length,
+    outcome:eligible.length?'eligible_title_leads':'insufficient_relevant_hits',
+    required_anchor_terms:requiredMatches,
+    eligibility_rule:'Recognized method plus two distinct terms across the combined problem/solution vocabulary (one only if the entire vocabulary has one). Titles only; omitted terms can cause false negatives.',
     follow_up_report_id:review.id}};
 }
