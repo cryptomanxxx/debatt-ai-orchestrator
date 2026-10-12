@@ -1,6 +1,6 @@
 import { normalizeDoi, normalizeArxivId } from './literature-benchmark.mjs';
 
-export const FOLLOW_UP_SELECTION_DESCRIPTION='Strict method and combined problem/solution title anchors; exclude confirmed origin articles and records without loader-compatible abstract identifiers, retaining them in the catalog. Rank by usable abstract identifiers, new leads before possible title copies, provider abstract signals, title anchor score, source rank, then canonical UUID. Abstract signals are unverified; no merit, novelty or independence judgment.';
+export const FOLLOW_UP_SELECTION_DESCRIPTION='Strict method and combined problem/solution title anchors, plus configured domain title anchors; exclude confirmed origin articles and records without loader-compatible abstract identifiers, retaining them in the catalog. Rank by usable abstract identifiers, new leads before possible title copies, provider abstract signals, title anchor score, source rank, then canonical UUID. Abstract signals are unverified; no merit, novelty or independence judgment.';
 
 const words = text => (String(text ?? '').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []);
 const stop = new Set(('does the with and under which from for how can are leading proposal significantly reduce reduces reduced improve improves improved accuracy performance affect affects affected correct correcting spatially work paper study method approach using used use remains remaining requires required future limitation limitations enough appropriately distributed new reported this that into based to of out held conditions changing networks neural physics informed pinn pinns').split(' '));
@@ -26,17 +26,22 @@ export function qualitySeeds({paper,limitation,candidate,researchQuery=''}) {
   const recognized=METHODS.filter(m=>m.pattern.test(allSeedText));
   const methodWords=new Set(recognized.flatMap(m=>m.aliases).flatMap(words));
   const nonMethodTerms=text=>terms(text).filter(t=>!methodWords.has(t));
+  // Explicit, bounded domain vocabulary for the turbulence research area.
+  // Other areas and historical reports retain their existing selection policy.
+  const domain = /\bturbulence\b/.test(titleKey(researchQuery))
+    ? ['turbulence','turbulent','fluid','mean flow','fluid dynamics','aerodynamic','aerodynamics','hydrodynamic','hydrodynamics','navier stokes'] : [];
+  const domainQuery = domain.length ? 'turbulence' : '';
   const topic = nonMethodTerms(limitation?.claim ?? candidate.research_question).slice(0,3);
   const context = limitation?.context_quote ?? paper.title;
   const solution = /transformation[- ]embedded/i.test(context) ? ['transformation','embedded'] : nonMethodTerms(context).slice(0,3);
   const seeds = [
-    [method?.short,...topic].filter(Boolean).join(' '),
-    [...solution,method?.expanded].filter(Boolean).join(' '),
+    [method?.short,...topic,domainQuery].filter(Boolean).join(' '),
+    [...solution,method?.expanded,domainQuery].filter(Boolean).join(' '),
   ].map(q => q.slice(0,200).trim());
   return {queries:[...new Set(seeds)].filter(q => q.length >= 3),
-    quality_context:{method_aliases:method?.aliases ?? [],topic_terms:topic,solution_terms:solution,
+    quality_context:{method_aliases:method?.aliases ?? [],topic_terms:topic,solution_terms:solution,domain_terms:domain,
       method_anchor_source:sourceMethod?'source_title_or_context':method?'parent_research_query':'not_recognized',
-      policy:'title_anchor_overlap_v1; heuristic selection, not scientific merit'}};
+      policy:'title_anchor_overlap_v2; explicit domain when configured; heuristic selection, not scientific merit'}};
 }
 
 export function originArticles(papers) {
@@ -70,7 +75,7 @@ export function reviewHit(paper, context, origins) {
   const method = matched(context.method_aliases), topic = matched(context.topic_terms), solution = matched(context.solution_terms);
   return {origin_relation:exact ? 'confirmed_origin' : possible ? 'possible_origin_title' : 'not_matched_to_origin',
     origin_article_id:exact?.article_id ?? possible?.article_id ?? null,
-    matched_method:method,matched_topic:topic,matched_solution:solution,
+    matched_method:method,matched_topic:topic,matched_solution:solution,matched_domain:matched(context.domain_terms??[]),
     abstract_access:abstractAccess(paper),
     anchor_score:(method.length ? 2 : 0) + (topic.length || solution.length ? 1 : 0),
     reason:'Title token/phrase overlap only; not semantic relevance, novelty or independence.'};
@@ -85,6 +90,8 @@ export function prioritizeFollowUp(papers, review) {
     || !Array.isArray(o.sources) || o.sources.length > 4 || o.sources.some(s =>
       typeof s.source !== 'string' || typeof s.source_id !== 'string' || s.source_id.length > 500)))
     throw Error('invalid_follow_up_quality_context');
+  if (c.domain_terms !== undefined && (!Array.isArray(c.domain_terms) || c.domain_terms.length>10
+    || c.domain_terms.some(t=>typeof t!=='string'||!t||t.length>100))) throw Error('invalid_follow_up_quality_context');
   for (const key of ['method_aliases','topic_terms','solution_terms'])
     if (!Array.isArray(c[key]) || c[key].length > 10 || c[key].some(t => typeof t !== 'string' || !t || t.length > 100))
       throw Error('invalid_follow_up_quality_context');
@@ -94,10 +101,11 @@ export function prioritizeFollowUp(papers, review) {
   const nonOrigin = reviewed.filter(p => p.selection_review.origin_relation !== 'confirmed_origin');
   const vocabulary=new Set([...c.topic_terms,...c.solution_terms]);
   const requiredMatches=vocabulary.size===1?1:2;
-  const eligible = nonOrigin.filter(p => {
+  const anchored = nonOrigin.filter(p => {
     const r=p.selection_review;
     return r.matched_method.length>0 && new Set([...r.matched_topic,...r.matched_solution]).size>=requiredMatches;
   });
+  const eligible=anchored.filter(p=>!(c.domain_terms?.length) || p.selection_review.matched_domain.length>0);
   const selectable=eligible.filter(p=>p.selection_review.abstract_access.identifier_status!=='missing');
   const accessRank=p=>p.selection_review.abstract_access.identifier_status==='available'?1:0;
   const titleCopy=p=>p.selection_review.origin_relation==='possible_origin_title'?1:0;
@@ -111,9 +119,10 @@ export function prioritizeFollowUp(papers, review) {
     possible_origin_title:reviewed.filter(p => p.selection_review.origin_relation === 'possible_origin_title').length,
     eligible:selectable.length,eligible_title_leads:eligible.length,
     rejected_for_no_abstract_identifier:eligible.length-selectable.length,
-    rejected_for_weak_anchors:nonOrigin.length-eligible.length,
+    rejected_for_weak_anchors:nonOrigin.length-anchored.length,
+    rejected_for_domain:anchored.length-eligible.length,domain_terms:c.domain_terms??[],
     outcome:selectable.length?'eligible_title_leads':eligible.length?'insufficient_abstract_identifiers':'insufficient_relevant_hits',
     required_anchor_terms:requiredMatches,
-    eligibility_rule:'Recognized method plus two distinct terms across the combined problem/solution vocabulary (one only if the entire vocabulary has one). Titles only; omitted terms can cause false negatives.',
+    eligibility_rule:'Recognized method plus two distinct terms across the combined problem/solution vocabulary (one only if the entire vocabulary has one). Configured domain terms require at least one title match as an additional gate. Titles only; omitted terms can cause false negatives.',
     follow_up_report_id:review.id}};
 }

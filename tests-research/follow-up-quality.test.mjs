@@ -72,7 +72,7 @@ test('every advertised research area recognizes its configured method and allows
     const c=quality.quality_context;
     assert.ok(c.method_aliases.length>0,area);
     assert.equal(c.method_anchor_source,'parent_research_query',area);
-    const lead={article_id:uid(80),rank:1,title:c.method_aliases[0]+' sparse sensor observations'};
+    const lead={article_id:uid(80),rank:1,title:c.method_aliases[0]+' sparse sensor observations '+(c.domain_terms?.[0]??'')};
     assert.equal(prioritizeFollowUp([lead],{...review,quality_context:c}).papers.length,1,area);
     const methodOnly={...lead,title:c.method_aliases[0]};
     assert.equal(prioritizeFollowUp([methodOnly],{...review,quality_context:c}).papers.length,0,area);
@@ -148,4 +148,29 @@ test('strong title leads with no loader identity report a content limitation sep
   assert.equal(result.papers.length,0);
   assert.equal(result.summary.outcome,'insufficient_abstract_identifiers');
   assert.equal(result.summary.rejected_for_weak_anchors,0);
+});
+
+ test('turbulence parent query anchors both searches and rejects power-system drift before the paper budget',()=>{
+  const quality=qualitySeeds({paper:{title:'Turbulence model augmented physics-informed neural networks'},
+    candidate:{research_question:'Does a physics-informed estimator improve held-out state estimation under changing flow conditions?'},
+    researchQuery:'physics informed neural networks turbulence'});
+  assert.equal(quality.queries.length,2);
+  assert.ok(quality.queries.every(q=>q.includes('turbulence')));
+  const c=quality.quality_context;
+  const papers=[{article_id:uid(80),rank:1,title:'A Physics-Informed-Neural-Network-Based State Estimator for Low Voltage Distribution Systems',doi:'10.1234/power'},
+    {article_id:uid(81),rank:2,title:'Physics informed neural networks for secure power flow state estimation',doi:'10.1234/grid'},
+    {article_id:uid(82),rank:10,title:'PINN state estimator for turbulent flow',doi:'10.1234/fluid'}];
+  const selected=prioritizeFollowUp(papers,{...review,quality_context:c});
+  assert.deepEqual(selected.papers.map(p=>p.article_id),[uid(82)]);
+  assert.equal(selected.summary.rejected_for_domain,2);
+  assert.deepEqual(selected.papers[0].selection_review.matched_domain,['turbulent']);
+  const none=prioritizeFollowUp(papers.slice(0,2),{...review,quality_context:c});
+  assert.equal(none.summary.outcome,'insufficient_relevant_hits');
+  assert.equal(none.summary.eligible,0);
+  // Counts and evidence selection use the same canonical path.
+  const searches=[{id:uid(20),query:quality.queries[0],source:'openalex',status:'ok',literature_hit:papers.map((p,i)=>({rank:p.rank,source_record_id:uid(200+i),metadata:{title:p.title,sourceId:'https://openalex.org/W'+(i+1)},literature_source_record:{id:uid(200+i),source:'openalex',source_id:'https://openalex.org/W'+(i+1),article_id:p.article_id,canonical:{id:p.article_id,doi:p.doi,openalex_records:[]}}}))}];
+  const canonical=selectQueryEvidence({id:uid(100)},searches,{maxPapers:1,followUpReview:{...review,queries:quality.queries,quality_context:c}});
+  assert.deepEqual(canonical.papers.map(p=>p.article_id),[uid(82)]);
+  assert.equal(canonical.selection_review.rejected_for_domain,2);
+  assert.throws(()=>prioritizeFollowUp(papers,{...review,quality_context:{...c,domain_terms:'turbulence'}}),/invalid_follow_up_quality_context/);
 });
