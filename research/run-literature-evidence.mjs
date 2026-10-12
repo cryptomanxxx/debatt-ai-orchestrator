@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { EVIDENCE_MESSAGE_LIMIT,boundedJson,createLiteratureEvidenceClient,createLiteratureAbstractLoader,buildEvidenceReport,renderEvidenceReport,validateEvidenceOptions } from './literature-evidence.mjs';
 
+import { createAbstractArchiveClient,createArchivedAbstractLoader } from './literature-abstract-archive.mjs';
+
 export function createEvidenceSummarizer({key,fetchImpl=fetch}) {
   if (typeof key!=='string'||key.length<24) throw new Error('missing_orchestrator_key');
   return async prompt=>{
@@ -26,14 +28,16 @@ export function createEvidenceSummarizer({key,fetchImpl=fetch}) {
 export async function main(env=process.env) {
   const options=validateEvidenceOptions({queryIndex:Number(env.LITERATURE_QUERY_INDEX??0),maxPapers:Number(env.LITERATURE_MAX_PAPERS??5)});
   const client=createLiteratureEvidenceClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY});
+  const archive=createAbstractArchiveClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY});
   const summarize=createEvidenceSummarizer({key:env.ORCHESTRATOR_API_KEY});
   const directory='reports/literature-evidence';
   await mkdir(directory,{recursive:true});
   // Missing migration/configuration must fail before any model calls are spent.
   await client.checkReportStorage();
+  await archive.checkStorage();
   const input=await client.readQuery({runId:env.LITERATURE_RUN_ID||null,...options});
   const report=await buildEvidenceReport(input,{id:randomUUID(),summarize,
-    loadAbstract:createLiteratureAbstractLoader({apiKey:env.OPENALEX_API_KEY||''})});
+    loadAbstract:createArchivedAbstractLoader({client:archive,loadAbstract:createLiteratureAbstractLoader({apiKey:env.OPENALEX_API_KEY||''})})});
   report.code_commit=env.GITHUB_SHA||null;
   await writeFile(directory+'/report.json',JSON.stringify(report,null,2)+'\n');
   const markdown=renderEvidenceReport(report);

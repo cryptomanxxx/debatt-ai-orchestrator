@@ -34,7 +34,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Run offline evidence and planner tests
-        run: node --test tests-research/literature-evidence.test.mjs tests-research/autonomous-planner.test.mjs
+        run: node --test tests-research/literature-evidence.test.mjs tests-research/literature-abstract-archive.test.mjs tests-research/autonomous-planner.test.mjs
       - name: Summarize saved literature and propose review candidates
         env:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}

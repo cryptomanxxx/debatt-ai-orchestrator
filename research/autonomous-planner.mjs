@@ -103,7 +103,7 @@ export function planEvidenceResearch(papers) {
       const evidence = proposal.evidence.map(citation => {
         const p=byId.get(citation.id);
         return { ...citation, content_sha256:p.content.sha256, analyzed_content_sha256:p.content.analyzed_sha256,
-          truncated:p.content.truncated, findings_ref:{article_id:p.article_id,path:'papers[].findings'},
+          truncated:p.content.truncated, ...(p.archive?{abstract_version_id:p.archive.version_id}:{}),findings_ref:{article_id:p.article_id,path:'papers[].findings'},
           provenance_ref:{article_id:p.article_id,path:'papers[].source_hits'}, evidence_scope:p.content.truncated?'abstract_prefix':'abstract_only', verification:'quote_match_only' };
       });
       const gaps = evidence.flatMap(e => byId.get(e.id).findings.map((f,index)=>({f,index})).filter(({f}) => f.kind==='limitation'&&f.limitation_status==='remaining'&&f.context_quote).map(({f,index}) => ({

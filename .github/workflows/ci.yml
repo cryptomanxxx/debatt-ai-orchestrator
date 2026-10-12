@@ -50,6 +50,9 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011183000_literature_planner_privileges.sql
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011183000_literature_planner_privileges.sql
           psql -v ON_ERROR_STOP=1 -f tests-literature-sql/planner-upgrade-assertions.sql
+          psql -v ON_ERROR_STOP=1 -f tests-literature-sql/planner-default-acls.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261012160000_literature_abstract_archive.sql
+          psql -v ON_ERROR_STOP=1 -f tests-literature-sql/abstract-archive.sql
           psql -v ON_ERROR_STOP=1 -f tests-literature-sql/planner-reports.sql
   test:
     runs-on: ubuntu-latest
