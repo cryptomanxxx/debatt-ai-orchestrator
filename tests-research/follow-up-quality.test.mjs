@@ -95,3 +95,16 @@ test('source methods take precedence and aliases handle punctuation without doub
   assert.equal(unknown.quality_context.method_anchor_source,'not_recognized');
   assert.equal(prioritizeFollowUp([{article_id:uid(80),rank:1,title:'Unknown technique for sensor allocation'}],{...review,quality_context:unknown.quality_context}).papers.length,0);
 });
+
+test('all recognized method phrases are removed from problem and solution anchors',()=>{
+  for(const title of ['Bayesian optimization for experimental design','Active learning with Bayesian optimization for experimental design','PINNs with Kalman filters']) {
+    const quality=qualitySeeds({paper:{title},candidate:{research_question:title}});
+    assert.deepEqual(quality.quality_context.topic_terms,[],title);
+    assert.deepEqual(quality.quality_context.solution_terms,[],title);
+    assert.equal(prioritizeFollowUp([{article_id:uid(80),rank:1,title}],{...review,quality_context:quality.quality_context}).papers.length,0,title);
+  }
+  const title='Bayesian optimization for experimental design with sparse sensor observations';
+  const quality=qualitySeeds({paper:{title},candidate:{research_question:title}});
+  assert.deepEqual(quality.quality_context.topic_terms,['sparse','sensor','observations']);
+  assert.equal(prioritizeFollowUp([{article_id:uid(80),rank:1,title}],{...review,quality_context:quality.quality_context}).papers.length,1);
+});

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {runPipeline,pipelineOptions,chooseFollowUpQuery} from '../research/research-pipeline.mjs';
+import {runPipeline,pipelineOptions,chooseFollowUpQuery,countDistinctLeads} from '../research/research-pipeline.mjs';
 const candidate={id:'arp-fluid-state-estimation',status:'candidate_unverified',evidence:[{id:'paper'}],gap_candidates:[]};
 const context={method_aliases:['pinn'],topic_terms:['misaligned','measurements'],solution_terms:['transformation','embedded'],policy:'test'};
 const follow=()=>({id:'follow-report',literature_run_id:'follow-run',status:'completed',quality_context:context,origin_articles:[],
@@ -43,4 +43,25 @@ test('invalid budgets fail before operations and a stage claiming excessive mode
     evidence:async()=>({budget:{model_calls:4}}),followUp:async()=>{assert.fail('must stop');}});
   assert.equal(result.status,'error');assert.equal(result.stages.length,3);
   assert.equal(chooseFollowUpQuery(follow()),1);
+});
+
+test('query choice counts distinct leads rather than four provider copies of one paper',()=>{
+  const r=follow();
+  const title='PINN transformation embedded';
+  r.searches.results=[{sources:Object.fromEntries(['openalex','core','semantic-scholar','arxiv'].map(source=>[source,{papers:[{title,sourceId:source,doi:'10.1234/shared'}]}]))},
+    {sources:{openalex:{papers:[1,2,3].map(i=>({title,sourceId:'W'+i,doi:'10.1234/distinct'+i}))}}}];
+  assert.equal(chooseFollowUpQuery(r),1);
+});
+
+test('stable identity grouping handles DOI/arXiv bridges, versions and source namespaces without merging titles',()=>{
+  assert.equal(countDistinctLeads([
+    {source:'openalex',sourceId:'W1',doi:'10.1234/PAPER'},
+    {source:'core',sourceId:'1',doi:'https://doi.org/10.1234/paper',arxivId:'2306.01065v1'},
+    {source:'arxiv',sourceId:'http://arxiv.org/abs/2306.01065v2'}]),1);
+  assert.equal(countDistinctLeads([{source:'core',sourceId:'1'},{source:'core',sourceId:'1'},{source:'openalex',sourceId:'1'}]),2);
+  assert.equal(countDistinctLeads([{title:'Same title'},{title:'Same title'}]),2);
+  // A bridge observation may have an uninformative title, yet reconcile two eligible copies.
+  const records=[{article_id:'a',doi:'10.1234/paper'},{article_id:'bridge',doi:'10.1234/paper',arxivId:'2306.01065'},
+    {article_id:'b',arxivId:'2306.01065v2'}];
+  assert.equal(countDistinctLeads(records,new Set(['a','b'])),1);
 });

@@ -6,7 +6,7 @@ const terms = text => [...new Set(words(text))].filter(w => w.length > 2 && !sto
 const titleKey = title => words(String(title ?? '').normalize('NFKC')).join(' ');
 const METHODS = [
   {pattern:/\bpinns?\b|physics[- ]informed neural networks?/i,short:'pinn',expanded:'physics informed neural networks',aliases:['pinn','pinns','physics informed neural network','physics informed neural networks']},
-  {pattern:/kalman/i,short:'kalman',expanded:'kalman filter',aliases:['kalman']},
+  {pattern:/kalman/i,short:'kalman',expanded:'kalman filter',aliases:['kalman','kalman filter','kalman filters','kalman filtering']},
   {pattern:/symbolic regression/i,short:'symbolic regression',expanded:'symbolic regression',aliases:['symbolic regression']},
   {pattern:/neural operators?/i,short:'neural operator',expanded:'neural operator',aliases:['neural operator','neural operators']},
   {pattern:/\bactive learning\b/i,short:'active learning',expanded:'active learning',aliases:['active learning']},
@@ -20,7 +20,9 @@ export function qualitySeeds({paper,limitation,candidate,researchQuery=''}) {
   const sourceText=titleKey(paper.title + ' ' + (limitation?.context_quote ?? ''));
   const sourceMethod=METHODS.find(m => m.pattern.test(sourceText));
   const method=sourceMethod ?? METHODS.find(m => m.pattern.test(titleKey(researchQuery)));
-  const methodWords=new Set((method?.aliases??[]).flatMap(words));
+  const allSeedText=titleKey([sourceText,researchQuery,limitation?.claim,candidate.research_question].filter(Boolean).join(' '));
+  const recognized=METHODS.filter(m=>m.pattern.test(allSeedText));
+  const methodWords=new Set(recognized.flatMap(m=>m.aliases).flatMap(words));
   const nonMethodTerms=text=>terms(text).filter(t=>!methodWords.has(t));
   const topic = nonMethodTerms(limitation?.claim ?? candidate.research_question).slice(0,3);
   const context = limitation?.context_quote ?? paper.title;

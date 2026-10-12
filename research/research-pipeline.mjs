@@ -1,6 +1,6 @@
 import {mkdir,writeFile,appendFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
-import {DEFAULT_QUERIES} from './literature-benchmark.mjs';
+import {DEFAULT_QUERIES,normalizeDoi,normalizeArxivId} from './literature-benchmark.mjs';
 import {main as collect} from './collect-literature.mjs';
 import {main as evidence} from './run-literature-evidence.mjs';
 import {main as followUp,createFollowUpClient} from './literature-follow-up.mjs';
@@ -27,9 +27,26 @@ export function choosePipelineCandidate(report) {
     ||(a.id<b.id?-1:a.id>b.id?1:0))[0]??null;
 }
 
+export function countDistinctLeads(papers,eligibleIds=null) {
+  // Join shared stable identities transitively; titles alone never establish identity.
+  const parent=papers.map((_,i)=>i),seen=new Map();
+  const root=i=>{while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i];}return i;};
+  papers.forEach((p,i)=>{
+    const doi=normalizeDoi(p.doi??p.lookup_identifiers?.doi);
+    const arxiv=normalizeArxivId(p.arxivId??p.lookup_identifiers?.arxiv_id??(p.source==='arxiv'?p.sourceId:null));
+    const keys=[...(doi?['doi:'+doi]:[]),...(arxiv?['arxiv:'+arxiv]:[]),
+      ...(p.source&&p.sourceId?['source:'+p.source+':'+p.sourceId]:[])];
+    for(const key of keys){if(seen.has(key))parent[root(i)]=root(seen.get(key));else seen.set(key,i);}
+  });
+  return new Set(papers.flatMap((p,i)=>eligibleIds===null||eligibleIds.has(p.article_id)?[root(i)]:[])).size;
+}
 export function chooseFollowUpQuery(report) {
-  const counts=report.searches.results.map((r,index)=>({index,count:prioritizeFollowUp(
-    Object.entries(r.sources).flatMap(([source,v])=>(v.papers??[]).map((p,i)=>({...p,rank:i+1,article_id:source+':'+p.sourceId}))),report).papers.length}));
+  const counts=report.searches.results.map((r,index)=>{
+    const observations=Object.entries(r.sources).flatMap(([source,v])=>(v.papers??[])
+      .map((p,i)=>({...p,source,rank:i+1,article_id:source+':'+p.sourceId})));
+    const eligibleIds=new Set(prioritizeFollowUp(observations,report).papers.map(p=>p.article_id));
+    return {index,count:countDistinctLeads(observations,eligibleIds)};
+  });
   counts.sort((a,b)=>b.count-a.count||a.index-b.index);
   return counts[0]?.index??0;
 }

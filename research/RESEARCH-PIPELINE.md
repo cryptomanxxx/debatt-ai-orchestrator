@@ -12,7 +12,7 @@ The pipeline runs the existing operations sequentially in one job:
 3. Analyze initial abstracts and save the evidence report.
 4. Choose an existing evidence-backed candidate, preferring existing limitation review tasks then stable ID. This is a heuristic agenda choice, not scientific merit ranking.
 5. Run the bounded follow-up search and save its report and exact parent/candidate references.
-6. Select the follow-up query with the most eligible title leads (ties choose the first), pass its report UUID automatically, apply the strict selection policy and analyze eligible abstracts.
+6. Select the follow-up query with the most distinct eligible title leads (ties choose the first), pass its report UUID automatically, apply the strict selection policy and analyze eligible abstracts. Shared normalized DOI, arXiv/version identity or namespaced provider IDs are joined transitively before counting; even a weak-title observation can bridge identities. Titles alone never establish duplicates, and records without shared identifiers remain separate.
 
 The total model-call budget is statically split: 5 → at most 3 initial + 2 follow-up calls; 10 → 5 + 5. Cache reuse can reduce actual calls; unused quota is not reassigned. Each call keeps the existing 4096-token completion limit. No automatic model retries or experiments are enabled. Provider searches retain existing pacing/retry bounds. The workflow has a 45-minute timeout and shares the collector/follow-up concurrency group. Manual evidence runs outside this chain have separate budgets.
 
