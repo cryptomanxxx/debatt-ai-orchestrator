@@ -3,9 +3,23 @@ import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { EVIDENCE_MESSAGE_LIMIT,boundedJson,createLiteratureEvidenceClient,createLiteratureAbstractLoader,buildEvidenceReport,renderEvidenceReport,validateEvidenceOptions } from './literature-evidence.mjs';
 
+import { createAnalysisRegistryClient } from './literature-analysis-registry.mjs';
 import { createAbstractArchiveClient,createArchivedAbstractLoader } from './literature-abstract-archive.mjs';
 
-export function createEvidenceSummarizer({key,fetchImpl=fetch}) {
+export async function readEvidenceModelProfile({key,fetchImpl=fetch}) {
+  if (typeof key!=='string'||key.length<24) throw new Error('missing_orchestrator_key');
+  const response=await fetchImpl('https://debatt-ai-orchestrator.xx8031126.workers.dev/v1/model-profile', {
+    headers:{Authorization:'Bearer '+key},redirect:'error',signal:AbortSignal.timeout(15000)});
+  if (!response.ok) {await response.body?.cancel();throw new Error('model_profile_unavailable');}
+  const profile=await boundedJson(response,4096);
+  if (profile?.provider!=='openai'||typeof profile.model!=='string'||!profile.model||profile.model.length>200
+    ||profile.model.includes('\u0000')||!/^[a-f0-9]{64}$/.test(profile.fingerprint??'')
+    ||profile.mode!=='default'||profile.completionTokenLimit!==4096) throw new Error('invalid_model_profile');
+  return {provider:profile.provider,model:profile.model,fingerprint:profile.fingerprint,
+    mode:profile.mode,completionTokenLimit:profile.completionTokenLimit};
+}
+
+export function createEvidenceSummarizer({key,profile=null,fetchImpl=fetch}) {
   if (typeof key!=='string'||key.length<24) throw new Error('missing_orchestrator_key');
   return async prompt=>{
     const message=JSON.stringify(prompt);
@@ -14,13 +28,16 @@ export function createEvidenceSummarizer({key,fetchImpl=fetch}) {
     try {response=await fetchImpl('https://debatt-ai-orchestrator.xx8031126.workers.dev/v1/query',{
       method:'POST',redirect:'error',signal:AbortSignal.timeout(55000),
       headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},
-      body:JSON.stringify({message,mode:'default',completionTokenLimit:4096})});}
+      body:JSON.stringify({message,mode:'default',completionTokenLimit:4096,
+        ...(profile?{expectedModelFingerprint:profile.fingerprint}:{})})});}
     catch {throw new Error('literature_transport_error');}
     if (!response.ok) {await response.body?.cancel();throw new Error('literature_http_'+response.status);}
     const data=await boundedJson(response,65536);
     if (data.mock!==false||typeof data.answer!=='string'||typeof data.provider!=='string'||!data.provider
       ||typeof data.model!=='string'||!data.model||data.provider.length>200||data.model.length>200) throw new Error('invalid_model_response');
     if (data.inference?.completionTokenLimit!==4096) throw new Error('model_budget_not_applied');
+    if (profile&&(data.provider!==profile.provider||data.model!==profile.model||data.modelFingerprint!==profile.fingerprint))
+      throw new Error('model_profile_changed');
     return {text:data.answer,provider:data.provider,model:data.model};
   };
 }
@@ -29,14 +46,17 @@ export async function main(env=process.env) {
   const options=validateEvidenceOptions({queryIndex:Number(env.LITERATURE_QUERY_INDEX??0),maxPapers:Number(env.LITERATURE_MAX_PAPERS??5)});
   const client=createLiteratureEvidenceClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY});
   const archive=createAbstractArchiveClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY});
-  const summarize=createEvidenceSummarizer({key:env.ORCHESTRATOR_API_KEY});
+  const analysisStore=createAnalysisRegistryClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY});
   const directory='reports/literature-evidence';
   await mkdir(directory,{recursive:true});
   // Missing migration/configuration must fail before any model calls are spent.
   await client.checkReportStorage();
   await archive.checkStorage();
+  await analysisStore.checkStorage();
+  const modelProfile=await readEvidenceModelProfile({key:env.ORCHESTRATOR_API_KEY});
+  const summarize=createEvidenceSummarizer({key:env.ORCHESTRATOR_API_KEY,profile:modelProfile});
   const input=await client.readQuery({runId:env.LITERATURE_RUN_ID||null,...options});
-  const report=await buildEvidenceReport(input,{id:randomUUID(),summarize,
+  const report=await buildEvidenceReport(input,{id:randomUUID(),summarize,analysisStore,modelProfile,
     loadAbstract:createArchivedAbstractLoader({client:archive,loadAbstract:createLiteratureAbstractLoader({apiKey:env.OPENALEX_API_KEY||''})})});
   report.code_commit=env.GITHUB_SHA||null;
   await writeFile(directory+'/report.json',JSON.stringify(report,null,2)+'\n');

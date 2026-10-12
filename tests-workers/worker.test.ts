@@ -181,3 +181,22 @@ test('Workers uses an internal service and hides failures without affecting heal
     assert.equal(calls, 2);
   } finally { await runtime.dispose(); }
 });
+
+test('Workers model profile is authenticated and fingerprint changes prevent model calls',async()=>{
+  let calls=0;
+  const runtime=createRuntime({bindings:{ORCHESTRATOR_API_KEY:key,MODEL_PROVIDER:'openai',MODEL_DEFAULT:'m',
+    MODEL_API_KEY:'private-model-key',MODEL_BASE_URL:'https://provider.example/v1'},
+    outboundService:async()=>{calls++;throw new Error('Must not call inference');}});
+  const endpoint='https://worker.test/v1/model-profile';
+  try {
+    assert.equal((await runtime.dispatchFetch(endpoint)).status,401);
+    assert.equal((await runtime.dispatchFetch(endpoint+'?x=1',{headers:{Authorization:'Bearer '+key}})).status,404);
+    const response=await runtime.dispatchFetch(endpoint,{headers:{Authorization:'Bearer '+key}});
+    assert.equal(response.status,200);assert.equal(response.headers.get('Cache-Control'),'no-store');
+    const profile=await response.json();assert.equal(profile.model,'m');assert.equal(profile.provider,'openai');
+    assert.match(profile.fingerprint,/^[a-f0-9]{64}$/);
+    assert.ok(!JSON.stringify(profile).includes('private-model-key'));
+    const changed=await request(runtime,JSON.stringify({message:'Analyze',expectedModelFingerprint:'a'.repeat(64)}));
+    assert.equal(changed.status,409);assert.equal(calls,0);
+  } finally {await runtime.dispose();}
+});

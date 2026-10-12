@@ -10,14 +10,14 @@ export function assertReportStorageSize(report) {
   if (reportStorageBytes(report)>500_000) throw new Error('evidence_report_too_large');
 }
 // Every accepted UTF-16 code unit can cost up to six JSON bytes (e.g. \u0001).
-// Findings appear once on papers and at most once again as limitation candidates.
+// Findings appear only once on papers; candidates and review tasks refer to them.
 // Each limitation additionally stores one bounded context quote, without duplication.
-// The 5k/article + 10k/report allowance covers fixed keys, hashes, enums,
+// The 10k/article + 40k/report allowance covers fixed keys, hashes, enums,
 // candidate templates, pretty-JSON whitespace, timestamps and commit metadata.
 export function evidenceReportByteBound(input) {
-  return reportStorageBytes(input)+10_000+input.papers.reduce((bytes,paper)=>bytes+
-    2*3*(500+280)*6 + 3*280*6 + 2*200*6 + 3*512 +
-    Buffer.byteLength(JSON.stringify(paper.title),'utf8') + 5_000,0);
+  return reportStorageBytes(input)+40_000+input.papers.reduce((bytes,paper)=>bytes+
+    3*(500+280)*6 + 3*280*6 + 2*200*6 + 3*512 +
+    Buffer.byteLength(JSON.stringify(paper.title),'utf8') + 10_000,0);
 }
 export const hashText=text=>createHash('sha256').update(text).digest('hex');
 const normalized=text=>text.replace(/\s+/g,' ').trim();
@@ -271,11 +271,12 @@ export function inspectFindings(text,abstract) {
   return {findings,validation:{accepted_findings:findings.length,rejected_findings:rejected.length,rejected}};
 }
 const SAFE_ERRORS=new Set(['abstract_identity_mismatch','invalid_abstract_index','abstract_outside_bounds','invalid_evidence_summary',
-  'invalid_archived_abstract','invalid_abstract_archive_response','abstract_archive_transport_error','unmatched_evidence_quote','invalid_arxiv_response','invalid_abstract_content','invalid_model_response','model_budget_not_applied','literature_transport_error','response_too_large','invalid_json_response','evidence_prompt_too_large']);
-const safeReason=error=>SAFE_ERRORS.has(error?.message)||/^(literature|abstract_archive)_http_\d{3}$/.test(error?.message??'')?error.message:'evidence_processing_failed';
-export async function buildEvidenceReport(input,{loadAbstract=createLiteratureAbstractLoader(),summarize,id,now=()=>new Date().toISOString()}={}) {
+  'invalid_analysis_context','invalid_analysis_registry_response','analysis_registry_transport_error','model_profile_changed','invalid_archived_abstract','invalid_abstract_archive_response','abstract_archive_transport_error','unmatched_evidence_quote','invalid_arxiv_response','invalid_abstract_content','invalid_model_response','model_budget_not_applied','literature_transport_error','response_too_large','invalid_json_response','evidence_prompt_too_large']);
+const safeReason=error=>SAFE_ERRORS.has(error?.message)||/^(literature|abstract_archive|analysis_registry)_http_\d{3}$/.test(error?.message??'')?error.message:'evidence_processing_failed';
+export async function buildEvidenceReport(input,{loadAbstract=createLiteratureAbstractLoader(),summarize,analysisStore=null,modelProfile=null,id,now=()=>new Date().toISOString()}={}) {
   requireUuid(id);
   if (!Array.isArray(input.papers)||input.papers.length>10||typeof summarize!=='function') throw new Error('invalid_evidence_options');
+  if (analysisStore&&!modelProfile) throw new Error('invalid_analysis_context');
   // Reserve the maximum escaped byte cost, not ordinary Unicode byte length.
   // This runs before abstract retrieval and paid inference.
   if (reportStorageBytes(input)>100_000||evidenceReportByteBound(input)>500_000) throw new Error('evidence_input_too_large');
@@ -298,14 +299,27 @@ export async function buildEvidenceReport(input,{loadAbstract=createLiteratureAb
           fetched_at:loaded.content.fetched_at,sha256:loaded.content.sha256,analyzed_sha256:hashText(prompt.source_text),
           original_characters:loaded.abstract.length,analyzed_characters:prompt.source_text.length,
           truncated:prompt.source_text_is_truncated};
-        modelCalls++;
-        const summary=await summarize(prompt);
-        if (typeof summary.provider!=='string'||typeof summary.model!=='string'||
-          summary.provider.length>200||summary.model.length>200||
-          summary.provider.includes('\u0000')||summary.model.includes('\u0000')) throw new Error('invalid_model_response');
-        record.model={provider:summary.provider,name:summary.model};
-        const checked=inspectFindings(summary.text,prompt.source_text);
-        record.findings=checked.findings;record.validation=checked.validation;
+        const context={loaded,prompt,profile:modelProfile};
+        const cached=analysisStore?await analysisStore.read(context):null;
+        if (cached) {
+          record.model=cached.model;record.findings=cached.findings;record.validation=cached.validation;
+          record.analysis={id:cached.id,created_at:cached.created_at,cache_hit:true};
+        } else {
+          modelCalls++;
+          const summary=await summarize(prompt);
+          if (typeof summary.provider!=='string'||typeof summary.model!=='string'||
+            summary.provider.length>200||summary.model.length>200||
+            summary.provider.includes('\u0000')||summary.model.includes('\u0000')) throw new Error('invalid_model_response');
+          record.model={provider:summary.provider,name:summary.model};
+          const checked=inspectFindings(summary.text,prompt.source_text);
+          record.findings=checked.findings;record.validation=checked.validation;
+          if (modelProfile&&(summary.provider!==modelProfile.provider||summary.model!==modelProfile.model)) throw new Error('model_profile_changed');
+          if (analysisStore&&!checked.validation.rejected_findings) {
+            const saved=await analysisStore.save(context,checked);
+            record.model=saved.model;record.findings=saved.findings;record.validation=saved.validation;
+            record.analysis={id:saved.id,created_at:saved.created_at,cache_hit:false};
+          }
+        }
         if (!record.findings.length&&record.validation.rejected_findings) throw new Error('unmatched_evidence_quote');
         record.status=record.findings.length?'summarized':'insufficient_evidence';
       }
@@ -317,6 +331,8 @@ export async function buildEvidenceReport(input,{loadAbstract=createLiteratureAb
     query:input.query,created_at:now(),status:n===0?'insufficient_evidence':n===papers.length&&!papers.some(p=>p.validation?.rejected_findings)?'completed':'partial',
     source_statuses:input.source_statuses,coverage:{selected:papers.length,summarized:n,available_articles:input.total_articles,selection:input.selection},
     budget:{max_model_calls:papers.length,model_calls:modelCalls,content_attempts:contentCalls,completion_tokens_per_call:4096},
+    analysis_stats:{reused:papers.filter(p=>p.analysis?.cache_hit).length,saved:papers.filter(p=>p.analysis&&!p.analysis.cache_hit).length},
+    model_profile:modelProfile,
     archive_stats:{saved_versions:papers.filter(p=>p.archive?.inserted_version).length,
       reused_abstracts:papers.filter(p=>p.archive?.cache_hit).length,
       new_content_bytes:papers.reduce((n,p)=>n+(p.archive?.stored_bytes??0),0)},
@@ -328,10 +344,12 @@ const md=value=>String(value).replace(/[<>`\[\]*_\\]/g,' ').replace(/\s+/g,' ').
 export function renderEvidenceReport(report) {
   const lines=['# Oraklet: literature evidence and research candidates','',`Status: ${report.status}. Query: ${md(report.query)}.`,
     `Summarized ${report.coverage.summarized}/${report.coverage.selected} selected articles (${report.coverage.available_articles} available).`,
+    `Model calls: ${report.budget.model_calls}. Reused analyses: ${report.analysis_stats?.reused??0}.`,
     '','Evidence is abstract-only. Quote matching does not verify scientific correctness.',''];
   for (const p of report.papers) {
     lines.push(`## ${md(p.title)}`,`Status: ${p.status}${p.reason?' ('+p.reason+')':''}.`);
     if (p.archive) lines.push(`Saved abstract version: ${p.archive.version_id}. Reused cached text: ${p.archive.cache_hit}.`);
+    if (p.analysis) lines.push(`Saved evidence analysis: ${p.analysis.id}. Reused analysis: ${p.analysis.cache_hit}.`);
     if (p.validation) lines.push(`Findings accepted/rejected: ${p.validation.accepted_findings}/${p.validation.rejected_findings}.`);
     if (p.provenance) lines.push(`Source observations retained: ${p.provenance.retained_hits}/${p.provenance.total_hits}. Complete history remains in the literature database.`);
     if (p.content) lines.push(`Source: ${p.content.url}. Content SHA-256: ${p.content.sha256}.`,
@@ -347,7 +365,13 @@ export function renderEvidenceReport(report) {
     lines.push(`## Candidate: ${md(p.research_question)}`,md(p.proposed_method),
       'Unverified hypothesis: '+md(p.hypothesis),'Portfolio scores: unknown. Human review required.');
     if (p.limitation_review?.length) lines.push(`${p.limitation_review.length} prior-work or unclear limitations excluded from gap candidates; inspect article findings.`);
-    for (const gap of p.gap_candidates) lines.push('- Reported limitation to investigate: '+md(gap.reported_limitation));
+    if (p.experiment_protocol) lines.push('Experiment protocol: draft, not registered or executable.',
+      'Suggested outcomes: '+p.experiment_protocol.outcome_candidates.map(md).join('; '));
+    if (p.gap_review_plan?.length) lines.push(`Gap review tasks: ${p.gap_review_plan.length}. Follow-up searches have not been performed.`);
+    for (const gap of p.gap_candidates) {
+      const finding=report.papers.find(paper=>paper.article_id===gap.article_id)?.findings[gap.finding_index];
+      lines.push('- Reported limitation to investigate: '+md(finding?.claim??'See referenced finding.'));
+    }
     lines.push('');
   }
   return lines.join('\n')+'\n';

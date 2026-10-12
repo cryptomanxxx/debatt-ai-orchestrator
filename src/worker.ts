@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { loadConfig } from './config.ts';
+import { defaultModelProfile } from './models/profile.ts';
 import { executeQuery } from './query.ts';
 import { serviceExecutor } from './tools/bootloops-service.ts';
 import { diagnoseBootLoops } from './tools/bootloops-diagnostics.ts';
@@ -21,13 +22,15 @@ export default {
     const { pathname, search } = new URL(request.url);
     if (request.method === 'GET' && pathname === '/health' && !search)
       return json(200, { status: 'ok', service: 'debatt-ai-orchestrator' });
+    const profile = request.method === 'GET' && pathname === '/v1/model-profile';
     const diagnostic = pathname === '/v1/diagnostics/bootloops';
-    if (request.method !== 'POST' || (!diagnostic && pathname !== '/v1/query') || search)
+    if ((!profile && (request.method !== 'POST' || (!diagnostic && pathname !== '/v1/query'))) || search)
       return json(404, { error: 'not_found' });
     const actual = encoder.encode(request.headers.get('Authorization') ?? '');
     const expected = encoder.encode(`Bearer ${config.apiKey}`);
     if (actual.length !== expected.length || !timingSafeEqual(actual, expected))
       return json(401, { error: 'unauthorized' });
+    if (profile) return json(200, defaultModelProfile(config));
     if (request.headers.get('Content-Type')?.split(';')[0].trim() !== 'application/json')
       return json(415, { error: 'application_json_required' });
 
