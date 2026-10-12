@@ -72,7 +72,9 @@ export function renderCollection(report) {
     'This is a bounded sample of the predefined queries, not exhaustive coverage of new research. Inspect collection.json for missing content and source failures.',
     'Full text and PDFs are not downloaded.'].filter(Boolean).join('\n\n')+'\n';
 }
-export async function main(env=process.env,{runBenchmark=benchmark,pause=wait}={}) {
+export async function main(env=process.env,{runBenchmark=benchmark,pause=wait,queries=DEFAULT_QUERIES,directory='reports/literature-collection'}={}) {
+  if (!Array.isArray(queries)||queries.length<1||queries.length>5||queries.some(q=>typeof q!=='string'||!q.trim()||q.length>200))
+    throw Error('invalid_collection_queries');
   const maxAbstracts=validateCollectionLimit(Number(env.LITERATURE_MAX_ABSTRACTS??50));
   if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(env.SUPABASE_URL??'')||!env.SUPABASE_SECRET_KEY?.startsWith('sb_secret_'))
     throw new Error('invalid_collection_environment');
@@ -82,10 +84,10 @@ export async function main(env=process.env,{runBenchmark=benchmark,pause=wait}={
   if ((repo&&!/^[\w.-]+\/[\w.-]+$/.test(repo))||(id&&!/^\d+$/.test(id))||!/^\d+$/.test(attempt)) throw new Error('invalid_collection_origin');
   const originUrl=repo&&id?`https://github.com/${repo}/actions/runs/${id}`:null;
   const runKey=originUrl?`github:${repo}:collection:s2-bulk-date-desc:${id}:${attempt}`:'local:collection:s2-bulk-date-desc:'+randomUUID();
-  const directory='reports/literature-collection';await mkdir(directory,{recursive:true});
+  await mkdir(directory,{recursive:true});
   const deadline=Date.now()+20*60*1000;
   const report={schema_version:'literature-collection-1',created_at:new Date().toISOString(),status:'running',
-    queries:DEFAULT_QUERIES,metadata:null,literature_run_id:null,provider_abstract_attempts:0,model_calls:0,
+    queries,metadata:null,literature_run_id:null,provider_abstract_attempts:0,model_calls:0,
     code_commit:/^[a-f0-9]{40}$/.test(env.GITHUB_SHA??'')?env.GITHUB_SHA:null};
   const checkpoint=()=>writeFile(directory+'/collection.json',JSON.stringify(report,null,2)+'\n');
   await checkpoint();
@@ -100,7 +102,7 @@ export async function main(env=process.env,{runBenchmark=benchmark,pause=wait}={
       if (!response.ok) {await response.body?.cancel();throw new Error('collection_metadata_storage_unavailable');}
       await response.body?.cancel();
     }
-    const raw=await runBenchmark({queries:DEFAULT_QUERIES,sources:SOURCES,semanticScholarMode:'bulk',limit:10,maxRetries:1,maxBackoffMs:5000,
+    const raw=await runBenchmark({queries,sources:SOURCES,semanticScholarMode:'bulk',limit:10,maxRetries:1,maxBackoffMs:5000,
       openAlexKey:env.OPENALEX_API_KEY,semanticScholarKey:env.SEMANTIC_SCHOLAR_API_KEY,coreApiKey:env.CORE_API_KEY});
     const metadata=sanitizeBenchmark(raw);
     report.source_methods=metadata.sourceMethods;

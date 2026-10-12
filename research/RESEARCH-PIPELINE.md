@@ -1,0 +1,33 @@
+# One-start literature research pipeline
+
+Open Actions → **Oraklet research pipeline (manual)** → Run workflow → `main`.
+Choose only a **research area** and the **maximum model calls** (5 or 10). No internal report or collection UUID is needed. Existing standalone workflows remain available for diagnostics.
+
+## Execution and budget
+
+The pipeline runs the existing operations sequentially in one job:
+
+1. Check follow-up storage.
+2. Search one selected predefined research query, persist metadata and archive/reuse at most ten selected abstracts.
+3. Analyze initial abstracts and save the evidence report.
+4. Choose an existing evidence-backed candidate, preferring existing limitation review tasks then stable ID. This is a heuristic agenda choice, not scientific merit ranking.
+5. Run the bounded follow-up search and save its report and exact parent/candidate references.
+6. Select the follow-up query with the most eligible title leads (ties choose the first), pass its report UUID automatically, apply the strict selection policy and analyze eligible abstracts.
+
+The total model-call budget is statically split: 5 → at most 3 initial + 2 follow-up calls; 10 → 5 + 5. Cache reuse can reduce actual calls; unused quota is not reassigned. Each call keeps the existing 4096-token completion limit. No automatic model retries or experiments are enabled. Provider searches retain existing pacing/retry bounds. The workflow has a 45-minute timeout and shares the collector/follow-up concurrency group. Manual evidence runs outside this chain have separate budgets.
+
+No new SQL migration, secret or Worker deployment is required. The existing follow-up, planner and analysis-registry migrations must have been applied. Collection defaults and the daily schedule are unchanged; the pipeline explicitly supplies a single research-area query and uses query index 0 for the initial evidence.
+
+## Strict follow-up eligibility
+
+Before model inference, a new lead must match a recognized method phrase in its title **and** at least two configured problem or solution terms (one if the context contains only one term). Confirmed origin records remain excluded; title-only copies are flagged rather than confirmed. Method-only or problem-only hits stay in the catalog and search report, but receive no follow-up model calls. This is a conservative title rule: relevant papers with uninformative titles can be missed, and eligible titles still require scientific review.
+
+When none qualify, the evidence report uses its existing database-compatible `insufficient_evidence` status with `selection_review.outcome=insufficient_relevant_hits`. The pipeline summary exposes `insufficient_relevant_hits` and exits successfully with zero follow-up model calls. A stopped search is not proof of novelty or absence of related work. If initial analysis yields no usable candidate, the chain stops at `insufficient_evidence`.
+
+## Reports and failures
+
+The single `research-pipeline-report` artifact contains separate collection, initial evidence, follow-up and final evidence folders plus `pipeline.json`/`pipeline.md`. It is retained for 30 days. Each completed operation also persists its usual immutable data in Supabase; report links remain traceable after artifact expiry. The aggregate pipeline checkpoint itself is an artifact, not a new database table.
+
+The summary records stage status, IDs, reserved quotas and known completed model calls. Provider or database failures stop subsequent stages; completed data are retained. If an in-flight model stage fails before returning its receipt, its actual calls are labelled unknown, bounded by its reserved quota. Never interpret the known completed count as the full actual count in that situation. A rerun starts a new chain and may reuse archived abstracts/analyses; it does not resume the failed stage automatically.
+
+This first release has a manual start for the full chain. It does not add a schedule or claim validated autonomous gap discovery, portfolio assessment or experiment design.
