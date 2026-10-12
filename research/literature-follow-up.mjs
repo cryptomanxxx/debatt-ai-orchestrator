@@ -5,6 +5,7 @@ import { benchmark, SOURCES } from './literature-benchmark.mjs';
 import { persistLiteratureReport } from './literature-database.mjs';
 import { boundedJson } from './literature-evidence.mjs';
 import { reportedResponse,effectiveLimitationStatus } from './limitation-review.mjs';
+import { qualitySeeds,originArticles,reviewHit } from './follow-up-quality.mjs';
 
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const keywords = text => [...new Set(text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])]
@@ -51,10 +52,13 @@ export function followUpPlan(report, candidateId, {articleId = '', findingIndex 
     const response = reportedResponse(f);
     seeds = [f.claim, response?.solution_seed ?? f.context_quote ?? paper.title];
   }
-  const queries = [...new Set(seeds.map(keywords))];
+  const quality = qualitySeeds({paper,limitation:limitation?.finding,candidate});
+  const queries = quality.queries.length ? quality.queries : [...new Set(seeds.map(keywords))];
   if (queries.some(q => q.length < 3)) throw Error('empty_follow_up_query');
   return { parent_report_id: report.id, candidate_id: candidateId,
     research_question: candidate.research_question, seed_article_id: paper.article_id, queries,
+    quality_context:quality.quality_context,
+    origin_articles:originArticles(report.papers.filter(p => evidenceIds.has(p.article_id))),
     query_origin: limitation ? 'deterministic_keywords_from_limitation_and_reported_response_or_context' : 'deterministic_keywords_from_candidate_question_and_first_evidence_title',
     ...(limitation ? {finding_ref:{article_id:paper.article_id,finding_index:limitation.index},
       model_limitation_status:limitation.finding.limitation_status ?? 'unclear',
@@ -87,6 +91,14 @@ export function createFollowUpClient({url, secretKey, fetchImpl = fetch}) {
       if (!Array.isArray(rows) || rows.length !== 1 || rows[0].id !== id || rows[0].report?.id !== id) throw Error('parent_report_not_found');
       return rows[0].report;
     },
+    async readFollowUp(id) {
+      if (!uuid(id)) throw Error('invalid_follow_up_report_id');
+      id=id.toLowerCase();
+      const rows=await request('literature_follow_up_run',{id:'eq.'+id,select:'id,report',limit:'1'});
+      if (!Array.isArray(rows)||rows.length!==1||rows[0].id!==id||rows[0].report?.id!==id
+        ||rows[0].report.schema_version!=='literature-follow-up-1') throw Error('follow_up_report_not_found');
+      return rows[0].report;
+    },
     async saveReport(report) {
       if (!uuid(report.id) || !uuid(report.parent_report_id) || !uuid(report.literature_run_id)
         || Buffer.byteLength(JSON.stringify(report)) > 500000) throw Error('invalid_follow_up_report');
@@ -102,6 +114,8 @@ export async function runFollowUp(plan, {search = benchmark, persist, id = rando
     requestDelayMs:3000,maxRetries:1,maxBackoffMs:5000,semanticScholarMode:'bulk'});
   // Provider exceptions may contain URLs or secrets; retain bounded status only.
   for (const result of searches.results) for (const value of Object.values(result.sources)) delete value.error;
+  if (plan.quality_context) for (const result of searches.results) for (const value of Object.values(result.sources))
+    for (const paper of value.papers ?? []) paper.selection_review=reviewHit(paper,plan.quality_context,plan.origin_articles);
   const receipt = await persist(searches);
   if (!uuid(receipt?.runId)) throw Error('invalid_follow_up_import_receipt');
   const values = searches.results.flatMap(r => Object.values(r.sources));
@@ -119,7 +133,8 @@ export function renderFollowUp(report) {
     `Parent report: ${safe(report.parent_report_id)}. Candidate: ${safe(report.candidate_id)}.`,
     `Saved literature run: ${safe(report.literature_run_id)}.`, '',
     ...report.searches.results.flatMap((r,i) => [`Query ${i}: ${safe(r.query)}`,
-      ...SOURCES.map(s => `${s}: ${r.sources[s].status}; records ${r.sources[s].records ?? 0}; HTTP ${r.sources[s].httpStatus ?? 'n/a'}.`),'']),
+      ...SOURCES.map(s => `${s}: ${r.sources[s].status}; records ${r.sources[s].records ?? 0}; HTTP ${r.sources[s].httpStatus ?? 'n/a'}.`),
+      `Confirmed origin hits: ${Object.values(r.sources).flatMap(v=>v.papers??[]).filter(p=>p.selection_review?.origin_relation==='confirmed_origin').length}; possible title matches: ${Object.values(r.sources).flatMap(v=>v.papers??[]).filter(p=>p.selection_review?.origin_relation==='possible_origin_title').length}.`,'']),
     'Model calls: 0. Metadata only; novelty remains unknown. No experiments are enabled.',
     'Review related and subsequent work, contrary results and full-paper assumptions before assessing a gap.', ''].join('\n');
 }

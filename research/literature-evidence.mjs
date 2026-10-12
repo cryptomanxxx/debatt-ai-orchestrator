@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { normalizeArxivId,parseArxivAtom,normalizeDoi, SOURCES } from './literature-benchmark.mjs';
 import { planEvidenceResearch } from './autonomous-planner.mjs';
+import { prioritizeFollowUp } from './follow-up-quality.mjs';
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const EVIDENCE_MESSAGE_LIMIT=8000;
@@ -64,7 +65,7 @@ export function createLiteratureEvidenceClient({url,secretKey,fetchImpl=fetch}) 
       const rows=await requestJson(fetchImpl,endpoint,{headers});
       if (!Array.isArray(rows)||rows.length) throw new Error('planner_storage_invalid_response');
     },
-    async readQuery({runId=null,queryIndex=0,maxPapers=5}={}) {
+    async readQuery({runId=null,queryIndex=0,maxPapers=5,followUpReview=null}={}) {
       validateEvidenceOptions({queryIndex,maxPapers});
       if (runId!==null) requireUuid(runId);
       const runUrl=new URL('/rest/v1/literature_run',url);
@@ -85,7 +86,7 @@ export function createLiteratureEvidenceClient({url,secretKey,fetchImpl=fetch}) 
       searchUrl.searchParams.set(related+'.limit','10');
       searchUrl.searchParams.set('limit','5');
       const searches=await requestJson(fetchImpl,searchUrl,{headers});
-      return selectQueryEvidence(run,searches,{queryIndex,maxPapers});
+      return selectQueryEvidence(run,searches,{queryIndex,maxPapers,followUpReview});
     },
     async saveReport(report) {
       assertReportStorageSize(report);
@@ -98,7 +99,7 @@ export function createLiteratureEvidenceClient({url,secretKey,fetchImpl=fetch}) 
   };
 }
 
-export function selectQueryEvidence(run,searches,{queryIndex=0,maxPapers=5}={}) {
+export function selectQueryEvidence(run,searches,{queryIndex=0,maxPapers=5,followUpReview=null}={}) {
   validateEvidenceOptions({queryIndex,maxPapers});requireUuid(run.id);
   if (!Array.isArray(searches)||!searches.length||searches.length>4) throw new Error('invalid_literature_search_response');
   const query=searches[0].query,articles=new Map(),seenSources=new Set();
@@ -147,12 +148,17 @@ export function selectQueryEvidence(run,searches,{queryIndex=0,maxPapers=5}={}) 
     a.provenance.truncated=a.provenance.total_hits>a.provenance.retained_hits;
   }
   all.sort((a,b)=>a.rank-b.rank||(a.article_id<b.article_id?-1:1));
+  if (followUpReview && (followUpReview.literature_run_id!==run.id || followUpReview.queries?.[queryIndex]!==query))
+    throw Error('follow_up_query_mismatch');
+  const reviewed=followUpReview?prioritizeFollowUp(all,followUpReview):null;
   return {literature_run_id:run.id,query_index:queryIndex,query,
     source_statuses:SOURCES.map(source=>{
       const s=searches.find(item=>item.source===source);
       return {source,status:s?.status??'not_searched',http_status:s?.http_status??null};
     }),
-    total_articles:all.length,papers:all.slice(0,maxPapers),selection:'Lowest source rank, then canonical UUID; selection is not a relevance or merit judgment.'};
+    total_articles:all.length,papers:(reviewed?.papers??all).slice(0,maxPapers),
+    ...(reviewed?{selection_review:reviewed.summary}:{}),
+    selection:reviewed?'Title anchor overlap, then source rank and canonical UUID; confirmed origin articles excluded from analysis, retained in catalog. No merit or novelty judgment.':'Lowest source rank, then canonical UUID; selection is not a relevance or merit judgment.'};
 }
 
 // Strictly reconstruct bounded OpenAlex abstract indexes; never retain raw responses.
@@ -346,8 +352,13 @@ export function renderEvidenceReport(report) {
     `Summarized ${report.coverage.summarized}/${report.coverage.selected} selected articles (${report.coverage.available_articles} available).`,
     `Model calls: ${report.budget.model_calls}. Reused analyses: ${report.analysis_stats?.reused??0}.`,
     '','Evidence is abstract-only. Quote matching does not verify scientific correctness.',''];
+  if (report.selection_review) lines.push(`Follow-up selection: ${report.selection_review.confirmed_origin} confirmed origin articles excluded; ${report.selection_review.possible_origin_title} possible title matches flagged.`,
+    `Follow-up report: ${md(report.selection_review.follow_up_report_id)}.`, '');
   for (const p of report.papers) {
     lines.push(`## ${md(p.title)}`,`Status: ${p.status}${p.reason?' ('+p.reason+')':''}.`);
+    if (p.selection_review) lines.push(`Selection: ${md(p.selection_review.origin_relation)}; title anchor score ${p.selection_review.anchor_score}.`,
+      `Matched method: ${p.selection_review.matched_method.map(md).join(', ')||'none'}; topic: ${p.selection_review.matched_topic.map(md).join(', ')||'none'}; solution: ${p.selection_review.matched_solution.map(md).join(', ')||'none'}.`,
+      md(p.selection_review.reason));
     if (p.archive) lines.push(`Saved abstract version: ${p.archive.version_id}. Reused cached text: ${p.archive.cache_hit}.`);
     if (p.analysis) lines.push(`Saved evidence analysis: ${p.analysis.id}. Reused analysis: ${p.analysis.cache_hit}.`);
     if (p.validation) lines.push(`Findings accepted/rejected: ${p.validation.accepted_findings}/${p.validation.rejected_findings}.`);
