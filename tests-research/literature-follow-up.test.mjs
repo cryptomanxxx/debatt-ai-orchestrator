@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { followUpPlan, runFollowUp, createFollowUpClient, followUpOriginUrl } from '../research/literature-follow-up.mjs';
 import { literaturePayload } from '../research/literature-database.mjs';
 import { SOURCES } from '../research/literature-benchmark.mjs';
+import { planEvidenceResearch } from '../research/autonomous-planner.mjs';
+import { reportedResponse } from '../research/limitation-review.mjs';
 
 const parentId='00000000-0000-4000-8000-000000000001';
 const runId='00000000-0000-4000-8000-000000000002';
@@ -84,4 +86,45 @@ test('provenance uses the executing fork or renamed repository, without guessing
   for(const env of [{},{GITHUB_RUN_ID:'123'},{GITHUB_REPOSITORY:'owner/repo'},
     {GITHUB_REPOSITORY:'owner/repo?bad',GITHUB_RUN_ID:'123'},
     {GITHUB_REPOSITORY:'owner/repo',GITHUB_RUN_ID:'123/other'}]) assert.equal(followUpOriginUrl(env),null);
+});
+
+const responseQuote='Misaligned velocity measurements significantly affect flow reconstruction accuracy, leading to the proposal of transformation-embedded PINNs, to correct spatially-misaligned measurements.';
+const responseFinding=()=>({kind:'limitation',claim:'Misaligned velocity measurements reduce flow reconstruction accuracy.',quote:responseQuote,
+  context_quote:responseQuote,limitation_status:'remaining',verification:'quote_match_only'});
+
+test('a reported solution is excluded from gap candidates without rewriting the model finding',()=>{
+  const f=responseFinding();
+  const paper={article_id:'paper-1',title:fixture().papers[0].title,status:'summarized',findings:[f],
+    content:{url:'https://openalex.org/W1',sha256:'a'.repeat(64),analyzed_sha256:'a'.repeat(64),truncated:false}};
+  const proposal=planEvidenceResearch([paper]).proposals[0];
+  assert.equal(proposal.gap_candidates.length,0);
+  assert.equal(proposal.limitation_review[0].limitation_status,'unclear');
+  assert.equal(proposal.limitation_review[0].model_limitation_status,'remaining');
+  assert.match(proposal.limitation_review[0].reason,/proposed response/);
+  assert.equal(f.limitation_status,'remaining');
+});
+
+test('limitation follow-up searches both the problem and proposed response with exact references',()=>{
+  const report=fixture();report.papers[0].findings=[responseFinding()];
+  const auto=followUpPlan(report,'arp-fluid-state-estimation');
+  assert.deepEqual(auto.finding_ref,{article_id:'paper-1',finding_index:0});
+  assert.match(auto.queries[0],/misaligned velocity/);
+  assert.match(auto.queries[1],/transformation embedded pinns/);
+  assert.equal(auto.limitation_review,'reported_response_requires_review');
+  const exact=followUpPlan(report,'arp-fluid-state-estimation',{articleId:'paper-1',findingIndex:'0'});
+  assert.deepEqual(exact,auto);
+  for(const options of [{articleId:'paper-1'},{findingIndex:'0'},
+    {articleId:'other',findingIndex:'0'},{articleId:'paper-1',findingIndex:'3'},
+    {articleId:'paper-1',findingIndex:'1'}]) assert.throws(()=>followUpPlan(report,'arp-fluid-state-estimation',options));
+});
+
+test('a plain residual limitation remains eligible while ambiguous solution wording stays review-only',()=>{
+  assert.equal(reportedResponse({kind:'result',quote:responseQuote}),null);
+  const f=responseFinding();f.quote=f.context_quote='Validation with misaligned measurements remains future work.';
+  assert.equal(reportedResponse(f),null);
+  const paper={article_id:'paper-1',title:fixture().papers[0].title,status:'summarized',findings:[f],
+    content:{url:'https://openalex.org/W1',sha256:'a'.repeat(64),analyzed_sha256:'a'.repeat(64),truncated:false}};
+  assert.equal(planEvidenceResearch([paper]).proposals[0].gap_candidates.length,1);
+  const report=fixture();report.papers[0].findings=[f];
+  assert.match(followUpPlan(report,'arp-fluid-state-estimation').queries[0],/misaligned/);
 });
