@@ -46,6 +46,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: npm ci
+      - run: npm run format:check
       - run: python3 -m pip install -r research/requirements.lock
       - run: python3 -m pip install -r research/sympy-requirements.lock
       - run: python3 -m pip install -r research/sklearn-requirements.lock
