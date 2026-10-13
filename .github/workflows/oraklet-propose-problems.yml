@@ -3,6 +3,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: oraklet-propose-problems
+  cancel-in-progress: false
 jobs:
   propose:
     runs-on: ubuntu-latest

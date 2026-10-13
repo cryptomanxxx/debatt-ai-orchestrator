@@ -22,21 +22,25 @@ A completed measurement can contain an incorrect model proposal. Reports disting
 
 ### Current experiment coverage
 
-The catalog contains **eleven runnable experiments**: ten synthetic method tests available to automatic planning and one manually selected analysis of historical GDP data.
+The catalog contains **nineteen runnable experiments**. Twelve synthetic method tests are available to automatic planning; seven are selected manually because they use fixed published data, are exploratory follow-ups or are separate pilots. `node research/show-catalog.mjs` prints the current catalog.
 
-| Experiment area | Implemented methods and tools |
-| --- | --- |
-| Rational reconstruction | Ratfit, with separate baseline and feedback protocols |
-| Linear systems | Rankscreen consistency and rank-deficit tests |
-| Sequence reconstruction | Annihilator recurrence recovery and held-out terms |
-| Bayesian model comparison | Mixalot with fixed categorical models |
-| Time-series analysis | Statsmodels with a fixed AR(1) protocol |
-| Symbolic mathematics | SymPy exact quadratic equations |
-| Machine learning | Scikit-learn linear/quadratic regression with separate training, validation and test data |
-| Causal inference | DoWhy backdoor adjustment under a given causal diagram |
-| Bayesian follow-up, manual only | PyMC analysis of historical GDP data |
+| Experiment area | Implemented methods and tools | Selection |
+| --- | --- | --- |
+| Rational reconstruction | Ratfit baseline and feedback protocols | Automatic |
+| Rational reconstruction | Ratfit staged feedback with additional visible observations | Manual |
+| Linear systems | Rankscreen consistency and rank-deficit tests | Automatic |
+| Sequence reconstruction | Annihilator recurrence recovery and held-out terms | Automatic |
+| Bayesian model comparison | Mixalot with fixed categorical models | Automatic |
+| Time-series analysis | Statsmodels with a fixed AR(1) protocol | Automatic |
+| Symbolic mathematics | SymPy exact quadratic equations | Automatic |
+| Machine learning | Scikit-learn linear/quadratic regression with separate training, validation and test data | Automatic |
+| Causal inference | DoWhy backdoor adjustment under a given causal diagram | Automatic |
+| Synthetic glucose forecasting | Insulin absorption simulator and robustness to incorrect meal/sensitivity inputs | Automatic |
+| Published insulin data | Temperature evidence audit, warming forecasts, curve-shape follow-up and separate-publication check | Manual |
+| Shallow-water dynamics | Physics-informed network with adaptive UKF on synthetic channel waves | Manual |
+| Bayesian follow-up | PyMC analysis of historical GDP data | Manual |
 
-These are bounded scientific methods with predefined assumptions, controls and acceptance criteria. The synthetic experiments test methods and model performance against known references; a successful run does not by itself establish a new scientific discovery. The GDP follow-up is exploratory. Each library is integrated through a specific adapter, rather than exposed in its entirety.
+These are bounded scientific methods with predefined assumptions, controls and acceptance criteria. The synthetic experiments test methods and model performance against known references; a successful run does not by itself establish a new scientific discovery. The GDP, insulin curve-shape and shallow-water analyses are exploratory. Each library is integrated through a specific adapter, rather than exposed in its entirety.
 
 See the [experiment catalog](research/EXPERIMENTS.md), [hypothesis protocols](research/HYPOTHESES.md) and [research operations guide](research/README.md) for the exact contracts.
 
@@ -155,7 +159,7 @@ References: [GitHub integration](https://developers.cloudflare.com/workers/ci-cd
 
 Create a Node web service from this repository. Build command: `node --version`. Start command: `npm start`. Set environment variables in Render, not in Git. Render provides `PORT`. Use `/health` as health-check path. This repository does not create or deploy a Render service automatically.
 
-Keep the orchestrator key on the Debatt-AI backend, never in browser code. No CORS is enabled: this initial service is designed for backend-to-backend calls. Before public production use add per-user quotas/rate limiting and monitoring. Requests are limited to 32 KiB, messages to 8,000 characters, and completion to 1,024 tokens by default (4,096 for explicit research requests); upstream calls time out after 45 seconds. There is no persistent local state, retry loop or arbitrary code execution.
+Keep the orchestrator key on the Debatt-AI backend, never in browser code. No CORS is enabled: this initial service is designed for backend-to-backend calls. Before public production use add per-user quotas/rate limiting and monitoring. Requests are limited to 32 KiB, messages to 8,000 characters, and completion to 1,024 tokens by default (4,096 for explicit research requests); upstream calls time out after 45 seconds. HTTP 429, 502, 503 and 504 responses from the model provider are retried at most twice (1 and 2 second backoff, or a Retry-After of up to 10 seconds) within a 50-second total deadline; timeouts, transport errors and other statuses are not retried, because the provider may already have processed the request. There is no persistent local state or arbitrary code execution.
 
 ## Modules and planning
 
