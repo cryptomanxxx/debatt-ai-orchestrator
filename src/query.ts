@@ -27,8 +27,8 @@ export async function executeQuery(input: unknown, config: Config, bootloops?: B
         data: { error: error instanceof BootLoopsInputError ? 'invalid_bootloops_input' : 'bootloops_execution_failed' } };
     }
   }
-  const { message, mode = 'default', completionTokenLimit = 1024, retryTransientErrors = false } = request;
-  if (typeof message !== 'string' || !message.trim() || message.length > 8000 || typeof retryTransientErrors !== 'boolean'
+  const { message, mode = 'default', completionTokenLimit = 1024 } = request;
+  if (typeof message !== 'string' || !message.trim() || message.length > 8000
     || typeof mode !== 'string' || !['default', 'reasoning', 'auto'].includes(mode)
     || ![1024, 4096].includes(completionTokenLimit as number))
     return { status: 400, data: { error: 'invalid_request' } };
@@ -43,14 +43,12 @@ export async function executeQuery(input: unknown, config: Config, bootloops?: B
   if (mode === 'reasoning' && config.provider !== 'mock' && !config.reasoningModel)
     return { status: 400, data: { error: 'reasoning_not_configured' } };
   try {
-    return { status: 200, data: { ...await orchestrate(message.trim(), mode as Mode, config, completionTokenLimit as CompletionTokenLimit,
-      retryTransientErrors as boolean),
+    return { status: 200, data: { ...await orchestrate(message.trim(), mode as Mode, config, completionTokenLimit as CompletionTokenLimit),
       ...(mode === 'default' ? { modelFingerprint: profile.fingerprint } : {}) } };
   } catch (error) {
     if (error instanceof CalculationError) return { status: 400, data: { error: error.message } };
     if (error instanceof ModelRequestError) return { status: 502,
-      data: { error: error.code, ...(error.upstreamStatus ? { upstreamStatus: error.upstreamStatus } : {}),
-        ...(retryTransientErrors ? { upstreamAttempts: error.attempts } : {}) } };
+      data: { error: error.code, ...(error.upstreamStatus ? { upstreamStatus: error.upstreamStatus } : {}) } };
     return { status: 502, data: { error: 'model_request_failed' } };
   }
 }

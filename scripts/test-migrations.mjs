@@ -24,20 +24,19 @@ const AFTER = {
   '20261013000000_research_dashboard.sql': ['research-dashboard.sql', 'planner-reports.sql']
 };
 
-// Supabase versions are the digits before the first underscore. Pad short versions such as
-// 20261007 so they sort before later timestamps on the same day, as the Problem Bank guide requires.
+// Supabase CLI applies migrations in filename order, so every version must be a full
+// 14-digit timestamp: a shorter prefix such as 20261007_ would sort after same-day timestamps.
 export function migrationOrder(files) {
-  const entries = files.filter(f => f.endsWith('.sql')).map(name => {
-    const match = /^(\d{8,14})_/.exec(name);
-    if (!match) throw new Error(`Migration without version prefix: ${name}`);
-    return { name, version: match[1].padEnd(14, '0') };
-  });
+  const names = files.filter(f => f.endsWith('.sql'));
+  for (const name of names)
+    if (!/^\d{14}_/.test(name)) throw new Error(`Migration without 14-digit version prefix: ${name}`);
   const seen = new Map();
-  for (const { name, version } of entries) {
+  for (const name of names) {
+    const version = name.slice(0, 14);
     if (seen.has(version)) throw new Error(`Duplicate migration version ${version}: ${seen.get(version)}, ${name}`);
     seen.set(version, name);
   }
-  return entries.sort((a, b) => a.version.localeCompare(b.version)).map(e => e.name);
+  return names.sort();
 }
 
 function psql(file) {
