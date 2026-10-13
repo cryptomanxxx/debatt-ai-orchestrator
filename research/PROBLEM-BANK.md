@@ -31,3 +31,7 @@ All four migrations are required. The service-role migration grants the backend 
 Runtime configuration:
 - `SUPABASE_URL` is non-secret and may be stored in Wrangler vars.
 - `SUPABASE_SECRET_KEY` is a Cloudflare secret. Never commit it.
+
+## Literature-linked proposals
+
+The manual workflow **Oraklet proposes research problems** also reads the ten newest saved literature evidence reports (`literature_planner_run`). A research candidate whose theme matches a catalog experiment's research area (for example `arp-symbolic-regression` and the Ratfit experiments) becomes a review-only proposal for that experiment's canonical Problem Bank entry, with the supporting article IDs, the report and candidate IDs, and whether the entry is already registered. The workflow only reads; register a proposal with **problem-bank-create** after review. The catalog experiment is a bounded method test in the same area; it does not test the reported limitation or research gap.
