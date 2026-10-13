@@ -1,4 +1,5 @@
 name: Oraklet research pipeline (manual)
+run-name: 'Oraklet · ${{ inputs.research_area }} · ${{ inputs.dashboard_request_id || github.run_id }}'
 on:
   workflow_dispatch:
     inputs:
@@ -12,6 +13,10 @@ on:
         type: choice
         default: '5'
         options: ['5','10']
+      dashboard_request_id:
+        description: 'Dashboard request identifier (leave blank for a direct manual run)'
+        type: string
+        default: ''
 permissions:
   contents: read
 concurrency:
@@ -41,6 +46,8 @@ jobs:
           CORE_API_KEY: ${{ secrets.CORE_API_KEY }}
           RESEARCH_AREA: ${{ inputs.research_area }}
           PIPELINE_MODEL_BUDGET: ${{ inputs.model_budget }}
+          PIPELINE_REQUEST_ID: ${{ inputs.dashboard_request_id }}
+          RESEARCH_DASHBOARD_ENABLED: ${{ vars.RESEARCH_DASHBOARD_ENABLED }}
         run: node research/research-pipeline.mjs
       - uses: actions/upload-artifact@v4
         if: always()

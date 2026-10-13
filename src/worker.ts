@@ -1,3 +1,4 @@
+import { researchRoute } from './research-dashboard/api.ts';
 import { timingSafeEqual } from 'node:crypto';
 import { loadConfig } from './config.ts';
 import { defaultModelProfile } from './models/profile.ts';
@@ -15,6 +16,8 @@ const json = (status: number, data: unknown) => Response.json(data, {
 
 export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
+    const strings=Object.fromEntries(Object.entries(env).filter(([,value])=>typeof value==='string')) as Record<string,string>;
+    const dashboard=await researchRoute(request,strings);if(dashboard)return dashboard;
     // Configuration comes from this request's bindings, never process.env or cached globals.
     let config;
     try { config = loadConfig(Object.fromEntries(Object.entries(env).filter(([, value]) => typeof value === 'string')) as Record<string, string>); }
