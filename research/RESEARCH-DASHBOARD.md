@@ -2,6 +2,8 @@
 
 The Cloudflare Worker serves a Swedish operator dashboard at `/research` and a clearly labelled, read-only example at `/research/demo`. It adds a visual control surface to the existing research pipeline: choose an area and a budget, start once, then inspect the saved stages, searches, article selection, accepted findings, rejection reasons and unverified candidate. No model inference runs inside the dashboard Worker, and no experiments are enabled.
 
+The selected run shows its complete GitHub URL with a copy button, even when a saved run ID is available but GitHub status lookup fails. Clipboard failures offer manual selection without claiming a successful copy. A separate live run message follows the selected run from queued to its technical final outcome and retains the distinct evidence status.
+
 The timeline shows six steps: preflight, collection, initial evidence, follow-up searches, selection and follow-up evidence. Pipeline checkpoints contain small display summaries and the references to the complete reports. Full abstracts and raw model answers are not copied into them. Snapshots are saved at stage boundaries, rather than streamed token-by-token. The page refreshes every 20 seconds while visible.
 
 Execution status comes from GitHub separately from the last saved scientific status. A successful workflow does not establish a research gap or novelty. A cancelled or failed workflow may have only an intermediate checkpoint and an incomplete model-call count. Checkpoints from earlier workflow attempts are explicitly distinguished from a newer rerun. Failed or uncertain workflow dispatches are visible instead of silently retried.
