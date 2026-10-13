@@ -48,16 +48,16 @@ See the [experiment catalog](research/EXPERIMENTS.md), [hypothesis protocols](re
 
 **Automated AI-agent research** executes an established research procedure without someone manually carrying out every step. This is operational today: the schedule, model calls, tool execution, verification and reporting are automated.
 
-**Autonomous AI-agent research** also gives the agent responsibility for decisions about what to investigate and how to investigate it. Oraklet already has limited autonomy when selecting an experiment and seed from the approved catalog. The scientific method and tool are fixed by that selection, and the research model is configured by the operator and locked throughout the run.
+**Autonomous AI-agent research** also gives the agent responsibility for decisions about what to investigate and how to investigate it. Oraklet already has limited autonomy when selecting an experiment and seed from the approved catalog. The scientific method and tool are fixed by that selection, The operator configures the research models; when a reasoning model is configured, the planner may choose between it and the default model for a run, and the chosen identity is locked for all experiment calls.
 
 | Decision | Current implementation | Development goal |
 | --- | --- | --- |
 | Research task | Select an existing catalog experiment and seed using recent report summaries | Select and formulate a wider range of research questions |
-| AI model | Use the configured research model; provider/model identity stays fixed during a run | Let Oraklet choose suitable AI models for research tasks |
+| AI model | Choose the configured default or reasoning model (when one is configured) with a recorded rationale; identity stays fixed during a run | Let Oraklet choose suitable AI models for research tasks |
 | Scientific tools | Use the fixed adapter associated with the selected experiment | Let Oraklet choose and combine suitable scientific tools |
 | Experiment design | Follow predefined protocols, assumptions and verification criteria | Develop and revise research plans within explicit budgets and verification requirements |
 
-**The project's goal is greater research autonomy:** Professor Oraklet should be able to decide which AI models to run and which tools to use for a research question, execute the investigation and evaluate the evidence. Model selection and general tool composition are development goals, rather than capabilities already implemented in the daily workflow.
+**The project's goal is greater research autonomy:** Professor Oraklet should be able to decide which AI models to run and which tools to use for a research question, execute the investigation and evaluate the evidence. Choosing between operator-configured models is implemented in the daily workflow; open-ended model selection and general tool composition remain development goals.
 
 The repository also contains a persistent Problem Bank and Research Loop integration for tracking catalog-backed problems, hypotheses, attempts and results. A separate proposal workflow produces deterministic catalog-based research suggestions for review. These provide a foundation for broader autonomy; they do not yet generate unrestricted new experiments. See [Problem Bank](research/PROBLEM-BANK.md) and [Research Loop](research/RESEARCH-LOOP.md).
 

@@ -103,3 +103,22 @@ test('catalog covers upstream inventory and only exposes verified adapters in wo
   for (const tool of ALL_RESEARCH_TOOLS.filter(t => t.integration !== 'verified-subset'))
     assert.throws(() => parsePlan(JSON.stringify({ experimentId: tool.id, seed: '123', reason: 'Test.' })));
 });
+
+test('planner chooses a model mode only when the reasoning model is offered', async () => {
+  const plan = { experimentId: 'ratfit-feedback', seed: '123', reason: 'Uppföljning.' };
+  const both = ['default', 'reasoning'];
+  // Default-only planning keeps the original three-key plan and rejects modelMode.
+  assert.throws(() => parsePlan(JSON.stringify({ ...plan, modelMode: 'default' })));
+  assert.equal(plannerPrompt([], '123')[1].content.includes('modelModes'), false);
+  // With reasoning offered, modelMode is required and must be one of the offered modes.
+  assert.deepEqual(parsePlan(JSON.stringify({ ...plan, modelMode: 'reasoning' }), both), { ...plan, modelMode: 'reasoning' });
+  for (const invalid of [{}, { modelMode: 'turbo' }, { modelMode: null }])
+    assert.throws(() => parsePlan(JSON.stringify({ ...plan, ...invalid }), both));
+  assert.ok(JSON.parse(plannerPrompt([], '123', both)[1].content).modelModes);
+  const chosen = await choosePlan('auto', '123', [], async () => ({ text: JSON.stringify({ ...plan, modelMode: 'default' }) }), both);
+  assert.equal(chosen.modelMode, 'default');
+  for (const modes of [['reasoning'], ['default', 'turbo'], 'default'])
+    await assert.rejects(choosePlan('auto', '123', [], () => assert.fail('Invalid modes reached the model'), modes));
+  // Manual selection never asks the model and keeps the default mode.
+  assert.equal((await choosePlan('ratfit-feedback', '123', [], () => assert.fail(), both)).modelMode, undefined);
+});

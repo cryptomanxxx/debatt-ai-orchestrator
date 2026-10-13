@@ -88,13 +88,26 @@ async function query(body) {
     throw new ResearchError(`${kind}_transport_error`);
   }
 }
-const propose = lockModel(async messages => {
+// Every mode shares the seven-call ceiling. Each proposer locks its own provider/model identity.
+const proposer = mode => lockModel(async messages => {
   if (++modelCalls > 7) throw new ResearchError('model_budget_exceeded');
-  const result = await query({ message: JSON.stringify({ instruction: 'Följ denna konversation och svara endast med begärd JSON.', messages }), mode: 'default', completionTokenLimit });
+  const result = await query({ message: JSON.stringify({ instruction: 'Följ denna konversation och svara endast med begärd JSON.', messages }), mode, completionTokenLimit });
   if (result.status !== 200 || result.data.mock !== false) throw new ResearchError('invalid_model_response');
   if (result.data.inference?.completionTokenLimit !== completionTokenLimit) throw new ResearchError('model_budget_not_applied');
   return { text: result.data.answer, provider: result.data.provider, model: result.data.model };
 });
+const planningPropose = proposer('default');
+
+// The planner may choose the reasoning model only when the orchestrator reports one configured.
+async function plannerModelModes() {
+  try {
+    const response = await fetch(API.replace(/\/v1\/query$/, '/v1/model-profile'), {
+      headers: { Authorization: `Bearer ${key}` }, redirect: 'error', signal: AbortSignal.timeout(10000) });
+    if (!response.ok) { await response.body?.cancel(); return ['default']; }
+    const profile = await readJson(response, 4096);
+    return profile?.reasoningAvailable === true ? ['default', 'reasoning'] : ['default'];
+  } catch { return ['default']; }
+}
 const callTool = async input => {
   if (++toolCalls > 6) throw new ResearchError('tool_budget_exceeded');
   return query({ tool: 'bootloops_ratfit', input });
@@ -109,7 +122,10 @@ const metadata = { createdAt: new Date().toISOString(), inferenceSettings: { com
 let completedCases = [];
 let plan, planCommitment, report, executionFailed = false, stage = 'planning';
 try {
-  plan = await choosePlan(selection, seed, history, propose);
+  const modelModes = selection === 'auto' ? await plannerModelModes() : ['default'];
+  plan = await choosePlan(selection, seed, history, planningPropose, modelModes);
+  // A default-mode plan keeps the planning identity lock, exactly as before model choice existed.
+  const propose = (plan.modelMode ?? 'default') === 'default' ? planningPropose : proposer(plan.modelMode);
   if (plan.seedAdjustment) console.log('Seed ändrad före datagenerering:', JSON.stringify(plan.seedAdjustment), '→', plan.seed);
   planCommitment = createHash('sha256').update(JSON.stringify(plan)).digest('hex');
   await writeFile(`${directory}/plan.json`, JSON.stringify({ plan, planCommitment, ...metadata }, null, 2));
@@ -131,7 +147,7 @@ try {
     completedCases = cases;
     await writeFile(`${directory}/progress.json`, JSON.stringify({ cases, ...metadata }, null, 2));
   } });
-  Object.assign(report, { experimentId: plan.experimentId, toolId: entry.toolId,
+  Object.assign(report, { experimentId: plan.experimentId, modelMode: plan.modelMode ?? 'default', toolId: entry.toolId,
     toolRuntime: ['glucose-simulator','glucose-robustness-simulator','temperature-evidence','insulin-warming-forecast','insulin-curve-shape','insulin-external-curve'].includes(entry.toolId) ? 'github-actions-node' : entry.toolId === 'ratfit' ? 'orchestrator-api' : entry.toolId === 'dowhy' ? 'github-actions-python-isolated' : 'github-actions-python', plan, planCommitment });
 } catch (error) {
   const failure = diagnostic(error);
