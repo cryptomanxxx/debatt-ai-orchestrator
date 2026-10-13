@@ -1,0 +1,39 @@
+# TEMPORARY: reproduce the intermittent Python Worker 500 with diagnostics. Removed before merge.
+name: tmp-bootloops-flake
+on:
+  push:
+    branches: [ccr-c66c91c6-8ymi87]
+permissions:
+  contents: read
+jobs:
+  repeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.19'
+      - run: npm ci
+      - run: npm run check:workers
+      - run: npm run check:bootloops:worker
+      - name: Run the Python Worker test five times
+        run: |
+          failed=0
+          for i in 1 2 3 4 5; do
+            echo "::group::attempt $i"
+            npm run test:bootloops:worker || failed=$((failed+1))
+            echo "::endgroup::"
+          done
+          echo "failed=$failed of 5"
+          test "$failed" -eq 0
