@@ -1,40 +1,46 @@
 import { createServer } from 'node:http';
-import { timingSafeEqual } from 'node:crypto';
+import type { IncomingMessage } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { loadConfig } from './config.ts';
 import type { Config } from './config.ts';
-import { defaultModelProfile } from './models/profile.ts';
-import { executeQuery } from './query.ts';
+import { handleApiRequest } from './http.ts';
 import { executeBootLoopsPython } from './tools/bootloops-node.ts';
+
+// Streams the Node request body with backpressure. Cancelling (for example after the 32 KiB
+// limit) drains the remaining upload instead of destroying the socket, so the 413 still arrives.
+function requestBody(req: IncomingMessage) {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      req.on('data', (chunk: Buffer) => {
+        controller.enqueue(new Uint8Array(chunk));
+        if ((controller.desiredSize ?? 1) <= 0) req.pause();
+      });
+      req.once('end', () => { try { controller.close(); } catch { /* Already cancelled. */ } });
+      req.once('error', error => { try { controller.error(error); } catch { /* Already cancelled. */ } });
+    },
+    pull() { req.resume(); },
+    cancel() { req.removeAllListeners('data'); req.resume(); }
+  });
+}
+
+function toRequest(req: IncomingMessage) {
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(req.headers))
+    for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) headers.append(name, item);
+  const method = req.method ?? 'GET';
+  const hasBody = method !== 'GET' && method !== 'HEAD';
+  return new Request(new URL(req.url ?? '/', 'http://localhost'), {
+    method, headers, ...(hasBody ? { body: requestBody(req), duplex: 'half' } : {})
+  } as RequestInit);
+}
+
 export function createApp(config: Config) {
   return createServer(async (req, res) => {
-    const send = (status: number, data: unknown) => {
-      res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
-      res.end(JSON.stringify(data));
-    };
-    if (req.method === 'GET' && req.url === '/health') return send(200, { status: 'ok', service: 'debatt-ai-orchestrator' });
-    const profile = req.method === 'GET' && req.url === '/v1/model-profile';
-    if (!profile && (req.method !== 'POST' || req.url !== '/v1/query')) return send(404, { error: 'not_found' });
-    const actual = Buffer.from(req.headers.authorization ?? '');
-    const expected = Buffer.from(`Bearer ${config.apiKey}`);
-    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return send(401, { error: 'unauthorized' });
-    if (profile) return send(200, defaultModelProfile(config));
-    if (req.headers['content-type']?.split(';')[0].trim() !== 'application/json') return send(415, { error: 'application_json_required' });
-    let body = '';
-    const chunks: Buffer[] = [];
-    let bytes = 0;
-    try {
-      for await (const chunk of req) {
-        bytes += chunk.length;
-        if (bytes > 32768) { send(413, { error: 'request_too_large' }); req.resume(); return; }
-        chunks.push(chunk);
-      }
-      body = Buffer.concat(chunks).toString('utf8');
-    } catch { return send(400, { error: 'invalid_body' }); }
-    let input;
-    try { input = JSON.parse(body); } catch { return send(400, { error: 'invalid_json' }); }
-    const result = await executeQuery(input, config, executeBootLoopsPython);
-    send(result.status, result.data);
+    let response: Response;
+    try { response = await handleApiRequest(toRequest(req), config, { bootloops: executeBootLoopsPython }); }
+    catch { response = Response.json({ error: 'invalid_request' }, { status: 400, headers: { 'Cache-Control': 'no-store' } }); }
+    res.writeHead(response.status, Object.fromEntries(response.headers));
+    res.end(Buffer.from(await response.arrayBuffer()));
   });
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
