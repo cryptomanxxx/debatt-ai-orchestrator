@@ -43,7 +43,7 @@ do $$ declare run_id uuid; finished timestamptz; begin
   end;
 end $$;
 reset role;
-do $$ declare role_name text; begin
+do $$ declare role_name text; table_name text; privilege text; begin
   foreach role_name in array array['anon','authenticated'] loop
     if has_table_privilege(role_name,'public.research_problem','SELECT,INSERT,UPDATE,DELETE,TRUNCATE')
       or has_table_privilege(role_name,'public.research_run','SELECT,INSERT,UPDATE,DELETE,TRUNCATE') then
@@ -51,9 +51,14 @@ do $$ declare role_name text; begin
     end if;
     if has_schema_privilege(role_name,'private','USAGE') then raise exception 'private schema exposed'; end if;
   end loop;
-  if not has_table_privilege('service_role','public.research_run','SELECT,INSERT,UPDATE,DELETE') then
-    raise exception 'missing backend privileges';
-  end if;
+  -- has_table_privilege with a privilege list is true if ANY is held, so check each one.
+  foreach table_name in array array['public.research_problem','public.research_run'] loop
+    foreach privilege in array array['SELECT','INSERT','UPDATE','DELETE'] loop
+      if not has_table_privilege('service_role',table_name,privilege) then
+        raise exception 'missing backend % on %', privilege, table_name;
+      end if;
+    end loop;
+  end loop;
   if not (select relrowsecurity from pg_class where oid='public.research_problem'::regclass)
     or not (select relrowsecurity from pg_class where oid='public.research_run'::regclass)
     or not (select relrowsecurity from pg_class where oid='private.research_problem_reference'::regclass) then

@@ -19,6 +19,13 @@ Run these migrations in the new orchestrator project's SQL Editor, in this order
 3. `supabase/migrations/20261007181500_problem_bank_service_role_grants.sql`
 4. `supabase/migrations/20261007193000_research_run_active_problem_guard.sql`
 
+The base migration was renamed from `20261007_research_problem_bank_v1.sql` so that its version sorts before the same-day migrations that depend on it; its SQL is unchanged. Projects that applied it in SQL Editor need no action. If a project ever applied it with the Supabase CLI (`select version from supabase_migrations.schema_migrations` lists `20261007`), mark the rename once without rerunning any SQL:
+
+```sh
+supabase migration repair --status reverted 20261007
+supabase migration repair --status applied 20261007000000
+```
+
 All four migrations are required. The service-role migration grants the backend `service_role` Data API table privileges while keeping `anon` and `authenticated` revoked. The final migration atomically rejects new runs unless the persisted Problem Bank row is still `active`.
 
 Runtime configuration:
