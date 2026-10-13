@@ -3,6 +3,10 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: problem-bank-writes
+  queue: max
+  cancel-in-progress: false
 jobs:
   initialize:
     runs-on: ubuntu-latest
