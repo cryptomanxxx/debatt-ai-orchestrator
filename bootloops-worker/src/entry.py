@@ -12,6 +12,26 @@ if hashlib.sha256(Path(__file__).with_name('thiele_gate.py').read_bytes()).hexdi
 import thiele_gate
 
 
+async def discard_body(request):
+    # Early responses still consume the request body (bounded). Leaving it unread intermittently
+    # breaks the next request on a reused connection in the local dev proxy ("Network connection lost").
+    reader = request.body.getReader() if request.body else None
+    if reader is None:
+        return
+    try:
+        read = 0
+        while read <= 65536:
+            chunk = await reader.read()
+            if chunk.done:
+                return
+            read += chunk.value.byteLength
+        await reader.cancel()
+    except Exception:
+        pass
+    finally:
+        reader.releaseLock()
+
+
 def reply(data, status):
     return Response(json.dumps(data), status=status,
                     headers={'Content-Type': 'application/json', 'Cache-Control': 'no-store'})
@@ -23,9 +43,11 @@ class Default(WorkerEntrypoint):
         prefix = '/v1/diagnostics/bootloops/'
         stage = url.path[len(prefix):] if url.path.startswith(prefix) else None
         if request.method != 'POST' or (url.path != '/v1/ratfit' and stage not in STAGES) or url.query:
+            await discard_body(request)
             return reply({'error': 'not_found'}, 404)
         content_type = request.headers.get('Content-Type') or ''
         if content_type.split(';')[0].strip() != 'application/json':
+            await discard_body(request)
             return reply({'error': 'application_json_required'}, 415)
         reader = request.body.getReader() if request.body else None
         if reader is None:

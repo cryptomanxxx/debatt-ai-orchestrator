@@ -12,7 +12,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3, 4]
+        variant: [baseline, drained]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,6 +27,9 @@ jobs:
           version: '0.12.19'
       - run: npm ci
       - run: npm run check:workers
+      - name: Use the main-branch Worker for the baseline variant
+        if: matrix.variant == 'baseline'
+        run: git fetch -q --depth=1 origin main && git show origin/main:bootloops-worker/src/entry.py > bootloops-worker/src/entry.py
       - run: npm run check:bootloops:worker
       - name: Probe unread-body responses on a reused connection
         run: |
