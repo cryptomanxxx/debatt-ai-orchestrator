@@ -1,3 +1,7 @@
+import {randomUUID} from 'node:crypto';
+import {uuid,RESEARCH_REPOSITORY} from '../src/research-dashboard/contract.mjs';
+import {createPipelineStore} from '../src/research-dashboard/store.mjs';
+import {evidenceSnapshot,collectionSnapshot,followUpSnapshot,candidateSnapshot} from './pipeline-dashboard.mjs';
 import {mkdir,writeFile,appendFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {DEFAULT_QUERIES} from './literature-benchmark.mjs';
@@ -46,14 +50,20 @@ export async function chooseFollowUpQuery(report,readQuery) {
 
 export async function runPipeline(env,{collect,evidence,followUp,preflight,readQuery,checkpoint=async()=>{}}) {
   const options=pipelineOptions(env);
-  const report={schema_version:'research-pipeline-1',created_at:new Date().toISOString(),
+  if(env.PIPELINE_REQUEST_ID&&!uuid(env.PIPELINE_REQUEST_ID))throw Error('invalid_pipeline_request_id');
+  const report={id:env.PIPELINE_REQUEST_ID||randomUUID(),checkpoint_sequence:0,
+    github_run_id:/^[1-9]\d{0,19}$/.test(env.GITHUB_RUN_ID??'')?env.GITHUB_RUN_ID:null,
+    github_run_attempt:Number(env.GITHUB_RUN_ATTEMPT??1),code_commit:env.GITHUB_SHA??null,
+    schema_version:'research-pipeline-1',created_at:new Date().toISOString(),
     status:'running',area:options.area,query:options.query,
     budget:{maximum_model_calls:options.budget,initial_quota:options.initialQuota,follow_up_quota:options.followUpQuota,known_model_calls:0},
     stages:[],execution_enabled:false,candidate_selection:'Existing review tasks, then stable candidate ID; no scientific merit ranking.'};
   let stage;
+  async function save(){report.checkpoint_sequence++;await checkpoint(report);}
   async function begin(name,quota=0) {
-    stage={name,status:'running',maximum_model_calls:quota,model_calls:quota===0?0:null};
-    report.stages.push(stage);await checkpoint(report);
+    if(stage)stage.finished_at=new Date().toISOString();
+    stage={name,started_at:new Date().toISOString(),status:'running',maximum_model_calls:quota,model_calls:quota===0?0:null};
+    report.stages.push(stage);await save();
   }
   function modelCount(result,quota) {
     const n=result.budget?.model_calls;
@@ -66,20 +76,20 @@ export async function runPipeline(env,{collect,evidence,followUp,preflight,readQ
     const collection=await collect({...env,LITERATURE_MAX_ABSTRACTS:'10'},
       {queries:[options.query],directory:'reports/research-pipeline/collection'});
     if (!collection.literature_run_id) throw Error('missing_collection_receipt');
-    stage.status=collection.status;stage.model_calls=0;stage.literature_run_id=collection.literature_run_id;
+    stage.status=collection.status;stage.model_calls=0;stage.literature_run_id=collection.literature_run_id;stage.summary=collectionSnapshot(collection);
     await begin('initial_evidence',options.initialQuota);
     const initial=await evidence({...env,LITERATURE_RUN_ID:collection.literature_run_id,LITERATURE_QUERY_INDEX:'0',
       LITERATURE_MAX_PAPERS:String(options.initialQuota),FOLLOW_UP_REPORT_ID:''},
       {directory:'reports/research-pipeline/initial-evidence',allowInsufficient:true});
-    modelCount(initial,options.initialQuota);stage.status=initial.status;stage.report_id=initial.id;
+    modelCount(initial,options.initialQuota);stage.status=initial.status;stage.report_id=initial.id;stage.summary=evidenceSnapshot(initial);
     const candidate=choosePipelineCandidate(initial);
     if (!candidate) {report.status='insufficient_evidence';report.stop_reason='No evidence-backed candidate available for follow-up.';}
     else {
-      report.candidate_id=candidate.id;
+      report.candidate_id=candidate.id;report.candidate=candidateSnapshot(candidate);
       await begin('follow_up_search');
       const follow=await followUp({...env,PLANNER_REPORT_ID:initial.id,RESEARCH_CANDIDATE_ID:candidate.id,
         LIMITATION_ARTICLE_ID:'',LIMITATION_FINDING_INDEX:''},{directory:'reports/research-pipeline/follow-up'});
-      stage.status=follow.status;stage.model_calls=0;stage.report_id=follow.id;stage.literature_run_id=follow.literature_run_id;
+      stage.status=follow.status;stage.model_calls=0;stage.report_id=follow.id;stage.literature_run_id=follow.literature_run_id;stage.summary=followUpSnapshot(follow);
       await begin('follow_up_selection');
       const queryIndex=await chooseFollowUpQuery(follow,readQuery);
       stage.status='completed';stage.query_index=queryIndex;
@@ -88,7 +98,7 @@ export async function runPipeline(env,{collect,evidence,followUp,preflight,readQ
       const final=await evidence({...env,FOLLOW_UP_REPORT_ID:follow.id,LITERATURE_RUN_ID:'',LITERATURE_QUERY_INDEX:String(queryIndex),
         LITERATURE_MAX_PAPERS:String(options.followUpQuota)},
         {directory:'reports/research-pipeline/follow-up-evidence',allowInsufficient:true});
-      modelCount(final,options.followUpQuota);stage.status=final.status;stage.report_id=final.id;
+      modelCount(final,options.followUpQuota);stage.status=final.status;stage.report_id=final.id;stage.summary=evidenceSnapshot(final);
       report.selection_review=final.selection_review??null;
       report.status=['insufficient_relevant_hits','insufficient_abstract_identifiers'].includes(final.selection_review?.outcome)?final.selection_review.outcome:
         final.status==='insufficient_evidence'?'insufficient_evidence':report.stages.some(s=>s.status==='partial')?'partial':'completed';
@@ -99,7 +109,7 @@ export async function runPipeline(env,{collect,evidence,followUp,preflight,readQ
     // The in-flight stage may have spent some of its quota. Do not invent an actual count.
     report.budget.actual_count_complete=stage?.model_calls!==null;
   }
-  report.finished_at=new Date().toISOString();await checkpoint(report);return report;
+  report.finished_at=new Date().toISOString();if(stage)stage.finished_at=report.finished_at;await save();return report;
 }
 
 export function renderPipeline(report) {
@@ -113,10 +123,17 @@ export function renderPipeline(report) {
 export async function main(env=process.env) {
   pipelineOptions(env); // Reject invalid inputs before writing or spending anything.
   const directory='reports/research-pipeline';await mkdir(directory,{recursive:true});
-  const checkpoint=r=>writeFile(directory+'/pipeline.json',JSON.stringify(r,null,2)+'\n');
+  const enabled=env.RESEARCH_DASHBOARD_ENABLED==='true';
+  if(env.PIPELINE_REQUEST_ID&&!enabled)throw Error('dashboard_checkpoints_required');
+  if(enabled&&env.GITHUB_REPOSITORY&&env.GITHUB_REPOSITORY!==RESEARCH_REPOSITORY)throw Error('dashboard_repository_mismatch');
+  const store=enabled?createPipelineStore({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY}):null;
+  const checkpoint=async r=>{
+    await writeFile(directory+'/pipeline.json',JSON.stringify(r,null,2)+'\n');
+    if(store)await store.save(r);
+  };
   const report=await runPipeline(env,{collect,evidence,followUp,checkpoint,
     readQuery:options=>createLiteratureEvidenceClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY}).readQuery(options),
-    preflight:()=>createFollowUpClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY}).checkStorage()});
+    preflight:async()=>{if(store)await store.checkStorage();return createFollowUpClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY}).checkStorage();}});
   const markdown=renderPipeline(report);await writeFile(directory+'/pipeline.md',markdown);
   if (env.GITHUB_STEP_SUMMARY) await appendFile(env.GITHUB_STEP_SUMMARY,markdown);
   console.log(JSON.stringify({status:report.status,budget:report.budget}));

@@ -65,6 +65,10 @@ The manual [evidence registry](research/LITERATURE-EVIDENCE-REGISTRY.md) stores 
 
 The [one-start research pipeline](research/RESEARCH-PIPELINE.md) chains collection, initial analysis, candidate selection, follow-up search and final analysis. Choose a research area and a total budget of 5 or 10 model calls; internal IDs are carried automatically. Follow-up analysis requires both method and problem/solution title anchors and records insufficient relevant hits without spending inference calls when none qualify. The pipeline starts manually and executes no experiments.
 
+## Research dashboard
+
+Professor Oraklet's [research dashboard](research/RESEARCH-DASHBOARD.md) adds a visual start-and-follow interface at the existing Worker's `/research` path. It shows pipeline stages, literature searches, article selection, quote-validation results and unverified research candidates, with execution and evidence status kept separate. A labelled read-only demo is available at `/research/demo`. Production use requires one private-table migration and one-time runtime configuration; it is not enabled merely by merging the code. The research pipeline still runs in GitHub Actions within its existing 5/10-call budgets, without executing experiments.
+
 ## Architecture
 
 The repository has two connected execution paths:

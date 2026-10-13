@@ -57,6 +57,8 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f tests-literature-sql/evidence-registry.sql
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261012200000_literature_follow_up.sql
           psql -v ON_ERROR_STOP=1 -f tests-literature-sql/follow-up.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261013000000_research_dashboard.sql
+          psql -v ON_ERROR_STOP=1 -f tests-literature-sql/research-dashboard.sql
           psql -v ON_ERROR_STOP=1 -f tests-literature-sql/planner-reports.sql
   test:
     runs-on: ubuntu-latest

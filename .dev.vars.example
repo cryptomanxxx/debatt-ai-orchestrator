@@ -3,3 +3,11 @@ ORCHESTRATOR_API_KEY=replace-with-a-long-random-secret
 # Override the deployed Groq provider for local development without model credits.
 MODEL_PROVIDER=mock
 # To test Groq locally, change MODEL_PROVIDER to openai and add MODEL_API_KEY.
+
+# Optional research dashboard (see research/RESEARCH-DASHBOARD.md).
+# Demo at /research/demo needs none of these.
+RESEARCH_DASHBOARD_KEY=
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SECRET_KEY=
+RESEARCH_GITHUB_TOKEN=
+RESEARCH_DASHBOARD_ENABLED=false
