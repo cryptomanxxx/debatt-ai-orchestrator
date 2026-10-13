@@ -33,7 +33,7 @@ jobs:
           uvx --from workers-py==1.17.6 pywrangler dev --ip 127.0.0.1 --port 8788 --local --show-interactive-dev-session=false > dev.log 2>&1 &
           pid=$!
           start=$(date +%s.%N)
-          for i in $(seq 1 400); do
+          for i in $(seq 1 600); do
             code=$(curl -s -o body.txt -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8788/other || echo 000)
             t=$(echo "$(date +%s.%N) - $start" | bc)
             echo "$t $code" >> probe.txt
@@ -41,7 +41,7 @@ jobs:
             sleep 0.1
           done
           kill $pid || true
-          echo "status counts:"; awk '{print $2}' probe.txt | sort | uniq -c
-          echo "first/last 404 and all non-404 after first 404:"
+          echo "::group::dev.log without plain 404 lines"; grep -v '404 Not Found' dev.log; echo "::endgroup::"
+          echo "first 404 and every non-404 after it:"
           awk 'BEGIN{seen=0} {if($2=="404"&&!seen){print "first 404 at",$1; seen=1} else if(seen&&$2!="404"){print "after-ready", $0}}' probe.txt
-          echo "::group::dev.log"; cat dev.log; echo "::endgroup::"
+          echo "status counts:"; awk '{print $2}' probe.txt | sort | uniq -c
