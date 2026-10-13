@@ -61,8 +61,7 @@ if (!historyResponse.ok) { await historyResponse.body?.cancel(); throw new Error
 const history = await readJson(historyResponse);
 if (!Array.isArray(history) || history.length > 10) throw new Error('Ogiltig historik');
 
-// The daily lab opts into bounded upstream retries; every upstream attempt is reported separately.
-let modelCalls = 0, toolCalls = 0, upstreamModelAttempts = 0;
+let modelCalls = 0, toolCalls = 0;
 async function query(body) {
   const kind = body.tool ? 'tool' : 'model';
   try {
@@ -79,7 +78,6 @@ async function query(body) {
           'model_empty_response', 'model_invalid_response', 'model_transport_error'].includes(data?.error)) {
           code = data.error;
           upstreamStatus = data.upstreamStatus;
-          if (Number.isInteger(data.upstreamAttempts) && data.upstreamAttempts > 0) upstreamModelAttempts += data.upstreamAttempts - 1;
         }
       } catch { /* An untrusted body never becomes public diagnostic text. */ }
       throw new ResearchError(code, { httpStatus: response.status, upstreamStatus });
@@ -92,10 +90,7 @@ async function query(body) {
 }
 const propose = lockModel(async messages => {
   if (++modelCalls > 7) throw new ResearchError('model_budget_exceeded');
-  upstreamModelAttempts++;
-  const result = await query({ message: JSON.stringify({ instruction: 'Följ denna konversation och svara endast med begärd JSON.', messages }), mode: 'default', completionTokenLimit, retryTransientErrors: true });
-  const attempts = result.data.inference?.upstreamAttempts;
-  if (Number.isInteger(attempts) && attempts > 1) upstreamModelAttempts += attempts - 1;
+  const result = await query({ message: JSON.stringify({ instruction: 'Följ denna konversation och svara endast med begärd JSON.', messages }), mode: 'default', completionTokenLimit });
   if (result.status !== 200 || result.data.mock !== false) throw new ResearchError('invalid_model_response');
   if (result.data.inference?.completionTokenLimit !== completionTokenLimit) throw new ResearchError('model_budget_not_applied');
   return { text: result.data.answer, provider: result.data.provider, model: result.data.model };
@@ -151,7 +146,7 @@ try {
     toolId: plan ? CATALOG.find(e => e.id === plan.experimentId)?.toolId : null,
     seed: plan?.seed || seed, plan: plan || null, planCommitment: planCommitment || null, failedStage: stage, failure, cases: completedCases };
 }
-Object.assign(report, metadata, { reportId, modelCalls, upstreamModelAttempts, toolCalls,
+Object.assign(report, metadata, { reportId, modelCalls, toolCalls,
   executionStatus: executionFailed ? 'error' : 'completed' });
 await writeFile(`${directory}/report.json`, JSON.stringify(report, null, 2));
 const hypothesisRows = report.cases.filter(c => c.hypothesisTest);
@@ -168,7 +163,7 @@ const hypothesisMarkdown = hypothesisRows.length ? protocolMarkdown + '\n\n## Hy
 const markdown = `# ${report.title}\n\n${report.question}\n\nExperiment: ${report.experimentId || 'planering'}. Seed: ${report.seed}.\n\n` +
   (report.cases.length ? '| Fall | Första förslag | Korrigering | Slutligt förslag | Samma modell |\n| --- | --- | --- | --- | --- |\n' +
     report.cases.map(c => `| ${c.case} | ${c.initialPassed ? 'Godkänt' : 'Underkänt'} | ${c.correctionAttempted ? 'Ja' : 'Nej'} | ${c.passed ? 'Godkänt' : 'Underkänt'} | ${c.sameModel ? 'Ja' : 'Nej'} |`).join('\n') : report.method) +
-  hypothesisMarkdown + waterMarkdown(report.cases) + glucoseRobustnessMarkdown(report.cases) + temperatureMarkdown(report.cases) + warmingMarkdown(report.cases) + curveMarkdown(report.cases) + externalMarkdown(report.cases) + `\n\n${executionFailed ? 'Driftfel: ' + JSON.stringify(report.failure) + '. Slutförda fall är delresultat; experimentet är avbrutet.\n\n' : ''}${report.limitations}\n\nModellanrop: ${modelCalls}/7 (uppströmsförsök: ${upstreamModelAttempts}). Verktygsanrop: ${toolCalls}/6. Fullständig plan och rapport finns i artefakten.\n`;
+  hypothesisMarkdown + waterMarkdown(report.cases) + glucoseRobustnessMarkdown(report.cases) + temperatureMarkdown(report.cases) + warmingMarkdown(report.cases) + curveMarkdown(report.cases) + externalMarkdown(report.cases) + `\n\n${executionFailed ? 'Driftfel: ' + JSON.stringify(report.failure) + '. Slutförda fall är delresultat; experimentet är avbrutet.\n\n' : ''}${report.limitations}\n\nModellanrop: ${modelCalls}/7. Verktygsanrop: ${toolCalls}/6. Fullständig plan och rapport finns i artefakten.\n`;
 await writeFile(`${directory}/report.md`, markdown);
 if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown);
 const saved = await fetch(DB, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
