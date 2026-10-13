@@ -37,6 +37,7 @@ globalThis.fetch = async (url, options = {}) => {
   }
   if (${JSON.stringify(scenario)} === 'model_output_truncated' && modelCalls === 1) return Response.json({ error: 'model_output_truncated', raw: 'SECRET' }, { status: 502 });
   if (body.completionTokenLimit !== 4096) throw new Error('Unexpected completion budget');
+  if (body.retryTransientErrors !== true) throw new Error('Daily lab must opt into bounded retries');
   const messages = JSON.parse(body.message).messages;
   let answer;
   if (modelCalls++ === 0) answer = { experimentId: 'ratfit-feedback', seed: '123', reason: 'Nästa test.' };
@@ -45,7 +46,7 @@ globalThis.fetch = async (url, options = {}) => {
     answer = { method: 'bootloops_ratfit', coefficients: cases.find(c => JSON.stringify(c.input.banked) === JSON.stringify(banked)).truth, reason: 'Förslag.' };
   }
   if (${JSON.stringify(scenario)} === 'invalid_proposal' && modelCalls === 3) answer = { error: 'SECRET malformed answer' };
-  return Response.json({ answer: JSON.stringify(answer), provider: 'groq', model: ${changeModel} && modelCalls > 1 ? 'changed' : 'same', mock: false, inference: { completionTokenLimit: ${JSON.stringify(scenario)} === 'model_budget_not_applied' ? 1024 : 4096 } });
+  return Response.json({ answer: JSON.stringify(answer), provider: 'groq', model: ${changeModel} && modelCalls > 1 ? 'changed' : 'same', mock: false, inference: { completionTokenLimit: ${JSON.stringify(scenario)} === 'model_budget_not_applied' ? 1024 : 4096, upstreamAttempts: modelCalls === 1 ? 2 : 1 } });
 };`;
       const preload = join(dir, 'mock.mjs'); await writeFile(preload, mock);
       const process = run(globalThis.process.execPath, ['--import', pathToFileURL(preload).href, runner], {
@@ -60,6 +61,7 @@ globalThis.fetch = async (url, options = {}) => {
       assert.equal(saved.rapport.inferenceSettings.completionTokenLimit, 4096);
       assert.equal(saved.rapport.status, !successful ? 'failed' : 'passed');
       assert.equal(saved.rapport.cases.length, successful ? 3 : scenario === 'invalid_proposal' ? 1 : 0);
+      if (successful) assert.equal(saved.rapport.upstreamModelAttempts, saved.rapport.modelCalls + 1);
       if (!successful) {
         const failure = saved.rapport.failure;
         assert.equal(failure.code, scenario === 'invalid_proposal' ? 'invalid_model_proposal' : scenario);
