@@ -25,7 +25,7 @@ export function runMessage(row,technical) {
 }
 
 export function readRememberedKey(storage) {
-  try {const key=storage?.getItem('oraklet-dashboard-key');return typeof key==='string'&&key.length>=24&&key.length<=4096?key:'';}catch{return '';}
+  try {const key=storage?.getItem('oraklet-dashboard-key');return typeof key==='string'&&key.length>=24?key:'';}catch{return '';}
 }
 export function saveRememberedKey(storage,key) {
   try {if(!storage)return false;storage.setItem('oraklet-dashboard-key',key);return true;}catch{return false;}

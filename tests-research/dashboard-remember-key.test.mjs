@@ -13,6 +13,14 @@ test('blocked browser storage does not throw or pretend to remember/clear a cred
   assert.equal(readRememberedKey(storage),'');assert.equal(saveRememberedKey(storage,key),false);assert.equal(clearRememberedKey(storage),false);
   assert.equal(readRememberedKey(null),'');assert.equal(saveRememberedKey(null,key),false);
 });
-test('malformed or excessive remembered keys do not initiate automatic authentication',()=>{
-  const storage=createStore();for(const value of ['short','x'.repeat(4097),42,null]){storage.setItem('oraklet-dashboard-key',value);assert.equal(readRememberedKey(storage),'');}
+test('malformed remembered keys do not initiate automatic authentication',()=>{
+  const storage=createStore();for(const value of ['short',42,null]){storage.setItem('oraklet-dashboard-key',value);assert.equal(readRememberedKey(storage),'');}
+});
+
+test('a server-valid key longer than 4096 characters survives storage and restore unchanged',()=>{
+  const storage=createStore(),longKey='k'.repeat(5000);
+  assert.equal(saveRememberedKey(storage,longKey),true);
+  assert.equal(readRememberedKey(storage),longKey);
+  assert.equal(clearRememberedKey(storage),true);
+  assert.equal(readRememberedKey(storage),'');
 });
