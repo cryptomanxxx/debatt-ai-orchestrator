@@ -8,7 +8,7 @@ for (let i = 0; i < 120; i++) {
 }
 const counts = {};
 const steps = [['/v1/ratfit', 'text/plain', 415], ['/other', 'application/json', 404], ['/v1/ratfit?x=1', 'application/json', 404], ['/v1/ratfit', 'application/json', 200]];
-for (let round = 0; round < 600; round++) {
+for (let round = 0; round < 2500; round++) {
   for (const [path, type, expected] of steps) {
     const response = await post(path, type);
     const text = await response.text();
