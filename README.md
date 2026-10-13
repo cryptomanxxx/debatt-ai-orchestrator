@@ -163,6 +163,7 @@ Keep the orchestrator key on the Debatt-AI backend, never in browser code. No CO
 
 ## Modules and planning
 
+- `src/http.ts`: shared HTTP routing, authentication and body limits; `src/server.ts` (Node) and `src/worker.ts` (Cloudflare) only adapt transport and the BootLoops runtime.
 - `src/models/registry.ts`: configured default/reasoning model selection.
 - `src/tools/`: allowlisted tool registry and arithmetic parser.
 - `src/planning/planner.ts`: a bounded two-step plan (model or calculator, then verification).
