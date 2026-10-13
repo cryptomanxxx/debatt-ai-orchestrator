@@ -13,6 +13,9 @@ test('model fingerprint excludes secrets and changes with inference configuratio
   for (const changed of [{defaultModel:'different'},{baseUrl:'https://another.example/v1'},{tokenLimitField:'max_tokens'}])
     assert.notEqual(defaultModelProfile({...config,...changed}).fingerprint,profile.fingerprint);
   assert.equal(profile.model,'m');assert.equal(profile.provider,'openai');
+  assert.equal(profile.reasoningAvailable,false);
+  const withReasoning=defaultModelProfile({...config,reasoningModel:'r'});
+  assert.equal(withReasoning.reasoningAvailable,true);assert.equal(withReasoning.fingerprint,profile.fingerprint);
   assert.ok(!JSON.stringify(profile).includes('provider.example'));assert.ok(!JSON.stringify(profile).includes('private-provider-key'));
 });
 test('changed or invalid model fingerprints are rejected before upstream inference',async()=>{

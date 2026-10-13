@@ -21,6 +21,17 @@ test('HTTP endpoints and validation', async () => {
     assert.equal((await query('{"message":"  "}')).status, 400);
     assert.equal((await query('{"message":"Hej","mode":"unknown"}')).status, 400);
     assert.equal((await query(JSON.stringify({ message: 'x'.repeat(40000) }))).status, 413);
+    // Same routing as the Worker: queries are rejected, diagnostics need the internal service binding.
+    assert.equal((await fetch(url + '/health?x=1')).status, 404);
+    assert.equal((await fetch(url + '/v1/query?x=1', { method: 'POST', body: '{}',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` } })).status, 404);
+    assert.equal((await fetch(url + '/v1/query', { method: 'POST', body: '{}',
+      headers: { 'Content-Type': 'text/plain', Authorization: `Bearer ${key}` } })).status, 415);
+    assert.equal((await fetch(url + '/v1/diagnostics/bootloops', { method: 'POST', body: '{"stage":"full"}',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` } })).status, 503);
+    const profile = await fetch(url + '/v1/model-profile', { headers: { Authorization: `Bearer ${key}` } });
+    assert.equal(profile.status, 200);
+    assert.equal(profile.headers.get('Cache-Control'), 'no-store');
     const response = await query('{"message":"Hej","mode":"reasoning"}');
     assert.equal(response.status, 200);
     const data = await response.json();

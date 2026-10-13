@@ -29,10 +29,13 @@
     "test:pymc": "node --test tests-pymc/*.test.mjs",
     "test:sympy": "node --test tests-sympy/*.test.mjs",
     "test:sklearn": "node --test tests-sklearn/*.test.mjs",
-    "test:dowhy": "node --test tests-dowhy/*.test.mjs"
+    "test:dowhy": "node --test tests-dowhy/*.test.mjs",
+    "format:check": "prettier --check src/research-dashboard/",
+    "format": "prettier --write src/research-dashboard/"
   },
   "devDependencies": {
     "miniflare": "5.20261001.0-alpha",
+    "prettier": "3.9.10",
     "wrangler": "4.147.0"
   }
 }

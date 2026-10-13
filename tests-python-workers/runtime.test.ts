@@ -21,6 +21,16 @@ test('real Python Worker runs behind an authenticated orchestrator service bindi
   const direct = (body: unknown, type = 'application/json', path = '/v1/ratfit') =>
     fetch('http://127.0.0.1:8788' + path, { method: 'POST',
       headers: { 'Content-Type': type }, body: JSON.stringify(body), signal: AbortSignal.timeout(3000) });
+  // On an unexpected status, report the Worker's response body and the dev server's recent output.
+  const expectStatus = async (pending: Promise<Response>, status: number, label: string) => {
+    const response = await pending;
+    if (response.status !== status) {
+      const body = (await response.text()).slice(0, 4000);
+      assert.fail(`${label}: expected HTTP ${status}, got ${response.status}\nResponse body: ${body}\n`
+        + `pywrangler dev output (last 16 KiB):\n${logs.slice(-16384)}`);
+    }
+    return response;
+  };
   try {
     let ready = false;
     for (let i = 0; i < 180 && !exited; i++) {
@@ -34,39 +44,36 @@ test('real Python Worker runs behind an authenticated orchestrator service bindi
       await delay(1000);
     }
     assert.ok(ready, 'Python Worker did not start: ' + logs);
-    const good = await direct(input);
-    assert.equal(good.status, 200);
+    const good = await expectStatus(direct(input), 200, 'ratfit truth');
     assert.deepEqual(await good.json(), { accepted: true, depth: 3, checked: 2, failed: 0 });
     const corrupt = { ...input, holdout: [['4','0'],['5','6/7']] };
-    assert.equal((await direct(corrupt)).status, 422);
+    await expectStatus(direct(corrupt), 422, 'ratfit corrupt holdout');
     const constant = { banked: input.banked.map(([x]) => [x, '7/3']),
       holdout: input.holdout.map(([x]) => [x, '7/3']) };
-    const constantResult = await direct(constant);
-    assert.equal(constantResult.status, 200);
+    const constantResult = await expectStatus(direct(constant), 200, 'ratfit constant');
     assert.deepEqual(await constantResult.json(), { accepted: true, depth: 1, checked: 2, failed: 0 });
     const square = { banked: [-3,-2,-1,0,1,2].map(x => [String(x), String(x*x)]),
       holdout: [["3","9"],["4","16"]] };
-    const squareResult = await direct(square);
-    assert.equal(squareResult.status, 200);
+    const squareResult = await expectStatus(direct(square), 200, 'ratfit square');
     assert.equal((await squareResult.json()).failed, 0);
     const largeFraction = '999999999999999999999999/999999999999999999999998';
-    assert.equal((await direct({ banked: constant.banked.map(([x]) => [x, largeFraction]),
-      holdout: constant.holdout.map(([x]) => [x, largeFraction]) })).status, 200);
-    assert.equal((await direct({ ...input, holdout: [['4','1/02'],['5','6/7']] })).status, 400);
-    assert.equal((await direct({ ...input, holdout: [['0/2','1'],['5','1']] })).status, 400);
-    assert.equal((await direct(input, 'text/plain')).status, 415);
-    assert.equal((await direct(input, 'application/json', '/other')).status, 404);
-    assert.equal((await direct(input, 'application/json', '/v1/ratfit?x=1')).status, 404);
-    assert.equal((await direct({ extra: 'x'.repeat(17000) })).status, 413);
+    await expectStatus(direct({ banked: constant.banked.map(([x]) => [x, largeFraction]),
+      holdout: constant.holdout.map(([x]) => [x, largeFraction]) }), 200, 'large fraction');
+    await expectStatus(direct({ ...input, holdout: [['4','1/02'],['5','6/7']] }), 400, 'non-canonical fraction');
+    await expectStatus(direct({ ...input, holdout: [['0/2','1'],['5','1']] }), 400, 'fraction as x value');
+    await expectStatus(direct(input, 'text/plain'), 415, 'text/plain body');
+    await expectStatus(direct(input, 'application/json', '/other'), 404, 'unknown path');
+    await expectStatus(direct(input, 'application/json', '/v1/ratfit?x=1'), 404, 'ratfit with query');
+    await expectStatus(direct({ extra: 'x'.repeat(17000) }), 413, 'oversized ratfit body');
     for (const stage of ['transport','json','validate','fit','full']) {
-      const diagnostic = await direct(input, 'application/json', '/v1/diagnostics/bootloops/' + stage);
-      assert.equal(diagnostic.status, 200);
+      const diagnostic = await expectStatus(direct(input, 'application/json', '/v1/diagnostics/bootloops/' + stage), 200,
+        'diagnostic ' + stage);
       assert.deepEqual(await diagnostic.json(), { diagnostic: true, stage, fixture: 'rational-v1' });
     }
-    assert.equal((await direct(corrupt, 'application/json', '/v1/diagnostics/bootloops/full')).status, 400);
-    assert.equal((await direct(input, 'application/json', '/v1/diagnostics/bootloops/unknown')).status, 404);
-    assert.equal((await direct(input, 'application/json', '/v1/diagnostics/bootloops/full?x=1')).status, 404);
-    assert.equal((await direct({ extra: 'x'.repeat(17000) }, 'application/json', '/v1/diagnostics/bootloops/transport')).status, 413);
+    await expectStatus(direct(corrupt, 'application/json', '/v1/diagnostics/bootloops/full'), 400, 'diagnostic with non-fixture input');
+    await expectStatus(direct(input, 'application/json', '/v1/diagnostics/bootloops/unknown'), 404, 'unknown diagnostic stage');
+    await expectStatus(direct(input, 'application/json', '/v1/diagnostics/bootloops/full?x=1'), 404, 'diagnostic with query');
+    await expectStatus(direct({ extra: 'x'.repeat(17000) }, 'application/json', '/v1/diagnostics/bootloops/transport'), 413, 'oversized diagnostic body');
     runtime = new Miniflare(convertV4MiniflareOptions({
       modules: true, scriptPath: '.worker-build/worker.js', compatibilityDate: '2026-10-05',
       compatibilityFlags: ['nodejs_compat'],

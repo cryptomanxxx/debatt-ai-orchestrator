@@ -1,40 +1,87 @@
 // Presentation helpers also used by the browser bundle; no server credentials.
-export function githubRunUrl(row,technical) {
-  const id=technical?.run_id??row.github_run_id;
-  return /^[1-9]\d{0,19}$/.test(String(id??''))
-    ? 'https://github.com/cryptomanxxx/debatt-ai-orchestrator/actions/runs/'+id : null;
+export function githubRunUrl(row, technical) {
+  const id = technical?.run_id ?? row.github_run_id;
+  return /^[1-9]\d{0,19}$/.test(String(id ?? ''))
+    ? 'https://github.com/cryptomanxxx/debatt-ai-orchestrator/actions/runs/' + id
+    : null;
 }
-export function runMessage(row,technical) {
-  const report=row.report;
-  const evidence=({completed:'Underlag klart',partial:'Delvis underlag',insufficient_evidence:'Otillräckligt underlag',
-    insufficient_relevant_hits:'Inga relevanta träffar',insufficient_abstract_identifiers:'Abstract saknar identifierare',error:'Steg misslyckades'})[report?.status]??'Utfall saknas';
-  const newer=technical?.run_attempt>row.github_run_attempt;
-  if(technical?.status==='completed') {
-    const outcome=({success:'slutförd',failure:'misslyckad',cancelled:'avbruten',timed_out:'avslutad efter att tidsgränsen nåddes'})[technical.conclusion]??'avslutad';
-    if(newer||!report?.finished_at)return 'GitHub-körningen är '+outcome+'. Ett slutligt forskningsresultat för den här körningsversionen saknas; visade värden är senast sparade underlag.';
-    return 'Körningen är '+outcome+'. Evidensstatus: '+evidence+'.';
+export function runMessage(row, technical) {
+  const report = row.report;
+  const evidence =
+    {
+      completed: 'Underlag klart',
+      partial: 'Delvis underlag',
+      insufficient_evidence: 'Otillräckligt underlag',
+      insufficient_relevant_hits: 'Inga relevanta träffar',
+      insufficient_abstract_identifiers: 'Abstract saknar identifierare',
+      error: 'Steg misslyckades'
+    }[report?.status] ?? 'Utfall saknas';
+  const newer = technical?.run_attempt > row.github_run_attempt;
+  if (technical?.status === 'completed') {
+    const outcome =
+      {
+        success: 'slutförd',
+        failure: 'misslyckad',
+        cancelled: 'avbruten',
+        timed_out: 'avslutad efter att tidsgränsen nåddes'
+      }[technical.conclusion] ?? 'avslutad';
+    if (newer || !report?.finished_at)
+      return (
+        'GitHub-körningen är ' +
+        outcome +
+        '. Ett slutligt forskningsresultat för den här körningsversionen saknas; visade värden är senast sparade underlag.'
+      );
+    return 'Körningen är ' + outcome + '. Evidensstatus: ' + evidence + '.';
   }
-  if(newer)return 'En ny körningsversion väntar eller pågår. Visade forskningsresultat hör till en tidigare version.';
-  if(technical?.status==='in_progress'||technical?.status==='waiting')return 'Körningen pågår. Följ forskningsstegen nedan.';
-  if(technical&&['queued','pending','requested'].includes(technical.status))return 'Körningen väntar på att GitHub startar. De första forskningsstegen visas här.';
-  if(report?.finished_at)return 'Forskningsresultatet är sparat. Evidensstatus: '+evidence+'. GitHubs aktuella körstatus kunde inte kontrolleras.';
-  if(report?.status==='running')return 'Forskningskedjan pågår enligt senaste sparade checkpoint. GitHubs aktuella körstatus kunde inte kontrolleras.';
-  if(row.dispatch_status==='failed')return 'GitHub accepterade inte starten. Kontrollera inställningarna innan ett nytt försök.';
-  if(['pending','uncertain'].includes(row.dispatch_status))return 'Startens utfall är ännu okänt. Följ körningen här; inget nytt försök skickas automatiskt.';
+  if (newer)
+    return 'En ny körningsversion väntar eller pågår. Visade forskningsresultat hör till en tidigare version.';
+  if (technical?.status === 'in_progress' || technical?.status === 'waiting')
+    return 'Körningen pågår. Följ forskningsstegen nedan.';
+  if (technical && ['queued', 'pending', 'requested'].includes(technical.status))
+    return 'Körningen väntar på att GitHub startar. De första forskningsstegen visas här.';
+  if (report?.finished_at)
+    return (
+      'Forskningsresultatet är sparat. Evidensstatus: ' +
+      evidence +
+      '. GitHubs aktuella körstatus kunde inte kontrolleras.'
+    );
+  if (report?.status === 'running')
+    return 'Forskningskedjan pågår enligt senaste sparade checkpoint. GitHubs aktuella körstatus kunde inte kontrolleras.';
+  if (row.dispatch_status === 'failed')
+    return 'GitHub accepterade inte starten. Kontrollera inställningarna innan ett nytt försök.';
+  if (['pending', 'uncertain'].includes(row.dispatch_status))
+    return 'Startens utfall är ännu okänt. Följ körningen här; inget nytt försök skickas automatiskt.';
   return 'Körningen är beställd och väntar på att GitHub startar.';
 }
 
 export function readRememberedKey(storage) {
-  try {const key=storage?.getItem('oraklet-dashboard-key');return typeof key==='string'&&key.length>=24?key:'';}catch{return '';}
+  try {
+    const key = storage?.getItem('oraklet-dashboard-key');
+    return typeof key === 'string' && key.length >= 24 ? key : '';
+  } catch {
+    return '';
+  }
 }
-export function saveRememberedKey(storage,key) {
-  try {if(!storage)return false;storage.setItem('oraklet-dashboard-key',key);return true;}catch{return false;}
+export function saveRememberedKey(storage, key) {
+  try {
+    if (!storage) return false;
+    storage.setItem('oraklet-dashboard-key', key);
+    return true;
+  } catch {
+    return false;
+  }
 }
 export function clearRememberedKey(storage) {
-  try {if(!storage)return false;storage.removeItem('oraklet-dashboard-key');return true;}catch{return false;}
+  try {
+    if (!storage) return false;
+    storage.removeItem('oraklet-dashboard-key');
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-export const dashboardHtml=(demo=false)=>`<!doctype html>
+export const dashboardHtml = (demo = false) => `<!doctype html>
 <html lang="sv" data-demo="${demo}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Professor Oraklet · Forskningsöversikt</title>
 <style>
 :root{color-scheme:dark;--bg:#0c121a;--panel:#131d28;--line:#283643;--text:#eaf1f5;--muted:#a0b0bf;--teal:#6ee0bd;--amber:#f2bf69;--red:#f38e8e;font:15px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text)}button,input,select{font:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}a{color:var(--teal);text-decoration:none}a:hover{text-decoration:underline}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--teal);outline-offset:4px}aside{width:216px;position:fixed;inset:0 auto 0 0;border-right:1px solid var(--line);background:#101923;padding:32px 22px;display:flex;flex-direction:column;gap:30px}.brand{font-size:19px;font-weight:650;letter-spacing:-.5px}.mark{display:inline-flex;border:1px solid #5b9b87;border-radius:11px;width:34px;height:34px;align-items:center;justify-content:center;margin-right:8px;color:var(--teal);font-family:Georgia,serif}.small,.eyebrow{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}.nav{padding:11px 13px;border:1px solid #29423d;background:#172d2a;color:var(--teal);border-radius:9px}.aside-note{margin-top:auto;color:var(--muted);font-size:12px}.aside-note strong{display:block;color:var(--text);margin-bottom:8px}main{margin-left:216px;max-width:1660px;padding:26px 40px 55px}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line);padding-bottom:22px}.top strong{font-size:14px}.top span{font-size:12px;color:var(--muted)}.top-actions{display:flex;gap:16px;align-items:center}.ghost{background:transparent;border:1px solid var(--line);border-radius:7px;color:var(--text);padding:7px 12px;font-size:12px}.intro{margin:30px 0 26px;display:flex;justify-content:space-between;align-items:end;gap:20px}h1{font-size:36px;letter-spacing:-1.3px;line-height:1.2;margin:8px 0 12px;font-weight:550}h1 em{color:var(--teal);font-family:Georgia,serif;font-weight:normal}p{margin:0 0 12px;color:var(--muted)}.pill{display:inline-block;border:1px solid var(--line);padding:4px 9px;border-radius:30px;font-size:11px;white-space:nowrap}.pill.good{color:var(--teal);border-color:#32584b;background:#19332a}.pill.partial{color:var(--amber);border-color:#645039;background:#332b20}.pill.error{color:var(--red);border-color:#633a3e}.pill.running{color:#a9cafa;border-color:#3f597b}.panel{border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}.panel-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--line);gap:12px}.panel-head h2{font-size:15px;margin:0;font-weight:600}.panel-head span{font-size:12px;color:var(--muted)}.body{padding:20px 22px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:22px 0}.stat{padding:17px 20px;border:1px solid var(--line);border-radius:10px;background:#101a24}.stat .label{font-size:12px;color:var(--muted)}.stat .value{font-size:29px;line-height:1.25;margin:8px 0 4px;font-variant-numeric:tabular-nums}.stat small{font-size:11px;color:var(--muted)}.workspace{display:grid;grid-template-columns:minmax(0,1fr) 294px;gap:18px;align-items:start}.stack{display:grid;gap:18px}.field{display:grid;gap:6px;margin-bottom:16px}.field label{font-size:12px;color:var(--muted)}select,input{width:100%;background:#0b141d;border:1px solid #344351;border-radius:7px;padding:11px;color:var(--text)}.primary{background:var(--teal);border:0;padding:12px 16px;color:#09241d;border-radius:8px;font-weight:650;width:100%}.budget-copy{font-size:12px;margin:8px 0 18px;color:var(--muted)}.micro{font-size:11px;margin:12px 0 0;color:var(--muted)}.history{display:grid}.run-row{display:grid;grid-template-columns:minmax(180px,1fr) 146px 54px;gap:12px;align-items:center;text-align:left;background:transparent;color:var(--text);border:0;border-bottom:1px solid var(--line);padding:16px 22px;width:100%}.run-row:last-child{border:0}.run-row:hover,.run-row.selected{background:#1a2934}.run-row.selected{box-shadow:inset 3px 0 var(--teal)}.run-title{font-size:13px;font-weight:550;display:block}.date{font-size:11px;color:var(--muted);display:block;margin-top:3px}.calls{color:var(--muted);font-size:12px;text-align:right}.detail-header{display:flex;justify-content:space-between;align-items:start;gap:20px}.detail-header h2{font-size:23px;font-weight:550;letter-spacing:-.5px;margin:6px 0 12px}.status-strip{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}.status-strip>span{font-size:12px;color:var(--muted)}.status-strip strong{color:var(--text);font-weight:500}.run-link-box{padding:14px;border:1px solid var(--line);border-radius:8px;margin:0 0 20px;min-width:0}.run-link-box .small{margin-bottom:9px}.run-link-row{display:flex;gap:12px;align-items:start}.run-url{font:12px/1.7 ui-monospace,monospace;overflow-wrap:anywhere;min-width:0;flex:1}.run-link-row button{flex-shrink:0}.copy-feedback{font-size:11px;color:var(--muted);margin-top:8px}.copy-fallback{width:100%;margin-top:10px;background:var(--bg);color:var(--text);border:1px solid var(--line);padding:8px;border-radius:6px;font:12px/1.7 ui-monospace,monospace;resize:vertical}.timeline{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin:22px 0 28px;border-top:1px solid var(--line)}.step{padding:17px 12px 16px 0;border-bottom:1px solid var(--line);min-height:108px}.step-title{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:550}.dot{background:#495a69;width:8px;height:8px;border-radius:50%;flex-shrink:0}.dot.good{background:var(--teal)}.dot.partial{background:var(--amber)}.dot.error{background:var(--red)}.dot.running{background:#a9cafa;box-shadow:0 0 0 4px #26384c}.step-copy{font-size:11px;color:var(--muted);margin:9px 0 0 17px;line-height:1.6}.section-label{font-size:11px;text-transform:uppercase;letter-spacing:1.4px;color:var(--muted);margin:18px 0 12px}.candidate{background:#152b29;border:1px solid #31534b;border-radius:9px;padding:18px;margin-bottom:22px}.candidate h3{font-size:17px;font-weight:550;margin:9px 0 12px;line-height:1.45}.candidate p{font-size:12px;margin:0}.article{border-top:1px solid var(--line);padding:15px 0}.article h4{font-size:13px;font-weight:550;margin:0 0 9px}.article-meta{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0}.article summary{font-size:12px;color:var(--teal);cursor:pointer}.article details{margin:10px 0}.finding{padding:12px 0;font-size:12px;color:var(--text)}blockquote{border-left:2px solid #436158;margin:9px 0;padding:5px 0 5px 12px;color:var(--muted);font-size:12px;white-space:pre-wrap}.finding .small{font-size:10px}.selection-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;font-size:11px;color:var(--muted);margin:12px 0}.selection-grid strong{display:block;font-size:20px;font-weight:500;color:var(--text)}.query{padding:13px 0;border-top:1px solid var(--line)}.query code{display:block;font-size:12px;overflow-wrap:anywhere;color:var(--text);margin-bottom:10px}.sources{display:flex;flex-wrap:wrap;gap:7px}.notice{font-size:12px;border:1px solid #504638;background:#29251f;border-radius:8px;padding:12px 15px;color:#e1c397;margin:16px 0;overflow-wrap:anywhere}.notice:empty{display:none}.empty{padding:30px 22px;color:var(--muted);font-size:13px}.footnote{font-size:11px;color:var(--muted);margin-top:24px;padding-top:16px;border-top:1px solid var(--line)}#login{max-width:490px;margin:0 0 20px}#login .body{display:flex;align-items:center;gap:12px}#login input{min-width:0}#login button{width:auto;white-space:nowrap}#login .remember{display:flex;align-items:center;gap:8px;padding:0 22px 12px;font-size:12px;color:var(--muted)}#login #remember-key{width:auto;accent-color:var(--teal)}#login .micro{padding:0 22px 16px;margin:0}[hidden]{display:none!important}.demo-banner{font-size:12px;color:var(--amber)}
@@ -51,7 +98,9 @@ export const dashboardHtml=(demo=false)=>`<!doctype html>
 <section class="panel start-panel"><div class="panel-head"><h2>Starta forskning</h2><span>En sammanhängande körning</span></div><form class="body" id="start"><div class="field"><label for="area">Forskningsområde</label><select id="area"><option value="PINNs and turbulence">PINNs och turbulens</option><option value="Experiment design">Experimentdesign</option><option value="Kalman state estimation">Kalman och tillståndsskattning</option><option value="Causal inference">Kausal inferens</option><option value="Model evaluation">Modellutvärdering</option></select></div><div class="field"><label for="budget">Modellbudget</label><select id="budget"><option value="5">Högst 5 modellanrop</option><option value="10">Högst 10 modellanrop</option></select></div><p class="budget-copy">Samlar litteratur, analyserar abstract och söker relaterat arbete inom samma budget.</p><button class="primary" id="start-button" type="submit" disabled>Starta forskning →</button><p class="micro">Inga experiment körs. Forskningsluckor och nyhetsvärde kräver fortsatt granskning.</p><p class="micro" id="start-note">Anslut för att starta och följa forskning.</p></form></section></div>
 <footer class="footnote">Körstatus visar om systemet fungerade. Evidensstatus visar hur komplett underlaget är. Källmatchade citat verifierar textens ursprung, inte vetenskaplig riktighet.</footer></main></body></html>`;
 
-export const dashboardScript=`const githubRunUrl=(${githubRunUrl.toString()});\nconst runMessage=(${runMessage.toString()});\nconst readRememberedKey=(${readRememberedKey.toString()});\nconst saveRememberedKey=(${saveRememberedKey.toString()});\nconst clearRememberedKey=(${clearRememberedKey.toString()});\n`+String.raw`
+export const dashboardScript =
+  `const githubRunUrl=(${githubRunUrl.toString()});\nconst runMessage=(${runMessage.toString()});\nconst readRememberedKey=(${readRememberedKey.toString()});\nconst saveRememberedKey=(${saveRememberedKey.toString()});\nconst clearRememberedKey=(${clearRememberedKey.toString()});\n` +
+  String.raw`
 'use strict';
 const $=id=>document.getElementById(id),demo=document.documentElement.dataset.demo==='true';
 const areas={'PINNs and turbulence':'PINNs och turbulens','Experiment design':'Experimentdesign','Kalman state estimation':'Kalman och tillståndsskattning','Causal inference':'Kausal inferens','Model evaluation':'Modellutvärdering'};

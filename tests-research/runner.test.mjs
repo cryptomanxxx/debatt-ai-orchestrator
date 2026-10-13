@@ -12,9 +12,9 @@ const runner = fileURLToPath(new URL('../research/runner.mjs', import.meta.url))
 const core = new URL('../research/ratfit.mjs', import.meta.url).href;
 
 test('runner preserves partial results and bounded diagnostics for model and tool failures', async () => {
-  for (const scenario of ['success', 'model_changed', 'invalid_proposal', 'tool_http_error', 'model_output_truncated', 'duplicate_plan', 'model_budget_not_applied']) {
+  for (const scenario of ['success', 'reasoning_choice', 'model_changed', 'invalid_proposal', 'tool_http_error', 'model_output_truncated', 'duplicate_plan', 'model_budget_not_applied']) {
     const changeModel = scenario === 'model_changed';
-    const successful = ['success', 'duplicate_plan'].includes(scenario);
+    const successful = ['success', 'reasoning_choice', 'duplicate_plan'].includes(scenario);
     const dir = await mkdtemp(join(tmpdir(), 'oraklet-runner-'));
     try {
       const mock = `
@@ -26,7 +26,13 @@ globalThis.fetch = async (url, options = {}) => {
     if (options.method === 'POST') { await writeFile('saved.json', options.body); return new Response('', { status: 201 }); }
     return Response.json(${JSON.stringify(scenario === 'duplicate_plan' ? [{ experimentId: 'ratfit-feedback', seed: '123', status: 'failed' }] : [])});
   }
+  if (String(url).endsWith('/v1/model-profile'))
+    return Response.json({ provider: 'groq', model: 'same', mode: 'default', reasoningAvailable: ${JSON.stringify(scenario === 'reasoning_choice')} });
   const body = JSON.parse(options.body);
+  if (!body.tool) {
+    const expected = ${JSON.stringify(scenario)} === 'reasoning_choice' && modelCalls > 0 ? 'reasoning' : 'default';
+    if (body.mode !== expected) throw new Error('Unexpected model mode ' + body.mode);
+  }
   if (body.tool) {
     if (${JSON.stringify(scenario)} === 'tool_http_error') return Response.json({ error: 'SECRET upstream error' }, { status: 502 });
     const fixture = cases.find(c => JSON.stringify(c.input.banked) === JSON.stringify(body.input.banked));
@@ -39,7 +45,8 @@ globalThis.fetch = async (url, options = {}) => {
   if (body.completionTokenLimit !== 4096) throw new Error('Unexpected completion budget');
   const messages = JSON.parse(body.message).messages;
   let answer;
-  if (modelCalls++ === 0) answer = { experimentId: 'ratfit-feedback', seed: '123', reason: 'Nästa test.' };
+  if (modelCalls++ === 0) answer = { experimentId: 'ratfit-feedback', seed: '123', reason: 'Nästa test.',
+    ...(${JSON.stringify(scenario)} === 'reasoning_choice' ? { modelMode: 'reasoning' } : {}) };
   else {
     const banked = JSON.parse(messages[1].content).banked;
     answer = { method: 'bootloops_ratfit', coefficients: cases.find(c => JSON.stringify(c.input.banked) === JSON.stringify(banked)).truth, reason: 'Förslag.' };
@@ -60,6 +67,7 @@ globalThis.fetch = async (url, options = {}) => {
       assert.equal(saved.rapport.inferenceSettings.completionTokenLimit, 4096);
       assert.equal(saved.rapport.status, !successful ? 'failed' : 'passed');
       assert.equal(saved.rapport.cases.length, successful ? 3 : scenario === 'invalid_proposal' ? 1 : 0);
+      if (successful) assert.equal(saved.rapport.modelMode, scenario === 'reasoning_choice' ? 'reasoning' : 'default');
       if (!successful) {
         const failure = saved.rapport.failure;
         assert.equal(failure.code, scenario === 'invalid_proposal' ? 'invalid_model_proposal' : scenario);

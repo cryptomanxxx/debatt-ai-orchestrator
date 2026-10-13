@@ -7,6 +7,9 @@ export function defaultModelProfile(config: Config) {
     contract: 'default-inference-1', provider: config.provider, model: config.defaultModel,
     baseUrl: config.baseUrl, tokenLimitField: config.tokenLimitField,
   })).digest('hex');
+  // reasoningAvailable tells planners whether mode 'reasoning' can be requested; it is not part of
+  // the default-model fingerprint, which only guards default-mode calls.
   return { provider: config.provider, model: config.defaultModel, fingerprint,
-    mode: 'default', completionTokenLimit: 4096 };
+    mode: 'default', completionTokenLimit: 4096,
+    reasoningAvailable: config.provider === 'mock' || Boolean(config.reasoningModel) };
 }

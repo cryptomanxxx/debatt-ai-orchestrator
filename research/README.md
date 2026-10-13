@@ -119,7 +119,16 @@ Inga tillägg i den publika API- eller Cloudflare-miljön behövs.
 Modellen är orchestratorns konfigurerade standardmodell, för närvarande Groq
 GPT-OSS 120B. Ingen leverantörskedja importeras från webbplatsen. Provider och
 modell-ID låses från första anropet (inklusive planering); byte avbryter
-körningen. API-alias garanterar inte oförändrade modellvikter hos leverantören.
+körningen.
+
+Modellval: om orchestratorn har en resonerande modell (`MODEL_REASONING`) och
+`/v1/model-profile` därför anger `reasoningAvailable: true`, får `auto`-planeraren
+välja `modelMode` `default` eller `reasoning` och motivera valet. Planeringsanropet
+görs alltid med standardmodellen. Väljs `reasoning` låses provider och modell-ID
+från första experimentanropet i stället; valet ingår i planen och dess SHA-256 före
+körningen och sparas som `modelMode` i rapporten. Utan konfigurerad resonerande
+modell, vid manuellt valt experiment eller om profilen inte kan läsas används
+standardmodellen som tidigare. Taket på sju modellanrop gäller oavsett modell. API-alias garanterar inte oförändrade modellvikter hos leverantören.
 Högst sju modellanrop och sex verktygsanrop per körning, inga automatiska
 retries. Forskningsanrop begär 4096 completion-tokens, inklusive modellens reasoning,
 och verifierar att orchestratorn använder denna budget. Vanliga API-anrop
