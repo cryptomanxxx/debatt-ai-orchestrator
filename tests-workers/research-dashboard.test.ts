@@ -53,3 +53,14 @@ test('uncertain dispatch is recorded and never retried; missing start config kee
   const readOnly=runtime({bindings:{RESEARCH_DASHBOARD_KEY:key,SUPABASE_URL:'https://test.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_test'},outboundService:async()=>Response.json([])});
   try{assert.equal((await request(readOnly,'runs',start)).status,503);assert.equal((await (await request(readOnly)).json()).can_start,false);}finally{await readOnly.dispose();}
 });
+
+test('dashboard authentication accepts keys beyond the former browser-only 4096-character ceiling',async()=>{
+  const longKey='k'.repeat(5000);
+  const r=runtime({bindings:{RESEARCH_DASHBOARD_KEY:longKey,SUPABASE_URL:'https://test.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_test'},
+    outboundService:async()=>Response.json([])});
+  try{
+    const response=await request(r,'runs',undefined,{Authorization:'Bearer '+longKey});
+    assert.equal(response.status,200);
+    const data=await response.json();assert.deepEqual(data.runs,[]);assert.ok(!JSON.stringify(data).includes(longKey));
+  }finally{await r.dispose();}
+});
