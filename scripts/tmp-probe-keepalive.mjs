@@ -6,7 +6,7 @@ for (let i = 0; i < 120; i++) {
   try { if ((await post('/v1/ratfit', 'application/json')).status === 200) break; } catch {}
   await new Promise(r => setTimeout(r, 1000));
 }
-const counts = {};
+const counts = {}; let unexpected = 0;
 const steps = [['/v1/ratfit', 'text/plain', 415], ['/other', 'application/json', 404], ['/v1/ratfit?x=1', 'application/json', 404], ['/v1/ratfit', 'application/json', 200]];
 for (let round = 0; round < 2500; round++) {
   for (const [path, type, expected] of steps) {
@@ -14,7 +14,8 @@ for (let round = 0; round < 2500; round++) {
     const text = await response.text();
     const key = `${path} ${type} -> ${response.status}`;
     counts[key] = (counts[key] ?? 0) + 1;
-    if (response.status !== expected) console.log(`round ${round}: ${key} body=${text.slice(0, 300)}`);
+    if (response.status !== expected) unexpected++, console.log(`round ${round}: ${key} body=${text.slice(0, 300)}`);
   }
 }
 console.log(JSON.stringify(counts, null, 1));
+if (unexpected) process.exitCode = 1;
