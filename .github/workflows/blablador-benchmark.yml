@@ -1,0 +1,37 @@
+name: Blablador scientific model benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      models:
+        description: 'Comma-separated chat model aliases (up to 7)'
+        required: true
+        type: string
+        default: 'alias-kimi-k3-1m,alias-glm-5.3-flash,alias-deepseek-v41-flash-booster,alias-mimo-v2.6-pro,alias-qwen3.8-flash-next,alias-fast'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blablador-benchmark
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Compare models on bounded research tasks
+        env:
+          BLABLADOR_API_KEY: ${{ secrets.BLABLADOR_API_KEY }}
+          BENCHMARK_MODELS: ${{ inputs.models }}
+        run: python3 research/blablador_benchmark.py
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: blablador-benchmark-results
+          path: blablador-benchmark.json
+          if-no-files-found: warn
+          retention-days: 30
