@@ -21,7 +21,7 @@ TASKS = (
     ("bayesian", "A disease has prevalence 1%, test sensitivity 90%, specificity 95%. For a positive test, give P(disease|positive) as a reduced fraction.", "2/13"),
     ("causal", "In DAG X -> M -> Y with X -> Y also present, is M a mediator, confounder, or collider for the total effect of X on Y? Reply with the single classification.", "mediator"),
     ("statistics", "For paired observations (x,y)=(1,2),(2,4),(3,6), what is the exact ordinary least squares slope with an intercept?", "2"),
-    ("recurrence", "Sequence 2, 6, 18, 54, ... . What is the seventh term?", "1458"),
+    ("recurrence", "A geometric sequence starts 2, 6, 18, 54 and each term is three times its predecessor. What is the seventh term?", "1458"),
 )
 ERRORS = (urllib.error.HTTPError, urllib.error.URLError, TimeoutError,
           ValueError, TypeError, AttributeError, KeyError, IndexError,
@@ -34,8 +34,20 @@ def api(key, path, payload=None):
         headers["Content-Type"] = "application/json"
     request = urllib.request.Request(BASE + path, headers=headers, data=data,
                                      method="POST" if data is not None else "GET")
-    with urllib.request.urlopen(request, timeout=90) as response:
-        return json.load(response)
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(request, timeout=90) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as error:
+            if error.code != 429 or attempt == 2:
+                raise
+            header = error.headers.get("Retry-After", "")
+            try:
+                delay = max(1.0, min(60.0, float(header)))
+            except (ValueError, TypeError):
+                delay = [5.0, 15.0][attempt]
+            error.close()
+            time.sleep(delay)
 
 def main():
     key = os.environ.get("BLABLADOR_API_KEY", "")
@@ -74,7 +86,7 @@ def main():
         for repetition in range(1, repeats + 1):
             for task_id, question, expected in TASKS:
                 item = {"model": model, "repetition": repetition, "task": task_id,
-                        "expected": expected, "status": "not_started", "correct": False,
+                        "expected": expected, "observed_answer": None, "status": "not_started", "correct": False,
                         "latency_seconds": None, "prompt_tokens": None, "completion_tokens": None}
                 if discovery_error or model not in metadata:
                     item["status"] = "discovery_failed" if discovery_error else "not_listed"
@@ -94,10 +106,12 @@ def main():
                             raise ValueError("Malformed completion")
                         item["prompt_tokens"] = usage.get("prompt_tokens")
                         item["completion_tokens"] = usage.get("completion_tokens")
+                        item["observed_answer"] = answer.strip()[:2000]
                         item["status"] = "ok" if answer.strip() else "empty_response"
                         item["correct"] = item["status"] == "ok" and answer.strip() == expected
                     except ERRORS as error:
-                        item["status"] = "request_failed_" + type(error).__name__
+                        item["status"] = ("rate_limited" if isinstance(error, urllib.error.HTTPError) and error.code == 429
+                                          else "request_failed_" + type(error).__name__)
                         item["correct"] = False
                     finally:
                         item["latency_seconds"] = round(time.monotonic() - started, 3)
