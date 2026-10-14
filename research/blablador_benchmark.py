@@ -19,9 +19,9 @@ ALLOW = {
 TASKS = [
     ("algebra", "Solve 3*x + 7 = 22. Reply ONLY with the integer value of x.", "5"),
     ("probability", "A fair six-sided die is rolled once. What is the probability of rolling an even number? Reply ONLY with a reduced fraction a/b.", "1/2"),
-    ("physics", "What is the SI unit symbol of electrical resistance? Reply ONLY with the symbol using ASCII characters.", "ohm"),
+    ("chemistry", "What is the chemical symbol for sodium? Reply ONLY with the chemical symbol.", "Na"),
 ]
-# ASCII 'ohm' is used to keep an exact, reproducible scoring key.
+# Strict exact-match tasks intentionally avoid subjective grading.
 def query(key, path, payload=None):
     data = None if payload is None else json.dumps(payload).encode("utf-8")
     headers = {"Authorization": "Bearer " + key, "Accept": "application/json"}
