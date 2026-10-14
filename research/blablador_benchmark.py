@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Manual, bounded comparison of Blablador chat models. Python standard library only."""
 import json
+import http.client
 import os
 import re
 import sys
@@ -41,8 +42,8 @@ def main():
         sys.exit("Invalid model list: choose up to seven distinct allowlisted aliases.")
     try:
         discovered = query(key, "/models")
-        ids = {m.get("id") for m in discovered.get("data", []) if isinstance(m, dict)}
-    except (urllib.error.HTTPError, urllib.error.URLError, ValueError, TimeoutError) as error:
+        metadata = {m.get("id"): {"root": m.get("root"), "max_model_len": m.get("max_model_len")}\n                    for m in discovered.get("data", []) if isinstance(m, dict) and isinstance(m.get("id"), str)}\n        ids = set(metadata)
+    except (urllib.error.HTTPError, urllib.error.URLError, ValueError, TimeoutError, http.client.IncompleteRead) as error:
         sys.exit("Model discovery failed (" + type(error).__name__ + ").")
     report = []
     for model in names:
@@ -59,18 +60,17 @@ def main():
                 response = query(key, "/chat/completions", {
                     "model": model,
                     "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 256
-                })
+                    "max_tokens": 256,\n                    "temperature": 0\n                })
                 result["latency_seconds"] = round(time.monotonic() - start, 3)
                 raw = response.get("choices", [{}])[0].get("message", {}).get("content", "")
                 answer = raw.strip() if isinstance(raw, str) else ""
-                result["correct"] = answer.lower() == expected.lower()
+                result["correct"] = answer == expected
                 usage = response.get("usage") or {}
                 result["prompt_tokens"] = usage.get("prompt_tokens")
                 result["completion_tokens"] = usage.get("completion_tokens")
                 result["status"] = "ok" if answer else "empty_response"
             except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError,
-                    KeyError, IndexError, TypeError) as error:
+                    KeyError, IndexError, TypeError, http.client.IncompleteRead) as error:
                 result["latency_seconds"] = round(time.monotonic() - start, 3)
                 result["status"] = "request_failed_" + type(error).__name__
             report.append(result)
@@ -78,7 +78,7 @@ def main():
             time.sleep(1.1)
     out = Path("blablador-benchmark.json")
     out.write_text(json.dumps({"schema_version": 1, "scoring": "strict_exact_match",
-                               "models": names, "results": report}, indent=2) + "\n", encoding="utf-8")
+                               "models": names, "model_metadata": {n: metadata.get(n) for n in names},\n                               "generation": {"temperature": 0, "max_tokens": 256}, "results": report}, indent=2) + "\n", encoding="utf-8")
     print("\n| Model | Correct/3 | Completed/3 | Avg latency (s) | Total tokens (reported) |")
     print("| --- | ---: | ---: | ---: | ---: |")
     for model in names:
