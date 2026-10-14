@@ -42,7 +42,9 @@ def main():
         sys.exit("Invalid model list: choose up to seven distinct allowlisted aliases.")
     try:
         discovered = query(key, "/models")
-        metadata = {m.get("id"): {"root": m.get("root"), "max_model_len": m.get("max_model_len")}\n                    for m in discovered.get("data", []) if isinstance(m, dict) and isinstance(m.get("id"), str)}\n        ids = set(metadata)
+        metadata = {m.get("id"): {"root": m.get("root"), "max_model_len": m.get("max_model_len")} 
+                    for m in discovered.get("data", []) if isinstance(m, dict) and isinstance(m.get("id"), str)} 
+        ids = set(metadata)
     except (urllib.error.HTTPError, urllib.error.URLError, ValueError, TimeoutError, http.client.IncompleteRead) as error:
         sys.exit("Model discovery failed (" + type(error).__name__ + ").")
     report = []
@@ -60,7 +62,9 @@ def main():
                 response = query(key, "/chat/completions", {
                     "model": model,
                     "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 256,\n                    "temperature": 0\n                })
+                    "max_tokens": 256, 
+                    "temperature": 0 
+                })
                 result["latency_seconds"] = round(time.monotonic() - start, 3)
                 raw = response.get("choices", [{}])[0].get("message", {}).get("content", "")
                 answer = raw.strip() if isinstance(raw, str) else ""
@@ -78,7 +82,8 @@ def main():
             time.sleep(1.1)
     out = Path("blablador-benchmark.json")
     out.write_text(json.dumps({"schema_version": 1, "scoring": "strict_exact_match",
-                               "models": names, "model_metadata": {n: metadata.get(n) for n in names},\n                               "generation": {"temperature": 0, "max_tokens": 256}, "results": report}, indent=2) + "\n", encoding="utf-8")
+                               "models": names, "model_metadata": {n: metadata.get(n) for n in names}, 
+                               "generation": {"temperature": 0, "max_tokens": 256}, "results": report}, indent=2) + "\n", encoding="utf-8")
     print("\n| Model | Correct/3 | Completed/3 | Avg latency (s) | Total tokens (reported) |")
     print("| --- | ---: | ---: | ---: | ---: |")
     for model in names:
