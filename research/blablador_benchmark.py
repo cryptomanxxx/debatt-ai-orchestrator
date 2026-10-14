@@ -45,7 +45,8 @@ def main():
         metadata = {m.get("id"): {"root": m.get("root"), "max_model_len": m.get("max_model_len")} 
                     for m in discovered.get("data", []) if isinstance(m, dict) and isinstance(m.get("id"), str)} 
         ids = set(metadata)
-    except (urllib.error.HTTPError, urllib.error.URLError, ValueError, TimeoutError, http.client.IncompleteRead) as error:
+    except (urllib.error.HTTPError, urllib.error.URLError, ValueError, TimeoutError, http.client.IncompleteRead,
+            http.client.RemoteDisconnected, AttributeError, TypeError) as error:
         sys.exit("Model discovery failed (" + type(error).__name__ + ").")
     report = []
     for model in names:
@@ -74,7 +75,8 @@ def main():
                 result["completion_tokens"] = usage.get("completion_tokens")
                 result["status"] = "ok" if answer else "empty_response"
             except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError,
-                    KeyError, IndexError, TypeError, http.client.IncompleteRead) as error:
+                    KeyError, IndexError, TypeError, AttributeError, http.client.IncompleteRead,
+                    http.client.RemoteDisconnected) as error:
                 result["latency_seconds"] = round(time.monotonic() - start, 3)
                 result["status"] = "request_failed_" + type(error).__name__
             report.append(result)
