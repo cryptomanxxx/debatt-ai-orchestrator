@@ -46,7 +46,7 @@ def main():
                     for m in discovered.get("data", []) if isinstance(m, dict) and isinstance(m.get("id"), str)} 
         ids = set(metadata)
     except (urllib.error.HTTPError, urllib.error.URLError, ValueError, TimeoutError, http.client.IncompleteRead,
-            http.client.RemoteDisconnected, AttributeError, TypeError) as error:
+            http.client.RemoteDisconnected, ConnectionResetError, AttributeError, TypeError) as error:
         sys.exit("Model discovery failed (" + type(error).__name__ + ").")
     report = []
     for model in names:
@@ -76,8 +76,9 @@ def main():
                 result["status"] = "ok" if answer else "empty_response"
             except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError,
                     KeyError, IndexError, TypeError, AttributeError, http.client.IncompleteRead,
-                    http.client.RemoteDisconnected) as error:
+                    http.client.RemoteDisconnected, ConnectionResetError) as error:
                 result["latency_seconds"] = round(time.monotonic() - start, 3)
+                result["correct"] = False
                 result["status"] = "request_failed_" + type(error).__name__
             report.append(result)
             print(f"{model}: {task}: {result['status']}, correct={result['correct']}, latency={result['latency_seconds']}s", flush=True)
@@ -95,7 +96,7 @@ def main():
         tokens = [x[k] for x in rows for k in ("prompt_tokens", "completion_tokens") if isinstance(x[k], int)]
         avg = f"{sum(latencies)/len(latencies):.2f}" if latencies else "n/a"
         total = str(sum(tokens)) if len(tokens) == len(rows) * 2 else "incomplete"
-        print(f"| {model} | {sum(x['correct'] for x in rows)}/3 | {len(valid)}/3 | {avg} | {total} |")
+        print(f"| {model} | {sum(x["correct"] for x in rows if x["status"] == "ok")}/3 | {len(valid)}/3 | {avg} | {total} |")
     if not any(x["status"] == "ok" for x in report):
         sys.exit("No successful completions. See status summary/artifact.")
 
