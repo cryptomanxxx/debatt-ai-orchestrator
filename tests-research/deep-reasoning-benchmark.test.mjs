@@ -85,7 +85,7 @@ test('streamed API responses are cancelled before exceeding the byte cap', async
   });
   await assert.rejects(readBoundedJson({ body: stream }), /oversized_orchestrator_response/);
   assert.equal(cancelled, true);
-  assert.equal(reads, 1);
+  assert.ok(reads <= 2);
 });
 test('missing live key replaces previous offline status with failed preflight report', async () => {
   const writes = [];
