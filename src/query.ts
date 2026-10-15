@@ -28,7 +28,7 @@ export async function executeQuery(input: unknown, config: Config, bootloops?: B
     }
   }
   const { message, mode = 'default', completionTokenLimit = 1024 } = request;
-  if (typeof message !== 'string' || !message.trim() || message.length > 8000
+  if (typeof message !== 'string' || !message.trim() || message.length > (mode === 'auto' && config.secondaryModel ? Math.min(32000, config.secondaryContextChars) : 8000)
     || typeof mode !== 'string' || !['default', 'reasoning', 'auto'].includes(mode)
     || ![1024, 4096].includes(completionTokenLimit as number))
     return { status: 400, data: { error: 'invalid_request' } };
@@ -46,6 +46,7 @@ export async function executeQuery(input: unknown, config: Config, bootloops?: B
     return { status: 200, data: { ...await orchestrate(message.trim(), mode as Mode, config, completionTokenLimit as CompletionTokenLimit),
       ...(mode === 'default' ? { modelFingerprint: profile.fingerprint } : {}) } };
   } catch (error) {
+    if (error instanceof Error && error.message === 'context_capacity_unavailable') return { status: 413, data: { error: 'context_capacity_unavailable' } };
     if (error instanceof CalculationError) return { status: 400, data: { error: error.message } };
     if (error instanceof ModelRequestError) return { status: 502,
       data: { error: error.code, ...(error.upstreamStatus ? { upstreamStatus: error.upstreamStatus } : {}) } };
