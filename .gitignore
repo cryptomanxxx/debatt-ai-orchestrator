@@ -172,3 +172,6 @@ reports/oraklet-lab/
 .research-venv/
 .pymc-venv/
 .dowhy-venv/
+
+# HIP connection-test artifacts
+reports/hip-test/
