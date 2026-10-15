@@ -4,6 +4,7 @@ import datetime
 import http.client
 import json
 import os
+import re
 import statistics
 import time
 import urllib.error
@@ -62,7 +63,7 @@ def settings(env):
         raise ValueError('Invalid model list or repetition count')
     return models, int(repeats)
 
-def score(response, expected, key):
+def score(response, expected, key, requested_model):
     choice = response['choices'][0]
     content = choice['message']['content']
     usage = response.get('usage') or {}
@@ -71,11 +72,20 @@ def score(response, expected, key):
     if key in content:
         raise ValueError('Credential echoed')
     finish = choice.get('finish_reason')
+    if not isinstance(finish, str) or finish not in ('stop', 'length', 'content_filter', 'tool_calls', 'function_call'):
+        finish = None
+    returned_model = response.get('model')
+    if (not isinstance(returned_model, str) or len(returned_model) > 200
+        or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:/ -]*', returned_model)
+        or returned_model != returned_model.strip() or key in returned_model):
+        returned_model = None
     status = 'truncated' if finish == 'length' else ('ok' if finish == 'stop' and content.strip() else 'incomplete_response')
+    if returned_model != requested_model:
+        status = 'model_identity_unverified' if returned_model is None else 'model_mismatch'
     verdict, compliant, answer = evaluate(content, expected) if status == 'ok' else ('unverified', False, None)
     return dict(status=status, scientific_verdict=verdict, format_compliant=compliant,
                 actual_answer=answer[:1000] if answer is not None else None, raw_response=content[:6000], finish_reason=finish,
-                response_model=response.get('model') if isinstance(response.get('model'), str) and key not in response['model'] else None,
+                response_model=returned_model,
                 **{name: usage.get(name) if isinstance(usage.get(name), int) and usage[name] >= 0 else None
                    for name in ('prompt_tokens', 'completion_tokens', 'total_tokens')})
 
@@ -137,7 +147,7 @@ def main():
                         response = api(key, '/chat/completions', dict(model=model,
                             messages=[dict(role='system', content=SYSTEM), dict(role='user', content=question)],
                             temperature=0, max_tokens=768))
-                        row.update(score(response, expected, key))
+                        row.update(score(response, expected, key, model))
                     except ApiError as error:
                         row['status'] = str(error)
                     except (KeyError, IndexError, TypeError, ValueError, AttributeError):
