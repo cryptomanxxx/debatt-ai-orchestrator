@@ -117,6 +117,30 @@ export async function runDeepReasoningBenchmark(options = {}) {
     throw error;
   }
 }
+// Cap the body WHILE reading it. Checking Buffer.byteLength after
+// response.text()/json() would not prevent unbounded network allocations.
+export async function readBoundedJson(response, maxBytes = 65536) {
+  const reader = response.body?.getReader?.();
+  if (!reader) throw new Error('missing_response_body');
+  const chunks = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) throw new Error('invalid_response_chunk');
+      size += value.byteLength;
+      if (size > maxBytes) {
+        await reader.cancel().catch(() => {});
+        throw new Error('oversized_orchestrator_response');
+      }
+      chunks.push(Buffer.from(value));
+    }
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } finally {
+    reader.releaseLock();
+  }
+}
 export function orchestratorProposer({ apiUrl, apiKey, fetchImpl = fetch }) {
   if (typeof apiKey !== 'string' || apiKey.length < 24) throw new Error('missing_orchestrator_key');
   let url;
@@ -129,53 +153,81 @@ export function orchestratorProposer({ apiUrl, apiKey, fetchImpl = fetch }) {
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
       body: JSON.stringify({ message, mode, completionTokenLimit: 4096 }) });
     if (!response.ok) { await response.body?.cancel(); throw new Error('orchestrator_http_' + response.status); }
-    const raw = await response.text();
-    if (Buffer.byteLength(raw, 'utf8') > 65536) throw new Error('oversized_orchestrator_response');
-    const data = JSON.parse(raw);
+    const data = await readBoundedJson(response);
+    // The request alone is insufficient evidence of the actual inference
+    // limit. Reject stale or misconfigured deployments exactly as runner.mjs.
+    if (data?.inference?.completionTokenLimit !== 4096) throw new Error('model_budget_not_applied');
     return { mock: data.mock, answer: data.answer, provider: data.provider, model: data.model };
   };
 }
-async function main() {
-  const seed = process.env.BENCHMARK_SEED || '20261016';
-  const mode = process.env.BENCHMARK_MODE || 'default';
+export async function runDeepReasoningCli(env = process.env, args = process.argv, {
+  fetchImpl = fetch, writeFileImpl = writeFile, mkdirImpl = mkdir,
+} = {}) {
+  const seed = env.BENCHMARK_SEED || '20261016';
+  const mode = env.BENCHMARK_MODE || 'default';
   const modes = mode === 'both' ? ['default', 'reasoning'] : [mode];
-  const maxTreeNodes = Number(process.env.BENCHMARK_TREE_NODES || '3');
-  const maxCalls = Number(process.env.BENCHMARK_MAX_CALLS || '24');
+  const maxTreeNodes = Number(env.BENCHMARK_TREE_NODES || '3');
+  const maxCalls = Number(env.BENCHMARK_MAX_CALLS || '24');
   const plan = plannedBenchmark({ seed, modes, maxTreeNodes, maxCalls });
   const output = 'reports/deep-reasoning/report.json';
-  await mkdir('reports/deep-reasoning', { recursive: true });
-  if (process.argv.includes('--offline')) {
-    await writeFile(output, JSON.stringify({ ...plan, status: 'offline-plan-only', actualModelCalls: 0 }, null, 2) + '\n');
+  await mkdirImpl('reports/deep-reasoning', { recursive: true });
+  const persist = value => writeFileImpl(output, JSON.stringify(value, null, 2) + '\n');
+  if (args.includes('--offline')) {
+    await persist({ ...plan, status: 'offline-plan-only', actualModelCalls: 0 });
     console.log('Offline plan validated: no inference calls were made.');
     return;
   }
-  const apiUrl = process.env.ORCHESTRATOR_API_URL
-    || 'https://debatt-ai-orchestrator.xx8031126.workers.dev/v1/query';
-  const key = process.env.ORCHESTRATOR_API_KEY || '';
-  const propose = orchestratorProposer({ apiUrl, apiKey: key });
-  if (modes.includes('reasoning')) {
-    const profileUrl = apiUrl.replace(/\/v1\/query$/, '/v1/model-profile');
-    const response = await fetch(profileUrl, { headers: { Authorization: 'Bearer ' + key },
-      redirect: 'error', signal: AbortSignal.timeout(10000) });
-    if (!response.ok) { await response.body?.cancel(); throw new Error('reasoning_model_profile_unavailable'); }
-    const profile = await response.json();
-    if (profile?.reasoningAvailable !== true) throw new Error('reasoning_mode_not_configured');
-  }
-  let snapshot = { ...plan, status: 'running', actualModelCalls: 0, results: [] };
+
+  // Always replace the offline artifact BEFORE the live preflight. Even a
+  // missing key or failed reasoning model profile produces a FAILED report.
+  let snapshot = { ...plan, status: 'live-preflight', actualModelCalls: 0, results: [] };
+  await persist(snapshot);
   try {
+    const apiUrl = env.ORCHESTRATOR_API_URL
+      || 'https://debatt-ai-orchestrator.xx8031126.workers.dev/v1/query';
+    const key = env.ORCHESTRATOR_API_KEY || '';
+    const propose = orchestratorProposer({ apiUrl, apiKey: key, fetchImpl });
+    if (modes.includes('reasoning')) {
+      const profileUrl = apiUrl.replace(/\/v1\/query$/, '/v1/model-profile');
+      let profile;
+      try {
+        const response = await fetchImpl(profileUrl, { headers: { Authorization: 'Bearer ' + key },
+          redirect: 'error', signal: AbortSignal.timeout(10000) });
+        if (!response.ok) {
+          await response.body?.cancel();
+          throw new Error('profile_http_failure');
+        }
+        profile = await readBoundedJson(response, 4096);
+      } catch {
+        throw new Error('reasoning_model_profile_unavailable');
+      }
+      if (profile?.reasoningAvailable !== true) throw new Error('reasoning_mode_not_configured');
+    }
+    snapshot = { ...snapshot, status: 'running' };
+    await persist(snapshot);
     const report = await runDeepReasoningBenchmark({ seed, modes, maxTreeNodes, maxCalls, propose,
       onProgress: async partial => {
         snapshot = partial;
-        await writeFile(output, JSON.stringify(partial, null, 2) + '\n');
+        await persist(partial);
       } });
-    await writeFile(output, JSON.stringify(report, null, 2) + '\n');
-    console.log(JSON.stringify({ status: report.status, actualModelCalls: report.actualModelCalls, summary: report.summary }));
-  } catch {
-    const safe = { ...snapshot, status: 'failed', failureCode: snapshot.failureCode || 'benchmark_execution_failed' };
-    await writeFile(output, JSON.stringify(safe, null, 2) + '\n');
-    throw new Error(safe.failureCode);
+    await persist(report);
+    console.log(JSON.stringify({ status: report.status,
+      actualModelCalls: report.actualModelCalls, summary: report.summary }));
+    return report;
+  } catch (error) {
+    const safeCodes = ['missing_orchestrator_key', 'invalid_orchestrator_url',
+      'reasoning_model_profile_unavailable', 'reasoning_mode_not_configured',
+      'model_budget_not_applied', 'model_call_budget_exhausted',
+      'invalid_real_model_response', 'model_identity_changed',
+      'oversized_orchestrator_response'];
+    const failureCode = snapshot.failureCode
+      || (safeCodes.includes(error?.message) ? error.message : 'benchmark_execution_failed');
+    const safe = { ...snapshot, status: 'failed', failureCode,
+      failureStage: snapshot.status === 'live-preflight' ? 'preflight' : 'execution' };
+    await persist(safe);
+    throw new Error(failureCode);
   }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch(error => { console.error('Deep reasoning benchmark failed:', error.message); process.exitCode = 1; });
+  runDeepReasoningCli().catch(error => { console.error('Deep reasoning benchmark failed:', error.message); process.exitCode = 1; });
 }
