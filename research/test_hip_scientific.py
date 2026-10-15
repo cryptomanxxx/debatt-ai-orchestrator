@@ -1,7 +1,8 @@
 import unittest
-from unittest.mock import patch
+import http.client
+from unittest.mock import patch, MagicMock
 import urllib.error
-from hip_scientific import MODELS, EXCLUDED, TASKS, settings, score, summary, api, ApiError
+from hip_scientific import MODELS, EXCLUDED, TASKS, settings, score, summary, api, ApiError, model_ids
 from blablador_scientific_v3 import TASKS as ORIGINAL_TASKS
 
 class HipScientificTests(unittest.TestCase):
@@ -51,6 +52,30 @@ class HipScientificTests(unittest.TestCase):
         with patch('urllib.request.OpenerDirector.open', side_effect=error):
             with self.assertRaisesRegex(ApiError, '^http_401$'):
                 api('test-secret', '/models')
+
+class HipReviewRegressionTests(unittest.TestCase):
+    def test_incomplete_body_becomes_sanitized_per_model_error(self):
+        response = MagicMock()
+        response.__enter__.return_value.read.side_effect = http.client.IncompleteRead(b'test-secret')
+        with patch('urllib.request.OpenerDirector.open', return_value=response):
+            with self.assertRaisesRegex(ApiError, '^transport_or_json_error$'):
+                api('test-secret', '/chat/completions', {'model': MODELS[0]})
+
+    def test_malformed_model_lists_are_discovery_errors(self):
+        for value in (None, [], {}, 'model', {'data': {}}, {'data': 'model'},
+                      {'data': []}, {'data': [None]}, {'data': [{'id': 4}]},
+                      {'data': [{'id': ' '}]}, {'data': [{'id': MODELS[0]}, {}]}):
+            with self.subTest(value=value), self.assertRaises(ApiError):
+                model_ids(value)
+        self.assertEqual(model_ids({'data': [{'id': MODELS[0]}]}), {MODELS[0]})
+
+    def test_extracted_answer_is_bounded_after_scoring(self):
+        content = 'FINAL_ANSWER: ' + 'x' * 100000
+        response = {'choices': [{'message': {'content': content}, 'finish_reason': 'stop'}]}
+        row = score(response, '2', 'test-secret')
+        self.assertEqual(row['scientific_verdict'], 'unverified')
+        self.assertEqual(len(row['actual_answer']), 1000)
+        self.assertEqual(len(row['raw_response']), 6000)
 
 if __name__ == '__main__':
     unittest.main()

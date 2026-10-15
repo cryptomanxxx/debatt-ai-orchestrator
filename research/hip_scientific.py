@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Research-only HIP comparison using unchanged Blablador v3 tasks and scoring."""
 import datetime
+import http.client
 import json
 import os
 import statistics
@@ -42,8 +43,17 @@ def api(key, path, payload=None):
         code = error.code
         error.close()
         raise ApiError(f'http_{code}') from None
-    except (urllib.error.URLError, OSError, ValueError):
+    except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException):
         raise ApiError('transport_or_json_error') from None
+
+def model_ids(response):
+    rows = response.get('data') if isinstance(response, dict) else None
+    if not isinstance(rows, list) or not rows or any(
+        not isinstance(row, dict) or not isinstance(row.get('id'), str)
+        or not row['id'].strip() for row in rows
+    ):
+        raise ApiError('invalid_model_list')
+    return {row['id'] for row in rows}
 
 def settings(env):
     models = [m.strip() for m in env.get('BENCHMARK_MODELS', ','.join(MODELS)).split(',')]
@@ -64,7 +74,7 @@ def score(response, expected, key):
     status = 'truncated' if finish == 'length' else ('ok' if finish == 'stop' and content.strip() else 'incomplete_response')
     verdict, compliant, answer = evaluate(content, expected) if status == 'ok' else ('unverified', False, None)
     return dict(status=status, scientific_verdict=verdict, format_compliant=compliant,
-                actual_answer=answer, raw_response=content[:6000], finish_reason=finish,
+                actual_answer=answer[:1000] if answer is not None else None, raw_response=content[:6000], finish_reason=finish,
                 response_model=response.get('model') if isinstance(response.get('model'), str) and key not in response['model'] else None,
                 **{name: usage.get(name) if isinstance(usage.get(name), int) and usage[name] >= 0 else None
                    for name in ('prompt_tokens', 'completion_tokens', 'total_tokens')})
@@ -108,7 +118,7 @@ def main():
     save()
     try:
         listed = api(key, '/models')
-        available = {r['id'] for r in listed['data'] if isinstance(r, dict) and isinstance(r.get('id'), str)}
+        available = model_ids(listed)
     except (ApiError, KeyError, TypeError):
         report['discovery_error'] = 'model_discovery_failed'
         save()
