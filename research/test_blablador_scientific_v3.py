@@ -25,5 +25,20 @@ class ScientificValidatorTests(unittest.TestCase):
                          ("correct", True))
 
 
+    def test_punctuation(self):
+        self.assertEqual(evaluate("FINAL_ANSWER: 2.", "2")[:2], ("correct", True))
+
+    def test_marker_case_affects_format_only(self):
+        self.assertEqual(evaluate("final_answer: 2", "2")[:2], ("correct", False))
+
+    def test_marker_spacing_affects_format_only(self):
+        self.assertEqual(evaluate("FINAL_ANSWER : 2", "2")[:2], ("correct", False))
+
+    def test_unrecognized_causal_prose(self):
+        self.assertEqual(evaluate("I cannot determine this", "mediator")[0], "unverified")
+
+    def test_recognized_wrong_causal_label(self):
+        self.assertEqual(evaluate("FINAL_ANSWER: collider", "mediator")[:2], ("incorrect", True))
+
 if __name__ == "__main__":
     unittest.main()
