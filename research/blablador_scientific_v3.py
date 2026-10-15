@@ -34,7 +34,7 @@ def extracted_answer(content):
     text = content.strip()
     markers = re.findall(r"(?im)^\s*FINAL_ANSWER\s*:\s*(.*?)\s*$", text)
     if markers:
-        return markers[-1].strip(), bool(re.fullmatch(r"FINAL_ANSWER\s*:\s*[^\r\n]+", text, re.I))
+        return markers[-1].strip(), bool(re.fullmatch(r"FINAL_ANSWER: [^\r\n]+", text))
     return text, False
 
 def evaluate(content, expected):
@@ -44,10 +44,10 @@ def evaluate(content, expected):
         if normalized in ("mediator", "a mediator"):
             return "correct", compliant, candidate
         # Do not declare verbose text incorrect; it may contain the right answer.
-        return ("incorrect" if len(candidate) <= 40 else "unverified"), compliant, candidate
-    if NUM.fullmatch(candidate):
+        if normalized in ("confounder", "a confounder", "collider", "a collider"):\n            return "incorrect", compliant, candidate\n        return "unverified", compliant, candidate
+    numeric = candidate.strip()\n    if numeric.endswith(".") and not numeric.endswith(".."):\n        numeric = numeric[:-1]\n    if NUM.fullmatch(numeric):
         try:
-            actual = Rational(candidate)
+            actual = Rational(numeric)
             truth = Rational(expected)
             return ("correct" if actual == truth else "incorrect"), compliant, candidate
         except (TypeError, ValueError, ZeroDivisionError):
@@ -154,8 +154,8 @@ def main():
                 print(f"{model} {repeat} {task}: {item['status']} {item['scientific_verdict']} format={item['format_compliant']}", flush=True)
                 time.sleep(1.0)
 
-    print("\n| Model | Scientific correct | Unverified | Format compliant | Median latency |")
-    print("| --- | ---: | ---: | ---: | ---: |")
+    print("\n| Model | Scientific correct/evaluated | Unverified | Format compliant/complete | Completed/attempts | Median latency |")
+    print("| --- | ---: | ---: | ---: | ---: | ---: |")
     for model in models:
         rows = [r for r in results if r["model"] == model]
         ok = [r for r in rows if r["status"] == "ok"]
