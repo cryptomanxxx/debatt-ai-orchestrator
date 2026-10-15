@@ -1,0 +1,62 @@
+name: Deep Reasoning & Agentic Tree Search benchmark
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Model modes (both requires MODEL_REASONING configured in the Worker)'
+        type: choice
+        options:
+          - default
+          - reasoning
+          - both
+        default: default
+      seed:
+        description: 'Fixed synthetic seed (1-9 digits)'
+        type: string
+        default: '20261016'
+      tree_nodes:
+        description: 'Maximum tree nodes per case (1-3)'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
+        default: '3'
+permissions:
+  contents: read
+concurrency:
+  group: oraklet-deep-reasoning-benchmark
+  cancel-in-progress: false
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Validate the bounded plan offline without secrets
+        env:
+          BENCHMARK_MODE: ${{ inputs.mode }}
+          BENCHMARK_SEED: ${{ inputs.seed }}
+          BENCHMARK_TREE_NODES: ${{ inputs.tree_nodes }}
+          BENCHMARK_MAX_CALLS: '24'
+        run: node research/deep-reasoning-benchmark.mjs --offline
+      - name: Run real model calls, maximum 24
+        env:
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
+          ORCHESTRATOR_API_URL: ${{ vars.ORCHESTRATOR_API_URL }}
+          BENCHMARK_MODE: ${{ inputs.mode }}
+          BENCHMARK_SEED: ${{ inputs.seed }}
+          BENCHMARK_TREE_NODES: ${{ inputs.tree_nodes }}
+          BENCHMARK_MAX_CALLS: '24'
+        run: node research/deep-reasoning-benchmark.mjs
+      - name: Save complete or partial JSON results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: deep-reasoning-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/deep-reasoning/report.json
+          retention-days: 30
+          if-no-files-found: warn
