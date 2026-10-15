@@ -44,8 +44,13 @@ def evaluate(content, expected):
         if normalized in ("mediator", "a mediator"):
             return "correct", compliant, candidate
         # Do not declare verbose text incorrect; it may contain the right answer.
-        if normalized in ("confounder", "a confounder", "collider", "a collider"):\n            return "incorrect", compliant, candidate\n        return "unverified", compliant, candidate
-    numeric = candidate.strip()\n    if numeric.endswith(".") and not numeric.endswith(".."):\n        numeric = numeric[:-1]\n    if NUM.fullmatch(numeric):
+        if normalized in ("confounder", "a confounder", "collider", "a collider"):
+            return "incorrect", compliant, candidate
+        return "unverified", compliant, candidate
+    numeric = candidate.strip()
+    if numeric.endswith(".") and not numeric.endswith(".."):
+        numeric = numeric[:-1]
+    if NUM.fullmatch(numeric):
         try:
             actual = Rational(numeric)
             truth = Rational(expected)
@@ -161,10 +166,11 @@ def main():
         ok = [r for r in rows if r["status"] == "ok"]
         latency = [r["latency_seconds"] for r in ok if r["latency_seconds"] is not None]
         median = f"{statistics.median(latency):.2f}s" if latency else "n/a"
-        correct = sum(r["scientific_verdict"] == "correct" for r in rows)
+        evaluated = [r for r in ok if r["scientific_verdict"] in ("correct", "incorrect")]
+        correct = sum(r["scientific_verdict"] == "correct" for r in evaluated)
         unverified = sum(r["scientific_verdict"] == "unverified" for r in rows)
-        compliant = sum(r["format_compliant"] for r in rows)
-        print(f"| {model} | {correct}/{len(rows)} | {unverified} | {compliant}/{len(rows)} | {median} |")
+        compliant = sum(r["format_compliant"] for r in ok)
+        print(f"| {model} | {correct}/{len(evaluated)} | {unverified} | {compliant}/{len(ok)} | {len(ok)}/{len(rows)} | {median} |")
     if not any(r["status"] == "ok" for r in results):
         sys.exit("No successful inference; inspect JSON artifact.")
 
