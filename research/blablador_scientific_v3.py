@@ -40,7 +40,7 @@ def extracted_answer(content):
 def evaluate(content, expected):
     candidate, compliant = extracted_answer(content)
     if expected == "mediator":
-        normalized = candidate.strip().strip(" .\`*").lower()
+        normalized = candidate.strip().strip(" .`*").lower()
         if normalized in ("mediator", "a mediator"):
             return "correct", compliant, candidate
         # Do not declare verbose text incorrect; it may contain the right answer.
