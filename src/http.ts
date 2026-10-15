@@ -10,7 +10,7 @@ import type { BootLoopsExecutor } from './tools/registry.ts';
 // its own BootLoops runtime: a local Python process or the internal service binding.
 export type ApiRuntime = { bootloops?: BootLoopsExecutor; diagnostics?: BootLoopsService };
 
-const MAX_BODY_BYTES = 32768;
+const MAX_BODY_BYTES = 65536; // Allows up to 32k-character routed auto prompts; no unbounded uploads.
 const encoder = new TextEncoder();
 export const json = (status: number, data: unknown) => Response.json(data, {
   status, headers: { 'Cache-Control': 'no-store' }
