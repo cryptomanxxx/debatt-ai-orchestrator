@@ -96,8 +96,9 @@ export function planResearch(input, { maxProposals = 10 } = {}) {
 export function planEvidenceResearch(papers) {
   const eligible = papers.filter(p => p.status === 'summarized' && p.findings.length > 0);
   if (!eligible.length) return { mode: 'abstract-evidence-baseline', proposals: [], execution_enabled: false };
+  // Route on literal source quotations, not mutable model paraphrases.
   const baseline = planResearch(eligible.map(p => ({ id:p.article_id, title:p.title,
-    url:p.content.url, abstract:p.findings.map(f => f.claim).join(' ') })));
+    url:p.content.url, abstract:p.findings.map(f => f.quote).join(' ') })));
   const byId = new Map(eligible.map(p => [p.article_id,p]));
   return { mode:'abstract-evidence-baseline', execution_enabled:false,
     selection_note:'Grouped by heuristic topic; evidence count is not scientific merit. No validated gap or novelty claim.',
