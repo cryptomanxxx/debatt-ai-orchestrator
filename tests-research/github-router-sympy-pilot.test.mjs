@@ -104,3 +104,49 @@ test('HTTP 429 is preserved as model_upstream_http_error in partial report',asyn
   }),/model_upstream_http_error/);
   assert.equal(writes.at(-1).failureCode,'model_upstream_http_error');
 });
+
+test('longer credential is redacted before shared prefix in persisted report',async()=>{
+  const short='shared-secret-key-123';
+  const long=short+'-longer-suffix-456';
+  const writes=[];
+  await assert.rejects(runPilot({
+    env:{EXPERIMENT_SEED:'abc',BLABLADOR_API_KEY:short,HIP_API_KEY:long},
+    write:async(path,text)=>writes.push(text),
+  }),/invalid_seed/);
+  // Test the persistence path with a provider-supplied model reason bearing both keys.
+  writes.length=0;
+  await assert.rejects(runPilot({
+    env:{EXPERIMENT_SEED:'20261016',BLABLADOR_API_KEY:short,HIP_API_KEY:long},
+    select:{...choice,reason:'credential '+long},
+    propose:async()=>{throw new Error('stop');},
+    write:async(path,text)=>writes.push(text),
+  }),/research_pilot_failed/);
+  assert.ok(writes.every(x=>!x.includes(long)&&!x.includes(short)&&!x.includes('-longer-suffix-456')));
+});
+test('body stream failures become a bounded transport error',async()=>{
+  const stream=new ReadableStream({pull(){throw new Error('connection interrupted');}});
+  const propose=researchProposer(choice,env,async()=>({ok:true,body:stream}));
+  await assert.rejects(propose([{role:'user',content:'test'}]),/model_transport_error/);
+});
+test('oversized model response preserves its failure code in report',async()=>{
+  const writes=[];
+  await assert.rejects(runPilot({
+    env:{EXPERIMENT_SEED:'20261016',...env},
+    select:{...choice,reason:'operator-selected'},
+    propose:researchProposer(choice,env,async()=>new Response('x'.repeat(70000))),
+    write:async(path,text)=>writes.push(JSON.parse(text)),
+  }),/oversized_provider_response/);
+  assert.equal(writes.at(-1).failureCode,'oversized_provider_response');
+});
+test('SymPy tool transport failures preserve their failure code',async()=>{
+  const writes=[];
+  const {ResearchError}=await import('../research/errors.mjs');
+  await assert.rejects(runPilot({
+    env:{EXPERIMENT_SEED:'20261016',...env},
+    select:{...choice,reason:'operator-selected'},
+    propose:async()=>({text:'{"method":"sympy","roots":[],"reason":"test"}',provider:choice.provider,model:choice.model}),
+    tool:async()=>{throw new ResearchError('tool_transport_error');},
+    write:async(path,text)=>writes.push(JSON.parse(text)),
+  }),/tool_transport_error/);
+  assert.equal(writes.at(-1).failureCode,'tool_transport_error');
+});
