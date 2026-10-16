@@ -15,10 +15,10 @@ const ABSTRACT_1='Targeted symbolic regression with hidden holdout samples.';
 const ABSTRACT_2='Bayesian optimization of information gain in experiment design.';
 function fixture(){
   const papers=[
-    {article_id:'11111111-1111-4111-8111-111111111111',title:'Symbolic regression measurement selection',status:'summarized',validation:{accepted_findings:1,rejected_findings:0},source_hits:[{source:'openalex',title:'Symbolic regression measurement selection',source_id:'https://openalex.org/W12345'}],
+    {article_id:'11111111-1111-4111-8111-111111111111',title:'Symbolic regression measurement selection',status:'summarized',validation:{accepted_findings:1,rejected_findings:0,rejected:[]},source_hits:[{source:'openalex',title:'Symbolic regression measurement selection',source_id:'https://openalex.org/W12345'}],
       content:{provider:'openalex',url:'https://openalex.org/W12345',sha256:digest(ABSTRACT_1),analyzed_sha256:digest(ABSTRACT_1),resolved_openalex_id:'https://openalex.org/W12345',truncated:false,scope:'abstract_only'},
       findings:[{kind:'method',claim:'Targeted symbolic regression with hidden holdout samples.',quote:'Targeted symbolic regression with hidden holdout samples.',verification:'quote_match_only'}]},
-    {article_id:'22222222-2222-4222-8222-222222222222',title:'Bayesian active learning experiment design',status:'summarized',validation:{accepted_findings:1,rejected_findings:0},source_hits:[{source:'openalex',title:'Bayesian active learning experiment design',source_id:'https://openalex.org/W67890'}],
+    {article_id:'22222222-2222-4222-8222-222222222222',title:'Bayesian active learning experiment design',status:'summarized',validation:{accepted_findings:1,rejected_findings:0,rejected:[]},source_hits:[{source:'openalex',title:'Bayesian active learning experiment design',source_id:'https://openalex.org/W67890'}],
       content:{provider:'openalex',url:'https://openalex.org/W67890',sha256:digest(ABSTRACT_2),analyzed_sha256:digest(ABSTRACT_2),resolved_openalex_id:'https://openalex.org/W67890',truncated:false,scope:'abstract_only'},
       findings:[{kind:'method',claim:'Bayesian optimization of information gain in experiment design.',quote:'Bayesian optimization of information gain in experiment design.',verification:'quote_match_only'}]},
   ];
@@ -134,11 +134,11 @@ test('rejects fabricated extra findings and inconsistent report coverage',async(
 test('rejects invalid rejected finding counts instead of claiming completion',async()=>{
   for (const value of [-1, 1.5, '0', null]) {
     const report=fixture();
-    report.papers[0].validation={accepted_findings:1,rejected_findings:value};
+    report.papers[0].validation={accepted_findings:1,rejected_findings:value,rejected:Array.from({length:value},()=>({reason:'invalid_finding_fields'}))};
     await assert.rejects(planResearchTree(report),/invalid_tree_evidence_report/);
   }
   const valid=fixture();
-  valid.papers[0].validation={accepted_findings:1,rejected_findings:0};
+  valid.papers[0].validation={accepted_findings:1,rejected_findings:0,rejected:[]};
   assert.equal((await planResearchTree(valid)).source_report_status,'completed');
 });
 
@@ -250,4 +250,10 @@ test('legacy OpenAlex reports remain readable without resolved work ID',async()=
   old.papers.forEach(p=>delete p.content.resolved_openalex_id);
   const result=await planResearchTree(old);
   assert.equal(result.status,'review_required');
+});
+
+test('rejects inconsistent rejected diagnostic count',async()=>{
+  const report=fixture();
+  report.papers[0].validation.rejected=[{reason:'quote_not_exact'}];
+  await assert.rejects(planResearchTree(report),/invalid_tree_evidence_report/);
 });
