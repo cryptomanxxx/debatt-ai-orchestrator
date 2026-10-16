@@ -95,6 +95,8 @@ def ingest(path, limit=MAX_RECORDS, *, with_digest=False):
             input_hash.update(raw)
             if line_number == limit:
                 failures["limit_exceeded"] += 1
+                while chunk := source.read(65536):
+                    input_hash.update(chunk)
                 break
             if len(raw) > MAX_LINE or not raw.endswith(b"\n") and len(raw) == MAX_LINE + 1:
                 failures["oversized_line"] += 1
@@ -149,7 +151,7 @@ def candidate_pairs(records, limit=MAX_PAIRS):
             continue
         for left_pos, left in enumerate(indices):
             for right in indices[left_pos + 1:]:
-                if set(records[left].get("sources", [records[left]["source"]])) == set(records[right].get("sources", [records[right]["source"]])):
+                if not (set(records[left].get("sources", [records[left]["source"]])) ^ set(records[right].get("sources", [records[right]["source"]]))):
                     continue
                 work += 1
                 if work > max_work:
