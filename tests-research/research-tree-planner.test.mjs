@@ -229,3 +229,25 @@ test('rejects missing producer validation, reordered providers, forged quotation
   const d=fixture();d.papers[0].content.resolved_openalex_id='https://openalex.org/W99999';
   await assert.rejects(planResearchTree(d),/invalid_tree_citation/);
 });
+
+
+test('archive mismatch blocks publication of the review queue',async()=>{
+  const report=fixture();
+  report.papers[0].archive={version_id:'99999999-9999-4999-8999-999999999999'};
+  const result=await main({RESEARCH_TREE_REPORT_ID:REPORT_ID},{
+    readReport:async()=>report,
+    readArchiveVersion:async()=>({abstract:'mismatched content',archive:{version_id:report.papers[0].archive.version_id},
+      content:{provider:'openalex',url:report.papers[0].content.url,sha256:report.papers[0].content.sha256}}),
+    mkdirImpl:async()=>{},write:async()=>{}
+  });
+  assert.equal(result.status,'invalid_evidence');
+  assert.equal(result.review_queue.length,0);
+  assert.equal(result.citation_replay.rejected,1);
+});
+
+test('legacy OpenAlex reports remain readable without resolved work ID',async()=>{
+  const old=fixture();
+  old.papers.forEach(p=>delete p.content.resolved_openalex_id);
+  const result=await planResearchTree(old);
+  assert.equal(result.status,'review_required');
+});
