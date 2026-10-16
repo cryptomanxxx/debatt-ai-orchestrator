@@ -92,11 +92,11 @@ def ingest(path, limit=MAX_RECORDS):
             if line_number == limit:
                 failures["limit_exceeded"] += 1
                 break
-            if len(raw) > MAX_LINE or not raw.endswith(b"\\n") and len(raw) == MAX_LINE + 1:
+            if len(raw) > MAX_LINE or not raw.endswith(b"\n") and len(raw) == MAX_LINE + 1:
                 failures["oversized_line"] += 1
-                if not raw.endswith(b"\\n"):
+                if not raw.endswith(b"\n"):
                     while chunk := source.readline(MAX_LINE + 1):
-                        if chunk.endswith(b"\\n"):
+                        if chunk.endswith(b"\n"):
                             break
                 continue
             try:
@@ -153,7 +153,9 @@ def candidate_pairs(records, limit=MAX_PAIRS):
             break
     ranked = sorted(((count, i, j) for (i, j), count in counts.items() if count >= 2),
                     key=lambda x: (-x[0], records[x[1]]["id"], records[x[2]]["id"]))
-    return [{"paper_ids": [records[i]["id"], records[j]["id"]], "shared_term_count": count,
+    return [{"paper_ids": [records[i]["id"], records[j]["id"]],
+             "paper_refs": [{"source": records[k]["source"], "id": records[k]["id"]} for k in (i, j)],
+             "shared_term_count": count,
              "status": "unverified_cross_source_retrieval_lead",
              "requires": ["full_text_review", "explicit_causal_model_extraction",
                           "independent_intervention_validation"]}
