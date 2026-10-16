@@ -184,7 +184,7 @@ class ActMapBenchmarkTests(unittest.TestCase):
             correct = act.hypothesis("full", tuple(f["truth"]["mapping"]),
                                      tuple(f["truth"]["action_to_target"]))
             positions.append(candidates.index(correct))
-        self.assertEqual(set(positions), {0, 1, 2})
+        self.assertEqual(set(positions), set(range(6)))
 
     def test_level_four_scopes_are_not_instance_parity(self):
         scopes = [act.make_fixture("20261016", 4, i)["truth"]["scope"] for i in range(40)]
