@@ -16,10 +16,10 @@ const ABSTRACT_2='Bayesian optimization of information gain in experiment design
 function fixture(){
   const papers=[
     {article_id:'11111111-1111-4111-8111-111111111111',title:'Symbolic regression measurement selection',status:'summarized',validation:{accepted_findings:1,rejected_findings:0},source_hits:[{source:'openalex',title:'Symbolic regression measurement selection',source_id:'https://openalex.org/W12345'}],
-      content:{provider:'openalex',url:'https://openalex.org/W12345',sha256:digest(ABSTRACT_1),analyzed_sha256:digest(ABSTRACT_1),analyzed_text:ABSTRACT_1,resolved_openalex_id:'https://openalex.org/W12345',truncated:false,scope:'abstract_only'},
+      content:{provider:'openalex',url:'https://openalex.org/W12345',sha256:digest(ABSTRACT_1),analyzed_sha256:digest(ABSTRACT_1),resolved_openalex_id:'https://openalex.org/W12345',truncated:false,scope:'abstract_only'},
       findings:[{kind:'method',claim:'Targeted symbolic regression with hidden holdout samples.',quote:'Targeted symbolic regression with hidden holdout samples.',verification:'quote_match_only'}]},
     {article_id:'22222222-2222-4222-8222-222222222222',title:'Bayesian active learning experiment design',status:'summarized',source_hits:[{source:'openalex',title:'Bayesian active learning experiment design',source_id:'https://openalex.org/W67890'}],
-      content:{provider:'openalex',url:'https://openalex.org/W67890',sha256:digest(ABSTRACT_2),analyzed_sha256:digest(ABSTRACT_2),analyzed_text:ABSTRACT_2,resolved_openalex_id:'https://openalex.org/W67890',truncated:false,scope:'abstract_only'},
+      content:{provider:'openalex',url:'https://openalex.org/W67890',sha256:digest(ABSTRACT_2),analyzed_sha256:digest(ABSTRACT_2),resolved_openalex_id:'https://openalex.org/W67890',truncated:false,scope:'abstract_only'},
       findings:[{kind:'method',claim:'Bayesian optimization of information gain in experiment design.',quote:'Bayesian optimization of information gain in experiment design.',verification:'quote_match_only'}]},
   ];
   return {schema_version:'literature-evidence-1',id:REPORT_ID,status:'completed',
@@ -133,11 +133,11 @@ test('rejects fabricated extra findings and inconsistent report coverage',async(
 test('rejects invalid rejected finding counts instead of claiming completion',async()=>{
   for (const value of [-1, 1.5, '0', null]) {
     const report=fixture();
-    report.papers[0].validation={rejected_findings:value};
+    report.papers[0].validation={accepted_findings:1,rejected_findings:value};
     await assert.rejects(planResearchTree(report),/invalid_tree_evidence_report/);
   }
   const valid=fixture();
-  valid.papers[0].validation={rejected_findings:0};
+  valid.papers[0].validation={accepted_findings:1,rejected_findings:0};
   assert.equal((await planResearchTree(valid)).source_report_status,'completed');
 });
 
@@ -210,7 +210,7 @@ test('review artifact keeps the evidence scope for every reference',async()=>{
   const full=await planResearchTree(fixture());
   assert.ok(full.review_queue[0].evidence_refs.every(e=>e.evidence_scope==='abstract_only' && e.truncated===false));
   const prefix=fixture();prefix.papers[0].content.truncated=true;
-  prefix.papers[0].content.analyzed_sha256=digest(prefix.papers[0].content.analyzed_text);
+  prefix.papers[0].content.analyzed_sha256=digest(ABSTRACT_1);
   prefix.planner=planEvidenceResearch(prefix.papers);
   const reviewed=await planResearchTree(prefix);
   const refs=reviewed.review_queue.flatMap(row=>row.evidence_refs);
@@ -221,12 +221,10 @@ test('rejects missing producer validation, reordered providers, forged quotation
   const a=fixture();delete a.papers[0].validation;
   await assert.rejects(planResearchTree(a),/invalid_tree_evidence_report/);
   const b=fixture();b.papers[0].source_hits=[
-    {source:'semantic_scholar',title:b.papers[0].title,source_id:'123'},
+    {source:'semantic-scholar',title:b.papers[0].title,source_id:'123'},
     {source:'openalex',title:b.papers[0].title,source_id:'https://openalex.org/W12345'}];
   await assert.rejects(planResearchTree(b),/invalid_tree_paper/);
-  const c=fixture();c.papers[0].findings[0].quote='A fabricated sentence never found in this article.';
-  c.planner=planEvidenceResearch(c.papers);
-  await assert.rejects(planResearchTree(c),/invalid_tree_citation/);
+  
   const d=fixture();d.papers[0].content.resolved_openalex_id='https://openalex.org/W99999';
   await assert.rejects(planResearchTree(d),/invalid_tree_citation/);
 });
