@@ -82,3 +82,9 @@ The CLI replays summarized-paper citations against the exact archived abstract v
 `citation_replay.results[].status` is `verified`, `rejected`, or `unverifiable`. Missing archived versions or pre-archive legacy reports remain `unverifiable`; they are **never** silently upgraded or replaced with newer content. A verified quote proves occurrence in the analyzed abstract, **not** that the scientific claim is true. Tree review remains non-executing and requires human approval.
 
 When configured, the CLI uses existing `SUPABASE_URL` and `SUPABASE_SECRET_KEY` credentials for a read-only version lookup; tests inject `readArchiveVersion` without network access. The original evidence report schema and no-raw-abstract storage contract remain unchanged.
+
+## Immutable analysis selection binding
+
+For reports that use `quote-v2` topic routing, quotation replay also reads the exact immutable `paper.analysis.id` from the existing `literature_evidence_analysis` registry. Its archived version, analyzed hash, complete prompt hash, contract and model identity are checked before comparing all selected findings with the stored producer output. A different passage from the same original abstract is **not** interchangeable with the passage the producer selected.
+
+Missing analysis versions remain `unverifiable`; registry integrity mismatches or altered findings are `rejected`. A quote-v2 review queue is withheld (`verification_required`) unless **every** summarized source is verified; rejected evidence yields `invalid_evidence`. Historical claim-v1 reports remain readable and explicitly retain their unverified status. The report and Markdown summary disclose the replay result but do not contain the raw abstract. This proves the selected text's provenance, not the model's claim or scientific merit.
