@@ -63,7 +63,7 @@ class IngestionTests(unittest.TestCase):
             source, output = Path(folder)/"input.jsonl", Path(folder)/"out.json"
             a = {**paper("10.5555/first", "OpenAlex"), "doi": None, "id": "123"}
             b = {**paper("10.5555/second", "CORE"), "doi": None, "id": "123"}
-            source.write_text("\\n".join(json.dumps(x) for x in [a,b])+ "\\n")
+            source.write_text("\n".join(json.dumps(x) for x in [a,b])+ "\n")
             report = mod.run(source, output)
             self.assertEqual(report["record_count"], 2)
             self.assertEqual(report["input_sha256"], hashlib.sha256(source.read_bytes()).hexdigest())
