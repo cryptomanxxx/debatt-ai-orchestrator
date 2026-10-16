@@ -9,10 +9,10 @@ const sha=c=>c.repeat(64);
 function fixture(){
   const papers=[
     {article_id:'p-1',title:'Symbolic regression measurement selection',status:'summarized',
-      content:{url:'https://example.org/1',sha256:sha('a'),analyzed_sha256:sha('b'),truncated:false},
+      content:{url:'https://example.org/1',sha256:sha('a'),analyzed_sha256:sha('b'),truncated:false,scope:'abstract_only'},
       findings:[{kind:'method',claim:'Targeted symbolic regression with hidden holdout samples.'}]},
     {article_id:'p-2',title:'Bayesian active learning experiment design',status:'summarized',
-      content:{url:'https://example.org/2',sha256:sha('c'),analyzed_sha256:sha('d'),truncated:false},
+      content:{url:'https://example.org/2',sha256:sha('c'),analyzed_sha256:sha('d'),truncated:false,scope:'abstract_only'},
       findings:[{kind:'method',claim:'Bayesian optimization of information gain in experiment design.'}]},
   ];
   return {schema_version:'literature-evidence-1',id:REPORT_ID,status:'completed',
