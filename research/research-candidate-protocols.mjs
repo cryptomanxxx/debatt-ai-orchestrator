@@ -1,5 +1,6 @@
 // Explicit design suggestions, not claims established by the cited literature.
 const DESIGNS={
+  'literature-methods':{intervention:'Independent replication of a reported method.',baselines:['Published baseline'],outcomes:['Replication outcome compared with published reference'],controls:['Matched evaluation conditions','Documented versions and independent held-outs']},
   'fluid-state-estimation':{
     intervention:'Estimator architecture: physics-informed versus conventional and data-only.',
     baselines:['Conventional filter','Data-only estimator'],
