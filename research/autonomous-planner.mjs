@@ -93,12 +93,13 @@ export function planResearch(input, { maxProposals = 10 } = {}) {
 }
 
 // Bridge for abstract-level evidence. Quote matching is not semantic verification.
-export function planEvidenceResearch(papers) {
+export function planEvidenceResearch(papers,{routingVersion='quote-v2'}={}) {
+  if(!['quote-v2','claim-v1'].includes(routingVersion)) throw new Error('invalid_evidence_routing_version');
   const eligible = papers.filter(p => p.status === 'summarized' && p.findings.length > 0);
   if (!eligible.length) return { mode: 'abstract-evidence-baseline', proposals: [], execution_enabled: false };
   // Route on literal source quotations, not mutable model paraphrases.
-  const baseline = planResearch(eligible.map(p => ({ id:p.article_id, title:p.title,
-    url:p.content.url, abstract:p.findings.map(f => f.quote).join(' ') })));
+  const baseline = planResearch(eligible.map(p => ({ id:p.article_id, title:routingVersion==='claim-v1'?p.title:'',
+    url:p.content.url, abstract:p.findings.map(f => routingVersion==='claim-v1'?f.claim:f.quote).join(' ') })));
   const byId = new Map(eligible.map(p => [p.article_id,p]));
   return { mode:'abstract-evidence-baseline', execution_enabled:false,
     selection_note:'Grouped by heuristic topic; evidence count is not scientific merit. No validated gap or novelty claim.',
