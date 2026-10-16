@@ -320,6 +320,7 @@ export async function buildEvidenceReport(input,{loadAbstract=createLiteratureAb
         const prompt=evidencePrompt(paper,loaded.abstract);
         record.content={provider:loaded.content.provider,scope:'abstract_only',url:loaded.content.url,
           fetched_at:loaded.content.fetched_at,sha256:loaded.content.sha256,analyzed_sha256:hashText(prompt.source_text),
+          analyzed_text:prompt.source_text,resolved_openalex_id:loaded.content.provider==='openalex'?loaded.content.url:null,
           original_characters:loaded.abstract.length,analyzed_characters:prompt.source_text.length,
           truncated:prompt.source_text_is_truncated};
         const context={loaded,prompt,profile:modelProfile};
