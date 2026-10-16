@@ -113,7 +113,10 @@ test('protocols and portfolio assessments expose blockers and gap search has not
   })});
   const p=report.planner.proposals[0];
   assert.equal(p.experiment_protocol.execution_ready,false);assert.equal(p.experiment_protocol.preregistered,false);
-  assert.ok(p.experiment_protocol.baselines.includes('Conventional filter'));
+  // The cited quote only describes pending validation; title/model paraphrases must not
+  // select a fluid-specific protocol. Quote-v2 correctly uses the generic baseline.
+  assert.ok(p.experiment_protocol.baselines.includes('Published baseline'));
+  assert.ok(!p.experiment_protocol.baselines.includes('Conventional filter'));
   for (const field of ['dataset','sample_size','seeds','primary_outcome','decision_rule']) assert.equal(p.experiment_protocol[field],null);
   assert.deepEqual(p.experiment_protocol.evidence_article_ids,[paper.article_id]);
   assert.equal(p.gap_review_plan[0].status,'not_searched');assert.equal(p.gap_review_plan[0].assessment,null);
