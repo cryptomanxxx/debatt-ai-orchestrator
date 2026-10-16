@@ -106,6 +106,62 @@ class ActMapBenchmarkTests(unittest.TestCase):
                 self.assertEqual(item["false_certifications"], 0)
                 self.assertEqual(item["correct_scope"], item["number_of_cases"])
 
+    def test_random_policy_is_hidden_truth_independent(self):
+        import random
+        f = act.make_fixture("20261016", 3, 2)
+        altered = json.loads(json.dumps(f))
+        altered["truth"]["mapping"] = list(reversed(altered["truth"]["mapping"]))
+        altered["commitment"] = act.digest({"view": altered["view"], "truth": altered["truth"]})
+        # First probe must depend only on identical public view.
+        def first_probe(fixture):
+            view = fixture["view"]
+            rng = random.Random(int(act.digest(["probe-policy-v1", view, "random"])[:16], 16))
+            return act._selection(view, act.hypotheses(view), set(), "random", rng)
+        self.assertEqual(first_probe(f), first_probe(altered))
+
+    def test_active_fulfills_known_acceptance_coverage(self):
+        f = act.make_fixture("20261016", 0, 0)
+        h = act._candidate_set(f)[0]
+        first = act._selection(f["view"], [h], set(), "active", __import__("random").Random(0))
+        second = act._selection(f["view"], [h], {first}, "active", __import__("random").Random(0))
+        roles = {h["mapping"].index(h["action_to_target"][a]) for a in (first, second)}
+        self.assertEqual(roles, {0, 1})
+        self.assertEqual(act.evaluate(f, "active")["experiment_cost"], 2)
+
+    def test_level_one_candidates_do_not_reveal_truth_by_position(self):
+        positions = []
+        for i in range(20):
+            f = act.make_fixture("20261016", 1, i)
+            candidates = act._candidate_set(f)
+            correct = act.hypothesis("full", tuple(f["truth"]["mapping"]),
+                                     tuple(f["truth"]["action_to_target"]))
+            positions.append(candidates.index(correct))
+        self.assertGreater(len(set(positions)), 1)
+
+    def test_fixture_integrity_and_discovery_budget(self):
+        f = act.make_fixture("20261016", 3, 1)
+        h = act.hypothesis("full", tuple(f["truth"]["mapping"]), tuple(f["truth"]["action_to_target"]))
+        history = [{"action": a, "value": 1, "outcome": act.experiment(f, a, 1)} for a in range(3)]
+        over_budget = history + [{"action": 0, "value": -1, "outcome": act.experiment(f, 0, -1)}]
+        self.assertEqual(act.evidence_gate(f, h, over_budget)["reason"], "discovery_budget_exceeded")
+        tampered = json.loads(json.dumps(f))
+        tampered["truth"]["target_coefficients"][0] += 1
+        with self.assertRaisesRegex(ValueError, "fixture_commitment_mismatch"):
+            act.evaluate(tampered)
+        self.assertEqual(act.evidence_gate(tampered, h, history)["reason"], "fixture_commitment_mismatch")
+
+    def test_accepted_claim_records_only_certified_action_roles(self):
+        for level, index in ((3, 1), (4, 0)):
+            f = act.make_fixture("20261016", level, index)
+            result = act.evaluate(f, "active")
+            self.assertTrue(result["gate"]["accepted"])
+            claim = result["epistemic_state"]["accepted_claims"][0]
+            certified = claim["certified_action_to_target"]
+            expected_roles = {0, 1, 2} if level == 3 else {0, 1}
+            self.assertEqual({entry["source_role"] for entry in certified}, expected_roles)
+            for entry in certified:
+                self.assertEqual(entry["target"], f["truth"]["action_to_target"][entry["action"]])
+
 
 if __name__ == "__main__":
     unittest.main()
