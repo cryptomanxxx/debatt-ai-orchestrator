@@ -36,7 +36,7 @@ export function validateTreeEvidence(report) {
   const seen = new Set();
   const candidates = [];
   for (const p of report.planner.proposals) {
-    assert(ID.test(p?.id ?? '') && !seen.has(p.id)
+    assert(ID.test(p?.id ?? '') && p.id.length <= 40 && !seen.has(p.id)
       && p.status === 'candidate_unverified' && p.requires_human_approval === true
       && text(p.research_question, 2000) && text(p.hypothesis, 3000)
       && text(p.proposed_method, 3000)
@@ -98,7 +98,7 @@ export async function planResearchTree(report,{maxNodes=8,maxCandidates=3}={}) {
   const byId=new Map(candidates.map(c=>[c.id,c]));
   const nodeMeta=new Map();
   const search=await agenticTreeSearch({
-    maxNodes,maxDepth:2,maxChildren:maxCandidates,
+    maxNodes,maxDepth:2,maxChildren:Math.max(2,maxCandidates),
     expand:parent => {
       if(parent.depth===0) return candidates.map(c=>({id:c.id,label:'Review candidate '+c.id}));
       return BRANCHES;
