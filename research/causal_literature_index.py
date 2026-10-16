@@ -142,10 +142,12 @@ def ingest(path, limit=MAX_RECORDS, *, with_digest=False):
     result = ([records[k] for k in sorted(records)], dict(sorted(failures.items())), duplicates)
     return (*result, input_hash.hexdigest()) if with_digest else result
 
-def candidate_pairs(records, limit=MAX_PAIRS):
+def candidate_pairs(records, limit=MAX_PAIRS, *, metadata=None):
     """Conservative retrieval leads, NOT inferred cross-domain mechanisms."""
     if not 0 <= limit <= MAX_PAIRS:
         raise ValueError("invalid_pair_limit")
+    if metadata is not None:
+        metadata["status"] = "disabled" if limit == 0 else "complete"
     if limit == 0:
         return []
     postings = defaultdict(list)
@@ -160,6 +162,7 @@ def candidate_pairs(records, limit=MAX_PAIRS):
     work = 0
     max_work = 250000
     truncated = False
+    candidate_exhausted = False
     for word in sorted(postings):
         indices = postings[word]
         if len(indices) < 2 or len(indices) > 50:
@@ -177,12 +180,16 @@ def candidate_pairs(records, limit=MAX_PAIRS):
                 key = (left, right)
                 if key in counts or len(counts) < max_candidates:
                     counts[key] += 1
+                else:
+                    candidate_exhausted = True
             if truncated:
                 break
         if truncated:
             break
-    if truncated:
-        # Do not publish partial shared-term counts as if they were complete.
+    if truncated or candidate_exhausted:
+        # Never misrepresent an incomplete candidate scan as no scientific leads.
+        if metadata is not None:
+            metadata["status"] = "incomplete_work_budget" if truncated else "incomplete_candidate_budget"
         return []
     ranked = sorted(((count, i, j) for (i, j), count in counts.items() if count >= 2),
                     key=lambda x: (-x[0], records[x[1]]["id"], records[x[2]]["id"]))
@@ -196,8 +203,10 @@ def candidate_pairs(records, limit=MAX_PAIRS):
 
 def run(input_path, output_path, max_records=MAX_RECORDS, max_pairs=MAX_PAIRS):
     records, failures, duplicates, input_digest = ingest(input_path, max_records, with_digest=True)
-    pairs = candidate_pairs(records, max_pairs)
-    report = {"effective_limits": {"max_records": max_records, "max_pairs": max_pairs},
+    retrieval = {}
+    pairs = candidate_pairs(records, max_pairs, metadata=retrieval)
+    report = {"retrieval": retrieval,
+              "effective_limits": {"max_records": max_records, "max_pairs": max_pairs},
               "schema_version": "causal-literature-index-v0.1",
               "source_type": "user_supplied_jsonl", "input_sha256": input_digest,
               "record_count": len(records), "duplicate_count": duplicates, "rejections": failures,
