@@ -14,7 +14,7 @@ MAX_RECORDS = 10000
 MAX_LINE = 32768
 MAX_ABSTRACT = 8000
 MAX_PAIRS = 5000
-STOP = frozenset(("the and for with from this that into were have been their about using study studies results effect effects between among through these those which where shows showed analysis model models method methods data significant significantly evidence association associated relationship relationships causal causally cause causes impact impacts intervention interventions treatment treatments of on in to a an is are was by as at or we our it its be can may not no than vs via under over after before based report reported suggest suggests"))
+STOP = frozenset(("the and for with from this that into were have been their about using study studies results effect effects between among through these those which where shows showed analysis model models method methods data significant significantly evidence association associated relationship relationships causal causally cause causes impact impacts intervention interventions treatment treatments of on in to a an is are was by as at or we our it its be can may not no than vs via under over after before based report reported suggest suggests".split()))
 CUES = {
     "intervention_mentioned": re.compile(r"\b(randomi[sz]ed|interven(?:tion|ed|ing)|do\s*\(|experiment(?:al)?|controlled trial)\b", re.I),
     "causal_language": re.compile(r"\b(causal|caused|causes|leads to|affects|effect of|intervention)\b", re.I),
@@ -26,6 +26,17 @@ DOI = re.compile(r"^10\.\d{4,9}/\S+$", re.I)
 def sha(value):
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
+def digest_file(path):
+    digest = hashlib.sha256()
+    total = 0
+    with open(path, "rb") as stream:
+        while chunk := stream.read(65536):
+            total += len(chunk)
+            if total > MAX_RECORDS * MAX_LINE:
+                raise ValueError("input_size_exceeded")
+            digest.update(chunk)
+    return digest.hexdigest()
+
 def normalize(record):
     if not isinstance(record, dict):
         return None, "invalid_schema"
@@ -34,25 +45,33 @@ def normalize(record):
         return None, "invalid_title"
     if not isinstance(abstract, str) or not 30 <= len(abstract.strip()) <= MAX_ABSTRACT:
         return None, "invalid_abstract"
+    has_doi = bool(record.get("doi"))
     identifier = record.get("doi") or record.get("id")
-    if not isinstance(identifier, str) or not 3 <= len(identifier) <= 300:
+    if not isinstance(identifier, str):
         return None, "missing_identifier"
     identifier = identifier.strip().lower()
     if identifier.startswith("https://doi.org/"):
         identifier = identifier[len("https://doi.org/"):]
     if identifier.startswith("doi:"):
         identifier = identifier[4:]
-    if any(ord(c) < 32 for c in identifier):
+    if not 3 <= len(identifier) <= 300 or any(ord(c) < 32 for c in identifier):
         return None, "invalid_identifier"
-    if record.get("doi") and not DOI.fullmatch(identifier):
+    if has_doi and not DOI.fullmatch(identifier):
         return None, "invalid_doi"
     source = record.get("source", "unknown")
     if not isinstance(source, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,40}", source):
         return None, "invalid_source"
+    source = source.lower()
     year = record.get("year")
     if year is not None and (type(year) is not int or year < 1900 or year > 2100):
         return None, "invalid_year"
     title, abstract = title.strip(), abstract.strip()
+    try:
+        title.encode("utf-8")
+        abstract.encode("utf-8")
+        identifier.encode("utf-8")
+    except UnicodeError:
+        return None, "invalid_unicode"
     return {"id": identifier, "source": source, "year": year, "title": title,
             "abstract_sha256": sha(abstract), "title_sha256": sha(title),
             "cues": sorted(k for k, rx in CUES.items() if rx.search(abstract)),
@@ -66,24 +85,31 @@ def ingest(path, limit=MAX_RECORDS):
         raise ValueError("invalid_limit")
     records, failures, duplicates = {}, defaultdict(int), 0
     with open(path, "rb") as source:
-        for line_number, raw in enumerate(source, 1):
-            if line_number > limit:
+        for line_number in range(limit + 1):
+            raw = source.readline(MAX_LINE + 1)
+            if not raw:
+                break
+            if line_number == limit:
                 failures["limit_exceeded"] += 1
                 break
-            if len(raw) > MAX_LINE:
+            if len(raw) > MAX_LINE or not raw.endswith(b"\\n") and len(raw) == MAX_LINE + 1:
                 failures["oversized_line"] += 1
+                if not raw.endswith(b"\\n"):
+                    while chunk := source.readline(MAX_LINE + 1):
+                        if chunk.endswith(b"\\n"):
+                            break
                 continue
             try:
                 decoded = raw.decode("utf-8")
                 obj = json.loads(decoded)
-            except (UnicodeError, ValueError):
+            except (UnicodeError, ValueError, RecursionError):
                 failures["invalid_json"] += 1
                 continue
             normalized, error = normalize(obj)
             if error:
                 failures[error] += 1
                 continue
-            identifier = normalized["id"]
+            identifier = ("doi", normalized["id"]) if DOI.fullmatch(normalized["id"]) else (normalized["source"], normalized["id"])
             if identifier in records:
                 duplicates += 1
                 if records[identifier]["abstract_sha256"] != normalized["abstract_sha256"]:
@@ -103,6 +129,10 @@ def candidate_pairs(records, limit=MAX_PAIRS):
         for word in record["tokens"]:
             postings[word].append(i)
     counts = defaultdict(int)
+    # Explicit work bound: never materialize an unbounded all-pairs index.
+    max_candidates = max(10000, limit * 20)
+    work = 0
+    max_work = 250000
     for word in sorted(postings):
         indices = postings[word]
         if len(indices) < 2 or len(indices) > 50:
@@ -111,7 +141,16 @@ def candidate_pairs(records, limit=MAX_PAIRS):
             for right in indices[left_pos + 1:]:
                 if records[left]["source"] == records[right]["source"]:
                     continue
-                counts[(left, right)] += 1
+                work += 1
+                if work > max_work:
+                    break
+                key = (left, right)
+                if key in counts or len(counts) < max_candidates:
+                    counts[key] += 1
+            if work > max_work:
+                break
+        if work > max_work:
+            break
     ranked = sorted(((count, i, j) for (i, j), count in counts.items() if count >= 2),
                     key=lambda x: (-x[0], records[x[1]]["id"], records[x[2]]["id"]))
     return [{"paper_ids": [records[i]["id"], records[j]["id"]], "shared_term_count": count,
@@ -124,7 +163,7 @@ def run(input_path, output_path, max_records=MAX_RECORDS, max_pairs=MAX_PAIRS):
     records, failures, duplicates = ingest(input_path, max_records)
     pairs = candidate_pairs(records, max_pairs)
     report = {"schema_version": "causal-literature-index-v0.1",
-              "source_type": "user_supplied_jsonl", "input_sha256": sha(Path(input_path).read_bytes().hex()),
+              "source_type": "user_supplied_jsonl", "input_sha256": digest_file(input_path),
               "record_count": len(records), "duplicate_count": duplicates, "rejections": failures,
               "retrieval_leads_count": len(pairs), "accepted_causal_claims": [],
               "records": records, "retrieval_leads": pairs,
