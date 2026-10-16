@@ -87,21 +87,31 @@ def ingest(path, limit=MAX_RECORDS, *, with_digest=False):
         raise ValueError("invalid_limit")
     records, failures, duplicates = {}, defaultdict(int), 0
     input_hash = hashlib.sha256()
+    input_bytes = 0
     with open(path, "rb") as source:
         for line_number in range(limit + 1):
             raw = source.readline(MAX_LINE + 1)
             if not raw:
                 break
             input_hash.update(raw)
+            input_bytes += len(raw)
+            if input_bytes > MAX_RECORDS * MAX_LINE:
+                raise ValueError("input_size_exceeded")
             if line_number == limit:
                 failures["limit_exceeded"] += 1
                 while chunk := source.read(65536):
+                    input_bytes += len(chunk)
+                    if input_bytes > MAX_RECORDS * MAX_LINE:
+                        raise ValueError("input_size_exceeded")
                     input_hash.update(chunk)
                 break
             if len(raw) > MAX_LINE or not raw.endswith(b"\n") and len(raw) == MAX_LINE + 1:
                 failures["oversized_line"] += 1
                 if not raw.endswith(b"\n"):
                     while chunk := source.readline(MAX_LINE + 1):
+                        input_bytes += len(chunk)
+                        if input_bytes > MAX_RECORDS * MAX_LINE:
+                            raise ValueError("input_size_exceeded")
                         input_hash.update(chunk)
                         if chunk.endswith(b"\n"):
                             break
