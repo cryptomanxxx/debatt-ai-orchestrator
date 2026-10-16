@@ -50,14 +50,16 @@ class ActMapBenchmarkTests(unittest.TestCase):
         for seed in ("2", "42", "99", "20261016"):
             for i in (1, 3, 5):
                 fixture = act.make_fixture(seed, 4, i)
-                self.assertEqual(fixture["truth"]["scope"], "none")
+                if fixture["truth"]["scope"] != "none":
+                    continue
                 for strategy in act.STRATEGIES:
                     decision = act.evaluate(fixture, strategy)
                     self.assertFalse(decision["gate"]["accepted"])
                     self.assertEqual(decision["decision"], "no_supported_transfer")
 
     def test_partial_transfer_only_certifies_restricted_scope(self):
-        fixture = act.make_fixture("20261016", 4, 0)
+        fixture = next(act.make_fixture("20261016", 4, i) for i in range(100)
+                       if act.make_fixture("20261016", 4, i)["truth"]["scope"] == "partial")
         for strategy in act.STRATEGIES:
             result = act.evaluate(fixture, strategy)
             self.assertTrue(result["gate"]["accepted"])
@@ -151,7 +153,9 @@ class ActMapBenchmarkTests(unittest.TestCase):
         self.assertEqual(act.evidence_gate(tampered, h, history)["reason"], "fixture_commitment_mismatch")
 
     def test_accepted_claim_records_only_certified_action_roles(self):
-        for level, index in ((3, 1), (4, 0)):
+        for level, index in ((3, 1), (4, None)):
+            if index is None:
+                index = next(i for i in range(100) if act.make_fixture("20261016", 4, i)["truth"]["scope"] == "partial")
             f = act.make_fixture("20261016", level, index)
             result = act.evaluate(f, "active")
             self.assertTrue(result["gate"]["accepted"])
@@ -161,6 +165,35 @@ class ActMapBenchmarkTests(unittest.TestCase):
             self.assertEqual({entry["source_role"] for entry in certified}, expected_roles)
             for entry in certified:
                 self.assertEqual(entry["target"], f["truth"]["action_to_target"][entry["action"]])
+
+    def test_observations_are_role_independent_negative_controls(self):
+        f = act.make_fixture("20261016", 3, 2)
+        for row in f["view"]["observations"]:
+            self.assertEqual(len(row), 3)
+            self.assertTrue(all(-2 <= x <= 2 for x in row))
+        # A counterfactual remapping cannot change the public controls.
+        changed = json.loads(json.dumps(f))
+        changed["truth"]["mapping"].reverse()
+        self.assertEqual(changed["view"]["observations"], f["view"]["observations"])
+
+    def test_candidate_order_not_public_replayable(self):
+        positions = []
+        for i in range(50):
+            f = act.make_fixture("20261016", 1, i)
+            candidates = act._candidate_set(f)
+            correct = act.hypothesis("full", tuple(f["truth"]["mapping"]),
+                                     tuple(f["truth"]["action_to_target"]))
+            positions.append(candidates.index(correct))
+        self.assertEqual(set(positions), {0, 1, 2})
+
+    def test_level_four_scopes_are_not_instance_parity(self):
+        scopes = [act.make_fixture("20261016", 4, i)["truth"]["scope"] for i in range(40)]
+        self.assertEqual(set(scopes), {"partial", "none"})
+        self.assertTrue(any(scopes[i] == scopes[i + 1] for i in range(len(scopes) - 1)))
+        report = act.run_benchmark("20261016", 12)
+        level4 = [r["evaluation"]["truth_scope"] for r in report["cases"]
+                  if r["level"] == 4 and r["strategy"] == "active"]
+        self.assertNotEqual(level4, scopes[:12])
 
 
 if __name__ == "__main__":
