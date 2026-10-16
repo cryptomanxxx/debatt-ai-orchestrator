@@ -1,7 +1,9 @@
 import test from 'node:test';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { planEvidenceResearch } from '../research/autonomous-planner.mjs';
@@ -100,6 +102,36 @@ test('CLI reads existing report by UUID without writes to Supabase or model call
     /invalid_tree_report_id/);
 });
 
+
+test('offline CLI preserves a blocked legacy report without a spurious failure',async()=>{
+  const folder=await mkdtemp(join(tmpdir(),'research-tree-legacy-cli-'));
+  try {
+    const historical=fixture();
+    historical.planner=planEvidenceResearch(historical.papers,{routingVersion:'claim-v1'});
+    delete historical.planner.routing_version; // Old reports have no routing version.
+    const path=join(folder,'evidence.json');
+    await writeFile(path,JSON.stringify(historical));
+    const cli=fileURLToPath(new URL('../research/research-tree-planner.mjs',import.meta.url));
+    const execution=spawnSync(process.execPath,[cli],{
+      cwd:folder,encoding:'utf8',timeout:10000,
+      env:{...process.env,RESEARCH_TREE_INPUT_FILE:path,RESEARCH_TREE_REPORT_ID:'',
+        SUPABASE_URL:'',SUPABASE_SECRET_KEY:'',GITHUB_STEP_SUMMARY:''}
+    });
+    assert.equal(execution.status,0,execution.stderr);
+    assert.match(execution.stdout,/Research tree review: verification_required, no review nodes published/);
+    assert.doesNotMatch(execution.stderr,/tree_review_failed/);
+    const result=JSON.parse(await readFile(join(folder,'reports/research-tree-review/report.json'),'utf8'));
+    assert.equal(result.status,'verification_required');
+    assert.deepEqual(result.review_queue,[]);
+    assert.equal(result.search,null);
+    assert.equal(result.research,null);
+    assert.equal(result.citation_replay.unverifiable,2);
+    const summary=await readFile(join(folder,'reports/research-tree-review/summary.md'),'utf8');
+    assert.match(summary,/No review candidates published/);
+  } finally {
+    await rm(folder,{recursive:true,force:true});
+  }
+});
 
 test('candidate evidence matches planner and canonical JSON keys preserve identity',async()=>{
   const report=fixture();
@@ -313,6 +345,31 @@ test('quote-v2 review queue is released only after exact producer analysis repla
   const ok=await execute(report);
   assert.equal(ok.status,'review_required');
   assert.equal(ok.citation_replay.verified,2);
+  const historical=structuredClone(report);
+  historical.planner=planEvidenceResearch(historical.papers,{routingVersion:'claim-v1'});
+  delete historical.planner.routing_version; // Reconstruct with the historical algorithm.
+  const legacyVerified=await execute(historical);
+  assert.equal(legacyVerified.status,'review_required');
+  assert.equal(legacyVerified.citation_replay.verified,2);
+  assert.ok(legacyVerified.review_queue.length>0);
+  const oldWithoutAnalysis=structuredClone(historical);
+  delete oldWithoutAnalysis.papers[0].analysis;
+  const legacyBlocked=await execute(oldWithoutAnalysis);
+  assert.equal(legacyBlocked.status,'verification_required');
+  assert.equal(legacyBlocked.citation_replay.unverifiable,1);
+  assert.deepEqual(legacyBlocked.review_queue,[]);
+  assert.equal(legacyBlocked.research,null);
+  assert.equal(legacyBlocked.search,null);
+  const alteredClaim=structuredClone(historical);
+  alteredClaim.papers[0].findings[0].claim='Turbulence Kalman state estimation';
+  alteredClaim.planner=planEvidenceResearch(alteredClaim.papers,{routingVersion:'claim-v1'});
+  delete alteredClaim.planner.routing_version;
+  const legacyRejected=await execute(alteredClaim);
+  assert.equal(legacyRejected.status,'invalid_evidence');
+  assert.equal(legacyRejected.citation_replay.rejected,1);
+  assert.deepEqual(legacyRejected.review_queue,[]);
+  assert.equal(legacyRejected.research,null);
+  assert.equal(legacyRejected.search,null);
   const forged=structuredClone(report);
   forged.papers[0].findings[0].quote='regression with hidden holdout samples.';
   forged.planner=planEvidenceResearch(forged.papers);
