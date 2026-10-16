@@ -30,7 +30,7 @@ For a local offline replay of an existing JSON report, with no Supabase access:
 
 Run unit tests with:
 
-    node --test tests-research/agentic-tree-search.test.mjs tests-research/research-tree-planner.test.mjs
+    node --test tests-research/agentic-tree-search.test.mjs tests-research/research-tree-planner.test.mjs tests-research/evidence-replay-verifier.test.mjs
 
 ## Search contract and interpretation
 
@@ -85,6 +85,6 @@ When configured, the CLI uses existing `SUPABASE_URL` and `SUPABASE_SECRET_KEY` 
 
 ## Immutable analysis selection binding
 
-For reports that use `quote-v2` topic routing, quotation replay also reads the exact immutable `paper.analysis.id` from the existing `literature_evidence_analysis` registry. Its archived version, analyzed hash, complete prompt hash, contract and model identity are checked before comparing all selected findings with the stored producer output. A different passage from the same original abstract is **not** interchangeable with the passage the producer selected.
+For both current `quote-v2` and historical `claim-v1` topic routing, quotation replay also reads the exact immutable `paper.analysis.id` from the existing `literature_evidence_analysis` registry. Its archived version, analyzed hash, complete prompt hash, contract and model identity are checked before comparing all selected findings with the stored producer output. A different passage from the same original abstract is **not** interchangeable with the passage the producer selected.
 
-Missing analysis versions remain `unverifiable`; registry integrity mismatches or altered findings are `rejected`. A quote-v2 review queue is withheld (`verification_required`) unless **every** summarized source is verified; rejected evidence yields `invalid_evidence`. Historical claim-v1 reports remain readable and explicitly retain their unverified status. The report and Markdown summary disclose the replay result but do not contain the raw abstract. This proves the selected text's provenance, not the model's claim or scientific merit.
+Missing analysis versions remain `unverifiable`; registry integrity mismatches or altered findings are `rejected`. **Both** quote-v2 and historical claim-v1 review queues are withheld (`verification_required`) unless every summarized source is verified; rejected evidence yields `invalid_evidence`. Legacy reports without archived analysis remain readable **as diagnostic reports only**, never as published review candidates. For blocked outputs, the saved report keeps bounded replay reasons and counts but clears the review queue, search trace and derived Research Loop hypotheses. The CLI prints the blocked status and exits successfully after writing the diagnostic artifact. The report and Markdown summary disclose the replay result but do not contain the raw abstract. This proves the selected text's provenance, not the model's claim or scientific merit.
