@@ -56,6 +56,31 @@ export function createAnalysisRegistryClient({url,secretKey,fetchImpl=fetch}) {
       if (!Array.isArray(rows)||rows.length>1) throw new Error('invalid_analysis_registry_response');
       return rows.length?{...validateRow(rows[0],key,context.prompt),cache_hit:true}:null;
     },
+    // Read a specific, immutable producer analysis. A matching quote in an abstract
+    // is not proof that the producer selected it as one of its findings.
+    async readById(id,{loaded,prompt,model}={}) {
+      if (!UUID.test(id??'')||!loaded?.archive?.version_id||typeof prompt?.source_text!=='string')
+        throw new Error('invalid_analysis_registry_response');
+      const params=new URLSearchParams({select:'*',id:'eq.'+id,limit:'1'});
+      const rows=await request('/rest/v1/literature_evidence_analysis?'+params);
+      if (!Array.isArray(rows)||rows.length>1) throw new Error('invalid_analysis_registry_response');
+      if (!rows.length) return null;
+      const row=rows[0];
+      if(row?.id!==id||row.abstract_version_id!==loaded.archive.version_id
+        ||row.content_hash!==loaded.content?.sha256
+        ||row.analyzed_hash!==hashText(prompt.source_text)
+        ||row.analyzed_characters!==Array.from(prompt.source_text).length
+        ||row.prompt_hash!==hashText(JSON.stringify(prompt))
+        ||row.contract_version!==ANALYSIS_CONTRACT
+        ||!HASH.test(row.profile_hash??'')
+        ||typeof row.model_provider!=='string'||!row.model_provider||row.model_provider.length>200
+        ||typeof row.model_name!=='string'||!row.model_name||row.model_name.length>200
+        ||(model&&(row.model_provider!==model.provider||row.model_name!==model.name))
+        ||typeof row.created_at!=='string'||!Number.isFinite(Date.parse(row.created_at)))
+        throw new Error('invalid_analysis_registry_response');
+      const checked=checkedFindings(row.findings,prompt);
+      return {id:row.id,findings:checked.findings,model:{provider:row.model_provider,name:row.model_name}};
+    },
     async save(context,checked) {
       const key=analysisKey(context);
       if (checked.validation.rejected_findings) throw new Error('invalid_analysis_registry_response');

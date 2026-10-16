@@ -53,3 +53,7 @@ Do not commit third-party full texts or API keys. The report contains source met
 - **v1.0:** sandboxed experiment planning and execution with independent verification, audit trails, budget limits and approval gates.
 
 **Evaluation:** compare against fixed-catalog planning and simple keyword baselines on a held-out set. Track citation correctness, groundedness, feasibility, expert-rated importance, novelty-search false positives, diversity, cost and verified experimental outcomes. A proposal is not a scientific discovery.
+
+## Evidence-linked review tree (manual)
+
+The bounded Agentic Tree Search pilot can now build a **review-only** branch queue from an existing, immutable literature evidence report. It creates parent-linked, immutable Research Loop hypotheses and attaches the Portfolio Manager's six still-unknown assessments; it does not run experiments or assert novelty. See [Research Tree Search](RESEARCH-TREE-REVIEW.md) for the workflow, provenance checks and limits. The original offline corpus baseline above remains unchanged.

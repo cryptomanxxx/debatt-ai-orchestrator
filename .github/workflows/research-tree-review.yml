@@ -1,0 +1,39 @@
+name: Research Tree Search (review only)
+on:
+  workflow_dispatch:
+    inputs:
+      evidence_report_id:
+        description: 'Existing immutable literature evidence report UUID'
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: oraklet-research-tree-review
+  cancel-in-progress: false
+jobs:
+  research-tree:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Test bounded tree, source provenance and Research Loop integration
+        run: node --test tests-research/agentic-tree-search.test.mjs tests-research/research-tree-planner.test.mjs tests-research/evidence-replay-verifier.test.mjs
+      - name: Load saved literature evidence and assemble review queue
+        env:
+          RESEARCH_TREE_REPORT_ID: ${{ inputs.evidence_report_id }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: node research/research-tree-planner.mjs
+      - name: Save review-only tree and portfolio report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: research-tree-review-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/research-tree-review/
+          retention-days: 30
+          if-no-files-found: warn
