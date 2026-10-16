@@ -179,3 +179,37 @@ test('sanitized discovery issues are included in selection provenance',async()=>
   }),/research_pilot_failed/);
   assert.deepEqual(writes.at(-1).discoveryIssues,[{provider:'hip',error:'http_503'}]);
 });
+
+test('empty successful response has structured invalid-model-response error',async()=>{
+  const proposer=researchProposer(choice,env,async()=>new Response(null,{status:204}));
+  await assert.rejects(proposer([{role:'user',content:'hi'}]),/invalid_model_response/);
+});
+test('auto fallback captures oversized discovery and provider-specific rejected candidate',async()=>{
+  const writes=[];
+  await assert.rejects(runPilot({
+    env:{EXPERIMENT_SEED:'20261016',...env},
+    select:{...choice,reason:'fallback',issues:[
+      {provider:'hip',error:'oversized_response'},
+      {provider:'hip',model:'Kimi-K2.6',error:'not_listed'},
+      {provider:'blablador',model:'alias-glm-5.3-flash',error:'not_listed'}]},
+    propose:async()=>{throw new Error('halt');},
+    write:async(path,text)=>writes.push(JSON.parse(text)),
+  }),/research_pilot_failed/);
+  assert.deepEqual(writes.at(-1).discoveryIssues,[
+    {provider:'hip',error:'oversized_response'},
+    {provider:'hip',error:'not_listed',model:'Kimi-K2.6'},
+    {provider:'blablador',error:'not_listed',model:'alias-glm-5.3-flash'}]);
+});
+test('tool diagnostic preserves case and operation context',async()=>{
+  const {ResearchError}=await import('../research/errors.mjs');
+  const writes=[];
+  await assert.rejects(runPilot({
+    env:{EXPERIMENT_SEED:'20261016',...env},
+    select:{...choice,reason:'selected'},
+    propose:async()=>({text:'{"method":"sympy","roots":[],"reason":"test"}',provider:choice.provider,model:choice.model}),
+    tool:async()=>{throw new ResearchError('tool_transport_error');},
+    write:async(path,text)=>writes.push(JSON.parse(text)),
+  }),/tool_transport_error/);
+  assert.equal(writes.at(-1).failureCase,1);
+  assert.equal(writes.at(-1).failureOperation,'positive_control');
+});
