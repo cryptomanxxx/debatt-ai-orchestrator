@@ -4,6 +4,7 @@ import datetime
 import http.client
 import json
 import os
+import socket
 from pathlib import Path
 import re
 import time
@@ -60,7 +61,8 @@ def http_json(base, key, path, payload=None, opener=None):
                                      method="POST" if data is not None else "GET")
     opener = opener or urllib.request.build_opener(NoRedirect())
     try:
-        with opener.open(request, timeout=45) as response:
+        timeout = 90 if payload is not None else 20
+        with opener.open(request, timeout=timeout) as response:
             raw = response.read(MAX_RESPONSE_BYTES + 1)
             if len(raw) > MAX_RESPONSE_BYTES:
                 raise RouterError("oversized_response")
@@ -69,9 +71,16 @@ def http_json(base, key, path, payload=None, opener=None):
         status = e.code
         e.close()
         raise RouterError("http_" + str(status)) from None
-    except (urllib.error.URLError, OSError, ValueError, TypeError,
-            http.client.HTTPException):
-        raise RouterError("transport_or_json_error") from None
+    except (TimeoutError, socket.timeout):
+        raise RouterError("upstream_timeout") from None
+    except urllib.error.URLError as error:
+        if isinstance(error.reason, (TimeoutError, socket.timeout)):
+            raise RouterError("upstream_timeout") from None
+        raise RouterError("upstream_transport_error") from None
+    except (OSError, http.client.HTTPException):
+        raise RouterError("upstream_transport_error") from None
+    except (ValueError, TypeError):
+        raise RouterError("invalid_upstream_json") from None
 
 def discovered_ids(data):
     rows = data.get("data") if isinstance(data, dict) else None
