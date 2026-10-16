@@ -82,15 +82,17 @@ def normalize(record):
             "epistemic_status": "unverified_literature_metadata",
             "causal_structure_extracted": False}, None
 
-def ingest(path, limit=MAX_RECORDS):
+def ingest(path, limit=MAX_RECORDS, *, with_digest=False):
     if not 1 <= limit <= MAX_RECORDS:
         raise ValueError("invalid_limit")
     records, failures, duplicates = {}, defaultdict(int), 0
+    input_hash = hashlib.sha256()
     with open(path, "rb") as source:
         for line_number in range(limit + 1):
             raw = source.readline(MAX_LINE + 1)
             if not raw:
                 break
+            input_hash.update(raw)
             if line_number == limit:
                 failures["limit_exceeded"] += 1
                 break
