@@ -130,7 +130,8 @@ def ingest(path, limit=MAX_RECORDS, *, with_digest=False):
             if identifier in records:
                 duplicates += 1
                 if (records[identifier]["abstract_sha256"] != normalized["abstract_sha256"]
-                    or records[identifier]["title_sha256"] != normalized["title_sha256"]):
+                    or records[identifier]["title_sha256"] != normalized["title_sha256"]
+                    or records[identifier]["year"] != normalized["year"]):
                     failures["conflicting_duplicate"] += 1
                 else:
                     records[identifier]["sources"] = sorted(set(records[identifier]["sources"] + [normalized["source"]]))
@@ -156,6 +157,7 @@ def candidate_pairs(records, limit=MAX_PAIRS):
     max_candidates = max(10000, limit * 20)
     work = 0
     max_work = 250000
+    truncated = False
     for word in sorted(postings):
         indices = postings[word]
         if len(indices) < 2 or len(indices) > 50:
@@ -168,14 +170,18 @@ def candidate_pairs(records, limit=MAX_PAIRS):
                     continue
                 work += 1
                 if work > max_work:
-                    raise ValueError("candidate_work_budget_exceeded")
+                    truncated = True
+                    break
                 key = (left, right)
                 if key in counts or len(counts) < max_candidates:
                     counts[key] += 1
-            if work > max_work:
-                raise ValueError("candidate_work_budget_exceeded")
-        if work > max_work:
-            raise ValueError("candidate_work_budget_exceeded")
+            if truncated:
+                break
+        if truncated:
+            break
+    if truncated:
+        # Do not publish partial shared-term counts as if they were complete.
+        return []
     ranked = sorted(((count, i, j) for (i, j), count in counts.items() if count >= 2),
                     key=lambda x: (-x[0], records[x[1]]["id"], records[x[2]]["id"]))
     return [{"paper_ids": [records[i]["id"], records[j]["id"]],
