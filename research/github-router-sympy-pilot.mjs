@@ -42,11 +42,16 @@ export function researchProposer(selection, env, fetchImpl=fetch) {
     if (++calls > 3) fail('model_call_budget_exceeded');
     // No tools or secrets pass to the model. This single experiment locks the
     // provider and model rather than silently failing over after selection.
-    const response=await fetchImpl(route.base+'/chat/completions',{
+    let response;
+    try {
+      response=await fetchImpl(route.base+'/chat/completions',{
       method:'POST',redirect:'error',signal:AbortSignal.timeout(90000),
       headers:{Authorization:'Bearer '+env[route.secret],'Content-Type':'application/json'},
       body:JSON.stringify({model:route.model,messages,max_tokens:768,temperature:0}),
-    });
+      });
+    } catch {
+      fail('model_transport_error');
+    }
     if(!response.ok){await response.body?.cancel();fail('model_upstream_http_error');}
     const data=await readJsonBounded(response);
     if(data?.model!==route.model)fail('model_identity_mismatch');
@@ -103,6 +108,7 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     const known=['invalid_seed','untrusted_route','untrusted_model','missing_provider_key',
       'model_call_budget_exceeded','model_identity_mismatch','incomplete_model_response',
       'invalid_model_answer','provider_secret_echoed','oversized_provider_response','invalid_model_proposal',
+      'model_upstream_http_error',
       'invalid_tool_evidence','model_transport_error'];
     const originating=error?.message==='invalid_model_proposal' ? error?.details?.code : null;
     report.failureCode=known.includes(originating)?originating
