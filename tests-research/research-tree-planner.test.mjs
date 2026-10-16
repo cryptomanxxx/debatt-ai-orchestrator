@@ -18,7 +18,7 @@ function fixture(){
     {article_id:'11111111-1111-4111-8111-111111111111',title:'Symbolic regression measurement selection',status:'summarized',validation:{accepted_findings:1,rejected_findings:0},source_hits:[{source:'openalex',title:'Symbolic regression measurement selection',source_id:'https://openalex.org/W12345'}],
       content:{provider:'openalex',url:'https://openalex.org/W12345',sha256:digest(ABSTRACT_1),analyzed_sha256:digest(ABSTRACT_1),resolved_openalex_id:'https://openalex.org/W12345',truncated:false,scope:'abstract_only'},
       findings:[{kind:'method',claim:'Targeted symbolic regression with hidden holdout samples.',quote:'Targeted symbolic regression with hidden holdout samples.',verification:'quote_match_only'}]},
-    {article_id:'22222222-2222-4222-8222-222222222222',title:'Bayesian active learning experiment design',status:'summarized',source_hits:[{source:'openalex',title:'Bayesian active learning experiment design',source_id:'https://openalex.org/W67890'}],
+    {article_id:'22222222-2222-4222-8222-222222222222',title:'Bayesian active learning experiment design',status:'summarized',validation:{accepted_findings:1,rejected_findings:0},source_hits:[{source:'openalex',title:'Bayesian active learning experiment design',source_id:'https://openalex.org/W67890'}],
       content:{provider:'openalex',url:'https://openalex.org/W67890',sha256:digest(ABSTRACT_2),analyzed_sha256:digest(ABSTRACT_2),resolved_openalex_id:'https://openalex.org/W67890',truncated:false,scope:'abstract_only'},
       findings:[{kind:'method',claim:'Bayesian optimization of information gain in experiment design.',quote:'Bayesian optimization of information gain in experiment design.',verification:'quote_match_only'}]},
   ];
