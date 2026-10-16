@@ -5,6 +5,7 @@ import { mkdir, readFile, writeFile, appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { agenticTreeSearch } from './agentic-tree-search.mjs';
 import { createResearchProblem, addHypothesis } from './research-loop.mjs';
+import { effectiveLimitationStatus } from './limitation-review.mjs';
 import { candidateProtocol, portfolioAssessment } from './research-candidate-protocols.mjs';
 import { createFollowUpClient } from './literature-follow-up.mjs';
 
@@ -27,7 +28,7 @@ export function validateTreeEvidence(report) {
     && report.planner?.mode === 'abstract-evidence-baseline'
     && Array.isArray(report.papers) && report.papers.length <= 10
     && Array.isArray(report.planner.proposals) && report.planner.proposals.length <= 10
-    && (report.status !== 'insufficient_evidence' || report.planner.proposals.length === 0)
+    && (report.status === 'insufficient_evidence' ? report.planner.proposals.length === 0 : report.planner.proposals.length > 0)
     && Buffer.byteLength(JSON.stringify(report)) <= 500_000, 'invalid_tree_evidence_report');
   const papers = new Map();
   for (const paper of report.papers) {
@@ -44,8 +45,8 @@ export function validateTreeEvidence(report) {
       && Array.isArray(p.evidence) && p.evidence.length > 0 && p.evidence.length <= 10
       && p.priority_score === null
       && p.scores && DIMENSIONS.every(k => p.scores[k] === null)
-      && p.portfolio_assessment && DIMENSIONS.every(k =>
-        p.portfolio_assessment[k]?.status === 'unknown' && p.portfolio_assessment[k]?.value === null),
+      && (!p.portfolio_assessment || DIMENSIONS.every(k =>
+        p.portfolio_assessment[k]?.status === 'unknown' && p.portfolio_assessment[k]?.value === null)),
       'invalid_tree_candidate');
     seen.add(p.id);
     const used = new Set();
@@ -57,8 +58,9 @@ export function validateTreeEvidence(report) {
         && e.content_sha256 === paper.content?.sha256
         && text(e.url,2048) && /^https:\/\//i.test(e.url)
         && e.url === paper.content?.url && e.verification === 'quote_match_only'
-        && paper.content?.scope === 'abstract_only'
-        && e.evidence_scope === 'abstract_only' && paper.content?.truncated === false,
+        && (paper.content?.scope === 'abstract_only' || (paper.content?.scope == null && paper.content?.truncated === false))
+        && e.evidence_scope === 'abstract_only' && paper.content?.truncated === false
+        && Array.isArray(paper.findings) && paper.findings.length > 0,
         'invalid_tree_citation');
       used.add(e.id);
     }
@@ -72,6 +74,7 @@ export function validateTreeEvidence(report) {
       assert(used.has(g?.article_id) && Number.isInteger(g?.finding_index)
         && g.finding_index >= 0 && finding?.kind === 'limitation'
         && typeof finding.context_quote === 'string' && finding.context_quote.length > 0
+        && effectiveLimitationStatus(finding) === 'remaining'
         && g.status === 'candidate_needs_literature_review'
         && g.content_sha256 === evidence?.content_sha256
         && g.analyzed_content_sha256 === evidence?.analyzed_content_sha256
@@ -83,6 +86,7 @@ export function validateTreeEvidence(report) {
     }
     assert(Array.isArray(p.gap_review_plan) && p.gap_review_plan.length === gaps.length
       && p.gap_review_plan.every(task => seenGaps.has(task?.gap_id)
+        && task.status === 'not_searched'
         && task.finding_ref?.article_id === gaps.find(g=>g.id===task.gap_id)?.article_id
         && task.finding_ref?.finding_index === gaps.find(g=>g.id===task.gap_id)?.finding_index)
       && new Set(p.gap_review_plan.map(x=>x.gap_id)).size===gaps.length, 'invalid_tree_gap');
