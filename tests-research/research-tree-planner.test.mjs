@@ -92,3 +92,17 @@ test('CLI reads existing report by UUID without writes to Supabase or model call
   await assert.rejects(main({RESEARCH_TREE_REPORT_ID:'invalid'},{readReport:()=>{throw Error('should_not_call');}}),
     /invalid_tree_report_id/);
 });
+
+
+test('candidate evidence matches planner and canonical JSON keys preserve identity',async()=>{
+  const report=fixture();
+  const forged=structuredClone(report);
+  forged.planner.proposals[0].evidence=structuredClone(report.planner.proposals[1].evidence);
+  await assert.rejects(planResearchTree(forged),/invalid_tree_candidate/);
+  const reordered=JSON.parse(JSON.stringify(report, (_key, value)=>
+    value && typeof value==='object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).reverse()) : value));
+  const first=await planResearchTree(report);
+  const second=await planResearchTree(reordered);
+  assert.equal(first.research.source.report_sha256,second.research.source.report_sha256);
+});
