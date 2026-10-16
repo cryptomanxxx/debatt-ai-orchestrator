@@ -62,7 +62,10 @@ def make_fixture(seed: str, level: int, instance: int) -> dict:
     instruments = list(range(3))
     if level >= 3:
         rng.shuffle(instruments)  # private action-index -> target-index
-    truth_scope = "full" if level < 4 else ("partial" if instance % 2 == 0 else "none")
+    # Non-alternating, domain-separated deterministic scope assignment.
+    # This is reproducible, not a cryptographic blind held-out split.
+    truth_scope = "full" if level < 4 else (
+        "partial" if int(digest(["scope-v2", seed, instance])[:16], 16) % 2 == 0 else "none")
     ta, tb, tc = a, b, c
     if truth_scope == "partial":
         tb -= 7
@@ -71,18 +74,12 @@ def make_fixture(seed: str, level: int, instance: int) -> dict:
         ta += 7
         tb -= 7
         tc += 6
-    observational = []
-    for _ in range(8):
-        # Exogenous disturbances make observation-only, zero-intercept inference
-        # uninformative for the zero-noise intervention oracle. No true alignment leaks.
-        x0 = rng.randint(-2, 2)
-        x1 = ta * x0 + rng.randint(-2, 2)
-        x2 = tb * x1 + tc * x0 + rng.randint(-2, 2)
-        source_order = (x0, x1, x2)
-        measured = [0] * 3
-        for si, ti in enumerate(permutation):
-            measured[ti] = source_order[si]
-        observational.append(measured)
+    # Exchangeable negative-control observations, independently generated for
+    # each public column. They are NOT SCM observations and have no causal
+    # interpretation: this isolates the intervention-only discovery task.
+    distractor_rng = random.Random(int(digest(["exchangeable-controls-v2", seed, level, instance])[:16], 16))
+    observational = [[distractor_rng.randint(-2, 2) for _ in range(3)]
+                     for _ in range(8)]
     public = {"protocol": PROTOCOL, "level": level,
               "source": {"variables": ["s_0", "s_1", "s_2"], "a": a, "b": b, "c": c,
                          "equations": ["s_1=a*s_0+u_1", "s_2=b*s_1+c*s_0+u_2"]},
@@ -262,11 +259,11 @@ def _candidate_set(fixture: dict) -> list[dict] | None:
     if level == 0:
         return [correct]
     others = [c for c in hypotheses({**fixture["view"], "level": 2}) if c != correct]
-    rnd = _random("314159", level, len(fixture["view"]["observations"]))
-    candidates = [correct, *rnd.sample(others, 2)]
-    # A separately seeded shuffle prevents list position from revealing truth.
-    order_rng = random.Random(int(digest(["candidate-order-v1", fixture["view"]])[:16], 16))
-    order_rng.shuffle(candidates)
+    # Secret-from-proposer candidate sampling is a privileged fixture-author
+    # control. Symmetric sampling/order (no public-view replayable slot).
+    private_rng = random.Random(int(digest(["candidate-set-private-v2", fixture["commitment"]])[:16], 16))
+    candidates = [correct, *private_rng.sample(others, 2)]
+    private_rng.shuffle(candidates)
     return candidates
 
 
@@ -349,6 +346,9 @@ def run_benchmark(seed: str = "20261016", cases_per_level: int = 6) -> dict:
     if not isinstance(cases_per_level, int) or not 2 <= cases_per_level <= 50:
         raise ValueError("invalid_cases_per_level")
     fixtures = [make_fixture(seed, level, index) for level in LEVELS for index in range(cases_per_level)]
+    # Shuffle presentation order independently of the scope assignment stream.
+    schedule_rng = random.Random(int(digest(["schedule-v2", seed, cases_per_level])[:16], 16))
+    schedule_rng.shuffle(fixtures)
     committed = digest([f["commitment"] for f in fixtures])
     records = [evaluate(f, strategy) for f in fixtures for strategy in STRATEGIES]
     summary = {}
