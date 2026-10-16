@@ -4,7 +4,7 @@ This is an **independent, manual, CPU-only, no-credentials data-ingestion pilot*
 
 ## Inputs, outputs and scaling
 
-Supply UTF-8 JSONL records with "title", "abstract", "doi" (or "id"), optionally "source" and "year". The importer validates bounded metadata (up to 10,000 rows, up to 8 KB abstracts), rejects malformed rows, deduplicates by persistent identifier, hashes title/abstract content and records provenance. The report keeps limited lexical keywords rather than full article text; an abstract's causal phrasing is **not** evidence of a verified causal graph.
+Supply UTF-8 JSONL records with required "title" and "abstract", plus either a "doi" or a provider-local "id". When using a provider-local "id" without a DOI, "source" is **required** (for example, "core", "openalex" or "semantic_scholar"); records without it are rejected as `missing_provider_source`. For DOI records, "source" is optional and defaults to "unknown". "year" is optional. The importer validates bounded metadata (up to 10,000 rows, up to 8 KB abstracts), rejects malformed rows, deduplicates by persistent identifier, hashes title/abstract content and records provenance. The report keeps limited lexical keywords rather than full article text; an abstract's causal phrasing is **not** evidence of a verified causal graph.
 
 The bounded inverted lexical index creates up to 5,000 cross-provider retrieval leads with >=2 shared non-stop terms. Those are *research leads*, **not** ACT-MAP claims; cross-provider does not mean cross-discipline. This is a conservative data interchange foundation only. The paper text does not automatically yield intervention targets, confounder sets, mathematical models or experimentally validated mechanisms.
 
