@@ -271,3 +271,21 @@ test('model paraphrases cannot redirect quote-grounded topic routing',async()=>{
   const tree=await planResearchTree(manipulated);
   assert.equal(tree.status,'review_required');
 });
+
+
+test('quote-v2 routing ignores self-asserted title and claim edits',async()=>{
+  const base=fixture();
+  const changed=fixture();
+  changed.papers[0].title='Turbulence and Kalman state estimation';
+  changed.papers[0].source_hits[0].title=changed.papers[0].title;
+  changed.papers[0].findings[0].claim='Autonomous research hypothesis discovery';
+  assert.deepEqual(planEvidenceResearch(changed.papers).proposals,planEvidenceResearch(base.papers).proposals);
+});
+test('historical claim-v1 reports reconstruct under their original algorithm',async()=>{
+  const historical=fixture();
+  historical.papers[0].findings[0].claim='Turbulence Kalman state estimation';
+  historical.planner=planEvidenceResearch(historical.papers,{routingVersion:'claim-v1'});
+  delete historical.planner.routing_version;
+  const queue=await planResearchTree(historical);
+  assert.equal(queue.status,'review_required');
+});
