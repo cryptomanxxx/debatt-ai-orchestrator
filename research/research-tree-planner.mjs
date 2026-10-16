@@ -38,8 +38,11 @@ export function validateTreeEvidence(report) {
     && Array.isArray(report.planner.proposals) && report.planner.proposals.length <= 10
     && (report.status === 'insufficient_evidence' ? report.planner.proposals.length === 0 : report.planner.proposals.length > 0)
     && Buffer.byteLength(JSON.stringify(report)) <= 500_000, 'invalid_tree_evidence_report');
+  // The evidence producer marks a paper summarized only with accepted findings.
+  // An empty immutable analysis must never be reclassified as source coverage.
   assert(report.papers.every(p => p?.status !== 'summarized' ||
-    (p.validation && Number.isInteger(p.validation.rejected_findings)
+    (Array.isArray(p.findings) && p.findings.length > 0
+      && p.validation && Number.isInteger(p.validation.rejected_findings)
       && p.validation.rejected_findings >= 0 && Array.isArray(p.validation.rejected)
       && p.validation.rejected_findings === p.validation.rejected.length
       && Number.isInteger(p.validation.accepted_findings)
