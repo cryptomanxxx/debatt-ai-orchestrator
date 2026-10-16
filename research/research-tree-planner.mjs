@@ -84,14 +84,14 @@ export function validateTreeEvidence(report) {
         && !seenGaps.has(g.id), 'invalid_tree_gap');
       seenGaps.add(g.id);
     }
-    assert(Array.isArray(p.gap_review_plan) && p.gap_review_plan.length === gaps.length
+    assert((p.gap_review_plan === undefined && gaps.length === 0) || (Array.isArray(p.gap_review_plan) && p.gap_review_plan.length === gaps.length
       && p.gap_review_plan.every(task => seenGaps.has(task?.gap_id)
         && task.status === 'not_searched'
         && task.finding_ref?.article_id === gaps.find(g=>g.id===task.gap_id)?.article_id
         && task.finding_ref?.finding_index === gaps.find(g=>g.id===task.gap_id)?.finding_index)
-      && new Set(p.gap_review_plan.map(x=>x.gap_id)).size===gaps.length, 'invalid_tree_gap');
-    assert(p.experiment_protocol?.execution_ready === false
-      && p.experiment_protocol?.status === 'draft_requires_specification',
+      && new Set(p.gap_review_plan.map(x=>x.gap_id)).size===gaps.length), 'invalid_tree_gap');
+    assert(!p.experiment_protocol || (p.experiment_protocol.execution_ready === false
+      && p.experiment_protocol.status === 'draft_requires_specification'),
       'invalid_tree_protocol');
     candidates.push(p);
   }
