@@ -20,7 +20,7 @@ CUES = {
     "causal_language": re.compile(r"\b(causal|caused|causes|leads to|affects|effect of|intervention)\b", re.I),
     "association_language": re.compile(r"\b(associat(?:ed|ion)|correlat(?:ion|ed)|linked to)\b", re.I),
 }
-TOKEN = re.compile(r"[a-zA-Z][a-zA-Z0-9-]{3,}")
+TOKEN = re.compile(r"[^\\W\\d_][\\w-]{3,}", re.UNICODE)
 DOI = re.compile(r"^10\.\d{4,9}/\S+$", re.I)
 
 def sha(value):
@@ -162,7 +162,9 @@ def candidate_pairs(records, limit=MAX_PAIRS):
             continue
         for left_pos, left in enumerate(indices):
             for right in indices[left_pos + 1:]:
-                if not (set(records[left].get("sources", [records[left]["source"]])) ^ set(records[right].get("sources", [records[right]["source"]]))):
+                left_sources = set(records[left].get("sources", [records[left]["source"]])) - {"unknown"}
+                right_sources = set(records[right].get("sources", [records[right]["source"]])) - {"unknown"}
+                if not any(a != b for a in left_sources for b in right_sources):
                     continue
                 work += 1
                 if work > max_work:
