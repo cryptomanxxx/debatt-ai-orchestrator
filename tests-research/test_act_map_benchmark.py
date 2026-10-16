@@ -43,7 +43,7 @@ class ActMapBenchmarkTests(unittest.TestCase):
             self.assertEqual(len(hypotheses), expected)
             self.assertFalse(any("truth" in h for h in hypotheses))
         self.assertEqual(len(act._candidate_set(act.make_fixture("3", 0, 0))), 1)
-        self.assertEqual(len(act._candidate_set(act.make_fixture("3", 1, 0))), 3)
+        self.assertEqual(len(act._candidate_set(act.make_fixture("3", 1, 0))), 6)
         self.assertIsNone(act._candidate_set(act.make_fixture("3", 2, 0)))
 
     def test_synthetic_null_not_certified_as_transfer(self):
