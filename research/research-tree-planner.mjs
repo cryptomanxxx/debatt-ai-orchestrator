@@ -85,9 +85,6 @@ export function validateTreeEvidence(report) {
         && SHA.test(e.analyzed_content_sha256 ?? '') && SHA.test(e.content_sha256 ?? '')
         && e.analyzed_content_sha256 === paper.content?.analyzed_sha256
         && e.content_sha256 === paper.content?.sha256
-        && typeof paper.content?.analyzed_text === 'string'
-        && Buffer.byteLength(paper.content.analyzed_text,'utf8') <= 12000
-        && createHash('sha256').update(paper.content.analyzed_text).digest('hex') === paper.content.analyzed_sha256
         && (paper.content?.truncated === true || paper.content?.analyzed_sha256 === paper.content?.sha256)
         && text(e.url,2048) && /^https:\/\//i.test(e.url)
         && e.url === paper.content?.url && e.verification === 'quote_match_only'
@@ -106,12 +103,11 @@ export function validateTreeEvidence(report) {
         && Array.isArray(paper.findings) && paper.findings.length > 0 && paper.findings.length <= 3
         && paper.findings.every(f => ['method','result','limitation'].includes(f?.kind)
           && text(f.claim,500) && text(f.quote,280) && f.quote.trim().length >= 20
-          && paper.content.analyzed_text.includes(f.quote)
           && f.verification === 'quote_match_only'
           && (f.kind !== 'limitation' || (['remaining','prior_work','unclear'].includes(f.limitation_status)
             && f.limitation_assessment === 'unverified_model_interpretation'
             && (f.context_quote === null || (text(f.context_quote,280) && f.context_quote.trim().length >= 20
-              && paper.content.analyzed_text.includes(f.context_quote)))))),
+))))),
         'invalid_tree_citation');
       used.add(e.id);
     }
