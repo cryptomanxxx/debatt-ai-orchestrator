@@ -43,7 +43,7 @@ def normalize(record):
     title, abstract = record.get("title"), record.get("abstract")
     if not isinstance(title, str) or not 5 <= len(title.strip()) <= 500:
         return None, "invalid_title"
-    if not isinstance(abstract, str) or not 30 <= len(abstract.strip()) <= MAX_ABSTRACT:
+    if not isinstance(abstract, str) or not 30 <= len(abstract.strip()) or len(abstract.encode("utf-8", errors="surrogatepass")) > MAX_ABSTRACT:
         return None, "invalid_abstract"
     has_doi = bool(record.get("doi"))
     identifier = record.get("doi") or record.get("id")
