@@ -52,9 +52,9 @@ def normalize(record):
     identifier = identifier.strip()
     if has_doi:
         identifier = identifier.lower()
-    if identifier.startswith("https://doi.org/"):
+    if has_doi and identifier.startswith("https://doi.org/"):
         identifier = identifier[len("https://doi.org/"):]
-    if identifier.startswith("doi:"):
+    if has_doi and identifier.startswith("doi:"):
         identifier = identifier[4:]
     if not 3 <= len(identifier) <= 300 or any(ord(c) < 32 for c in identifier):
         return None, "invalid_identifier"
@@ -118,7 +118,8 @@ def ingest(path, limit=MAX_RECORDS, *, with_digest=False):
             if identifier in records:
                 duplicates += 1
                 records[identifier]["sources"] = sorted(set(records[identifier]["sources"] + [normalized["source"]]))
-                if records[identifier]["abstract_sha256"] != normalized["abstract_sha256"]:
+                if (records[identifier]["abstract_sha256"] != normalized["abstract_sha256"]
+                    or records[identifier]["title_sha256"] != normalized["title_sha256"]):
                     failures["conflicting_duplicate"] += 1
                 continue
             records[identifier] = normalized
@@ -148,7 +149,7 @@ def candidate_pairs(records, limit=MAX_PAIRS):
             continue
         for left_pos, left in enumerate(indices):
             for right in indices[left_pos + 1:]:
-                if records[left]["source"] == records[right]["source"]:
+                if set(records[left].get("sources", [records[left]["source"]])) == set(records[right].get("sources", [records[right]["source"]])):
                     continue
                 work += 1
                 if work > max_work:
