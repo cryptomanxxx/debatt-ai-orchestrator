@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { lockModel } from './catalog.mjs';
+import { ResearchError } from './errors.mjs';
 import { runSympyExperiment, callSympy } from './sympy.mjs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
@@ -36,8 +37,9 @@ export async function readJsonBounded(response, maxBytes=65536) {
 export function researchProposer(selection, env, fetchImpl=fetch) {
   const route=checkedSelection(selection,env);
   let calls=0;
+  const fail = code => { throw new ResearchError(code); };
   return lockModel(async messages => {
-    if (++calls > 3) throw new Error('model_call_budget_exceeded');
+    if (++calls > 3) fail('model_call_budget_exceeded');
     // No tools or secrets pass to the model. This single experiment locks the
     // provider and model rather than silently failing over after selection.
     const response=await fetchImpl(route.base+'/chat/completions',{
@@ -45,29 +47,43 @@ export function researchProposer(selection, env, fetchImpl=fetch) {
       headers:{Authorization:'Bearer '+env[route.secret],'Content-Type':'application/json'},
       body:JSON.stringify({model:route.model,messages,max_tokens:768,temperature:0}),
     });
-    if(!response.ok){await response.body?.cancel();throw new Error('model_upstream_http_'+response.status);}
+    if(!response.ok){await response.body?.cancel();fail('model_upstream_http_error');}
     const data=await readJsonBounded(response);
-    if(data?.model!==route.model)throw new Error('model_identity_mismatch');
-    if(data?.choices?.[0]?.finish_reason!=='stop')throw new Error('incomplete_model_response');
+    if(data?.model!==route.model)fail('model_identity_mismatch');
+    if(data?.choices?.[0]?.finish_reason!=='stop')fail('incomplete_model_response');
     const answer=data?.choices?.[0]?.message?.content;
-    if(typeof answer!=='string'||!answer.trim()||answer.length>12000)throw new Error('invalid_model_answer');
+    if(typeof answer!=='string'||!answer.trim()||answer.length>12000)fail('invalid_model_answer');
+    for (const secret of [env.BLABLADOR_API_KEY, env.HIP_API_KEY]) {
+      if (typeof secret === 'string' && secret && answer.includes(secret)) fail('provider_secret_echoed');
+    }
     return {text:answer,provider:route.provider,model:route.model};
   });
 }
 export async function runPilot({env=process.env,select,propose,tool=callSympy,write=writeFile}={}) {
   const seed=env.EXPERIMENT_SEED||'20261016';
-  if(!/^\d{1,9}$/.test(seed))throw new Error('invalid_seed');
+
   const dir='reports/github-router-sympy';
   await mkdir(dir,{recursive:true});
   const report={schemaVersion:1,status:'preflight',seed,startedAt:new Date().toISOString(),
     githubSha:env.GITHUB_SHA||null,modelCallsMax:3,results:[]};
-  const persist=async()=>write(dir+'/report.json',JSON.stringify(report,null,2)+'\n');
+  const persist=async()=>{
+    let snapshot=JSON.stringify(report,null,2);
+    // Last-resort masking after JSON escaping (including quotes and backslashes).
+    for(const secret of [env.BLABLADOR_API_KEY,env.HIP_API_KEY]) {
+      if(typeof secret==='string'&&secret){
+        snapshot=snapshot.replaceAll(JSON.stringify(secret).slice(1,-1),'[REDACTED]');
+        snapshot=snapshot.replaceAll(secret,'[REDACTED]');
+      }
+    }
+    await write(dir+'/report.json',snapshot+'\n');
+  };
   await persist();
   try{
+    if(!/^\d{1,9}$/.test(seed))throw new ResearchError('invalid_seed');
     let selected=select;
     if(!selected) {
       const {stdout}=await exec('python3',[fileURLToPath(new URL('./router_select.py',import.meta.url))],
-        {timeout:35000,maxBuffer:8192,env:{
+        {timeout:65000,maxBuffer:8192,env:{
           PATH:env.PATH,ROUTER_PROVIDER:env.ROUTER_PROVIDER||'auto',
           BLABLADOR_API_KEY:env.BLABLADOR_API_KEY||'',HIP_API_KEY:env.HIP_API_KEY||''}});
       selected=JSON.parse(stdout);
@@ -86,9 +102,11 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     report.status='failed';
     const known=['invalid_seed','untrusted_route','untrusted_model','missing_provider_key',
       'model_call_budget_exceeded','model_identity_mismatch','incomplete_model_response',
-      'invalid_model_answer','oversized_provider_response','invalid_model_proposal',
+      'invalid_model_answer','provider_secret_echoed','oversized_provider_response','invalid_model_proposal',
       'invalid_tool_evidence','model_transport_error'];
-    report.failureCode=known.includes(error?.message)?error.message:'research_pilot_failed';
+    const originating=error?.message==='invalid_model_proposal' ? error?.details?.code : null;
+    report.failureCode=known.includes(originating)?originating
+      :known.includes(error?.message)?error.message:'research_pilot_failed';
     await persist();throw new Error(report.failureCode);
   }
 }
