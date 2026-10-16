@@ -56,6 +56,8 @@ def normalize(record):
         identifier = identifier[len("https://doi.org/"):]
     if has_doi and identifier.startswith("doi:"):
         identifier = identifier[4:]
+    if has_doi:
+        identifier = identifier.strip()
     if not 3 <= len(identifier) <= 300 or any(ord(c) < 32 for c in identifier):
         return None, "invalid_identifier"
     if has_doi and not DOI.fullmatch(identifier):
@@ -195,7 +197,8 @@ def candidate_pairs(records, limit=MAX_PAIRS):
 def run(input_path, output_path, max_records=MAX_RECORDS, max_pairs=MAX_PAIRS):
     records, failures, duplicates, input_digest = ingest(input_path, max_records, with_digest=True)
     pairs = candidate_pairs(records, max_pairs)
-    report = {"schema_version": "causal-literature-index-v0.1",
+    report = {"effective_limits": {"max_records": max_records, "max_pairs": max_pairs},
+              "schema_version": "causal-literature-index-v0.1",
               "source_type": "user_supplied_jsonl", "input_sha256": input_digest,
               "record_count": len(records), "duplicate_count": duplicates, "rejections": failures,
               "retrieval_leads_count": len(pairs), "accepted_causal_claims": [],
