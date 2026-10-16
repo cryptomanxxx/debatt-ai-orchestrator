@@ -125,6 +125,8 @@ def candidate_pairs(records, limit=MAX_PAIRS):
     """Conservative retrieval leads, NOT inferred cross-domain mechanisms."""
     if not 0 <= limit <= MAX_PAIRS:
         raise ValueError("invalid_pair_limit")
+    if limit == 0:
+        return []
     postings = defaultdict(list)
     for i, record in enumerate(records):
         # Title tokens are unavailable separately in the indexed record; these
@@ -146,14 +148,14 @@ def candidate_pairs(records, limit=MAX_PAIRS):
                     continue
                 work += 1
                 if work > max_work:
-                    break
+                    raise ValueError("candidate_work_budget_exceeded")
                 key = (left, right)
                 if key in counts or len(counts) < max_candidates:
                     counts[key] += 1
             if work > max_work:
-                break
+                raise ValueError("candidate_work_budget_exceeded")
         if work > max_work:
-            break
+            raise ValueError("candidate_work_budget_exceeded")
     ranked = sorted(((count, i, j) for (i, j), count in counts.items() if count >= 2),
                     key=lambda x: (-x[0], records[x[1]]["id"], records[x[2]]["id"]))
     return [{"paper_ids": [records[i]["id"], records[j]["id"]],
