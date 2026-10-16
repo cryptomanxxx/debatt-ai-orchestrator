@@ -70,7 +70,7 @@ class IngestionTests(unittest.TestCase):
             self.assertEqual(sorted(x["source"] for x in report["records"]), ["core", "openalex"])
             invalid, err = mod.normalize({**a, "id": "    "})
             self.assertIsNone(invalid)
-            self.assertEqual(err, "missing_identifier")
+            self.assertEqual(err, "invalid_identifier")
             self.assertIn("study", mod.STOP)
 
 if __name__ == "__main__":
