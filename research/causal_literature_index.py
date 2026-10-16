@@ -129,10 +129,11 @@ def ingest(path, limit=MAX_RECORDS, *, with_digest=False):
             identifier = ("doi", normalized["id"]) if normalized["id_kind"] == "doi" else (normalized["source"], normalized["id"])
             if identifier in records:
                 duplicates += 1
-                records[identifier]["sources"] = sorted(set(records[identifier]["sources"] + [normalized["source"]]))
                 if (records[identifier]["abstract_sha256"] != normalized["abstract_sha256"]
                     or records[identifier]["title_sha256"] != normalized["title_sha256"]):
                     failures["conflicting_duplicate"] += 1
+                else:
+                    records[identifier]["sources"] = sorted(set(records[identifier]["sources"] + [normalized["source"]]))
                 continue
             records[identifier] = normalized
     result = ([records[k] for k in sorted(records)], dict(sorted(failures.items())), duplicates)
@@ -176,7 +177,7 @@ def candidate_pairs(records, limit=MAX_PAIRS):
     ranked = sorted(((count, i, j) for (i, j), count in counts.items() if count >= 2),
                     key=lambda x: (-x[0], records[x[1]]["id"], records[x[2]]["id"]))
     return [{"paper_ids": [records[i]["id"], records[j]["id"]],
-             "paper_refs": [{"source": records[k]["source"], "id": records[k]["id"]} for k in (i, j)],
+             "paper_refs": [{"source": records[k]["source"], "sources": records[k].get("sources", [records[k]["source"]]), "id": records[k]["id"]} for k in (i, j)],
              "shared_term_count": count,
              "status": "unverified_cross_source_retrieval_lead",
              "requires": ["full_text_review", "explicit_causal_model_extraction",
