@@ -276,12 +276,12 @@ def _candidate_set(fixture: dict) -> list[dict] | None:
     if level == 0:
         return [correct]
     others = [c for c in hypotheses({**fixture["view"], "level": 2}) if c != correct]
-    # Secret-from-proposer candidate sampling is a privileged fixture-author
-    # control. Symmetric sampling/order (no public-view replayable slot).
-    private_rng = random.Random(int(digest(["candidate-set-private-v2", fixture["commitment"]])[:16], 16))
-    candidates = [correct, *private_rng.sample(others, 2)]
-    private_rng.shuffle(candidates)
-    return candidates
+    # Symmetric independently specified hypotheses: no hidden-truth-dependent RNG.
+    # The three candidates are a public, fixed set; only the oracle reveals truth.
+    # All mappings must be represented fairly across fixtures.
+    mappings = list(itertools.permutations(range(3)))
+    return [hypothesis("full", tuple(m), (0, 1, 2)) for m in mappings]
+
 
 
 def evaluate(fixture: dict, strategy: str = "active") -> dict:
@@ -381,6 +381,8 @@ def run_benchmark(seed: str = "20261016", cases_per_level: int = 6) -> dict:
             "false_certifications": sum(r["evaluation"]["false_certification"] for r in rows),
             "correct_null_abstentions": sum(r["evaluation"]["null_abstention_correct"] for r in rows),
             "total_discovery_probes": sum(r["experiment_cost"] for r in rows),
+            "discovery_only_levels_2_to_4_probes": sum(r["experiment_cost"] for r in rows if r["level"] >= 2),
+            "privileged_control_levels_0_to_1_probes": sum(r["experiment_cost"] for r in rows if r["level"] <= 1),
             "mean_discovery_probes": round(sum(r["experiment_cost"] for r in rows) / len(rows), 3),
         }
     return {"schema_version": 1, "protocol": PROTOCOL, "researcher": "Professor Oraklet",
