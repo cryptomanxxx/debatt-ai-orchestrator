@@ -106,3 +106,19 @@ test('candidate evidence matches planner and canonical JSON keys preserve identi
   const second=await planResearchTree(reordered);
   assert.equal(first.research.source.report_sha256,second.research.source.report_sha256);
 });
+
+
+test('rejects fabricated extra findings and inconsistent report coverage',async()=>{
+  const tooMany=fixture();
+  tooMany.papers[0].findings.push(...Array(3).fill(null).map((_,i)=>({
+    kind:'method',claim:'Invented extra finding '+i,
+    quote:'Invented extra finding supported nowhere.',verification:'quote_match_only'
+  })));
+  await assert.rejects(planResearchTree(tooMany),/invalid_tree_citation/);
+  const forgedPartial=fixture();
+  forgedPartial.status='partial';
+  await assert.rejects(planResearchTree(forgedPartial),/invalid_tree_evidence_report/);
+  const failed=fixture();
+  failed.papers[0].status='error';
+  await assert.rejects(planResearchTree(failed),/invalid_tree_evidence_report/);
+});
