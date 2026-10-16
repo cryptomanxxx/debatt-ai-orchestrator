@@ -1,4 +1,9 @@
 import unittest
+import tempfile
+import os
+import json
+from pathlib import Path
+from unittest.mock import patch
 from scientific_model_router import (RouterError, candidates, choose_model, discovered_ids,
                                      run, http_json, PROFILES)
 
@@ -47,6 +52,38 @@ class RouterTests(unittest.TestCase):
         for value in ({}, {"data": {}}, {"data": None}):
             with self.assertRaisesRegex(RouterError, "invalid_model_discovery"):
                 discovered_ids(value)
+
+    def test_failures_retain_sanitized_discovery_diagnostics(self):
+        def discovery(base, key, path):
+            raise RouterError("http_503")
+        with self.assertRaisesRegex(RouterError, "no_available_allowlisted_model") as raised:
+            choose_model("reasoning", {"BLABLADOR_API_KEY": "example-secret-123",
+                                        "HIP_API_KEY": "example-secret-456"},
+                         discover=discovery)
+        self.assertIn({"provider": "blablador", "error": "http_503"}, raised.exception.issues)
+        self.assertIn({"provider": "hip", "error": "http_503"}, raised.exception.issues)
+
+    def test_success_timestamp_and_escaped_secret_are_redacted(self):
+        from scientific_model_router import main
+        secret = 'abc"\\\\keySECRET1234'
+        with tempfile.TemporaryDirectory() as root:
+            previous = os.getcwd()
+            os.chdir(root)
+            try:
+                env = {"ROUTER_TASK": "reasoning", "BLABLADOR_API_KEY": secret}
+                fake = {"schema_version": 1, "status": "completed_unverified",
+                        "selected": {"provider": "blablador", "model": "alias-kimi-k3-1m"},
+                        "answer": "the key is " + secret}
+                with patch.dict(os.environ, env, clear=True), patch("scientific_model_router.run", return_value=fake):
+                    main()
+                data = Path("reports/scientific-model-router/report.json").read_text()
+                obj = json.loads(data)
+                self.assertIn("generated_utc", obj)
+                self.assertEqual(obj["answer"], "the key is [REDACTED]")
+                self.assertNotIn(secret, data)
+                self.assertNotIn(json.dumps(secret)[1:-1], data)
+            finally:
+                os.chdir(previous)
 
 if __name__ == "__main__":
     unittest.main()
