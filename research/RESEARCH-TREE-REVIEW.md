@@ -73,3 +73,12 @@ The queue is an ephemeral artifact, **not** a saved approved portfolio.
 A future increment can compare this heuristic with a fixed-catalog baseline,
 introduce blinded human assessments, controlled model-generated alternatives and
 equal-budget evaluations before any automation of research execution.
+
+
+## Immutable archive quotation replay
+
+The CLI replays summarized-paper citations against the exact archived abstract version (using `archive.version_id`), not the latest fetched abstract. It checks the archived source identity, original SHA-256, deterministic `evidencePrompt` analyzed-text SHA-256, truncation flag, and exact finding/context quote occurrence. The output stores only article/version identifiers, verification status and bounded reason codes; no raw abstract is serialized.
+
+`citation_replay.results[].status` is `verified`, `rejected`, or `unverifiable`. Missing archived versions or pre-archive legacy reports remain `unverifiable`; they are **never** silently upgraded or replaced with newer content. A verified quote proves occurrence in the analyzed abstract, **not** that the scientific claim is true. Tree review remains non-executing and requires human approval.
+
+When configured, the CLI uses existing `SUPABASE_URL` and `SUPABASE_SECRET_KEY` credentials for a read-only version lookup; tests inject `readArchiveVersion` without network access. The original evidence report schema and no-raw-abstract storage contract remain unchanged.
