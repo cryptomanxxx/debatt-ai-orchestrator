@@ -20,7 +20,7 @@ CUES = {
     "causal_language": re.compile(r"\b(causal|caused|causes|leads to|affects|effect of|intervention)\b", re.I),
     "association_language": re.compile(r"\b(associat(?:ed|ion)|correlat(?:ion|ed)|linked to)\b", re.I),
 }
-TOKEN = re.compile(r"[^\\W\\d_][\\w-]{3,}", re.UNICODE)
+TOKEN = re.compile(r"[^\W\d_][\w-]{3,}", re.UNICODE)
 DOI = re.compile(r"^10\.\d{4,9}/\S+$", re.I)
 
 def sha(value):
