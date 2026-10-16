@@ -100,6 +100,7 @@ def ingest(path, limit=MAX_RECORDS, *, with_digest=False):
                 failures["oversized_line"] += 1
                 if not raw.endswith(b"\n"):
                     while chunk := source.readline(MAX_LINE + 1):
+                        input_hash.update(chunk)
                         if chunk.endswith(b"\n"):
                             break
                 continue
@@ -121,7 +122,8 @@ def ingest(path, limit=MAX_RECORDS, *, with_digest=False):
                     failures["conflicting_duplicate"] += 1
                 continue
             records[identifier] = normalized
-    return [records[k] for k in sorted(records)], dict(sorted(failures.items())), duplicates
+    result = ([records[k] for k in sorted(records)], dict(sorted(failures.items())), duplicates)
+    return (*result, input_hash.hexdigest()) if with_digest else result
 
 def candidate_pairs(records, limit=MAX_PAIRS):
     """Conservative retrieval leads, NOT inferred cross-domain mechanisms."""
@@ -169,10 +171,10 @@ def candidate_pairs(records, limit=MAX_PAIRS):
             for count, i, j in ranked[:limit]]
 
 def run(input_path, output_path, max_records=MAX_RECORDS, max_pairs=MAX_PAIRS):
-    records, failures, duplicates = ingest(input_path, max_records)
+    records, failures, duplicates, input_digest = ingest(input_path, max_records, with_digest=True)
     pairs = candidate_pairs(records, max_pairs)
     report = {"schema_version": "causal-literature-index-v0.1",
-              "source_type": "user_supplied_jsonl", "input_sha256": digest_file(input_path),
+              "source_type": "user_supplied_jsonl", "input_sha256": input_digest,
               "record_count": len(records), "duplicate_count": duplicates, "rejections": failures,
               "retrieval_leads_count": len(pairs), "accepted_causal_claims": [],
               "records": records, "retrieval_leads": pairs,
