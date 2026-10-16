@@ -26,9 +26,11 @@ export async function readJsonBounded(response, maxBytes=65536) {
   const chunks=[];let size=0;
   try {
     while(true) {
-      const {value,done}=await reader.read();if(done)break;
+      let packet;
+      try {packet=await reader.read();} catch {throw new ResearchError('model_transport_error');}
+      const {value,done}=packet;if(done)break;
       size+=value.byteLength;
-      if(size>maxBytes){await reader.cancel();throw new Error('oversized_provider_response');}
+      if(size>maxBytes){await reader.cancel();throw new ResearchError('oversized_provider_response');}
       chunks.push(Buffer.from(value));
     }
     return JSON.parse(Buffer.concat(chunks).toString('utf8'));
@@ -74,7 +76,9 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
   const persist=async()=>{
     let snapshot=JSON.stringify(report,null,2);
     // Last-resort masking after JSON escaping (including quotes and backslashes).
-    for(const secret of [env.BLABLADOR_API_KEY,env.HIP_API_KEY]) {
+    const secrets=[env.BLABLADOR_API_KEY,env.HIP_API_KEY]
+      .filter(x=>typeof x==='string'&&x).sort((a,b)=>b.length-a.length);
+    for(const secret of secrets) {
       if(typeof secret==='string'&&secret){
         snapshot=snapshot.replaceAll(JSON.stringify(secret).slice(1,-1),'[REDACTED]');
         snapshot=snapshot.replaceAll(secret,'[REDACTED]');
@@ -109,7 +113,7 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
       'model_call_budget_exceeded','model_identity_mismatch','incomplete_model_response',
       'invalid_model_answer','provider_secret_echoed','oversized_provider_response','invalid_model_proposal',
       'model_upstream_http_error',
-      'invalid_tool_evidence','model_transport_error'];
+      'invalid_tool_evidence','model_transport_error','tool_transport_error'];
     const originating=error?.message==='invalid_model_proposal' ? error?.details?.code : null;
     report.failureCode=known.includes(originating)?originating
       :known.includes(error?.message)?error.message:'research_pilot_failed';
