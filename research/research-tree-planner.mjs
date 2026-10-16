@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile, appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { agenticTreeSearch } from './agentic-tree-search.mjs';
+import { planEvidenceResearch } from './autonomous-planner.mjs';
 import { createResearchProblem, addHypothesis } from './research-loop.mjs';
 import { effectiveLimitationStatus } from './limitation-review.mjs';
 import { candidateProtocol, portfolioAssessment } from './research-candidate-protocols.mjs';
@@ -30,6 +31,8 @@ export function validateTreeEvidence(report) {
     && Array.isArray(report.planner.proposals) && report.planner.proposals.length <= 10
     && (report.status === 'insufficient_evidence' ? report.planner.proposals.length === 0 : report.planner.proposals.length > 0)
     && Buffer.byteLength(JSON.stringify(report)) <= 500_000, 'invalid_tree_evidence_report');
+  const reconstructed = planEvidenceResearch(report.papers);
+  const expected = new Map(reconstructed.proposals.map(p => [p.id,p]));
   const papers = new Map();
   for (const paper of report.papers) {
     assert(text(paper?.article_id, 250) && !papers.has(paper.article_id), 'invalid_tree_paper');
@@ -48,6 +51,8 @@ export function validateTreeEvidence(report) {
       && (!p.portfolio_assessment || DIMENSIONS.every(k =>
         p.portfolio_assessment[k]?.status === 'unknown' && p.portfolio_assessment[k]?.value === null)),
       'invalid_tree_candidate');
+    const original = expected.get(p.id);
+    assert(original && ['research_question','hypothesis','proposed_method'].every(k => p[k] === original[k]), 'invalid_tree_candidate');
     seen.add(p.id);
     const used = new Set();
     for (const e of p.evidence) {
@@ -167,14 +172,19 @@ export async function planResearchTree(report,{maxNodes=9,maxCandidates=3}={}) {
     reviewQueue.push({rank:null,node_id:node.id,hypothesis_id:hId,parent_hypothesis_id:parentId,
       candidate_id:candidate.id,branch_kind:kind,question:candidate.research_question,
       hypothesis:hypothesis(candidate,kind),
-      proposed_method:candidate.proposed_method,
+      proposed_method:kind==='candidate'?candidate.proposed_method:
+        (kind==='replication'?'Independently replicate against a matched published or control baseline on held-out data.':
+          'Pre-register a falsification test against the matched null baseline on held-out data.'),
       priority:node.score,priority_kind:'heuristic_evidence_coverage_not_scientific_merit',
       routing_basis:basis,review_status:'requires_human_approval',
       evidence_refs:candidate.evidence.map(e=>({article_id:e.id,content_sha256:e.content_sha256,
         analyzed_content_sha256:e.analyzed_content_sha256,url:e.url})),
       gap_review_tasks:(candidate.gap_review_plan??[]).map(g=>({
         gap_id:g.gap_id,status:g.status,finding_ref:g.finding_ref})),
-      experiment_protocol:candidateProtocol(candidate),
+      experiment_protocol:{...candidateProtocol(candidate), branch_kind:kind,
+        intervention:kind==='candidate'?candidateProtocol(candidate).intervention:
+          (kind==='replication'?'Independent replication of the candidate effect.':'Falsification of the candidate effect under a matched null control.'),
+        baselines:kind==='null-test'?['Matched null intervention',...candidateProtocol(candidate).baselines]:candidateProtocol(candidate).baselines},
       portfolio_assessment:portfolioAssessment(),
       execution_ready:false,verified:false});
   }
