@@ -25,6 +25,10 @@ export async function replayEvidence(report,{readVersion,readAnalysis}={}) {
       ||hashText(abstract)!==paper.content.sha256 || loaded.content?.sha256!==paper.content.sha256
       ||loaded.content?.provider!==paper.content.provider ||loaded.content?.url!==paper.content.url
       ||loaded.archive?.version_id!==version
+      // The archived version's trusted source-record join gives the canonical
+      // article UUID. Never trust a UUID repeated only in replayed report fields.
+      ||!UUID.test(loaded.archive?.article_id??'')
+      ||loaded.archive.article_id!==paper.article_id
       || !UUID.test(paper.archive?.source_record_id??'')
       || loaded.archive?.source_record_id!==paper.archive.source_record_id
       || !(paper.source_hits?.some(h=>h.source_record_id===paper.archive.source_record_id)
