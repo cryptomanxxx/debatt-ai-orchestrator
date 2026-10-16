@@ -74,10 +74,16 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
   await mkdir(dir,{recursive:true});
   const report={schemaVersion:1,status:'preflight',seed,startedAt:new Date().toISOString(),
     githubSha:env.GITHUB_SHA||null,modelCallsMax:3,results:[]};
+  const safeIssues=issues=>Array.isArray(issues)?issues.filter(x=>
+    x&&typeof x==='object'&&Object.hasOwn(ROUTES,x.provider)&&typeof x.error==='string'&&
+    (['key_not_configured','not_listed','invalid_api_key','upstream_timeout',
+      'upstream_transport_error','invalid_upstream_json','invalid_model_discovery','oversized_response'].includes(x.error)
+       || /^http_[1-5][0-9]{2}$/.test(x.error))).slice(0,12).map(x=>({provider:x.provider,error:x.error,
+      ...(ROUTES[x.provider].models.includes(x.model)?{model:x.model}:{})})):[];
   const persist=async()=>{
     // Recursively redact only string values, never serialized object structure.
     const secrets=[env.BLABLADOR_API_KEY,env.HIP_API_KEY]
-      .filter(x=>typeof x==='string'&&x).sort((a,b)=>b.length-a.length);
+      .filter(x=>typeof x==='string'&&x.length>=8&&!/\s/.test(x)).sort((a,b)=>b.length-a.length);
     const redact=value=>{
       if(typeof value==='string') {
         for(const secret of secrets)value=value.replaceAll(secret,'[REDACTED]');
@@ -95,23 +101,28 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     if(!/^\d{1,9}$/.test(seed))throw new ResearchError('invalid_seed');
     let selected=select;
     if(!selected) {
-      const {stdout}=await exec('python3',[fileURLToPath(new URL('./router_select.py',import.meta.url))],
+      let stdout;
+      try {({stdout}=await exec('python3',[fileURLToPath(new URL('./router_select.py',import.meta.url))],
         {timeout:65000,maxBuffer:8192,env:{
           PATH:env.PATH,ROUTER_PROVIDER:env.ROUTER_PROVIDER||'auto',
-          BLABLADOR_API_KEY:env.BLABLADOR_API_KEY||'',HIP_API_KEY:env.HIP_API_KEY||''}});
+          BLABLADOR_API_KEY:env.BLABLADOR_API_KEY||'',HIP_API_KEY:env.HIP_API_KEY||''}}));
+      } catch(error) {
+        try {
+          const failure=JSON.parse(error?.stdout||'');
+          if(failure?.status==='failed') {
+            report.discoveryIssues=safeIssues(failure.issues);
+            throw new ResearchError('no_available_allowlisted_model');
+          }
+        } catch(inner) {if(inner instanceof ResearchError)throw inner;}
+        throw new ResearchError('router_selection_failed');
+      }
       selected=JSON.parse(stdout);
     }
     const route=checkedSelection(selected,env);
     report.selected={provider:route.provider,model:route.model};
     report.routingReason=selected.reason;
     // Routing issues are fixed, non-secret diagnostic enums from the Python selector.
-    report.discoveryIssues=Array.isArray(selected.issues) ? selected.issues.filter(x=>
-      x&&typeof x==='object'&&['blablador','hip'].includes(x.provider)&&
-      ['key_not_configured','not_listed','invalid_api_key','upstream_timeout',
-       'upstream_transport_error','invalid_upstream_json','invalid_model_discovery','oversized_response',
-       'http_400','http_401','http_403','http_404','http_429','http_500','http_502','http_503','http_504']
-        .includes(x.error)).map(x=>({provider:x.provider,error:x.error,
-          ...(typeof x.model==='string'&&ROUTES[x.provider].models.includes(x.model)?{model:x.model}:{})})) : [];
+    report.discoveryIssues=safeIssues(selected.issues);
     report.status='running';await persist();
     const runner=await runSympyExperiment(seed,propose||researchProposer(selected,env),tool,
       async commitments=>{report.commitments=commitments;await persist();},
@@ -124,7 +135,7 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     const known=['invalid_seed','untrusted_route','untrusted_model','missing_provider_key',
       'model_call_budget_exceeded','model_identity_mismatch','incomplete_model_response',
       'invalid_model_answer','provider_secret_echoed','oversized_provider_response','invalid_model_proposal',
-      'model_upstream_http_error','invalid_model_response',
+      'model_upstream_http_error','invalid_model_response','no_available_allowlisted_model','router_selection_failed',
       'invalid_tool_evidence','model_transport_error','tool_transport_error'];
     const originating=error?.message==='invalid_model_proposal' ? error?.details?.code : null;
     if(error instanceof ResearchError){
