@@ -119,7 +119,10 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
       selected=JSON.parse(stdout);
     }
     const route=checkedSelection(selected,env);
-    report.selected={provider:route.provider,model:route.model};
+    report.selected={provider:route.provider,model:route.model,
+      backendIdentityVerified:false,
+      identityScope:'api_model_id_only',
+      aliasMayRetarget:route.model.startsWith('alias-')};
     report.routingReason=selected.reason;
     // Routing issues are fixed, non-secret diagnostic enums from the Python selector.
     report.discoveryIssues=safeIssues(selected.issues);
