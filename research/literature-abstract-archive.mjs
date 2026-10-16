@@ -65,6 +65,23 @@ export function createAbstractArchiveClient({url,secretKey,fetchImpl=fetch}) {
       return {...loaded,archive:{version_id:row.id,source_record_id:key.sourceRecordId,
         last_fetched_at:row.last_fetched_at,cache_hit:true,inserted_blob:false,inserted_version:false,stored_bytes:0}};
     },
+    async readVersion(versionId) {
+      if(!UUID.test(versionId??'')) throw new Error('invalid_archive_version_id');
+      const params=new URLSearchParams({select:'id,source_record_id,provider,lookup_id,source_url,content_hash,fetched_at,literature_abstract_blob(content_hash,abstract_text,byte_count)',
+        id:'eq.'+versionId,limit:'1'});
+      const rows=await request('/rest/v1/literature_abstract_version?'+params);
+      if(!Array.isArray(rows)||rows.length>1) throw new Error('invalid_abstract_archive_response');
+      if(!rows.length) return null;
+      const row=rows[0],blob=row.literature_abstract_blob;
+      if(row.id!==versionId||!UUID.test(row.source_record_id??'')||typeof row.lookup_id!=='string'
+        ||blob?.content_hash!==row.content_hash||typeof blob?.abstract_text!=='string'
+        ||blob.byte_count!==Buffer.byteLength(blob.abstract_text,'utf8'))
+        throw new Error('invalid_abstract_archive_response');
+      const loaded=validateLoaded({status:'available',abstract:blob.abstract_text,
+        content:{provider:row.provider,url:row.source_url,sha256:row.content_hash,fetched_at:row.fetched_at}},
+        {provider:row.provider,lookupId:row.lookup_id});
+      return {...loaded,archive:{version_id:row.id,source_record_id:row.source_record_id}};
+    },
     async save(key,loaded) {
       validateLoaded(loaded,key);
       const result=await request('/rest/v1/rpc/save_literature_abstract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_payload:{
