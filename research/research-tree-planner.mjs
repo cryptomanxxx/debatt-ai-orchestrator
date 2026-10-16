@@ -34,6 +34,8 @@ export function validateTreeEvidence(report) {
     && Array.isArray(report.planner.proposals) && report.planner.proposals.length <= 10
     && (report.status === 'insufficient_evidence' ? report.planner.proposals.length === 0 : report.planner.proposals.length > 0)
     && Buffer.byteLength(JSON.stringify(report)) <= 500_000, 'invalid_tree_evidence_report');
+  assert(report.status !== 'completed' || report.papers.every(p =>
+    p?.status === 'summarized' && !(p.validation?.rejected_findings > 0)), 'invalid_tree_evidence_report');
   const reconstructed = planEvidenceResearch(report.papers);
   const expected = new Map(reconstructed.proposals.map(p => [p.id,p]));
   assert(canonical(report.planner.proposals.map(p => p.id).sort()) ===
@@ -69,6 +71,8 @@ export function validateTreeEvidence(report) {
         && e.content_sha256 === paper.content?.sha256
         && text(e.url,2048) && /^https:\/\//i.test(e.url)
         && e.url === paper.content?.url && e.verification === 'quote_match_only'
+        && ((paper.content?.provider === 'openalex' && /^https:\/\/openalex\.org\/W\d+$/.test(e.url))
+          || (paper.content?.provider === 'arxiv' && /^https:\/\/arxiv\.org\/abs\/[a-z0-9.\/-]+$/i.test(e.url)))
         && (paper.content?.scope === 'abstract_only' || paper.content?.scope == null)
         && (paper.content?.truncated === true ? e.evidence_scope === 'abstract_prefix' : e.evidence_scope === 'abstract_only')
         && Array.isArray(paper.findings) && paper.findings.length > 0
