@@ -66,6 +66,8 @@ def normalize(record):
     if not isinstance(source, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,40}", source):
         return None, "invalid_source"
     source = source.lower()
+    if not has_doi and source == "unknown":
+        return None, "missing_provider_source"
     year = record.get("year")
     if year is not None and (type(year) is not int or year < 1900 or year > 2100):
         return None, "invalid_year"
@@ -171,14 +173,14 @@ def candidate_pairs(records, limit=MAX_PAIRS, *, metadata=None):
             continue
         for left_pos, left in enumerate(indices):
             for right in indices[left_pos + 1:]:
-                left_sources = set(records[left].get("sources", [records[left]["source"]])) - {"unknown"}
-                right_sources = set(records[right].get("sources", [records[right]["source"]])) - {"unknown"}
-                if not any(a != b for a in left_sources for b in right_sources):
-                    continue
                 work += 1
                 if work > max_work:
                     truncated = True
                     break
+                left_sources = set(records[left].get("sources", [records[left]["source"]])) - {"unknown"}
+                right_sources = set(records[right].get("sources", [records[right]["source"]])) - {"unknown"}
+                if not any(a != b for a in left_sources for b in right_sources):
+                    continue
                 key = (left, right)
                 counts[key] += 1
             if truncated:
