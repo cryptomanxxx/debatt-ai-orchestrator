@@ -65,7 +65,8 @@ test('rejects invented references, elevated portfolio claims and malformed repor
   const c=fixture(); c.planner.proposals[0].portfolio_assessment.novelty.status='verified';
   await assert.rejects(planResearchTree(c),/invalid_tree_candidate/);
   const d=fixture(); d.papers[0].status='insufficient_evidence';
-  await assert.rejects(planResearchTree(d),/invalid_tree_citation/);
+  // Planner recomputation catches an inconsistent producer state before citation validation.
+  await assert.rejects(planResearchTree(d),/invalid_tree_candidate/);
   const e=fixture(); e.planner.proposals[0].experiment_protocol.execution_ready=true;
   await assert.rejects(planResearchTree(e),/invalid_tree_protocol/);
   const f=fixture(); f.schema_version='other';
