@@ -12,10 +12,10 @@ const sha=c=>c.repeat(64);
 function fixture(){
   const papers=[
     {article_id:'p-1',title:'Symbolic regression measurement selection',status:'summarized',
-      content:{provider:'openalex',url:'https://openalex.org/W12345',sha256:sha('a'),analyzed_sha256:sha('b'),truncated:false,scope:'abstract_only'},
+      content:{provider:'openalex',url:'https://openalex.org/W12345',sha256:sha('a'),analyzed_sha256:sha('a'),truncated:false,scope:'abstract_only'},
       findings:[{kind:'method',claim:'Targeted symbolic regression with hidden holdout samples.',quote:'Targeted symbolic regression with hidden holdout samples.',verification:'quote_match_only'}]},
     {article_id:'p-2',title:'Bayesian active learning experiment design',status:'summarized',
-      content:{provider:'openalex',url:'https://openalex.org/W67890',sha256:sha('c'),analyzed_sha256:sha('d'),truncated:false,scope:'abstract_only'},
+      content:{provider:'openalex',url:'https://openalex.org/W67890',sha256:sha('c'),analyzed_sha256:sha('c'),truncated:false,scope:'abstract_only'},
       findings:[{kind:'method',claim:'Bayesian optimization of information gain in experiment design.',quote:'Bayesian optimization of information gain in experiment design.',verification:'quote_match_only'}]},
   ];
   return {schema_version:'literature-evidence-1',id:REPORT_ID,status:'completed',
@@ -148,4 +148,24 @@ test('rejects oversized local replay before parsing its JSON',async()=>{
   } finally {
     await rm(folder,{recursive:true,force:true});
   }
+});
+
+test('rejects noncanonical arXiv identity, unknown paper status and mismatched full abstract hash',async()=>{
+  const hashMismatch=fixture();
+  hashMismatch.papers[0].content.analyzed_sha256=sha('b');
+  hashMismatch.planner=planEvidenceResearch(hashMismatch.papers);
+  await assert.rejects(planResearchTree(hashMismatch),/invalid_tree_citation/);
+
+  const unknownStatus=fixture();
+  unknownStatus.papers[1].status='totally_forged';
+  unknownStatus.status='partial';
+  unknownStatus.planner=planEvidenceResearch(unknownStatus.papers);
+  await assert.rejects(planResearchTree(unknownStatus),/invalid_tree_evidence_report/);
+
+  const badArxiv=fixture();
+  badArxiv.papers[0].content.provider='arxiv';
+  badArxiv.papers[0].content.url='https://arxiv.org/abs/2401.99999';
+  badArxiv.papers[0].lookup_identifiers={arxiv_id:'2401.00001'};
+  badArxiv.planner=planEvidenceResearch(badArxiv.papers);
+  await assert.rejects(planResearchTree(badArxiv),/invalid_tree_citation/);
 });
