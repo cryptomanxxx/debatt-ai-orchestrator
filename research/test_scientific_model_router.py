@@ -85,5 +85,38 @@ class RouterTests(unittest.TestCase):
             finally:
                 os.chdir(previous)
 
+    def test_selected_model_is_preserved_on_failed_completion(self):
+        from scientific_model_router import main
+        with tempfile.TemporaryDirectory() as root:
+            previous = os.getcwd()
+            os.chdir(root)
+            try:
+                env = {"ROUTER_TASK": "reasoning", "BLABLADOR_API_KEY": "example-key-12345"}
+                def discovery(*args):
+                    return {"data": [{"id": "alias-kimi-k3-1m"}]}
+                def failure(*args):
+                    raise RouterError("http_503")
+                from scientific_model_router import run
+                def failing_run(task, environ):
+                    return run(task, environ, discover=discovery, complete=failure)
+                with patch.dict(os.environ, env, clear=True), patch("scientific_model_router.run", side_effect=failing_run):
+                    with self.assertRaises(SystemExit):
+                        main()
+                data = json.loads(Path("reports/scientific-model-router/report.json").read_text())
+                self.assertEqual(data["status"], "failed")
+                self.assertEqual(data["selected"], {"provider": "blablador", "model": "alias-kimi-k3-1m"})
+            finally:
+                os.chdir(previous)
+
+    def test_discovery_error_does_not_turn_into_not_listed(self):
+        def discovery(base, key, path):
+            raise RouterError("http_503")
+        with self.assertRaises(RouterError) as raised:
+            choose_model("reasoning", {"BLABLADOR_API_KEY": "example-key-12345"},
+                         discover=discovery)
+        issues = raised.exception.issues
+        self.assertEqual([x for x in issues if x["provider"] == "blablador"],
+                         [{"provider": "blablador", "error": "http_503"}])
+
 if __name__ == "__main__":
     unittest.main()
