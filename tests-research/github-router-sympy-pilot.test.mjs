@@ -150,3 +150,32 @@ test('SymPy tool transport failures preserve their failure code',async()=>{
   }),/tool_transport_error/);
   assert.equal(writes.at(-1).failureCode,'tool_transport_error');
 });
+
+test('JSON-structure-like credential does not corrupt persisted report',async()=>{
+  const writes=[];
+  await assert.rejects(runPilot({
+    env:{EXPERIMENT_SEED:'abc',BLABLADOR_API_KEY:'status":',HIP_API_KEY:'hip-secret-1234567'},
+    write:async(path,text)=>writes.push(JSON.parse(text))
+  }),/invalid_seed/);
+  assert.equal(writes.at(-1).failureCode,'invalid_seed');
+});
+test('malformed successful provider JSON retains response failure code',async()=>{
+  const writes=[];
+  await assert.rejects(runPilot({
+    env:{EXPERIMENT_SEED:'20261016',...env},
+    select:{...choice,reason:'selected'},
+    propose:researchProposer(choice,env,async()=>new Response('broken JSON',{status:200})),
+    write:async(path,text)=>writes.push(JSON.parse(text))
+  }),/invalid_model_response/);
+  assert.equal(writes.at(-1).failureCode,'invalid_model_response');
+});
+test('sanitized discovery issues are included in selection provenance',async()=>{
+  const writes=[];
+  await assert.rejects(runPilot({
+    env:{EXPERIMENT_SEED:'20261016',...env},
+    select:{...choice,reason:'selected',issues:[{provider:'hip',error:'http_503'}, {provider:'hip',error:'secret-token'}]},
+    propose:async()=>{throw new Error('halt');},
+    write:async(path,text)=>writes.push(JSON.parse(text))
+  }),/research_pilot_failed/);
+  assert.deepEqual(writes.at(-1).discoveryIssues,[{provider:'hip',error:'http_503'}]);
+});
