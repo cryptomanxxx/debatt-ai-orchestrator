@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { planEvidenceResearch } from '../research/autonomous-planner.mjs';
 import { researchFingerprint } from '../research/research-loop.mjs';
 import { planResearchTree,validateTreeEvidence,renderTreeReview,main } from '../research/research-tree-planner.mjs';
@@ -121,4 +124,28 @@ test('rejects fabricated extra findings and inconsistent report coverage',async(
   const failed=fixture();
   failed.papers[0].status='error';
   await assert.rejects(planResearchTree(failed),/invalid_tree_evidence_report/);
+});
+
+test('rejects invalid rejected finding counts instead of claiming completion',async()=>{
+  for (const value of [-1, 1.5, '0', null]) {
+    const report=fixture();
+    report.papers[0].validation={rejected_findings:value};
+    await assert.rejects(planResearchTree(report),/invalid_tree_evidence_report/);
+  }
+  const valid=fixture();
+  valid.papers[0].validation={rejected_findings:0};
+  assert.equal((await planResearchTree(valid)).source_report_status,'completed');
+});
+
+test('rejects oversized local replay before parsing its JSON',async()=>{
+  const folder=await mkdtemp(join(tmpdir(),'research-tree-replay-'));
+  try {
+    const path=join(folder,'oversized.json');
+    await writeFile(path,'x'.repeat(500_001));
+    await assert.rejects(main({RESEARCH_TREE_INPUT_FILE:path},{
+      mkdirImpl:async()=>{},write:async()=>{throw Error('unexpected_write');}
+    }),/invalid_tree_evidence_report/);
+  } finally {
+    await rm(folder,{recursive:true,force:true});
+  }
 });
