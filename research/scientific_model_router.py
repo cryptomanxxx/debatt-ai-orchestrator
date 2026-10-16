@@ -141,6 +141,10 @@ def run(task, env, discover=http_json, complete=http_json):
             raise RouterError("model_identity_unverified")
         if finish != "stop":
             raise RouterError("response_not_complete")
+    except RouterError as failure:
+        failure.selected = {"provider": name, "model": model}
+        failure.issues = selection["discovery_issues"]
+        raise
     except (KeyError, IndexError, TypeError, ValueError):
         failure = RouterError("invalid_model_response", selection["discovery_issues"])
         failure.selected = {"provider": name, "model": model}
