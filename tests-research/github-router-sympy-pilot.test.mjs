@@ -83,3 +83,24 @@ test('provider identity errors stay recognizable across SymPy wrapper',async()=>
   }),/model_identity_mismatch/);
   assert.equal(writes.at(-1).failureCode,'model_identity_mismatch');
 });
+
+test('network failure is preserved as model_transport_error in partial report',async()=>{
+  const writes=[];
+  await assert.rejects(runPilot({
+    env:{EXPERIMENT_SEED:'20261016',...env},
+    select:{...choice,reason:'operator-selected'},
+    propose:researchProposer(choice,env,async()=>{throw new TypeError('network unreachable');}),
+    write:async(path,text)=>writes.push(JSON.parse(text)),
+  }),/model_transport_error/);
+  assert.equal(writes.at(-1).failureCode,'model_transport_error');
+});
+test('HTTP 429 is preserved as model_upstream_http_error in partial report',async()=>{
+  const writes=[];
+  await assert.rejects(runPilot({
+    env:{EXPERIMENT_SEED:'20261016',...env},
+    select:{...choice,reason:'operator-selected'},
+    propose:researchProposer(choice,env,async()=>new Response('private server error',{status:429})),
+    write:async(path,text)=>writes.push(JSON.parse(text)),
+  }),/model_upstream_http_error/);
+  assert.equal(writes.at(-1).failureCode,'model_upstream_http_error');
+});
