@@ -10,6 +10,8 @@ import { createResearchProblem, addHypothesis } from './research-loop.mjs';
 import { effectiveLimitationStatus } from './limitation-review.mjs';
 import { candidateProtocol, portfolioAssessment } from './research-candidate-protocols.mjs';
 import { createFollowUpClient } from './literature-follow-up.mjs';
+import { createAbstractArchiveClient } from './literature-abstract-archive.mjs';
+import { replayEvidence } from './evidence-replay-verifier.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHA = /^[a-f0-9]{64}$/i;
@@ -263,7 +265,7 @@ export function renderTreeReview(result) {
   lines.push('','No experiments executed; every entry requires human approval.');
   return lines.join('\n')+'\n';
 }
-export async function main(env=process.env,{readReport,write=writeFile,mkdirImpl=mkdir}={}) {
+export async function main(env=process.env,{readReport,readArchiveVersion,write=writeFile,mkdirImpl=mkdir}={}) {
   const local=env.RESEARCH_TREE_INPUT_FILE;
   const id=env.RESEARCH_TREE_REPORT_ID;
   if((local && id)||(!local&&!id)) throw Error('invalid_tree_input_selection');
@@ -291,6 +293,17 @@ export async function main(env=process.env,{readReport,write=writeFile,mkdirImpl
   }
   const output='reports/research-tree-review';
   const result=await planResearchTree(evidence);
+  const archive=readArchiveVersion ?? (env.SUPABASE_URL && env.SUPABASE_SECRET_KEY
+    ? createAbstractArchiveClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY}).readVersion : null);
+  const replay=await replayEvidence(evidence,{readVersion:archive});
+  result.citation_replay={method:'immutable_archive_quote_match',results:replay,
+    verified:replay.filter(x=>x.status==='verified').length,
+    unverifiable:replay.filter(x=>x.status==='unverifiable').length,
+    rejected:replay.filter(x=>x.status==='rejected').length};
+  const byArticle=new Map(replay.map(x=>[x.article_id,x]));
+  for(const row of result.review_queue) for(const ref of row.evidence_refs){
+    ref.archive_quote_status=byArticle.get(ref.article_id)?.status??'unverifiable';
+  }
   await mkdirImpl(output,{recursive:true});
   await write(output+'/report.json',JSON.stringify(result,null,2)+'\n');
   const summary=renderTreeReview(result);
