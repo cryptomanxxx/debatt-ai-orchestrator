@@ -91,7 +91,7 @@ export function validateTreeEvidence(report) {
         && text(e.url,2048) && /^https:\/\//i.test(e.url)
         && e.url === paper.content?.url && e.verification === 'quote_match_only'
         && ((paper.content?.provider === 'openalex' && /^https:\/\/openalex\.org\/W\d+$/.test(e.url)
-            && paper.content?.resolved_openalex_id === e.url
+            && (paper.content?.resolved_openalex_id == null || paper.content.resolved_openalex_id === e.url)
             && (!paper.lookup_identifiers?.openalex_records?.length
               || e.url === paper.lookup_identifiers.openalex_records[0].source_id)
             && (paper.lookup_identifiers?.openalex_records?.length
@@ -300,6 +300,11 @@ export async function main(env=process.env,{readReport,readArchiveVersion,write=
     verified:replay.filter(x=>x.status==='verified').length,
     unverifiable:replay.filter(x=>x.status==='unverifiable').length,
     rejected:replay.filter(x=>x.status==='rejected').length};
+  if(result.citation_replay.rejected>0){
+    result.status='invalid_evidence';
+    result.review_queue=[];
+    result.limitations.push('Archive replay rejected source evidence; no candidate queue is published.');
+  }
   const byArticle=new Map(replay.map(x=>[x.article_id,x]));
   for(const row of result.review_queue) for(const ref of row.evidence_refs){
     ref.archive_quote_status=byArticle.get(ref.article_id)?.status??'unverifiable';
