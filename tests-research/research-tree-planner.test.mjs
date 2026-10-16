@@ -11,10 +11,10 @@ const REPORT_ID='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 const sha=c=>c.repeat(64);
 function fixture(){
   const papers=[
-    {article_id:'p-1',title:'Symbolic regression measurement selection',status:'summarized',
+    {article_id:'11111111-1111-4111-8111-111111111111',title:'Symbolic regression measurement selection',status:'summarized',source_hits:[{source:'openalex',title:'Symbolic regression measurement selection',source_id:'https://openalex.org/W12345'}],
       content:{provider:'openalex',url:'https://openalex.org/W12345',sha256:sha('a'),analyzed_sha256:sha('a'),truncated:false,scope:'abstract_only'},
       findings:[{kind:'method',claim:'Targeted symbolic regression with hidden holdout samples.',quote:'Targeted symbolic regression with hidden holdout samples.',verification:'quote_match_only'}]},
-    {article_id:'p-2',title:'Bayesian active learning experiment design',status:'summarized',
+    {article_id:'22222222-2222-4222-8222-222222222222',title:'Bayesian active learning experiment design',status:'summarized',source_hits:[{source:'openalex',title:'Bayesian active learning experiment design',source_id:'https://openalex.org/W67890'}],
       content:{provider:'openalex',url:'https://openalex.org/W67890',sha256:sha('c'),analyzed_sha256:sha('c'),truncated:false,scope:'abstract_only'},
       findings:[{kind:'method',claim:'Bayesian optimization of information gain in experiment design.',quote:'Bayesian optimization of information gain in experiment design.',verification:'quote_match_only'}]},
   ];
@@ -181,4 +181,34 @@ test('rejects mismatched OpenAlex work IDs and rebranded source titles',async()=
   retitled.papers[0].source_hits=[{source:'openalex',title:'Original source title',source_id:'https://openalex.org/W12345'}];
   retitled.planner=planEvidenceResearch(retitled.papers);
   await assert.rejects(planResearchTree(retitled),/invalid_tree_paper/);
+});
+
+test('rejects missing retained title provenance, non-UUID articles and padded quotations',async()=>{
+  const missing=fixture(); delete missing.papers[0].source_hits;
+  await assert.rejects(planResearchTree(missing),/invalid_tree_paper/);
+  const badId=fixture(); badId.papers[0].article_id='not-a-uuid';
+  badId.planner=planEvidenceResearch(badId.papers);
+  await assert.rejects(planResearchTree(badId),/invalid_tree_paper/);
+  const padded=fixture(); padded.papers[0].findings[0].quote='x'+' '.repeat(25);
+  padded.planner=planEvidenceResearch(padded.papers);
+  await assert.rejects(planResearchTree(padded),/invalid_tree_citation/);
+  const context=fixture();context.papers[0].findings[0]={
+    kind:'limitation',claim:'This limitation warrants a careful comparison.',
+    quote:'This limitation warrants a careful comparison.',
+    context_quote:'x'+' '.repeat(25),limitation_status:'unclear',
+    limitation_assessment:'unverified_model_interpretation',verification:'quote_match_only'
+  };
+  context.planner=planEvidenceResearch(context.papers);
+  await assert.rejects(planResearchTree(context),/invalid_tree_citation/);
+});
+
+test('review artifact keeps the evidence scope for every reference',async()=>{
+  const full=await planResearchTree(fixture());
+  assert.ok(full.review_queue[0].evidence_refs.every(e=>e.evidence_scope==='abstract_only' && e.truncated===false));
+  const prefix=fixture();prefix.papers[0].content.truncated=true;
+  prefix.papers[0].content.analyzed_sha256=sha('d');
+  prefix.planner=planEvidenceResearch(prefix.papers);
+  const reviewed=await planResearchTree(prefix);
+  const refs=reviewed.review_queue.flatMap(row=>row.evidence_refs);
+  assert.ok(refs.some(e=>e.article_id===prefix.papers[0].article_id && e.evidence_scope==='abstract_prefix' && e.truncated===true));
 });
