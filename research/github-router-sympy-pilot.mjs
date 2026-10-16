@@ -22,7 +22,7 @@ export function checkedSelection(selection, env) {
 }
 export async function readJsonBounded(response, maxBytes=65536) {
   const reader = response.body?.getReader();
-  if (!reader) throw new Error('empty_response_body');
+  if (!reader) throw new ResearchError('invalid_model_response');
   const chunks=[];let size=0;
   try {
     while(true) {
@@ -108,10 +108,10 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     report.discoveryIssues=Array.isArray(selected.issues) ? selected.issues.filter(x=>
       x&&typeof x==='object'&&['blablador','hip'].includes(x.provider)&&
       ['key_not_configured','not_listed','invalid_api_key','upstream_timeout',
-       'upstream_transport_error','invalid_upstream_json','invalid_model_discovery',
+       'upstream_transport_error','invalid_upstream_json','invalid_model_discovery','oversized_response',
        'http_400','http_401','http_403','http_404','http_429','http_500','http_502','http_503','http_504']
         .includes(x.error)).map(x=>({provider:x.provider,error:x.error,
-          ...(typeof x.model==='string'&&route.models.includes(x.model)?{model:x.model}:{})})) : [];
+          ...(typeof x.model==='string'&&ROUTES[x.provider].models.includes(x.model)?{model:x.model}:{})})) : [];
     report.status='running';await persist();
     const runner=await runSympyExperiment(seed,propose||researchProposer(selected,env),tool,
       async commitments=>{report.commitments=commitments;await persist();},
@@ -127,6 +127,11 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
       'model_upstream_http_error','invalid_model_response',
       'invalid_tool_evidence','model_transport_error','tool_transport_error'];
     const originating=error?.message==='invalid_model_proposal' ? error?.details?.code : null;
+    if(error instanceof ResearchError){
+      const {case: caseNumber,operation}=error.diagnostic||{};
+      if(Number.isInteger(caseNumber)&&caseNumber>=1&&caseNumber<=3)report.failureCase=caseNumber;
+      if(['initial_proposal','correction','positive_control','negative_control'].includes(operation))report.failureOperation=operation;
+    }
     report.failureCode=known.includes(originating)?originating
       :known.includes(error?.message)?error.message:'research_pilot_failed';
     await persist();throw new Error(report.failureCode);
