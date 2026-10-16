@@ -265,7 +265,7 @@ def _candidate_set(fixture: dict) -> list[dict] | None:
     rnd = _random("314159", level, len(fixture["view"]["observations"]))
     candidates = [correct, *rnd.sample(others, 2)]
     # A separately seeded shuffle prevents list position from revealing truth.
-    order_rng = random.Random(int(digest(["candidate-order", fixture["view"], fixture["commitment"]])[:16], 16))
+    order_rng = random.Random(int(digest(["candidate-order-v1", fixture["view"]])[:16], 16))
     order_rng.shuffle(candidates)
     return candidates
 
