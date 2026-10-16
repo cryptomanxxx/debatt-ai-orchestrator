@@ -87,5 +87,26 @@ class IngestionTests(unittest.TestCase):
         both_unknown = dict(x, source="unknown", sources=["unknown"])
         self.assertEqual(mod.candidate_pairs([both_unknown, unknown]), [])
 
+
+    def test_unscoped_provider_id_is_rejected(self):
+        record = {"id": "123", "title": "Research into transport systems",
+                  "abstract": "Experimentally observed transport in many independent controlled systems."}
+        normalized, reason = mod.normalize(record)
+        self.assertIsNone(normalized)
+        self.assertEqual(reason, "missing_provider_source")
+        normalized, reason = mod.normalize({**record, "source": "core"})
+        self.assertIsNone(reason)
+        self.assertEqual(normalized["source"], "core")
+
+    def test_same_source_work_is_bounded_and_marked_incomplete(self):
+        records = []
+        for i in range(50):
+            records.append({"id": str(i), "source": "core", "sources": ["core"],
+                            "tokens": [f"sharedterm{n:03d}" for n in range(220)]})
+        metadata = {}
+        pairs = mod.candidate_pairs(records, metadata=metadata)
+        self.assertEqual(pairs, [])
+        self.assertEqual(metadata["status"], "incomplete_work_budget")
+
 if __name__ == "__main__":
     unittest.main()
