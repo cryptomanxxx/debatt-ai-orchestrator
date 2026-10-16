@@ -47,6 +47,8 @@ jobs:
           python-version: '3.12'
       - name: Test ACT-MAP / VEM-Sci CPU-only pilot
         run: python3 -m unittest discover -s tests-research -p test_act_map_benchmark.py -v
+      - name: Validate causal literature ingestion and provenance
+        run: python3 -m unittest discover -s tests-research -p test_causal_literature_index.py -v
       - run: npm ci
       - run: npm run format:check
       - run: python3 -m pip install -r research/requirements.lock
