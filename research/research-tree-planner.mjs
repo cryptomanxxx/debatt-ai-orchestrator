@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, open, writeFile, appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import { normalizeArxivId } from './literature-benchmark.mjs';
 import { agenticTreeSearch } from './agentic-tree-search.mjs';
 import { planEvidenceResearch } from './autonomous-planner.mjs';
 import { createResearchProblem, addHypothesis } from './research-loop.mjs';
@@ -37,6 +38,8 @@ export function validateTreeEvidence(report) {
   assert(report.papers.every(p => p?.validation === undefined ||
     (p.validation && Number.isInteger(p.validation.rejected_findings)
       && p.validation.rejected_findings >= 0)), 'invalid_tree_evidence_report');
+  assert(report.papers.every(p => ['summarized','insufficient_evidence','unavailable','error'].includes(p?.status)),
+    'invalid_tree_evidence_report');
   const summarized = report.papers.filter(p => p?.status === 'summarized').length;
   const rejected = report.papers.some(p => p?.validation?.rejected_findings > 0);
   const derivedStatus = summarized === 0 ? 'insufficient_evidence'
@@ -75,10 +78,13 @@ export function validateTreeEvidence(report) {
         && SHA.test(e.analyzed_content_sha256 ?? '') && SHA.test(e.content_sha256 ?? '')
         && e.analyzed_content_sha256 === paper.content?.analyzed_sha256
         && e.content_sha256 === paper.content?.sha256
+        && (paper.content?.truncated === true || paper.content?.analyzed_sha256 === paper.content?.sha256)
         && text(e.url,2048) && /^https:\/\//i.test(e.url)
         && e.url === paper.content?.url && e.verification === 'quote_match_only'
         && ((paper.content?.provider === 'openalex' && /^https:\/\/openalex\.org\/W\d+$/.test(e.url))
-          || (paper.content?.provider === 'arxiv' && /^https:\/\/arxiv\.org\/abs\/[a-z0-9.\/-]+$/i.test(e.url)))
+          || (paper.content?.provider === 'arxiv' && /^https:\/\/arxiv\.org\/abs\/[a-z0-9.\/-]+$/i.test(e.url)
+            && normalizeArxivId(e.url)
+            && normalizeArxivId(e.url) === normalizeArxivId(paper.lookup_identifiers?.arxiv_id)))
         && (paper.content?.scope === 'abstract_only' || paper.content?.scope == null)
         && (paper.content?.truncated === true ? e.evidence_scope === 'abstract_prefix' : e.evidence_scope === 'abstract_only')
         && Array.isArray(paper.findings) && paper.findings.length > 0 && paper.findings.length <= 3
