@@ -14,7 +14,8 @@ network action or experiment is selected by a paper or by the tree itself.
    research pipeline (manual)** and find its saved *evidence report UUID*
    (not the literature collection UUID or the follow-up report UUID).
 2. Open **Actions → Research Tree Search (review only) → Run workflow** on
-   the proposed branch for testing, or on main after merging.
+   the trusted main branch only. Branch testing must use the local offline replay
+   without any Supabase database credential.
 3. Supply the existing evidence report UUID. The workflow reads that immutable
    report using the existing read-only Supabase client and
    SUPABASE_URL/SUPABASE_SECRET_KEY. It does **not** write back to the database.
