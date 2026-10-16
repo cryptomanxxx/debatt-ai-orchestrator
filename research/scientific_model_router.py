@@ -88,6 +88,7 @@ def candidates(task, provider="auto"):
 def choose_model(task, keys, provider="auto", discover=http_json):
     errors = []
     checked = set()
+    discovery_failed = set()
     for name, model in candidates(task, provider):
         key = keys.get(PROVIDERS[name]["secret"], "")
         if not key:
@@ -101,8 +102,11 @@ def choose_model(task, keys, provider="auto", discover=http_json):
             except RouterError as error:
                 errors.append({"provider": name, "error": str(error)})
                 checked.add(name)
+                discovery_failed.add(name)
                 continue
             checked.add(name)
+        if name in discovery_failed:
+            continue
         if model in keys.get("__discovered_" + name, set()):
             return {"provider": name, "model": model, "reason": "fixed_profile_priority_and_discovery",
                     "discovery_issues": errors}
@@ -118,10 +122,15 @@ def run(task, env, discover=http_json, complete=http_json):
     name, model = selection["provider"], selection["model"]
     started = time.monotonic()
     # Fixed maximum of ONE completion. Explicit task prompts only, not executable code.
-    result = complete(PROVIDERS[name]["base"], keys[PROVIDERS[name]["secret"]],
-                      "/chat/completions", {"model": model,
-                      "messages": [{"role": "user", "content": PROMPTS[task]}],
-                      "max_tokens": 512, "temperature": 0})
+    try:
+        result = complete(PROVIDERS[name]["base"], keys[PROVIDERS[name]["secret"]],
+                          "/chat/completions", {"model": model,
+                          "messages": [{"role": "user", "content": PROMPTS[task]}],
+                          "max_tokens": 512, "temperature": 0})
+    except RouterError as error:
+        error.selected = {"provider": name, "model": model}
+        error.issues = selection["discovery_issues"]
+        raise
     try:
         answer = result["choices"][0]["message"]["content"]
         finish = result["choices"][0].get("finish_reason")
@@ -133,7 +142,9 @@ def run(task, env, discover=http_json, complete=http_json):
         if finish != "stop":
             raise RouterError("response_not_complete")
     except (KeyError, IndexError, TypeError, ValueError):
-        raise RouterError("invalid_model_response") from None
+        failure = RouterError("invalid_model_response", selection["discovery_issues"])
+        failure.selected = {"provider": name, "model": model}
+        raise failure from None
     # Never confuse a completed response with scientifically verified correctness.
     return {"schema_version": 1, "status": "completed_unverified",
             "task": task, "prompt": PROMPTS[task],
@@ -179,6 +190,8 @@ def main():
         report["error"] = safe if re.fullmatch(r"[a-z0-9_]+", safe) else "execution_failed"
         if isinstance(error, RouterError):
             report["discovery_issues"] = error.issues
+            if getattr(error, "selected", None):
+                report["selected"] = error.selected
         save()
         raise SystemExit("Model routing failed: " + report["error"]) from None
 
