@@ -313,15 +313,16 @@ export async function main(env=process.env,{readReport,readArchiveVersion,readAn
     verified:replay.filter(x=>x.status==='verified').length,
     unverifiable:replay.filter(x=>x.status==='unverifiable').length,
     rejected:replay.filter(x=>x.status==='rejected').length};
-  const routingVersion=evidence.planner?.routing_version??'claim-v1';
+  // Every routing version, including historical claim-v1, must have verified
+  // immutable producer analysis before its derived review queue is published.
   if(result.citation_replay.rejected>0){
     result.status='invalid_evidence';
     result.review_queue=[];
     result.limitations.push('Archive or analysis replay rejected source evidence; no candidate queue is published.');
-  }else if(routingVersion==='quote-v2' && result.citation_replay.unverifiable>0){
+  }else if(result.citation_replay.unverifiable>0){
     result.status='verification_required';
     result.review_queue=[];
-    result.limitations.push('Quote-v2 routing requires matching immutable analysis and abstract versions before publishing review candidates.');
+    result.limitations.push('Every routing version requires matching immutable producer analysis and abstract versions before publishing review candidates; historical reports without them remain readable as diagnostics.');
   }
   if(result.status==='invalid_evidence'||result.status==='verification_required'){
     // Do not publish even review-only Research Loop hypotheses or search traces
@@ -341,7 +342,8 @@ export async function main(env=process.env,{readReport,readArchiveVersion,readAn
   return result;
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href) {
-  main().then(r=>console.log('Research tree review: '+r.status+', nodes='+r.search.evaluatedNodes))
+  main().then(r=>console.log('Research tree review: '+r.status+
+    (r.search ? ', nodes='+r.search.evaluatedNodes : ', no review nodes published')))
     .catch(e=>{console.error('Research tree review failed: '+(
       ['invalid_tree_limits','invalid_tree_evidence_report','invalid_tree_candidate',
         'invalid_tree_paper','invalid_tree_citation','invalid_tree_gap','invalid_tree_protocol',
