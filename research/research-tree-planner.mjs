@@ -52,6 +52,11 @@ export function validateTreeEvidence(report) {
   const papers = new Map();
   for (const paper of report.papers) {
     assert(text(paper?.article_id, 250) && !papers.has(paper.article_id), 'invalid_tree_paper');
+    // Original ingestion picks the first retained provider hit as the article title.
+    if (Array.isArray(paper.source_hits) && paper.source_hits.length) {
+      assert(text(paper.source_hits[0]?.title, 1000)
+        && paper.title === paper.source_hits[0].title, 'invalid_tree_paper');
+    }
     papers.set(paper.article_id,paper);
   }
   const seen = new Set();
@@ -81,7 +86,12 @@ export function validateTreeEvidence(report) {
         && (paper.content?.truncated === true || paper.content?.analyzed_sha256 === paper.content?.sha256)
         && text(e.url,2048) && /^https:\/\//i.test(e.url)
         && e.url === paper.content?.url && e.verification === 'quote_match_only'
-        && ((paper.content?.provider === 'openalex' && /^https:\/\/openalex\.org\/W\d+$/.test(e.url))
+        && ((paper.content?.provider === 'openalex' && /^https:\/\/openalex\.org\/W\d+$/.test(e.url)
+            && (!paper.lookup_identifiers?.openalex_records?.length
+              || e.url === paper.lookup_identifiers.openalex_records[0].source_id)
+            && (paper.lookup_identifiers?.openalex_records?.length
+              || !paper.source_hits?.some(h => h.source === 'openalex' && /^https:\/\/openalex\.org\/W\d+$/.test(h.source_id))
+              || e.url === paper.source_hits.find(h => h.source === 'openalex' && /^https:\/\/openalex\.org\/W\d+$/.test(h.source_id)).source_id))
           || (paper.content?.provider === 'arxiv' && /^https:\/\/arxiv\.org\/abs\/[a-z0-9.\/-]+$/i.test(e.url)
             && normalizeArxivId(e.url)
             && normalizeArxivId(e.url) === normalizeArxivId(paper.lookup_identifiers?.arxiv_id)))
