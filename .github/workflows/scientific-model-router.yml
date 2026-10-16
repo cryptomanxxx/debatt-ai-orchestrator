@@ -1,0 +1,47 @@
+name: Scientific Model Router (GitHub-native)
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: Scientific task category
+        required: true
+        type: choice
+        options: [reasoning, literature, coding, fast]
+        default: reasoning
+      provider:
+        description: Preferred provider (auto follows explicit priority)
+        required: true
+        type: choice
+        options: [auto, blablador, hip]
+        default: auto
+permissions:
+  contents: read
+concurrency:
+  group: scientific-model-router
+  cancel-in-progress: false
+jobs:
+  route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Validate router without network or keys
+        run: python -m unittest discover -s research -p 'test_scientific_model_router.py'
+      - name: Select available scientific model and run bounded pilot
+        env:
+          BLABLADOR_API_KEY: ${{ secrets.BLABLADOR_API_KEY }}
+          HIP_API_KEY: ${{ secrets.HIP_API_KEY }}
+          ROUTER_TASK: ${{ inputs.task }}
+          ROUTER_PROVIDER: ${{ inputs.provider }}
+        run: python research/scientific_model_router.py
+      - name: Save router decision and results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: scientific-model-router-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/scientific-model-router/report.json
+          retention-days: 30
+          if-no-files-found: warn
