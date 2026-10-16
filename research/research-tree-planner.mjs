@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, open, writeFile, appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import { normalizeArxivId } from './literature-benchmark.mjs';
+import { SOURCES, normalizeArxivId } from './literature-benchmark.mjs';
 import { agenticTreeSearch } from './agentic-tree-search.mjs';
 import { planEvidenceResearch } from './autonomous-planner.mjs';
 import { createResearchProblem, addHypothesis } from './research-loop.mjs';
@@ -35,9 +35,10 @@ export function validateTreeEvidence(report) {
     && Array.isArray(report.planner.proposals) && report.planner.proposals.length <= 10
     && (report.status === 'insufficient_evidence' ? report.planner.proposals.length === 0 : report.planner.proposals.length > 0)
     && Buffer.byteLength(JSON.stringify(report)) <= 500_000, 'invalid_tree_evidence_report');
-  assert(report.papers.every(p => p?.validation === undefined ||
+  assert(report.papers.every(p => p?.status !== 'summarized' ||
     (p.validation && Number.isInteger(p.validation.rejected_findings)
-      && p.validation.rejected_findings >= 0)), 'invalid_tree_evidence_report');
+      && p.validation.rejected_findings >= 0 && Number.isInteger(p.validation.accepted_findings)
+      && p.validation.accepted_findings === p.findings?.length)), 'invalid_tree_evidence_report');
   assert(report.papers.every(p => ['summarized','insufficient_evidence','unavailable','error'].includes(p?.status)),
     'invalid_tree_evidence_report');
   const summarized = report.papers.filter(p => p?.status === 'summarized').length;
@@ -55,7 +56,9 @@ export function validateTreeEvidence(report) {
     // Original ingestion picks the first retained provider hit as the article title.
     assert(Array.isArray(paper.source_hits) && paper.source_hits.length > 0
       && text(paper.source_hits[0]?.title, 1000)
-      && paper.title === paper.source_hits[0].title, 'invalid_tree_paper');
+      && paper.title === paper.source_hits[0].title
+      && paper.source_hits.every((h,i,a) => SOURCES.includes(h.source)
+        && (i === 0 || SOURCES.indexOf(a[i-1].source) < SOURCES.indexOf(h.source))), 'invalid_tree_paper');
     papers.set(paper.article_id,paper);
   }
   const seen = new Set();
@@ -82,10 +85,14 @@ export function validateTreeEvidence(report) {
         && SHA.test(e.analyzed_content_sha256 ?? '') && SHA.test(e.content_sha256 ?? '')
         && e.analyzed_content_sha256 === paper.content?.analyzed_sha256
         && e.content_sha256 === paper.content?.sha256
+        && typeof paper.content?.analyzed_text === 'string'
+        && Buffer.byteLength(paper.content.analyzed_text,'utf8') <= 12000
+        && createHash('sha256').update(paper.content.analyzed_text).digest('hex') === paper.content.analyzed_sha256
         && (paper.content?.truncated === true || paper.content?.analyzed_sha256 === paper.content?.sha256)
         && text(e.url,2048) && /^https:\/\//i.test(e.url)
         && e.url === paper.content?.url && e.verification === 'quote_match_only'
         && ((paper.content?.provider === 'openalex' && /^https:\/\/openalex\.org\/W\d+$/.test(e.url)
+            && paper.content?.resolved_openalex_id === e.url
             && (!paper.lookup_identifiers?.openalex_records?.length
               || e.url === paper.lookup_identifiers.openalex_records[0].source_id)
             && (paper.lookup_identifiers?.openalex_records?.length
@@ -99,10 +106,12 @@ export function validateTreeEvidence(report) {
         && Array.isArray(paper.findings) && paper.findings.length > 0 && paper.findings.length <= 3
         && paper.findings.every(f => ['method','result','limitation'].includes(f?.kind)
           && text(f.claim,500) && text(f.quote,280) && f.quote.trim().length >= 20
+          && paper.content.analyzed_text.includes(f.quote)
           && f.verification === 'quote_match_only'
           && (f.kind !== 'limitation' || (['remaining','prior_work','unclear'].includes(f.limitation_status)
             && f.limitation_assessment === 'unverified_model_interpretation'
-            && (f.context_quote === null || (text(f.context_quote,280) && f.context_quote.trim().length >= 20))))),
+            && (f.context_quote === null || (text(f.context_quote,280) && f.context_quote.trim().length >= 20
+              && paper.content.analyzed_text.includes(f.context_quote)))))),
         'invalid_tree_citation');
       used.add(e.id);
     }
