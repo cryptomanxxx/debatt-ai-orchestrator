@@ -163,6 +163,26 @@ test('rejects fabricated extra findings and inconsistent report coverage',async(
   await assert.rejects(planResearchTree(failed),/invalid_tree_evidence_report/);
 });
 
+test('rejects an empty immutable analysis relabeled as summarized coverage',async()=>{
+  // An insufficient-evidence paper may legitimately carry an empty analysis.
+  const partial=fixture();
+  partial.papers[1].status='insufficient_evidence';
+  partial.papers[1].findings=[];
+  partial.papers[1].validation={accepted_findings:0,rejected_findings:0,rejected:[]};
+  partial.status='partial';
+  partial.planner=planEvidenceResearch(partial.papers);
+  assert.equal((await planResearchTree(partial)).source_report_status,'partial');
+
+  const forged=structuredClone(partial);
+  forged.papers[1].status='summarized';
+  forged.status='completed';
+  forged.planner=planEvidenceResearch(forged.papers);
+  // Reconstruction still produces the same candidate: it excludes empty findings.
+  assert.deepEqual(forged.planner.proposals,partial.planner.proposals);
+  await assert.rejects(planResearchTree(forged),/invalid_tree_evidence_report/);
+  assert.throws(()=>validateTreeEvidence(forged),/invalid_tree_evidence_report/);
+});
+
 test('rejects invalid rejected finding counts instead of claiming completion',async()=>{
   for (const value of [-1, 1.5, '0', null]) {
     const report=fixture();
