@@ -1,0 +1,48 @@
+name: Oraklet ACT-MAP + VEM-Sci research pilot
+on:
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: One-to-nine digit deterministic synthetic fixture seed
+        type: string
+        required: true
+        default: '20261016'
+      cases_per_level:
+        description: Synthetic fixtures per difficulty level (2-50)
+        type: choice
+        options: ['2', '4', '6', '10', '20', '50']
+        required: true
+        default: '6'
+permissions:
+  contents: read
+concurrency:
+  group: act-map-vem-pilot
+  cancel-in-progress: false
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Verify causal correspondence and evidence gate regressions
+        run: python3 -m unittest discover -s tests-research -p test_act_map_benchmark.py -v
+      - name: Run seeded ACT-MAP benchmark and evidence-gated evaluation
+        env:
+          EXPERIMENT_SEED: ${{ inputs.seed }}
+          CASES_PER_LEVEL: ${{ inputs.cases_per_level }}
+        run: |
+          python3 research/act_map_benchmark.py \
+            --seed "$EXPERIMENT_SEED" \
+            --cases-per-level "$CASES_PER_LEVEL" \
+            --output reports/act-map/report.json
+      - name: Preserve auditable per-run JSON report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: act-map-vem-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/act-map/report.json
+          if-no-files-found: warn
+          retention-days: 30
