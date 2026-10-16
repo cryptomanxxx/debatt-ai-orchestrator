@@ -3,7 +3,10 @@ const codes = new Set(['unexpected_error', 'model_http_error', 'model_transport_
   'tool_http_error', 'tool_transport_error', 'invalid_tool_evidence', 'invalid_model_proposal',
   'invalid_model_response', 'model_changed', 'invalid_plan', 'invalid_seed', 'duplicate_plan',
   'model_budget_exceeded', 'tool_budget_exceeded', 'model_upstream_http_error',
-  'model_output_truncated', 'model_empty_response', 'model_invalid_response', 'model_budget_not_applied']);
+  'model_output_truncated', 'model_empty_response', 'model_invalid_response', 'model_budget_not_applied',
+  'model_call_budget_exceeded','model_identity_mismatch','incomplete_model_response',
+  'invalid_model_answer','provider_secret_echoed','oversized_provider_response',
+  'no_available_allowlisted_model','router_selection_failed']);
 export class ResearchError extends Error {
   constructor(code, context = {}) {
     super(codes.has(code) ? code : 'unexpected_error');

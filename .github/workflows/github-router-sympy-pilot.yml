@@ -1,0 +1,51 @@
+name: GitHub Router + Oraklet SymPy research pilot
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Choose an available model from Blablador/HIP
+        type: choice
+        required: true
+        options: [auto, blablador, hip]
+        default: auto
+      seed:
+        description: Deterministic one-to-nine-digit synthetic fixture seed
+        type: string
+        required: true
+        default: '20261016'
+permissions:
+  contents: read
+concurrency:
+  group: github-router-sympy-pilot
+  cancel-in-progress: false
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Install pinned SymPy verifier
+        run: python3 -m pip install -r research/sympy-requirements.lock
+      - name: Test bounded routing adapter
+        run: node --test tests-research/github-router-sympy-pilot.test.mjs
+      - name: Select GitHub model and run three verified cases
+        env:
+          BLABLADOR_API_KEY: ${{ secrets.BLABLADOR_API_KEY }}
+          HIP_API_KEY: ${{ secrets.HIP_API_KEY }}
+          ROUTER_PROVIDER: ${{ inputs.provider }}
+          EXPERIMENT_SEED: ${{ inputs.seed }}
+        run: node research/github-router-sympy-pilot.mjs
+      - name: Preserve complete or partial experiment results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: github-router-sympy-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/github-router-sympy/
+          retention-days: 30
+          if-no-files-found: warn
