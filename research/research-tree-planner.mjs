@@ -39,7 +39,9 @@ export function validateTreeEvidence(report) {
     && Buffer.byteLength(JSON.stringify(report)) <= 500_000, 'invalid_tree_evidence_report');
   assert(report.papers.every(p => p?.status !== 'summarized' ||
     (p.validation && Number.isInteger(p.validation.rejected_findings)
-      && p.validation.rejected_findings >= 0 && Number.isInteger(p.validation.accepted_findings)
+      && p.validation.rejected_findings >= 0 && Array.isArray(p.validation.rejected)
+      && p.validation.rejected_findings === p.validation.rejected.length
+      && Number.isInteger(p.validation.accepted_findings)
       && p.validation.accepted_findings === p.findings?.length)), 'invalid_tree_evidence_report');
   assert(report.papers.every(p => ['summarized','insufficient_evidence','unavailable','error'].includes(p?.status)),
     'invalid_tree_evidence_report');
