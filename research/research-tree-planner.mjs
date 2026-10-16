@@ -71,7 +71,13 @@ export function validateTreeEvidence(report) {
         && e.url === paper.content?.url && e.verification === 'quote_match_only'
         && (paper.content?.scope === 'abstract_only' || paper.content?.scope == null)
         && (paper.content?.truncated === true ? e.evidence_scope === 'abstract_prefix' : e.evidence_scope === 'abstract_only')
-        && Array.isArray(paper.findings) && paper.findings.length > 0,
+        && Array.isArray(paper.findings) && paper.findings.length > 0
+        && paper.findings.every(f => ['method','result','limitation'].includes(f?.kind)
+          && text(f.claim,500) && text(f.quote,280) && f.quote.length >= 20
+          && f.verification === 'quote_match_only'
+          && (f.kind !== 'limitation' || (['remaining','prior_work','unclear'].includes(f.limitation_status)
+            && f.limitation_assessment === 'unverified_model_interpretation'
+            && (f.context_quote === null || (text(f.context_quote,280) && f.context_quote.length >= 20))))),
         'invalid_tree_citation');
       used.add(e.id);
     }
