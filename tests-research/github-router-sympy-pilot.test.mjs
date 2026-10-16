@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {checkedSelection,readJsonBounded,researchProposer} from '../research/github-router-sympy-pilot.mjs';
+import {checkedSelection,readJsonBounded,researchProposer,runPilot} from '../research/github-router-sympy-pilot.mjs';
 
 const env={BLABLADOR_API_KEY:'a'.repeat(24),HIP_API_KEY:'b'.repeat(24)};
 const choice={provider:'blablador',model:'alias-kimi-k3-1m'};
@@ -44,4 +44,42 @@ test('oversized streamed replies are canceled before memory accumulation',async(
   const stream=new ReadableStream({pull(controller){controller.enqueue(new Uint8Array(70000));},cancel(){canceled=true;}});
   await assert.rejects(readJsonBounded({body:stream}),/oversized_provider_response/);
   assert.equal(canceled,true);
+});
+
+test('provider secret reflection is rejected before reporting model output',async()=>{
+  const secret='the"\\key-123456789';
+  const credentials={...env,BLABLADOR_API_KEY:secret};
+  const propose=researchProposer(choice,credentials,async()=>Response.json({
+    model:choice.model,choices:[{finish_reason:'stop',message:{content:'{"method":"sympy","roots":[],"reason":"'+secret+'"}'}}]
+  }));
+  await assert.rejects(propose([{role:'user',content:'test'}]),/provider_secret_echoed/);
+});
+test('invalid seed produces a persisted failed artifact rather than none',async()=>{
+  const writes=[];
+  await assert.rejects(runPilot({env:{EXPERIMENT_SEED:'abc',...env},
+    write:async(path,text)=>writes.push(JSON.parse(text))}),/invalid_seed/);
+  assert.equal(writes.at(-1).status,'failed');
+  assert.equal(writes.at(-1).failureCode,'invalid_seed');
+});
+test('credential redaction handles serialized escaping',async()=>{
+  const secret='key-"\\-dangerous-123';
+  const writes=[];
+  await assert.rejects(runPilot({
+    env:{EXPERIMENT_SEED:'20261016',BLABLADOR_API_KEY:secret},
+    select:{...choice,reason:'operator-selected'},
+    propose:async()=>{throw new Error('unexpected');},
+    write:async(path,text)=>writes.push(text),
+  }),/research_pilot_failed/);
+  assert.ok(writes.length>=2);
+  assert.ok(writes.every(x=>!x.includes(secret)&&!x.includes(JSON.stringify(secret).slice(1,-1))));
+});
+test('provider identity errors stay recognizable across SymPy wrapper',async()=>{
+  const writes=[];
+  await assert.rejects(runPilot({env:{EXPERIMENT_SEED:'20261016',...env},
+    select:{...choice,reason:'operator-selected'},
+    propose:researchProposer(choice,env,async()=>Response.json({
+      model:'wrong-model',choices:[{finish_reason:'stop',message:{content:'{}'}}]})),
+    write:async(path,text)=>writes.push(JSON.parse(text)),
+  }),/model_identity_mismatch/);
+  assert.equal(writes.at(-1).failureCode,'model_identity_mismatch');
 });
