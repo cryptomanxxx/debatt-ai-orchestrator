@@ -50,7 +50,9 @@ export function validateTreeEvidence(report) {
   const derivedStatus = summarized === 0 ? 'insufficient_evidence'
     : summarized === report.papers.length && !rejected ? 'completed' : 'partial';
   assert(report.status === derivedStatus, 'invalid_tree_evidence_report');
-  const reconstructed = planEvidenceResearch(report.papers);
+  const routingVersion=report.planner.routing_version??'claim-v1';
+  assert(['claim-v1','quote-v2'].includes(routingVersion), 'invalid_tree_evidence_report');
+  const reconstructed = planEvidenceResearch(report.papers,{routingVersion});
   const expected = new Map(reconstructed.proposals.map(p => [p.id,p]));
   assert(canonical(report.planner.proposals.map(p => p.id).sort()) ===
     canonical(reconstructed.proposals.map(p => p.id).sort()), 'invalid_tree_candidate');
