@@ -51,12 +51,11 @@ export function validateTreeEvidence(report) {
     canonical(reconstructed.proposals.map(p => p.id).sort()), 'invalid_tree_candidate');
   const papers = new Map();
   for (const paper of report.papers) {
-    assert(text(paper?.article_id, 250) && !papers.has(paper.article_id), 'invalid_tree_paper');
+    assert(UUID.test(paper?.article_id ?? '') && !papers.has(paper.article_id), 'invalid_tree_paper');
     // Original ingestion picks the first retained provider hit as the article title.
-    if (Array.isArray(paper.source_hits) && paper.source_hits.length) {
-      assert(text(paper.source_hits[0]?.title, 1000)
-        && paper.title === paper.source_hits[0].title, 'invalid_tree_paper');
-    }
+    assert(Array.isArray(paper.source_hits) && paper.source_hits.length > 0
+      && text(paper.source_hits[0]?.title, 1000)
+      && paper.title === paper.source_hits[0].title, 'invalid_tree_paper');
     papers.set(paper.article_id,paper);
   }
   const seen = new Set();
@@ -99,11 +98,11 @@ export function validateTreeEvidence(report) {
         && (paper.content?.truncated === true ? e.evidence_scope === 'abstract_prefix' : e.evidence_scope === 'abstract_only')
         && Array.isArray(paper.findings) && paper.findings.length > 0 && paper.findings.length <= 3
         && paper.findings.every(f => ['method','result','limitation'].includes(f?.kind)
-          && text(f.claim,500) && text(f.quote,280) && f.quote.length >= 20
+          && text(f.claim,500) && text(f.quote,280) && f.quote.trim().length >= 20
           && f.verification === 'quote_match_only'
           && (f.kind !== 'limitation' || (['remaining','prior_work','unclear'].includes(f.limitation_status)
             && f.limitation_assessment === 'unverified_model_interpretation'
-            && (f.context_quote === null || (text(f.context_quote,280) && f.context_quote.length >= 20))))),
+            && (f.context_quote === null || (text(f.context_quote,280) && f.context_quote.trim().length >= 20))))),
         'invalid_tree_citation');
       used.add(e.id);
     }
@@ -218,7 +217,8 @@ export async function planResearchTree(report,{maxNodes=9,maxCandidates=3}={}) {
       priority:node.score,priority_kind:'heuristic_evidence_coverage_not_scientific_merit',
       routing_basis:basis,review_status:'requires_human_approval',
       evidence_refs:candidate.evidence.map(e=>({article_id:e.id,content_sha256:e.content_sha256,
-        analyzed_content_sha256:e.analyzed_content_sha256,url:e.url})),
+        analyzed_content_sha256:e.analyzed_content_sha256,url:e.url,
+        evidence_scope:e.evidence_scope,truncated:e.evidence_scope==='abstract_prefix'})),
       gap_review_tasks:(candidate.gap_review_plan??[]).map(g=>({
         gap_id:g.gap_id,status:g.status,finding_ref:g.finding_ref})),
       experiment_protocol:{...candidateProtocol(candidate), branch_kind:kind,
