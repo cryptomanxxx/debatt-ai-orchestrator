@@ -108,5 +108,20 @@ class IngestionTests(unittest.TestCase):
         self.assertEqual(pairs, [])
         self.assertEqual(metadata["status"], "incomplete_work_budget")
 
+
+    def test_retrieval_refs_distinguish_doi_from_provider_id(self):
+        a, error = mod.normalize(paper("10.5555/x", "core"))
+        self.assertIsNone(error)
+        b, error = mod.normalize({"id": "10.5555/x", "source": "core",
+                                   "title": paper("10.5555/x")["title"],
+                                   "abstract": paper("10.5555/x")["abstract"]})
+        self.assertIsNone(error)
+        c, error = mod.normalize(paper("10.5555/y", "openalex"))
+        self.assertIsNone(error)
+        pairs = mod.candidate_pairs([a, b, c])
+        self.assertEqual(len(pairs), 2)
+        kinds = sorted(p["paper_refs"][0]["id_kind"] for p in pairs)
+        self.assertEqual(kinds, ["doi", "provider"])
+
 if __name__ == "__main__":
     unittest.main()
