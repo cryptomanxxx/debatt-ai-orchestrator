@@ -128,7 +128,7 @@ def ingest(path, limit=MAX_RECORDS, *, with_digest=False):
             if error:
                 failures[error] += 1
                 continue
-            identifier = ("doi", normalized["id"]) if normalized["id_kind"] == "doi" else (normalized["source"], normalized["id"])
+            identifier = ("doi", normalized["id"]) if normalized["id_kind"] == "doi" else ("provider", normalized["source"], normalized["id"])
             if identifier in records:
                 duplicates += 1
                 if (records[identifier]["abstract_sha256"] != normalized["abstract_sha256"]
@@ -163,9 +163,13 @@ def candidate_pairs(records, limit=MAX_PAIRS, *, metadata=None):
     max_work = 250000
     truncated = False
     candidate_exhausted = False
+    high_frequency_skipped = False
     for word in sorted(postings):
         indices = postings[word]
-        if len(indices) < 2 or len(indices) > 50:
+        if len(indices) < 2:
+            continue
+        if len(indices) > 50:
+            high_frequency_skipped = True
             continue
         for left_pos, left in enumerate(indices):
             for right in indices[left_pos + 1:]:
@@ -186,10 +190,11 @@ def candidate_pairs(records, limit=MAX_PAIRS, *, metadata=None):
                 break
         if truncated:
             break
-    if truncated or candidate_exhausted:
+    if truncated or candidate_exhausted or high_frequency_skipped:
         # Never misrepresent an incomplete candidate scan as no scientific leads.
         if metadata is not None:
-            metadata["status"] = "incomplete_work_budget" if truncated else "incomplete_candidate_budget"
+            metadata["status"] = ("incomplete_work_budget" if truncated else
+                                  "incomplete_candidate_budget" if candidate_exhausted else "incomplete_common_terms")
         return []
     ranked = sorted(((count, i, j) for (i, j), count in counts.items() if count >= 2),
                     key=lambda x: (-x[0], records[x[1]]["id"], records[x[2]]["id"]))
