@@ -33,7 +33,8 @@ export async function readJsonBounded(response, maxBytes=65536) {
       if(size>maxBytes){await reader.cancel();throw new ResearchError('oversized_provider_response');}
       chunks.push(Buffer.from(value));
     }
-    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    try {return JSON.parse(Buffer.concat(chunks).toString('utf8'));}
+    catch {throw new ResearchError('invalid_model_response');}
   } finally {reader.releaseLock();}
 }
 export function researchProposer(selection, env, fetchImpl=fetch) {
@@ -74,16 +75,19 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
   const report={schemaVersion:1,status:'preflight',seed,startedAt:new Date().toISOString(),
     githubSha:env.GITHUB_SHA||null,modelCallsMax:3,results:[]};
   const persist=async()=>{
-    let snapshot=JSON.stringify(report,null,2);
-    // Last-resort masking after JSON escaping (including quotes and backslashes).
+    // Recursively redact only string values, never serialized object structure.
     const secrets=[env.BLABLADOR_API_KEY,env.HIP_API_KEY]
       .filter(x=>typeof x==='string'&&x).sort((a,b)=>b.length-a.length);
-    for(const secret of secrets) {
-      if(typeof secret==='string'&&secret){
-        snapshot=snapshot.replaceAll(JSON.stringify(secret).slice(1,-1),'[REDACTED]');
-        snapshot=snapshot.replaceAll(secret,'[REDACTED]');
+    const redact=value=>{
+      if(typeof value==='string') {
+        for(const secret of secrets)value=value.replaceAll(secret,'[REDACTED]');
+        return value;
       }
-    }
+      if(Array.isArray(value))return value.map(redact);
+      if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,redact(v)]));
+      return value;
+    };
+    const snapshot=JSON.stringify(redact(report),null,2);
     await write(dir+'/report.json',snapshot+'\n');
   };
   await persist();
@@ -100,6 +104,14 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     const route=checkedSelection(selected,env);
     report.selected={provider:route.provider,model:route.model};
     report.routingReason=selected.reason;
+    // Routing issues are fixed, non-secret diagnostic enums from the Python selector.
+    report.discoveryIssues=Array.isArray(selected.issues) ? selected.issues.filter(x=>
+      x&&typeof x==='object'&&['blablador','hip'].includes(x.provider)&&
+      ['key_not_configured','not_listed','invalid_api_key','upstream_timeout',
+       'upstream_transport_error','invalid_upstream_json','invalid_model_discovery',
+       'http_400','http_401','http_403','http_404','http_429','http_500','http_502','http_503','http_504']
+        .includes(x.error)).map(x=>({provider:x.provider,error:x.error,
+          ...(typeof x.model==='string'&&route.models.includes(x.model)?{model:x.model}:{})})) : [];
     report.status='running';await persist();
     const runner=await runSympyExperiment(seed,propose||researchProposer(selected,env),tool,
       async commitments=>{report.commitments=commitments;await persist();},
@@ -112,7 +124,7 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     const known=['invalid_seed','untrusted_route','untrusted_model','missing_provider_key',
       'model_call_budget_exceeded','model_identity_mismatch','incomplete_model_response',
       'invalid_model_answer','provider_secret_echoed','oversized_provider_response','invalid_model_proposal',
-      'model_upstream_http_error',
+      'model_upstream_http_error','invalid_model_response',
       'invalid_tool_evidence','model_transport_error','tool_transport_error'];
     const originating=error?.message==='invalid_model_proposal' ? error?.details?.code : null;
     report.failureCode=known.includes(originating)?originating
