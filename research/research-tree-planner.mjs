@@ -265,6 +265,12 @@ export function renderTreeReview(result) {
     'Priority is evidence-coverage routing only; no scientific ranking or verification.','',
     '| Rank | Candidate | Branch | Priority (heuristic) | Evidence articles |',
     '| ---: | --- | --- | ---: | ---: |'];
+  if(result.citation_replay) lines.splice(7,0,
+    'Immutable evidence replay: verified='+result.citation_replay.verified
+      +', unverifiable='+result.citation_replay.unverifiable
+      +', rejected='+result.citation_replay.rejected+'.',
+    result.status==='verification_required'||result.status==='invalid_evidence'
+      ?'No review candidates published because evidence verification is incomplete or failed.':'');
   for(const row of result.review_queue) lines.push('| '+row.rank+' | '+escapeMd(row.candidate_id)
     +' | '+escapeMd(row.branch_kind)+' | '+row.priority+' | '+row.routing_basis.cited_abstracts+' |');
   lines.push('','No experiments executed; every entry requires human approval.');
