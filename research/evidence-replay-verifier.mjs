@@ -26,7 +26,9 @@ export async function replayEvidence(report,{readVersion}={}) {
       ||loaded.archive?.version_id!==version
       || !UUID.test(paper.archive?.source_record_id??'')
       || loaded.archive?.source_record_id!==paper.archive.source_record_id
-      || !paper.source_hits?.some(h=>h.source_record_id===paper.archive.source_record_id)){
+      || !(paper.source_hits?.some(h=>h.source_record_id===paper.archive.source_record_id)
+        || paper.lookup_identifiers?.openalex_records?.some(h=>h.source_record_id===paper.archive.source_record_id
+          && h.source_id===paper.content?.url))){
       results.push({...base,status:'rejected',reason:'archive_identity_or_hash_mismatch'});return;
     }
     let prompt;
