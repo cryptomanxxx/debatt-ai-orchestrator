@@ -121,6 +121,7 @@ test('rejects fabricated extra findings and inconsistent report coverage',async(
     kind:'method',claim:'Invented extra finding '+i,
     quote:'Invented extra finding supported nowhere.',verification:'quote_match_only'
   })));
+  tooMany.papers[0].validation.accepted_findings=4;
   await assert.rejects(planResearchTree(tooMany),/invalid_tree_citation/);
   const forgedPartial=fixture();
   forgedPartial.status='partial';
