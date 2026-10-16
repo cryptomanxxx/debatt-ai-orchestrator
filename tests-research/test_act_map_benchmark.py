@@ -196,5 +196,29 @@ class ActMapBenchmarkTests(unittest.TestCase):
         self.assertNotEqual(level4, scopes[:12])
 
 
+
+    def test_balanced_scope_and_malformed_gate(self):
+        for seed in ("4", "5", "20261016"):
+            report = act.run_benchmark(seed, 2)
+            scopes = [r["evaluation"]["truth_scope"] for r in report["cases"]
+                      if r["level"] == 4 and r["strategy"] == "active"]
+            self.assertEqual(sorted(scopes), ["none", "partial"])
+        f = act.make_fixture("42", 3, 1)
+        bad = {"scope": "full", "mapping": [0, "x", 2], "action_to_target": [0, 1, 2]}
+        self.assertEqual(act.evidence_gate(f, bad, [])["reason"], "invalid_hypothesis_schema")
+        h = act.hypothesis("full", tuple(f["truth"]["mapping"]),
+                           tuple(f["truth"]["action_to_target"]))
+        excluded = next(a for a in range(3)
+                        if h["mapping"].index(h["action_to_target"][a]) == 2)
+        history = [{"action": a, "value": 1, "outcome": act.experiment(f, a, 1)}
+                   for a in range(3) if a != excluded]
+        # Root and mediator are present; omission of either must be rejected.
+        root = next(a for a in range(3)
+                    if h["mapping"].index(h["action_to_target"][a]) == 0)
+        lacking_root = [{"action": a, "value": 1, "outcome": act.experiment(f, a, 1)}
+                        for a in range(3) if a != root]
+        self.assertEqual(act.evidence_gate(f, h, lacking_root)["reason"],
+                         "insufficient_intervention_coverage")
+
 if __name__ == "__main__":
     unittest.main()
