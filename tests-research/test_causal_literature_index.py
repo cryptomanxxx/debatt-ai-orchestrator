@@ -73,5 +73,19 @@ class IngestionTests(unittest.TestCase):
             self.assertEqual(err, "invalid_identifier")
             self.assertIn("study", mod.STOP)
 
+
+    def test_unicode_tokens_and_known_providers(self):
+        abstract = "Экспериментальные методы показывают повторяемые результаты в различных независимых условиях."
+        x, error = mod.normalize({"id":"alpha","source":"openalex","title":"Греческие исследования материалов", "abstract":abstract})
+        y, error2 = mod.normalize({"id":"beta","source":"core","title":"Греческие исследования материалов", "abstract":abstract})
+        self.assertIsNone(error)
+        self.assertIsNone(error2)
+        self.assertIn("исследования", x["tokens"])
+        self.assertEqual(len(mod.candidate_pairs([x, y])), 1)
+        unknown = dict(y, source="unknown", sources=["unknown"])
+        self.assertEqual(mod.candidate_pairs([x, unknown]), [])
+        both_unknown = dict(x, source="unknown", sources=["unknown"])
+        self.assertEqual(mod.candidate_pairs([both_unknown, unknown]), [])
+
 if __name__ == "__main__":
     unittest.main()
