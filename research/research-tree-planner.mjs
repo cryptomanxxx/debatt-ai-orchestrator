@@ -1,7 +1,7 @@
 // Review-only bridge: literature evidence -> bounded search -> Research Loop + portfolio queue.
 // Neither a verifier nor an experiment executor. All branches are deterministic and allowlisted.
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile, appendFile } from 'node:fs/promises';
+import { mkdir, open, writeFile, appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { agenticTreeSearch } from './agentic-tree-search.mjs';
 import { planEvidenceResearch } from './autonomous-planner.mjs';
@@ -34,6 +34,9 @@ export function validateTreeEvidence(report) {
     && Array.isArray(report.planner.proposals) && report.planner.proposals.length <= 10
     && (report.status === 'insufficient_evidence' ? report.planner.proposals.length === 0 : report.planner.proposals.length > 0)
     && Buffer.byteLength(JSON.stringify(report)) <= 500_000, 'invalid_tree_evidence_report');
+  assert(report.papers.every(p => p?.validation === undefined ||
+    (p.validation && Number.isInteger(p.validation.rejected_findings)
+      && p.validation.rejected_findings >= 0)), 'invalid_tree_evidence_report');
   const summarized = report.papers.filter(p => p?.status === 'summarized').length;
   const rejected = report.papers.some(p => p?.validation?.rejected_findings > 0);
   const derivedStatus = summarized === 0 ? 'insufficient_evidence'
@@ -246,7 +249,19 @@ export async function main(env=process.env,{readReport,write=writeFile,mkdirImpl
   let evidence;
   if(local) {
     // Local, operator-controlled file only; report content is still validated.
-    evidence=JSON.parse(await readFile(local,'utf8'));
+    const file=await open(local,'r');
+    try {
+      const {size}=await file.stat();
+      assert(size <= 500_000, 'invalid_tree_evidence_report');
+      const chunks=[];
+      let bytes=0;
+      for await (const chunk of file.createReadStream({highWaterMark:64_000})) {
+        bytes+=chunk.length;
+        assert(bytes <= 500_000, 'invalid_tree_evidence_report');
+        chunks.push(chunk);
+      }
+      evidence=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    } finally { await file.close(); }
   } else {
     assert(UUID.test(id), 'invalid_tree_report_id');
     const load=readReport??createFollowUpClient({
