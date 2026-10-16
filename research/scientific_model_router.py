@@ -41,7 +41,9 @@ PROMPTS = {
 MAX_RESPONSE_BYTES = 65536
 
 class RouterError(Exception):
-    pass
+    def __init__(self, code, issues=None):
+        super().__init__(code)
+        self.issues = issues or []
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -105,7 +107,7 @@ def choose_model(task, keys, provider="auto", discover=http_json):
             return {"provider": name, "model": model, "reason": "fixed_profile_priority_and_discovery",
                     "discovery_issues": errors}
         errors.append({"provider": name, "model": model, "error": "not_listed"})
-    raise RouterError("no_available_allowlisted_model")
+    raise RouterError("no_available_allowlisted_model", errors)
 
 def run(task, env, discover=http_json, complete=http_json):
     provider = env.get("ROUTER_PROVIDER", "auto")
@@ -150,15 +152,24 @@ def main():
     report = {"schema_version": 1, "status": "preflight", "task": task,
               "generated_utc": datetime.datetime.now(datetime.timezone.utc).isoformat()}
     def save():
-        text = json.dumps(report, indent=2, ensure_ascii=False)
-        for p in PROVIDERS.values():
-            secret = env.get(p["secret"], "")
-            if secret:
-                text = text.replace(secret, "[REDACTED]")
+        # Redact source strings before serialization/JSON escaping.
+        secrets = sorted((env.get(p["secret"], "") for p in PROVIDERS.values()), key=len, reverse=True)
+        def redact(value):
+            if isinstance(value, str):
+                for secret in secrets:
+                    if secret:
+                        value = value.replace(secret, "[REDACTED]")
+                return value
+            if isinstance(value, list):
+                return [redact(x) for x in value]
+            if isinstance(value, dict):
+                return {redact(k): redact(v) for k, v in value.items()}
+            return value
+        text = json.dumps(redact(report), indent=2, ensure_ascii=False)
         (dest / "report.json").write_text(text + "\n", encoding="utf-8")
     save()
     try:
-        report = run(task, env)
+        report.update(run(task, env))
         save()
         print("Selected:", report["selected"]["provider"], report["selected"]["model"],
               "| result: completed (not scientifically verified)")
@@ -166,6 +177,8 @@ def main():
         safe = str(error)
         report["status"] = "failed"
         report["error"] = safe if re.fullmatch(r"[a-z0-9_]+", safe) else "execution_failed"
+        if isinstance(error, RouterError):
+            report["discovery_issues"] = error.issues
         save()
         raise SystemExit("Model routing failed: " + report["error"]) from None
 
