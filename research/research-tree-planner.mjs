@@ -51,10 +51,11 @@ export function validateTreeEvidence(report) {
     for (const e of p.evidence) {
       const paper = papers.get(e?.id);
       assert(text(e?.id,250) && !used.has(e.id) && paper?.status === 'summarized'
-        && SHA.test(e.analyzed_content_sha256 ?? '')
+        && SHA.test(e.analyzed_content_sha256 ?? '') && SHA.test(e.content_sha256 ?? '')
         && e.analyzed_content_sha256 === paper.content?.analyzed_sha256
         && e.content_sha256 === paper.content?.sha256
-        && text(e.url,2048) && /^https:\/\//i.test(e.url),
+        && text(e.url,2048) && /^https:\/\//i.test(e.url)
+        && e.url === paper.content?.url && e.verification === 'quote_match_only',
         'invalid_tree_citation');
       used.add(e.id);
     }
