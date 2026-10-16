@@ -170,6 +170,16 @@ def _selection(view: dict, candidates: list[dict], used: set[int], strategy: str
         return untested[0]
     if strategy == "random":
         return rnd.choice(untested)
+    # Once discrimination is exhausted, cover the root/mediator roles required
+    # for acceptance instead of falling back to arbitrary action order.
+    if candidates and all(_probe_score(view, candidates, i, 1)[0] == 0 for i in untested):
+        eligible = [h for h in candidates if h["scope"] in ("full", "partial")]
+        if len(eligible) == 1:
+            h = eligible[0]
+            required_actions = [a for a in untested
+                                if h["mapping"].index(h["action_to_target"][a]) in (0, 1)]
+            if required_actions:
+                return required_actions[0]
     return max(untested, key=lambda i: (_probe_score(view, candidates, i, 1), -i))
 
 
@@ -212,6 +222,10 @@ def evidence_gate(fixture: dict, proposed: dict | None, history: list[dict]) -> 
     if not _valid_hypothesis(proposed):
         return {"status": "rejected", "accepted": False, "reason": "invalid_hypothesis_schema"}
     view = fixture["view"]
+    if digest({"view": view, "truth": fixture["truth"]}) != fixture["commitment"]:
+        return {"status": "rejected", "accepted": False, "reason": "fixture_commitment_mismatch"}
+    if not isinstance(history, list) or len(history) > view["max_experiments"]:
+        return {"status": "rejected", "accepted": False, "reason": "discovery_budget_exceeded"}
     # The verifier replays provenance independently: the proposer cannot submit
     # fabricated discovery observations as evidence.
     if any(not isinstance(r, dict) or not isinstance(r.get("action"), int)
@@ -249,17 +263,24 @@ def _candidate_set(fixture: dict) -> list[dict] | None:
         return [correct]
     others = [c for c in hypotheses({**fixture["view"], "level": 2}) if c != correct]
     rnd = _random("314159", level, len(fixture["view"]["observations"]))
-    return [correct, *rnd.sample(others, 2)]
+    candidates = [correct, *rnd.sample(others, 2)]
+    # A separately seeded shuffle prevents list position from revealing truth.
+    order_rng = random.Random(int(digest(["candidate-order", fixture["view"], fixture["commitment"]])[:16], 16))
+    order_rng.shuffle(candidates)
+    return candidates
 
 
 def evaluate(fixture: dict, strategy: str = "active") -> dict:
     if strategy not in STRATEGIES:
         raise ValueError("invalid_strategy")
+    if digest({"view": fixture["view"], "truth": fixture["truth"]}) != fixture["commitment"]:
+        raise ValueError("fixture_commitment_mismatch")
     view = json.loads(canonical(fixture["view"]))
     candidates = hypotheses(view, candidate_set=_candidate_set(fixture))
     initially = len(candidates)
     history: list[dict] = []
-    rnd = random.Random(int(digest([fixture["commitment"], strategy])[:16], 16))
+    # Random selection depends only on public inputs, not the hidden truth or commitment.
+    rnd = random.Random(int(digest(["probe-policy-v1", view, strategy])[:16], 16))
     for _ in range(view["max_experiments"]):
         viable = [h for h in candidates if _fits(view, h, history)]
         candidate = _choose(view, viable, history)
@@ -286,6 +307,11 @@ def evaluate(fixture: dict, strategy: str = "active") -> dict:
             "claim_id": digest({"proposal": proposed, "scope": decision, "fixture": fixture["commitment"]}),
             "scope": decision, "certified_source_to_target": [
                 {"source": j, "target": proposed["mapping"][j]} for j in certified_roles],
+            "certified_action_to_target": [
+                {"action": a, "target": proposed["action_to_target"][a],
+                 "source_role": proposed["mapping"].index(proposed["action_to_target"][a])}
+                for a in range(3)
+                if proposed["mapping"].index(proposed["action_to_target"][a]) in certified_roles],
             "evidence_commitment": digest(history),
             "heldout_probes": gate["holdout_probes"],
             "status": "provisionally_supported",
