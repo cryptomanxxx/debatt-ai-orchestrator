@@ -34,8 +34,11 @@ export function validateTreeEvidence(report) {
     && Array.isArray(report.planner.proposals) && report.planner.proposals.length <= 10
     && (report.status === 'insufficient_evidence' ? report.planner.proposals.length === 0 : report.planner.proposals.length > 0)
     && Buffer.byteLength(JSON.stringify(report)) <= 500_000, 'invalid_tree_evidence_report');
-  assert(report.status !== 'completed' || report.papers.every(p =>
-    p?.status === 'summarized' && !(p.validation?.rejected_findings > 0)), 'invalid_tree_evidence_report');
+  const summarized = report.papers.filter(p => p?.status === 'summarized').length;
+  const rejected = report.papers.some(p => p?.validation?.rejected_findings > 0);
+  const derivedStatus = summarized === 0 ? 'insufficient_evidence'
+    : summarized === report.papers.length && !rejected ? 'completed' : 'partial';
+  assert(report.status === derivedStatus, 'invalid_tree_evidence_report');
   const reconstructed = planEvidenceResearch(report.papers);
   const expected = new Map(reconstructed.proposals.map(p => [p.id,p]));
   assert(canonical(report.planner.proposals.map(p => p.id).sort()) ===
@@ -75,7 +78,7 @@ export function validateTreeEvidence(report) {
           || (paper.content?.provider === 'arxiv' && /^https:\/\/arxiv\.org\/abs\/[a-z0-9.\/-]+$/i.test(e.url)))
         && (paper.content?.scope === 'abstract_only' || paper.content?.scope == null)
         && (paper.content?.truncated === true ? e.evidence_scope === 'abstract_prefix' : e.evidence_scope === 'abstract_only')
-        && Array.isArray(paper.findings) && paper.findings.length > 0
+        && Array.isArray(paper.findings) && paper.findings.length > 0 && paper.findings.length <= 3
         && paper.findings.every(f => ['method','result','limitation'].includes(f?.kind)
           && text(f.claim,500) && text(f.quote,280) && f.quote.length >= 20
           && f.verification === 'quote_match_only'
