@@ -169,3 +169,16 @@ test('rejects noncanonical arXiv identity, unknown paper status and mismatched f
   badArxiv.planner=planEvidenceResearch(badArxiv.papers);
   await assert.rejects(planResearchTree(badArxiv),/invalid_tree_citation/);
 });
+
+
+test('rejects mismatched OpenAlex work IDs and rebranded source titles',async()=>{
+  const badWork=fixture();
+  badWork.papers[0].lookup_identifiers={openalex_records:[{source_id:'https://openalex.org/W999'}]};
+  badWork.planner=planEvidenceResearch(badWork.papers);
+  await assert.rejects(planResearchTree(badWork),/invalid_tree_citation/);
+
+  const retitled=fixture();
+  retitled.papers[0].source_hits=[{source:'openalex',title:'Original source title',source_id:'https://openalex.org/W12345'}];
+  retitled.planner=planEvidenceResearch(retitled.papers);
+  await assert.rejects(planResearchTree(retitled),/invalid_tree_paper/);
+});
