@@ -289,3 +289,40 @@ test('historical claim-v1 reports reconstruct under their original algorithm',as
   const queue=await planResearchTree(historical);
   assert.equal(queue.status,'review_required');
 });
+
+
+test('quote-v2 review queue is released only after exact producer analysis replay',async()=>{
+  const report=fixture(),versions=new Map(),analyses=new Map();
+  const abstracts=[ABSTRACT_1,ABSTRACT_2];
+  for(const [index,paper] of report.papers.entries()){
+    const source='44444444-4444-4444-8444-44444444444'+index;
+    const version='55555555-5555-4555-8555-55555555555'+index;
+    const analysis='66666666-6666-4666-8666-66666666666'+index;
+    paper.source_hits[0].source_record_id=source;
+    paper.archive={version_id:version,source_record_id:source};
+    paper.analysis={id:analysis};
+    versions.set(version,{abstract:abstracts[index],
+      content:{sha256:paper.content.sha256,url:paper.content.url,provider:paper.content.provider},
+      archive:{version_id:version,source_record_id:source}});
+    analyses.set(analysis,{id:analysis,findings:structuredClone(paper.findings)});
+  }
+  report.planner=planEvidenceResearch(report.papers);
+  const execute=async source=>main({RESEARCH_TREE_REPORT_ID:REPORT_ID},{
+    readReport:async()=>source,readArchiveVersion:async id=>versions.get(id),
+    readAnalysis:async id=>analyses.get(id),mkdirImpl:async()=>{},write:async()=>{}});
+  const ok=await execute(report);
+  assert.equal(ok.status,'review_required');
+  assert.equal(ok.citation_replay.verified,2);
+  const forged=structuredClone(report);
+  forged.papers[0].findings[0].quote='regression with hidden holdout samples.';
+  forged.planner=planEvidenceResearch(forged.papers);
+  const blocked=await execute(forged);
+  assert.equal(blocked.status,'invalid_evidence');
+  assert.equal(blocked.citation_replay.rejected,1);
+  assert.deepEqual(blocked.review_queue,[]);
+  const missing=structuredClone(report);
+  delete missing.papers[0].analysis;
+  const unavailable=await execute(missing);
+  assert.equal(unavailable.status,'verification_required');
+  assert.deepEqual(unavailable.review_queue,[]);
+});
