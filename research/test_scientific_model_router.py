@@ -1,7 +1,7 @@
 import unittest
 import socket
 import urllib.error
-from unittest.mock import Mock
+from unittest.mock import Mock, MagicMock
 import tempfile
 import os
 import json
@@ -136,7 +136,7 @@ class RouterTests(unittest.TestCase):
             http_json("https://example.org/v1", "a-valid-secret", "/models",
                       opener=opener_with(urllib.error.URLError("network")))
         with self.assertRaisesRegex(RouterError, "invalid_upstream_json"):
-            response=Mock()
+            response=MagicMock()
             response.__enter__=Mock(return_value=response)
             response.__exit__=Mock(return_value=False)
             response.read.return_value=b"not json"
@@ -146,7 +146,7 @@ class RouterTests(unittest.TestCase):
 
     def test_completion_and_discovery_have_separate_bounded_timeouts(self):
         def successful_opener():
-            response=Mock()
+            response=MagicMock()
             response.__enter__=Mock(return_value=response)
             response.__exit__=Mock(return_value=False)
             response.read.return_value=b'{"data":[]}'
