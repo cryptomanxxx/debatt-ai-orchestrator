@@ -42,7 +42,7 @@ Run unit tests with:
   by evidence count, unreviewed limitation leads and stable ID; candidates
   are not invented. Each root may branch into exactly two predetermined study
   designs: independent replication and a falsification/null-baseline test.
-- The reused bounded best-first engine visits at most **eight** nodes and a
+- The reused bounded best-first engine visits at most **nine** nodes and a
   maximum depth of two, using fixed actions only. There is no code execution,
   API access, arbitrary user text action or additional model call during the
   search. The original abstract evidence generation uses the existing research
