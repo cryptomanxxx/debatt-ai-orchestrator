@@ -58,8 +58,8 @@ export function validateTreeEvidence(report) {
         && e.content_sha256 === paper.content?.sha256
         && text(e.url,2048) && /^https:\/\//i.test(e.url)
         && e.url === paper.content?.url && e.verification === 'quote_match_only'
-        && (paper.content?.scope === 'abstract_only' || (paper.content?.scope == null && paper.content?.truncated === false))
-        && e.evidence_scope === 'abstract_only' && paper.content?.truncated === false
+        && (paper.content?.scope === 'abstract_only' || paper.content?.scope == null)
+        && (paper.content?.truncated === true ? e.evidence_scope === 'abstract_prefix' : e.evidence_scope === 'abstract_only')
         && Array.isArray(paper.findings) && paper.findings.length > 0,
         'invalid_tree_citation');
       used.add(e.id);
@@ -119,7 +119,7 @@ function hypothesis(candidate, kind) {
   return 'Test whether the candidate intervention fails to improve the primary outcome over a matched baseline under pre-registered held-out conditions.';
 }
 
-export async function planResearchTree(report,{maxNodes=8,maxCandidates=3}={}) {
+export async function planResearchTree(report,{maxNodes=9,maxCandidates=3}={}) {
   assert(Number.isInteger(maxNodes) && maxNodes>=1 && maxNodes<=12
     && Number.isInteger(maxCandidates) && maxCandidates>=1 && maxCandidates<=4,
   'invalid_tree_limits');
