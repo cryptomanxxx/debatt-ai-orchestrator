@@ -1,4 +1,7 @@
 import unittest
+import socket
+import urllib.error
+from unittest.mock import Mock
 import tempfile
 import os
 import json
@@ -117,6 +120,46 @@ class RouterTests(unittest.TestCase):
         issues = raised.exception.issues
         self.assertEqual([x for x in issues if x["provider"] == "blablador"],
                          [{"provider": "blablador", "error": "http_503"}])
+
+    def test_http_json_distinguishes_timeouts_and_invalid_json(self):
+        def opener_with(error):
+            opener = Mock()
+            opener.open.side_effect = error
+            return opener
+        with self.assertRaisesRegex(RouterError, "upstream_timeout"):
+            http_json("https://example.org/v1", "a-valid-secret", "/chat/completions",
+                      {"model":"test"}, opener=opener_with(socket.timeout()))
+        with self.assertRaisesRegex(RouterError, "upstream_timeout"):
+            http_json("https://example.org/v1", "a-valid-secret", "/models",
+                      opener=opener_with(urllib.error.URLError(socket.timeout())))
+        with self.assertRaisesRegex(RouterError, "upstream_transport_error"):
+            http_json("https://example.org/v1", "a-valid-secret", "/models",
+                      opener=opener_with(urllib.error.URLError("network")))
+        with self.assertRaisesRegex(RouterError, "invalid_upstream_json"):
+            response=Mock()
+            response.__enter__=Mock(return_value=response)
+            response.__exit__=Mock(return_value=False)
+            response.read.return_value=b"not json"
+            opener=Mock()
+            opener.open.return_value=response
+            http_json("https://example.org/v1", "a-valid-secret", "/models", opener=opener)
+
+    def test_completion_and_discovery_have_separate_bounded_timeouts(self):
+        def successful_opener():
+            response=Mock()
+            response.__enter__=Mock(return_value=response)
+            response.__exit__=Mock(return_value=False)
+            response.read.return_value=b'{"data":[]}'
+            opener=Mock()
+            opener.open.return_value=response
+            return opener
+        discover=successful_opener()
+        http_json("https://example.org/v1", "a-valid-secret", "/models", opener=discover)
+        self.assertEqual(discover.open.call_args.kwargs["timeout"], 20)
+        completion=successful_opener()
+        http_json("https://example.org/v1", "a-valid-secret", "/chat/completions",
+                  {"model":"test"}, opener=completion)
+        self.assertEqual(completion.open.call_args.kwargs["timeout"], 90)
 
 if __name__ == "__main__":
     unittest.main()
