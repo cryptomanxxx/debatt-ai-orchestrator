@@ -323,6 +323,12 @@ export async function main(env=process.env,{readReport,readArchiveVersion,readAn
     result.review_queue=[];
     result.limitations.push('Quote-v2 routing requires matching immutable analysis and abstract versions before publishing review candidates.');
   }
+  if(result.status==='invalid_evidence'||result.status==='verification_required'){
+    // Do not publish even review-only Research Loop hypotheses or search traces
+    // derived from rejected/unbound evidence.
+    result.research=null;
+    result.search=null;
+  }
   const byArticle=new Map(replay.map(x=>[x.article_id,x]));
   for(const row of result.review_queue) for(const ref of row.evidence_refs){
     ref.archive_quote_status=byArticle.get(ref.article_id)?.status??'unverifiable';
