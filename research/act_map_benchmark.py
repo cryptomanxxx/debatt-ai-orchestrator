@@ -275,9 +275,8 @@ def _candidate_set(fixture: dict) -> list[dict] | None:
     correct = hypothesis("full", tuple(truth["mapping"]), tuple(truth["action_to_target"]))
     if level == 0:
         return [correct]
-    others = [c for c in hypotheses({**fixture["view"], "level": 2}) if c != correct]
     # Symmetric independently specified hypotheses: no hidden-truth-dependent RNG.
-    # The three candidates are a public, fixed set; only the oracle reveals truth.
+    # The six candidates are a public, fixed set; only the oracle reveals truth.
     # All mappings must be represented fairly across fixtures.
     mappings = list(itertools.permutations(range(3)))
     return [hypothesis("full", tuple(m), (0, 1, 2)) for m in mappings]
