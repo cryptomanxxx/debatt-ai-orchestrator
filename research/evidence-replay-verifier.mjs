@@ -14,13 +14,19 @@ export async function replayEvidence(report,{readVersion}={}) {
     }
     let loaded;
     try { loaded=await readVersion(version); }
-    catch {results.push({...base,status:'unverifiable',reason:'archive_read_failed'});return;}
+    catch (error) {
+      const integrity=error?.message==='invalid_abstract_archive_response'||error?.message==='invalid_archived_abstract';
+      results.push({...base,status:integrity?'rejected':'unverifiable',reason:integrity?'archive_integrity_failure':'archive_read_failed'});return;
+    }
     if(!loaded){results.push({...base,status:'unverifiable',reason:'archive_version_missing'});return;}
     const abstract=loaded.abstract;
     if(typeof abstract!=='string'||abstract.length>12000||!SHA.test(paper.content?.sha256??'')
       ||hashText(abstract)!==paper.content.sha256 || loaded.content?.sha256!==paper.content.sha256
       ||loaded.content?.provider!==paper.content.provider ||loaded.content?.url!==paper.content.url
-      ||loaded.archive?.version_id!==version){
+      ||loaded.archive?.version_id!==version
+      || !UUID.test(paper.archive?.source_record_id??'')
+      || loaded.archive?.source_record_id!==paper.archive.source_record_id
+      || !paper.source_hits?.some(h=>h.source_record_id===paper.archive.source_record_id)){
       results.push({...base,status:'rejected',reason:'archive_identity_or_hash_mismatch'});return;
     }
     let prompt;
