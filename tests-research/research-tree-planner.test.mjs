@@ -320,9 +320,13 @@ test('quote-v2 review queue is released only after exact producer analysis repla
   assert.equal(blocked.status,'invalid_evidence');
   assert.equal(blocked.citation_replay.rejected,1);
   assert.deepEqual(blocked.review_queue,[]);
+  assert.equal(blocked.research,null);
+  assert.equal(blocked.search,null);
   const missing=structuredClone(report);
   delete missing.papers[0].analysis;
   const unavailable=await execute(missing);
   assert.equal(unavailable.status,'verification_required');
   assert.deepEqual(unavailable.review_queue,[]);
+  assert.equal(unavailable.research,null);
+  assert.equal(unavailable.search,null);
 });
