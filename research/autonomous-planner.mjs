@@ -98,7 +98,7 @@ export function planEvidenceResearch(papers,{routingVersion='quote-v2'}={}) {
   const eligible = papers.filter(p => p.status === 'summarized' && p.findings.length > 0);
   if (!eligible.length) return { mode: 'abstract-evidence-baseline', routing_version:routingVersion, proposals: [], execution_enabled: false };
   // Route on literal source quotations, not mutable model paraphrases.
-  const baseline = planResearch(eligible.map(p => ({ id:p.article_id, title:routingVersion==='claim-v1'?p.title:'',
+  const baseline = planResearch(eligible.map(p => ({ id:p.article_id, title:routingVersion==='claim-v1'?p.title:'Evidence excerpt',
     url:p.content.url, abstract:p.findings.map(f => routingVersion==='claim-v1'?f.claim:f.quote).join(' ') })));
   const byId = new Map(eligible.map(p => [p.article_id,p]));
   return { mode:'abstract-evidence-baseline', routing_version:routingVersion, execution_enabled:false,
