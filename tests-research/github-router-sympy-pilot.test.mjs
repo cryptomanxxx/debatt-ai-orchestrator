@@ -213,3 +213,19 @@ test('tool diagnostic preserves case and operation context',async()=>{
   assert.equal(writes.at(-1).failureCase,1);
   assert.equal(writes.at(-1).failureOperation,'positive_control');
 });
+
+test('short invalid credential does not corrupt ordinary report values',async()=>{
+  const writes=[];
+  await assert.rejects(runPilot({env:{EXPERIMENT_SEED:'abc',BLABLADOR_API_KEY:env.BLABLADOR_API_KEY,HIP_API_KEY:'failed'},
+    write:async(path,text)=>writes.push(JSON.parse(text))}),/invalid_seed/);
+  assert.equal(writes.at(-1).status,'failed');
+});
+test('router HTTP errors preserve full bounded status range',async()=>{
+  const writes=[];
+  await assert.rejects(runPilot({env:{EXPERIMENT_SEED:'20261016',...env},
+    select:{...choice,reason:'fallback',issues:[{provider:'hip',error:'http_408'}, {provider:'hip',error:'http_422'}]},
+    propose:async()=>{throw new Error('stop');},
+    write:async(path,text)=>writes.push(JSON.parse(text))}),/research_pilot_failed/);
+  assert.deepEqual(writes.at(-1).discoveryIssues,[{provider:'hip',error:'http_408'}, {provider:'hip',error:'http_422'}]);
+  assert.equal(writes.at(-1).selected.backendIdentityVerified,false);
+});
