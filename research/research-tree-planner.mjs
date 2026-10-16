@@ -11,6 +11,7 @@ import { effectiveLimitationStatus } from './limitation-review.mjs';
 import { candidateProtocol, portfolioAssessment } from './research-candidate-protocols.mjs';
 import { createFollowUpClient } from './literature-follow-up.mjs';
 import { createAbstractArchiveClient } from './literature-abstract-archive.mjs';
+import { createAnalysisRegistryClient } from './literature-analysis-registry.mjs';
 import { replayEvidence } from './evidence-replay-verifier.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -269,7 +270,7 @@ export function renderTreeReview(result) {
   lines.push('','No experiments executed; every entry requires human approval.');
   return lines.join('\n')+'\n';
 }
-export async function main(env=process.env,{readReport,readArchiveVersion,write=writeFile,mkdirImpl=mkdir}={}) {
+export async function main(env=process.env,{readReport,readArchiveVersion,readAnalysis,write=writeFile,mkdirImpl=mkdir}={}) {
   const local=env.RESEARCH_TREE_INPUT_FILE;
   const id=env.RESEARCH_TREE_REPORT_ID;
   if((local && id)||(!local&&!id)) throw Error('invalid_tree_input_selection');
@@ -299,15 +300,22 @@ export async function main(env=process.env,{readReport,readArchiveVersion,write=
   const result=await planResearchTree(evidence);
   const archive=readArchiveVersion ?? (env.SUPABASE_URL && env.SUPABASE_SECRET_KEY
     ? createAbstractArchiveClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY}).readVersion : null);
-  const replay=await replayEvidence(evidence,{readVersion:archive});
+  const analysis=readAnalysis ?? (env.SUPABASE_URL && env.SUPABASE_SECRET_KEY
+    ? createAnalysisRegistryClient({url:env.SUPABASE_URL,secretKey:env.SUPABASE_SECRET_KEY}).readById : null);
+  const replay=await replayEvidence(evidence,{readVersion:archive,readAnalysis:analysis});
   result.citation_replay={method:'immutable_archive_quote_match',results:replay,
     verified:replay.filter(x=>x.status==='verified').length,
     unverifiable:replay.filter(x=>x.status==='unverifiable').length,
     rejected:replay.filter(x=>x.status==='rejected').length};
+  const routingVersion=evidence.planner?.routing_version??'claim-v1';
   if(result.citation_replay.rejected>0){
     result.status='invalid_evidence';
     result.review_queue=[];
-    result.limitations.push('Archive replay rejected source evidence; no candidate queue is published.');
+    result.limitations.push('Archive or analysis replay rejected source evidence; no candidate queue is published.');
+  }else if(routingVersion==='quote-v2' && result.citation_replay.unverifiable>0){
+    result.status='verification_required';
+    result.review_queue=[];
+    result.limitations.push('Quote-v2 routing requires matching immutable analysis and abstract versions before publishing review candidates.');
   }
   const byArticle=new Map(replay.map(x=>[x.article_id,x]));
   for(const row of result.review_queue) for(const ref of row.evidence_refs){
