@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: '24'
       - name: Test bounded tree, source provenance and Research Loop integration
-        run: node --test tests-research/agentic-tree-search.test.mjs tests-research/research-tree-planner.test.mjs
+        run: node --test tests-research/agentic-tree-search.test.mjs tests-research/research-tree-planner.test.mjs tests-research/evidence-replay-verifier.test.mjs
       - name: Load saved literature evidence and assemble review queue
         env:
           RESEARCH_TREE_REPORT_ID: ${{ inputs.evidence_report_id }}
