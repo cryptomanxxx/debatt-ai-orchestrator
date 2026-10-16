@@ -27,6 +27,7 @@ export function validateTreeEvidence(report) {
     && report.planner?.mode === 'abstract-evidence-baseline'
     && Array.isArray(report.papers) && report.papers.length <= 10
     && Array.isArray(report.planner.proposals) && report.planner.proposals.length <= 10
+    && (report.status !== 'insufficient_evidence' || report.planner.proposals.length === 0)
     && Buffer.byteLength(JSON.stringify(report)) <= 500_000, 'invalid_tree_evidence_report');
   const papers = new Map();
   for (const paper of report.papers) {
@@ -55,13 +56,36 @@ export function validateTreeEvidence(report) {
         && e.analyzed_content_sha256 === paper.content?.analyzed_sha256
         && e.content_sha256 === paper.content?.sha256
         && text(e.url,2048) && /^https:\/\//i.test(e.url)
-        && e.url === paper.content?.url && e.verification === 'quote_match_only',
+        && e.url === paper.content?.url && e.verification === 'quote_match_only'
+        && paper.content?.scope === 'abstract_only'
+        && e.evidence_scope === 'abstract_only' && paper.content?.truncated === false,
         'invalid_tree_citation');
       used.add(e.id);
     }
-    assert(!p.gap_candidates || (Array.isArray(p.gap_candidates) && p.gap_candidates.length <= 30
-      && p.gap_candidates.every(g => used.has(g.article_id)
-      && g.status === 'candidate_needs_literature_review')), 'invalid_tree_gap');
+    const gaps = p.gap_candidates ?? [];
+    assert(Array.isArray(gaps) && gaps.length <= 30, 'invalid_tree_gap');
+    const seenGaps = new Set();
+    for (const g of gaps) {
+      const paper = papers.get(g?.article_id);
+      const finding = paper?.findings?.[g?.finding_index];
+      const evidence = p.evidence.find(e => e.id === g?.article_id);
+      assert(used.has(g?.article_id) && Number.isInteger(g?.finding_index)
+        && g.finding_index >= 0 && finding?.kind === 'limitation'
+        && typeof finding.context_quote === 'string' && finding.context_quote.length > 0
+        && g.status === 'candidate_needs_literature_review'
+        && g.content_sha256 === evidence?.content_sha256
+        && g.analyzed_content_sha256 === evidence?.analyzed_content_sha256
+        && g.finding_ref?.article_id === g.article_id
+        && g.finding_ref?.finding_index === g.finding_index
+        && g.id === 'gap-'+g.article_id+'-'+g.finding_index+'-'+g.analyzed_content_sha256.slice(0,12)
+        && !seenGaps.has(g.id), 'invalid_tree_gap');
+      seenGaps.add(g.id);
+    }
+    assert(Array.isArray(p.gap_review_plan) && p.gap_review_plan.length === gaps.length
+      && p.gap_review_plan.every(task => seenGaps.has(task?.gap_id)
+        && task.finding_ref?.article_id === gaps.find(g=>g.id===task.gap_id)?.article_id
+        && task.finding_ref?.finding_index === gaps.find(g=>g.id===task.gap_id)?.finding_index)
+      && new Set(p.gap_review_plan.map(x=>x.gap_id)).size===gaps.length, 'invalid_tree_gap');
     assert(p.experiment_protocol?.execution_ready === false
       && p.experiment_protocol?.status === 'draft_requires_specification',
       'invalid_tree_protocol');
@@ -75,8 +99,8 @@ export function validateTreeEvidence(report) {
 function coverage(p) {
   const cited_abstracts=p.evidence.length;
   const unreviewed_gap_leads=p.gap_candidates?.length??0;
-  const has_baseline=Array.isArray(p.experiment_protocol?.baselines)
-    && p.experiment_protocol.baselines.length>0;
+  const protocol=candidateProtocol(p);
+  const has_baseline=Array.isArray(protocol.baselines) && protocol.baselines.length>0;
   // A bounded routing heuristic, NEVER scientific confidence or merit.
   return { cited_abstracts,unreviewed_gap_leads,has_baseline };
 }
