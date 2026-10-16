@@ -15,7 +15,7 @@ const paper={article_id:ARTICLE,title:'Reproducible methodology',status:'summari
     truncated:false}};
 const originalFindings=structuredClone(paper.findings);
 const analysis=async id=>{assert.equal(id,ANALYSIS);return {id,findings:structuredClone(originalFindings)};};
-const version={abstract,archive:{version_id:VERSION,source_record_id:SOURCE},
+const version={abstract,archive:{version_id:VERSION,source_record_id:SOURCE,article_id:ARTICLE},
   content:{provider:'openalex',url:'https://openalex.org/W123',sha256:hashText(abstract)}};
 test('verifies an exact archived version without persisting full text',async()=>{
   const rows=await replayEvidence({papers:[paper]},{readVersion:async id=>{
@@ -27,6 +27,23 @@ test('legacy reports without an archive version remain unverifiable',async()=>{
   const old=structuredClone(paper);delete old.archive;
   const rows=await replayEvidence({papers:[old]},{readVersion:async()=>{throw Error('unexpected read');}});
   assert.equal(rows[0].status,'unverifiable');
+});
+test('rejects substitution of a valid canonical article UUID despite matching source metadata',async()=>{
+  const forged=structuredClone(paper);
+  forged.article_id='99999999-9999-4999-8999-999999999999';
+  // A forged replay can recompute internal references but not change the
+  // article_id returned by the trusted FK join on the archive version.
+  const result=await replayEvidence({papers:[forged]},{
+    readVersion:async()=>version,readAnalysis:analysis});
+  assert.equal(result[0].status,'rejected');
+  assert.equal(result[0].reason,'archive_identity_or_hash_mismatch');
+
+  const absent=structuredClone(version);
+  delete absent.archive.article_id;
+  const missing=await replayEvidence({papers:[paper]},{
+    readVersion:async()=>absent,readAnalysis:analysis});
+  assert.equal(missing[0].status,'rejected');
+  assert.equal(missing[0].reason,'archive_identity_or_hash_mismatch');
 });
 test('rejects mismatched source hashes and fabricated citations',async()=>{
   const altered=structuredClone(version);altered.abstract+=' Extra words.';
