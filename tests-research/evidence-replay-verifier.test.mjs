@@ -46,3 +46,14 @@ test('classifies archive integrity errors as rejected, but transport errors as u
   const offline=await replayEvidence({papers:[paper]},{readVersion:async()=>{throw Error('abstract_archive_transport_error');}});
   assert.equal(offline[0].status,'unverifiable');
 });
+
+test('canonical OpenAlex enrichment can own an archived abstract',async()=>{
+  const enriched=structuredClone(paper);
+  const canonical='dddddddd-eeee-4fff-8aaa-222222222222';
+  enriched.lookup_identifiers={openalex_records:[{source_record_id:canonical,source_id:enriched.content.url}]};
+  enriched.archive.source_record_id=canonical;
+  const loaded=structuredClone(version);loaded.archive.source_record_id=canonical;
+  assert.equal((await replayEvidence({papers:[enriched]},{readVersion:async()=>loaded}))[0].status,'verified');
+  enriched.lookup_identifiers.openalex_records[0].source_id='https://openalex.org/W999';
+  assert.equal((await replayEvidence({papers:[enriched]},{readVersion:async()=>loaded}))[0].status,'rejected');
+});
