@@ -158,11 +158,9 @@ def candidate_pairs(records, limit=MAX_PAIRS, *, metadata=None):
             postings[word].append(i)
     counts = defaultdict(int)
     # Explicit work bound: never materialize an unbounded all-pairs index.
-    max_candidates = max(10000, limit * 20)
     work = 0
     max_work = 250000
     truncated = False
-    candidate_exhausted = False
     high_frequency_skipped = False
     for word in sorted(postings):
         indices = postings[word]
@@ -182,19 +180,15 @@ def candidate_pairs(records, limit=MAX_PAIRS, *, metadata=None):
                     truncated = True
                     break
                 key = (left, right)
-                if key in counts or len(counts) < max_candidates:
-                    counts[key] += 1
-                else:
-                    candidate_exhausted = True
+                counts[key] += 1
             if truncated:
                 break
         if truncated:
             break
-    if truncated or candidate_exhausted or high_frequency_skipped:
+    if truncated or high_frequency_skipped:
         # Never misrepresent an incomplete candidate scan as no scientific leads.
         if metadata is not None:
-            metadata["status"] = ("incomplete_work_budget" if truncated else
-                                  "incomplete_candidate_budget" if candidate_exhausted else "incomplete_common_terms")
+            metadata["status"] = "incomplete_work_budget" if truncated else "incomplete_common_terms"
         return []
     ranked = sorted(((count, i, j) for (i, j), count in counts.items() if count >= 2),
                     key=lambda x: (-x[0], records[x[1]]["id"], records[x[2]]["id"]))
