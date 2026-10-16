@@ -36,6 +36,8 @@ export function validateTreeEvidence(report) {
     && Buffer.byteLength(JSON.stringify(report)) <= 500_000, 'invalid_tree_evidence_report');
   const reconstructed = planEvidenceResearch(report.papers);
   const expected = new Map(reconstructed.proposals.map(p => [p.id,p]));
+  assert(canonical(report.planner.proposals.map(p => p.id).sort()) ===
+    canonical(reconstructed.proposals.map(p => p.id).sort()), 'invalid_tree_candidate');
   const papers = new Map();
   for (const paper of report.papers) {
     assert(text(paper?.article_id, 250) && !papers.has(paper.article_id), 'invalid_tree_paper');
@@ -74,6 +76,8 @@ export function validateTreeEvidence(report) {
       used.add(e.id);
     }
     const gaps = p.gap_candidates ?? [];
+    assert(canonical(gaps.map(g => g.id).sort()) ===
+      canonical((original.gap_candidates ?? []).map(g => g.id).sort()), 'invalid_tree_gap');
     assert(Array.isArray(gaps) && gaps.length <= 30, 'invalid_tree_gap');
     const seenGaps = new Set();
     for (const g of gaps) {
@@ -195,6 +199,7 @@ export async function planResearchTree(report,{maxNodes=9,maxCandidates=3}={}) {
   reviewQueue.sort((a,b)=>b.priority-a.priority||sorted(a.node_id,b.node_id));
   reviewQueue.forEach((row,i)=>{row.rank=i+1;});
   return {schema_version:'research-tree-review-1',status:reviewQueue.length?'review_required':'insufficient_evidence',
+    source_report_status:report.status, implementation_revision:process.env.GITHUB_SHA || 'local-unversioned',
     source_report_id:report.id,search,review_queue:reviewQueue,research,
     budget:{max_nodes:maxNodes,evaluated_nodes:search.evaluatedNodes,max_depth:2,
       max_candidates:maxCandidates,model_calls:0,tool_calls:0},
@@ -209,6 +214,8 @@ const escapeMd=v=>String(v).replace(/[\r\n|]/g,' ').replace(/[<>]/g,'').slice(0,
 export function renderTreeReview(result) {
   const lines=['# Research Tree Search — review queue','',
     'Source evidence report: '+escapeMd(result.source_report_id),
+    'Source evidence status: '+escapeMd(result.source_report_status),
+    'Implementation revision: '+escapeMd(result.implementation_revision),
     'Status: '+result.status+'. Evaluated nodes: '+result.budget.evaluated_nodes
       +'/'+result.budget.max_nodes+'. Inference calls: 0.','',
     'Priority is evidence-coverage routing only; no scientific ranking or verification.','',
