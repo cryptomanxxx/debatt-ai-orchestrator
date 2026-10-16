@@ -257,3 +257,17 @@ test('rejects inconsistent rejected diagnostic count',async()=>{
   report.papers[0].validation.rejected=[{reason:'quote_not_exact'}];
   await assert.rejects(planResearchTree(report),/invalid_tree_evidence_report/);
 });
+
+
+test('model paraphrases cannot redirect quote-grounded topic routing',async()=>{
+  const original=fixture();
+  const baseline=planEvidenceResearch(original.papers);
+  const manipulated=fixture();
+  manipulated.papers[0].findings[0].claim='Fluid dynamics turbulence and Kalman state estimation.';
+  manipulated.papers[1].findings[0].claim='Autonomous scientific research and hypothesis discovery.';
+  const recomputed=planEvidenceResearch(manipulated.papers);
+  assert.deepEqual(recomputed,baseline);
+  manipulated.planner=recomputed;
+  const tree=await planResearchTree(manipulated);
+  assert.equal(tree.status,'review_required');
+});
