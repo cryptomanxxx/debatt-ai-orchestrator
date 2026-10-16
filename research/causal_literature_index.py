@@ -49,7 +49,9 @@ def normalize(record):
     identifier = record.get("doi") or record.get("id")
     if not isinstance(identifier, str):
         return None, "missing_identifier"
-    identifier = identifier.strip().lower()
+    identifier = identifier.strip()
+    if has_doi:
+        identifier = identifier.lower()
     if identifier.startswith("https://doi.org/"):
         identifier = identifier[len("https://doi.org/"):]
     if identifier.startswith("doi:"):
@@ -72,7 +74,7 @@ def normalize(record):
         identifier.encode("utf-8")
     except UnicodeError:
         return None, "invalid_unicode"
-    return {"id": identifier, "source": source, "year": year, "title": title,
+    return {"id": identifier, "id_kind": "doi" if has_doi else "provider", "source": source, "sources": [source], "year": year, "title": title,
             "abstract_sha256": sha(abstract), "title_sha256": sha(title),
             "cues": sorted(k for k, rx in CUES.items() if rx.search(abstract)),
             "tokens": sorted({m.group().lower() for m in TOKEN.finditer(title + " " + abstract)
@@ -109,9 +111,10 @@ def ingest(path, limit=MAX_RECORDS):
             if error:
                 failures[error] += 1
                 continue
-            identifier = ("doi", normalized["id"]) if DOI.fullmatch(normalized["id"]) else (normalized["source"], normalized["id"])
+            identifier = ("doi", normalized["id"]) if normalized["id_kind"] == "doi" else (normalized["source"], normalized["id"])
             if identifier in records:
                 duplicates += 1
+                records[identifier]["sources"] = sorted(set(records[identifier]["sources"] + [normalized["source"]]))
                 if records[identifier]["abstract_sha256"] != normalized["abstract_sha256"]:
                     failures["conflicting_duplicate"] += 1
                 continue
