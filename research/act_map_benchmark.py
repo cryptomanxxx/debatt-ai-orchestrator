@@ -228,14 +228,16 @@ def evidence_gate(fixture: dict, proposed: dict | None, history: list[dict]) -> 
     if not _valid_hypothesis(proposed):
         return {"status": "rejected", "accepted": False, "reason": "invalid_hypothesis_schema"}
     view = fixture["view"]
+    if proposed["scope"] == "partial" and view["level"] != 4:
+        return {"status": "rejected", "accepted": False, "reason": "invalid_scope_for_level"}
     if digest({"view": view, "truth": fixture["truth"]}) != fixture["commitment"]:
         return {"status": "rejected", "accepted": False, "reason": "fixture_commitment_mismatch"}
     if not isinstance(history, list) or len(history) > view["max_experiments"]:
         return {"status": "rejected", "accepted": False, "reason": "discovery_budget_exceeded"}
     # The verifier replays provenance independently: the proposer cannot submit
     # fabricated discovery observations as evidence.
-    if any(not isinstance(r, dict) or not isinstance(r.get("action"), int)
-           or r.get("action") not in range(3) or r.get("value") not in VALUES
+    if any(not isinstance(r, dict) or type(r.get("action")) is not int
+           or r.get("action") not in range(3) or type(r.get("value")) is not int or r.get("value") not in VALUES
            or r.get("outcome") != experiment(fixture, r["action"], r["value"])
            for r in history):
         return {"status": "rejected", "accepted": False, "reason": "invalid_evidence_provenance"}
