@@ -32,8 +32,8 @@ The three source structural equations (linear additive coefficients) are provide
 
 ## Acceptance and falsification
 
-- All fixture truth/mappings are hidden from active/fixed/random proposers. A SHA-256 hash of the full fixture set is computed *in-process* before agent evaluation. This is an audit fingerprint, **not** a trusted external timestamp.
-- With a maximum of three discovery interventions, each strategy filters incompatible mapping hypotheses by exact predicted interventional outcomes. Active selection uses an ordinary Gini-style candidate-disagreement heuristic. **This approach is established model discrimination, not scientific novelty.**
+- Fixture truth/mappings are hidden from active/fixed/random selection policies at Levels 2–4; Levels 0–1 intentionally use privileged candidate controls. A SHA-256 hash of the full fixture set is computed *in-process* before evaluation and individual fixture commitments are rechecked before evaluation and in the evidence gate. This is an audit fingerprint, **not** a trusted external timestamp.
+- With a maximum of three discovery interventions enforced by both selector and verifier, each strategy filters incompatible mapping hypotheses by exact predicted interventional outcomes. Active selection uses an ordinary Gini-style candidate-disagreement heuristic, then prioritizes required root/mediator role coverage once candidate discrimination is exhausted. Random selection uses only public fixture input and a domain-separated seed. **This approach is established model discrimination, not scientific novelty.**
 - To propose a full/partial correspondence, one unique top-priority mapping must remain and root/mediator interventions must be observed with nontrivial effect. Proposals lacking support remain **unresolved**.
 - The verifier validates discovery-record provenance by reproducing raw oracle outcomes, checks exact consistency, and then evaluates **withheld magnitudes** (`-2`, `3`) for every relevant action. Only passing claims become `accepted_claims`, labeled **provisionally_supported**; a partial claim certifies only source roles 0 and 1, not the full causal system.
 - A `no_supported_transfer` decision is an **abstention within the finite hypothesis class**, *never* a universal proof of no analogy. A wrong correspondence can never earn an accepted claim merely by asserting high confidence.
@@ -51,11 +51,15 @@ The v0.9 spec requires ACCL to beat strong **passive and structural retrieval ba
 - Establish fair frontier LLM, structural, passive, target-only and oracle comparisons under matched probe/compute budgets, with predeclared metrics (CRS, ITA, FTCR, HIG, ACE, TA, NTA, SIG).
 - If independently validated, integrate a bounded experiment selection into the daily Oraklet planner **only after a separate PR**, not through this workflow.
 
-## Scientific references within project
+## DeepRAP source provenance
 
-- `DeepRAP_project_sources_v0.9/08_benchmark/08_ACT_MAP_BENCHMARK_v0.2.md`
-- `DeepRAP_project_sources_v0.9/09_formalization/09_FORMALISATION_KILL_TEST_v0.1.md`
-- `DeepRAP_project_sources_v0.9/10_hostile_review/10_HOSTILE_REVIEW_v0.1.md`
-- `DeepRAP_project_sources_v0.9/11_decision/11_DEEPRAP_DECISION_MEMO_v0.1.md`
+This pilot was informed by the separately maintained **DeepRAP v0.9 project source archive**. The four specifications previously displayed here as repository-relative paths are **not committed in this repository**; those paths were not valid links and have been removed rather than suggesting the documents were available for inspection. The archived source filenames are:
 
-Historical DeepRAP novelty decision remains **HOLD / NO-SUBMIT**. No claim of a novel breakthrough follows from this implementation.
+- `08_ACT_MAP_BENCHMARK_v0.2.md`
+- `09_FORMALISATION_KILL_TEST_v0.1.md`
+- `10_HOSTILE_REVIEW_v0.1.md`
+- `11_DEEPRAP_DECISION_MEMO_v0.1.md`
+
+These are **external project materials, not verifiable repo-local dependencies**. This implementation and its included tests are the inspectable reference for what this pilot actually does. Do not claim independent verification against the archived specifications unless those materials are separately made available for review.
+
+The historical DeepRAP novelty decision remains **HOLD / NO-SUBMIT**. No claim of a novel breakthrough follows from this implementation.
