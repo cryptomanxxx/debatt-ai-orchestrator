@@ -56,5 +56,22 @@ class IngestionTests(unittest.TestCase):
                                "abstract": "A novel lattice crystallography process controls quantum phase oscillations under pressure fluctuations."})
         self.assertEqual(mod.candidate_pairs([a,b]), [])
 
+
+    def test_streaming_hash_identifiers_and_malformed_rows(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as folder:
+            source, output = Path(folder)/"input.jsonl", Path(folder)/"out.json"
+            a = {**paper("10.5555/first", "OpenAlex"), "doi": None, "id": "123"}
+            b = {**paper("10.5555/second", "CORE"), "doi": None, "id": "123"}
+            source.write_text("\\n".join(json.dumps(x) for x in [a,b])+ "\\n")
+            report = mod.run(source, output)
+            self.assertEqual(report["record_count"], 2)
+            self.assertEqual(report["input_sha256"], hashlib.sha256(source.read_bytes()).hexdigest())
+            self.assertEqual(sorted(x["source"] for x in report["records"]), ["core", "openalex"])
+            invalid, err = mod.normalize({**a, "id": "    "})
+            self.assertIsNone(invalid)
+            self.assertEqual(err, "missing_identifier")
+            self.assertIn("study", mod.STOP)
+
 if __name__ == "__main__":
     unittest.main()
