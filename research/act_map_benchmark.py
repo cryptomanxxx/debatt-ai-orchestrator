@@ -238,7 +238,10 @@ def evidence_gate(fixture: dict, proposed: dict | None, history: list[dict]) -> 
     # fabricated discovery observations as evidence.
     if any(not isinstance(r, dict) or type(r.get("action")) is not int
            or r.get("action") not in range(3) or type(r.get("value")) is not int or r.get("value") not in VALUES
-           or r.get("outcome") != experiment(fixture, r["action"], r["value"])
+           or type(r.get("outcome")) is not list
+           or len(r["outcome"]) != 3
+           or any(type(v) is not int for v in r["outcome"])
+           or r["outcome"] != experiment(fixture, r["action"], r["value"])
            for r in history):
         return {"status": "rejected", "accepted": False, "reason": "invalid_evidence_provenance"}
     if proposed["scope"] not in ("full", "partial") or len({r["action"] for r in history}) < 2:
