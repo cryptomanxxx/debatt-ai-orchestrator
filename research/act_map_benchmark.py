@@ -48,7 +48,15 @@ def _scm(a: int, b: int, c: int, manipulated: int | None = None, value: int = 0)
     return x0, x1, x2
 
 
-def make_fixture(seed: str, level: int, instance: int) -> dict:
+def _scope_assignment(seed: str, count: int) -> list[str]:
+    """Balanced fixture-private scope allocation, independent of presentation order."""
+    labels = ["partial"] * (count // 2) + ["none"] * (count - count // 2)
+    rng = random.Random(int(digest(["balanced-scope-v3", seed, count])[:16], 16))
+    rng.shuffle(labels)
+    return labels
+
+
+def make_fixture(seed: str, level: int, instance: int, scope: str | None = None) -> dict:
     validated_seed(seed)
     if level not in LEVELS or not isinstance(instance, int) or instance < 0 or instance >= 1000:
         raise ValueError("invalid_case")
@@ -64,8 +72,9 @@ def make_fixture(seed: str, level: int, instance: int) -> dict:
         rng.shuffle(instruments)  # private action-index -> target-index
     # Non-alternating, domain-separated deterministic scope assignment.
     # This is reproducible, not a cryptographic blind held-out split.
-    truth_scope = "full" if level < 4 else (
-        "partial" if int(digest(["scope-v2", seed, instance])[:16], 16) % 2 == 0 else "none")
+    truth_scope = "full" if level < 4 else (scope if scope is not None else _scope_assignment(seed, 50)[instance % 50])
+    if truth_scope not in ("full", "partial", "none") or (level == 4 and truth_scope == "full"):
+        raise ValueError("invalid_scope")
     ta, tb, tc = a, b, c
     if truth_scope == "partial":
         tb -= 7
@@ -207,9 +216,9 @@ def _valid_hypothesis(proposed: dict) -> bool:
             and proposed["scope"] in ("full", "partial")
             and isinstance(proposed["mapping"], list)
             and isinstance(proposed["action_to_target"], list)
+            and all(type(x) is int for x in proposed["mapping"] + proposed["action_to_target"])
             and sorted(proposed["mapping"]) == [0, 1, 2]
-            and sorted(proposed["action_to_target"]) == [0, 1, 2]
-            and all(type(x) is int for x in proposed["mapping"] + proposed["action_to_target"]))
+            and sorted(proposed["action_to_target"]) == [0, 1, 2])
 
 
 def evidence_gate(fixture: dict, proposed: dict | None, history: list[dict]) -> dict:
@@ -232,6 +241,9 @@ def evidence_gate(fixture: dict, proposed: dict | None, history: list[dict]) -> 
         return {"status": "rejected", "accepted": False, "reason": "invalid_evidence_provenance"}
     if proposed["scope"] not in ("full", "partial") or len({r["action"] for r in history}) < 2:
         return {"status": "rejected", "accepted": False, "reason": "insufficient_evidence"}
+    tested_roles = {proposed["mapping"].index(proposed["action_to_target"][r["action"]]) for r in history}
+    if not {0, 1}.issubset(tested_roles):
+        return {"status": "rejected", "accepted": False, "reason": "insufficient_intervention_coverage"}
     if not _fits(view, proposed, history):
         return {"status": "rejected", "accepted": False, "reason": "contradicted_by_discovery"}
     relevant = [a for a in range(3) if _predict(view, proposed, a, 1)]
@@ -345,7 +357,9 @@ def run_benchmark(seed: str = "20261016", cases_per_level: int = 6) -> dict:
     validated_seed(seed)
     if not isinstance(cases_per_level, int) or not 2 <= cases_per_level <= 50:
         raise ValueError("invalid_cases_per_level")
-    fixtures = [make_fixture(seed, level, index) for level in LEVELS for index in range(cases_per_level)]
+    scopes = _scope_assignment(seed, cases_per_level)
+    fixtures = [make_fixture(seed, level, index, scopes[index] if level == 4 else None)
+                for level in LEVELS for index in range(cases_per_level)]
     # Shuffle presentation order independently of the scope assignment stream.
     schedule_rng = random.Random(int(digest(["schedule-v2", seed, cases_per_level])[:16], 16))
     schedule_rng.shuffle(fixtures)
