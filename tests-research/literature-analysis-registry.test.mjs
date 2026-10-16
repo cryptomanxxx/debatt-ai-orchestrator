@@ -27,8 +27,10 @@ function storeFixture() {
     }
     const params=new URL(url).searchParams;
     if (params.get('limit')==='0') return json([]);
-    return json([...rows.values()].filter(row=>['abstract_version_id','prompt_hash','contract_version','profile_hash']
-      .every(key=>params.get(key)==='eq.'+row[key])));
+    return json([...rows.values()].filter(row=>params.has('id')
+      ?params.get('id')==='eq.'+row.id
+      :['abstract_version_id','prompt_hash','contract_version','profile_hash']
+        .every(key=>params.get(key)==='eq.'+row[key])));
   }});
   return {client,rows,calls};
 }
@@ -125,4 +127,18 @@ test('protocols and portfolio assessments expose blockers and gap search has not
     assert.equal(assessment.status,'unknown');assert.equal(assessment.value,null);assert.ok(assessment.required_evidence);
   }
   assert.match(p.portfolio_assessment.opportunity_cost.required_evidence,/competing experiments/);
+});
+
+test('readById binds stored findings to immutable version, prompt and model',async()=>{
+  const {client,rows}=storeFixture();
+  const saved=await client.save(context(),checked);
+  const replayed=await client.readById(saved.id,{loaded,prompt:context().prompt,
+    model:{provider:profile.provider,name:profile.model}});
+  assert.deepEqual(replayed.findings,checked.findings);
+  assert.equal(replayed.id,saved.id);
+  assert.equal(await client.readById(uid(999),{loaded,prompt:context().prompt}),null);
+  await assert.rejects(client.readById(saved.id,{loaded,
+    prompt:evidencePrompt({...paper,title:'Modified title'},text)}),/invalid_analysis_registry_response/);
+  [...rows.values()][0].content_hash='f'.repeat(64);
+  await assert.rejects(client.readById(saved.id,{loaded,prompt:context().prompt}),/invalid_analysis_registry_response/);
 });
