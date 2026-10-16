@@ -11,6 +11,7 @@ const paper=()=>({article_id:uid(1),title:'Physics-informed flow estimation',loo
 const loaded=()=>({status:'available',abstract:text,content:{provider:'openalex',url:key.lookupId,scope:'abstract_only',sha256:hashText(text),fetched_at:date}});
 const row=()=>({id:uid(30),source_record_id:key.sourceRecordId,provider:key.provider,lookup_id:key.lookupId,source_url:key.lookupId,
   content_hash:hashText(text),fetched_at:date,last_fetched_at:date,
+  literature_source_record:{article_id:uid(1)},
   literature_abstract_blob:{content_hash:hashText(text),abstract_text:text,byte_count:Buffer.byteLength(text,'utf8')}});
 const receipt=()=>({id:uid(30),sourceRecordId:key.sourceRecordId,provider:key.provider,lookupId:key.lookupId,sourceUrl:key.lookupId,
   contentHash:hashText(text),fetchedAt:date,lastFetchedAt:date,insertedBlob:true,insertedVersion:true,byteCount:Buffer.byteLength(text,'utf8')});
@@ -41,6 +42,27 @@ test('fresh cache verifies complete text/hash/identity and preserves version wit
   assert.equal(request.options.redirect,'error');
   const params=new URL(request.url).searchParams;assert.equal(params.get('lookup_id'),'eq.'+key.lookupId);
   assert.equal(params.get('limit'),'1');assert.match(params.get('select'),/literature_abstract_blob/);
+});
+test('immutable version reads bind source record to trusted canonical article',async()=>{
+  let requestedSelect;
+  const db=client(async url=>{
+    const params=new URL(String(url)).searchParams;
+    requestedSelect=params.get('select');
+    assert.equal(params.get('id'),'eq.'+uid(30));
+    return json([row()]);
+  });
+  const verified=await db.readVersion(uid(30));
+  assert.match(requestedSelect,/literature_source_record!inner\(article_id\)/);
+  assert.equal(verified.archive.source_record_id,uid(20));
+  assert.equal(verified.archive.article_id,uid(1));
+  assert.equal(verified.archive.version_id,uid(30));
+
+  // Missing/malformed relational data must not silently certify provenance.
+  const missing=row();delete missing.literature_source_record;
+  const corrupt=row();corrupt.literature_source_record.article_id='other-article';
+  for(const invalid of [missing,corrupt]){
+    await assert.rejects(client(async()=>json([invalid])).readVersion(uid(30)),/invalid_abstract_archive_response/);
+  }
 });
 test('expired or absent cache retrieves and persists text before analysis; unchanged receipt retains ID',async()=>{
   const sequence=[];let expired=true;
