@@ -36,7 +36,7 @@ test('HTTP errors are bounded and do not silently change provider',async()=>{
   let n=0;
   await assert.rejects(researchProposer(choice,env,async()=>{
     n++;return new Response('do not expose upstream content',{status:429});
-  })([{role:'user',content:'hi'}]),/model_upstream_http_429/);
+  })([{role:'user',content:'hi'}]),/model_upstream_http_error/);
   assert.equal(n,1);
 });
 test('oversized streamed replies are canceled before memory accumulation',async()=>{
