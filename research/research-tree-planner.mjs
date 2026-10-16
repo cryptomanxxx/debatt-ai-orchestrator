@@ -22,6 +22,9 @@ const assert = (condition, code) => { if (!condition) throw Error(code); };
 const text = (s, max) => typeof s === 'string' && s.trim().length > 0 && s.length <= max;
 const sorted = (a,b) => a < b ? -1 : a > b ? 1 : 0;
 const round = v => Math.round(v * 1000) / 1000;
+const canonical = value => JSON.stringify(value, (_key, v) =>
+  v && typeof v === 'object' && !Array.isArray(v)
+    ? Object.fromEntries(Object.keys(v).sort().map(k => [k, v[k]])) : v);
 
 export function validateTreeEvidence(report) {
   assert(report?.schema_version === 'literature-evidence-1' && UUID.test(report.id)
@@ -52,7 +55,8 @@ export function validateTreeEvidence(report) {
         p.portfolio_assessment[k]?.status === 'unknown' && p.portfolio_assessment[k]?.value === null)),
       'invalid_tree_candidate');
     const original = expected.get(p.id);
-    assert(original && ['research_question','hypothesis','proposed_method'].every(k => p[k] === original[k]), 'invalid_tree_candidate');
+    assert(original && ['research_question','hypothesis','proposed_method'].every(k => p[k] === original[k])
+      && canonical(p.evidence.map(e => e.id).sort()) === canonical(original.evidence.map(e => e.id).sort()), 'invalid_tree_candidate');
     seen.add(p.id);
     const used = new Set();
     for (const e of p.evidence) {
@@ -154,7 +158,7 @@ export async function planResearchTree(report,{maxNodes=9,maxCandidates=3}={}) {
     question:'Which literature-linked research directions should receive independent review?',
     domain:'scientific-research-planning',
     source:{kind:'abstract-evidence-review',report_id:report.id.toLowerCase(),
-      report_sha256:createHash('sha256').update(JSON.stringify(report)).digest('hex')},
+      report_sha256:createHash('sha256').update(canonical(report)).digest('hex')},
     computeBudget:{maxAttempts:3},
   });
   const hypothesisIds=new Map();
