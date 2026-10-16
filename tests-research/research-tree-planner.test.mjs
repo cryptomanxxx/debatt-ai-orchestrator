@@ -335,7 +335,7 @@ test('quote-v2 review queue is released only after exact producer analysis repla
     paper.analysis={id:analysis};
     versions.set(version,{abstract:abstracts[index],
       content:{sha256:paper.content.sha256,url:paper.content.url,provider:paper.content.provider},
-      archive:{version_id:version,source_record_id:source}});
+      archive:{version_id:version,source_record_id:source,article_id:paper.article_id}});
     analyses.set(analysis,{id:analysis,findings:structuredClone(paper.findings)});
   }
   report.planner=planEvidenceResearch(report.papers);
@@ -345,6 +345,17 @@ test('quote-v2 review queue is released only after exact producer analysis repla
   const ok=await execute(report);
   assert.equal(ok.status,'review_required');
   assert.equal(ok.citation_replay.verified,2);
+  // A fully reconstructed report with a different valid article UUID is
+  // still untrusted: only the archive's FK join establishes ownership.
+  const reassigned=structuredClone(report);
+  reassigned.papers[0].article_id='77777777-7777-4777-8777-777777777777';
+  reassigned.planner=planEvidenceResearch(reassigned.papers);
+  const rejectedOwner=await execute(reassigned);
+  assert.equal(rejectedOwner.status,'invalid_evidence');
+  assert.equal(rejectedOwner.citation_replay.rejected,1);
+  assert.deepEqual(rejectedOwner.review_queue,[]);
+  assert.equal(rejectedOwner.research,null);
+  assert.equal(rejectedOwner.search,null);
   const historical=structuredClone(report);
   historical.planner=planEvidenceResearch(historical.papers,{routingVersion:'claim-v1'});
   delete historical.planner.routing_version; // Reconstruct with the historical algorithm.
