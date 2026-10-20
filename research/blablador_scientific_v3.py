@@ -83,7 +83,7 @@ def api(key, path, payload=None):
 def main():
     key = os.environ.get("BLABLADOR_API_KEY", "")
     if not key:
-        sys.exit("Missing BLABLADOR_API_KEY Actions secret.")
+        sys.exit("Missing BLABLADOR_API_KEY research-inference environment secret.")
     models = [m.strip() for m in os.getenv("BENCHMARK_MODELS", ",".join(MODELS)).split(",") if m.strip()]
     rep = os.getenv("BENCHMARK_REPEATS", "2")
     if rep not in ("1", "2", "3") or not models or len(models) > 6 or len(models) != len(set(models)) or any(m not in MODELS for m in models):
