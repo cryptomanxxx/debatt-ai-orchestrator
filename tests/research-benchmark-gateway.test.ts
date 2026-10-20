@@ -47,3 +47,33 @@ test('strictly rejects upstream identity swaps, secrets, malformed and incomplet
   assert.ok(!JSON.stringify(r.data).includes(keys.HIP_API_KEY));
  }
 });
+
+test('rejects provider keys containing whitespace before calling discovery',async()=>{
+ let calls=0;
+ const result=await researchBenchmark(input,{HIP_API_KEY:'invalid secret value'},(async()=>{
+   calls++;throw Error('network must not be called');
+ }) as typeof fetch);
+ assert.equal(result.status,503);assert.equal(calls,0);
+});
+test('blocks over-budget reported completion tokens and retains completion-only latency',async()=>{
+ const stub=async(url:string|URL|Request)=>{
+   if(String(url).endsWith('/models'))return Response.json({data:[{id:input.model}]});
+   return Response.json({model:input.model,choices:[{finish_reason:'stop',message:{content:'ok'}}],
+     usage:{completion_tokens:769}});
+ };
+ const over=await researchBenchmark(input,keys,stub as typeof fetch);
+ assert.equal(over.status,502);
+ assert.deepEqual(over.data,{error:'benchmark_token_budget_exceeded'});
+ const ok=await researchBenchmark(input,keys,transport as typeof fetch);
+ assert.equal(ok.status,200);
+ assert.equal(typeof (ok.data as any).completion_latency_seconds,'number');
+ assert.ok((ok.data as any).completion_latency_seconds>=0);
+});
+test('catalog-listed HIP VL chat model is allowed for text prompts',async()=>{
+ const model='qwen3-vl-30b-a3b-instruct-awq';
+ const result=await researchBenchmark({...input,model},keys,(async(url:string|URL|Request)=>{
+   if(String(url).endsWith('/models'))return Response.json({data:[{id:model}]});
+   return Response.json({model,choices:[{finish_reason:'stop',message:{content:'ok'}}]});
+ }) as typeof fetch);
+ assert.equal(result.status,200);
+});
