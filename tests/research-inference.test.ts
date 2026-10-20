@@ -78,3 +78,29 @@ test('distinguishes model mismatch and incomplete model output, without echoing 
   })) as typeof fetch);
   assert.deepEqual(unfinished.data,{error:'research_response_incomplete'});
 });
+
+test('only documented Blablador alias-fast targets pass, all others fail closed',async()=>{
+  const keys={BLABLADOR_API_KEY:'test-blablador-key-not-real'};
+  const body={provider:'blablador',model:'alias-fast',prompt:'READY'};
+  for(const returned of ['openai/gpt-oss-120b','GPT-OSS-120B','alias-fast']){
+    const out=await researchInference(body,keys,(async()=>Response.json({
+      model:returned,choices:[{finish_reason:'stop',message:{content:'READY'}}]
+    })) as typeof fetch);
+    assert.equal(out.status,200);
+    assert.equal(out.data.backendIdentityVerified,false);
+    assert.equal(out.data.modelIdentity,returned==='alias-fast'?'exact':'documented_alias_target');
+  }
+  for(const returned of ['arbitrary-model','openai/gpt-oss-120b-evil','GPT-OSS-120B/latest',
+     '__proto__',null,keys.BLABLADOR_API_KEY]){
+    const out=await researchInference(body,keys,(async()=>Response.json({
+      model:returned,choices:[{finish_reason:'stop',message:{content:'READY'}}]
+    })) as typeof fetch);
+    assert.deepEqual(out.data,{error:'research_response_model_mismatch'});
+  }
+});
+test('HIP never accepts Blablador alias targets',async()=>{
+  const out=await researchInference(request,hip,(async()=>Response.json({
+    model:'openai/gpt-oss-120b',choices:[{finish_reason:'stop',message:{content:'READY'}}]
+  })) as typeof fetch);
+  assert.deepEqual(out.data,{error:'research_response_model_mismatch'});
+});
