@@ -1,4 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
+import { researchInference } from './research-inference.ts';
+import type { ResearchKeys } from './research-inference.ts';
 import type { Config } from './config.ts';
 import { defaultModelProfile } from './models/profile.ts';
 import { executeQuery } from './query.ts';
@@ -8,7 +10,7 @@ import type { BootLoopsExecutor } from './tools/registry.ts';
 
 // Shared API routing for the Node server and the Cloudflare Worker. Each transport supplies
 // its own BootLoops runtime: a local Python process or the internal service binding.
-export type ApiRuntime = { bootloops?: BootLoopsExecutor; diagnostics?: BootLoopsService };
+export type ApiRuntime = { bootloops?: BootLoopsExecutor; diagnostics?: BootLoopsService; research?: ResearchKeys };
 
 const MAX_BODY_BYTES = 32768;
 const encoder = new TextEncoder();
@@ -22,7 +24,8 @@ export async function handleApiRequest(request: Request, config: Config, runtime
     return json(200, { status: 'ok', service: 'debatt-ai-orchestrator' });
   const profile = request.method === 'GET' && pathname === '/v1/model-profile';
   const diagnostic = pathname === '/v1/diagnostics/bootloops';
-  if ((!profile && (request.method !== 'POST' || (!diagnostic && pathname !== '/v1/query'))) || search)
+  const research = pathname === '/v1/research/inference';
+  if ((!profile && (request.method !== 'POST' || (!diagnostic && !research && pathname !== '/v1/query'))) || search)
     return json(404, { error: 'not_found' });
   const actual = encoder.encode(request.headers.get('Authorization') ?? '');
   const expected = encoder.encode(`Bearer ${config.apiKey}`);
@@ -56,7 +59,8 @@ export async function handleApiRequest(request: Request, config: Config, runtime
   let input: unknown;
   try { input = JSON.parse(body); }
   catch { return json(400, { error: 'invalid_json' }); }
-  const result = diagnostic ? await diagnoseBootLoops(input, runtime.diagnostics)
+  const result = research ? await researchInference(input, runtime.research ?? {})
+    : diagnostic ? await diagnoseBootLoops(input, runtime.diagnostics)
     : await executeQuery(input, config, runtime.bootloops);
   return json(result.status, result.data);
 }
