@@ -7,7 +7,7 @@ const request = { provider: 'hip', model: 'GLM-5.2-AWQ-INT4', prompt: 'Solve x^2
 test('only fixed provider, model, and prompt are accepted without network calls', async () => {
   const never = async () => { throw new Error('network request forbidden'); };
   for (const body of [
-    { ...request, provider: 'unknown' }, { ...request, model: 'evil' },
+    { ...request, provider: 'unknown' }, { ...request, provider: 'toString' }, { ...request, model: 'evil' },
     { ...request, endpoint: 'https://attacker.example' },
     { ...request, prompt: ' ' }, { ...request, prompt: 'x'.repeat(4001) }
   ]) assert.equal((await researchInference(body,hip,never as typeof fetch)).status,400);
@@ -39,4 +39,14 @@ test('rejects invalid model identity, truncated or oversized responses', async (
     {model:request.model,choices:[{message:{content:'ok'},finish_reason:'length'}]},
     {model:request.model,choices:[{message:{content:'x'.repeat(70000)},finish_reason:'stop'}]}
   ]) assert.equal((await researchInference(request,hip,fake(body) as typeof fetch)).status,502);
+});
+
+test('never reflects an upstream response containing the provider secret', async () => {
+  const reflect = async () => Response.json({
+    model: request.model,
+    choices: [{ message: { content: 'Credential: test-hip-key-not-real' }, finish_reason: 'stop' }]
+  });
+  const result=await researchInference(request,hip,reflect as typeof fetch);
+  assert.equal(result.status,502);
+  assert.ok(!JSON.stringify(result.data).includes(hip.HIP_API_KEY));
 });
