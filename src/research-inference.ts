@@ -7,7 +7,8 @@ const PROVIDERS = {
 // Explicit, documented alias target candidates only. Never accept arbitrary returned model IDs.
 // Ref: https://sdlaml.pages.jsc.fz-juelich.de/ai/guides/blablador_api_access/
 // Blablador may retarget an alias: backendIdentityVerified must remain false.
-const BLABLADOR_FAST_TARGETS = new Set(['openai/gpt-oss-120b', 'GPT-OSS-120B']);
+const BLABLADOR_FAST_TARGETS = new Set(['openai/gpt-oss-120b']);
+const MAX_RESPONSE_BYTES = 65536;
 export function classifyResearchModelIdentity(provider: string, requested: string, returned: unknown) {
   if (typeof returned !== 'string' || returned.length > 128) return 'mismatch';
   if (returned === requested) return 'exact';
