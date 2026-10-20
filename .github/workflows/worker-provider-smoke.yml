@@ -1,0 +1,37 @@
+name: Smoke test HIP and Blablador via Oraklet Worker
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: oraklet-worker-provider-smoke
+  cancel-in-progress: false
+jobs:
+  smoke:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [hip, blablador]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Test Worker probe without credentials
+        run: node --test tests-research/worker-provider-smoke.test.mjs
+      - name: Verify selected provider via Cloudflare Worker
+        env:
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
+          RESEARCH_PROVIDER: ${{ matrix.provider }}
+        run: node research/worker-provider-smoke.mjs
+      - name: Archive redacted connectivity metadata
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: oraklet-worker-${{ matrix.provider }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/worker-provider-smoke/
+          if-no-files-found: ignore
+          retention-days: 14
