@@ -24,6 +24,7 @@ concurrency:
 
 jobs:
   hip-test:
+    environment: research-inference
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
