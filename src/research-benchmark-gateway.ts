@@ -49,7 +49,7 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
     return error(400,'invalid_benchmark_request');
   if(blockedId(model))return error(400,'benchmark_non_chat_model');
   const source=SOURCES[provider],key=keys[source.key];
-  if(typeof key!=='string'||key.length<8||/\\s/.test(key))return error(503,'research_provider_not_configured');
+  if(typeof key!=='string'||key.length<8||/\s/.test(key))return error(503,'research_provider_not_configured');
   // Membership is checked before sending a prompt: the caller cannot create arbitrary
   // provider model names or direct arbitrary requests to a backend.
   const catalog=await discoverResearchModels(provider,keys,transport);
