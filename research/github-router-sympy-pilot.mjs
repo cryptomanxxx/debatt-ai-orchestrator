@@ -1,4 +1,4 @@
-import {sympyWorkerPrompt} from './sympy-worker-prompt.mjs';
+import {sympyWorkerPrompt,SYMPY_WORKER_PROMPT_VERSION} from './sympy-worker-prompt.mjs';
 import {selectWorkerModel,workerInference} from './worker-research-client.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -75,7 +75,8 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
   const dir='reports/github-router-sympy';
   await mkdir(dir,{recursive:true});
   const report={schemaVersion:1,status:'preflight',seed,startedAt:new Date().toISOString(),
-    githubSha:env.GITHUB_SHA||null,modelCallsMax:3,results:[]};
+    githubSha:env.GITHUB_SHA||null,modelCallsMax:3,
+    promptVersion:select?'sympy-quadratic-v1':SYMPY_WORKER_PROMPT_VERSION,results:[]};
   const safeIssues=issues=>Array.isArray(issues)?issues.filter(x=>
     x&&typeof x==='object'&&Object.hasOwn(ROUTES,x.provider)&&typeof x.error==='string'&&
     (['key_not_configured','not_listed','invalid_api_key','upstream_timeout',
