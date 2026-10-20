@@ -38,8 +38,7 @@ jobs:
         run: node --test tests-research/github-router-sympy-pilot.test.mjs
       - name: Select GitHub model and run three verified cases
         env:
-          BLABLADOR_API_KEY: ${{ secrets.BLABLADOR_API_KEY }}
-          HIP_API_KEY: ${{ secrets.HIP_API_KEY }}
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
           ROUTER_PROVIDER: ${{ inputs.provider }}
           EXPERIMENT_SEED: ${{ inputs.seed }}
         run: node research/github-router-sympy-pilot.mjs
