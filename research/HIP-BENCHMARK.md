@@ -1,6 +1,6 @@
 # HIP model comparison for Professor Oraklet
 
-Run **HIP scientific benchmark** manually in GitHub Actions after merging the workflow. The existing `HIP_API_KEY` repository secret is used. Defaults select all nine named chat models and two repetitions: five tasks × nine models × two repeats = 90 inference requests plus one model-list request. There are no automatic retries or scheduled runs. Each answer has at most 768 output tokens (69,120 output tokens across 90 requests); input tokens are additional. Actual euro cost is not estimated without verified HIP prices.
+Run **HIP scientific benchmark** manually in GitHub Actions after merging the workflow. The `HIP_API_KEY` secret in the `research-inference` GitHub Actions environment is used. Defaults select all nine named chat models and two repetitions: five tasks × nine models × two repeats = 90 inference requests plus one model-list request. There are no automatic retries or scheduled runs. Each answer has at most 768 output tokens (69,120 output tokens across 90 requests); input tokens are additional. Actual euro cost is not estimated without verified HIP prices.
 
 This is internal, pre-competitive research using fixed synthetic questions. It does not change Oraklet's provider or expose HIP through a public service.
 

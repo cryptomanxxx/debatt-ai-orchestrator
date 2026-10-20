@@ -36,7 +36,7 @@ def query(key, path, payload=None):
 def main():
     key = os.getenv("BLABLADOR_API_KEY", "")
     if not key:
-        sys.exit("Missing BLABLADOR_API_KEY repository secret.")
+        sys.exit("Missing BLABLADOR_API_KEY research-inference environment secret.")
     names = [n.strip() for n in os.getenv("BENCHMARK_MODELS", "").split(",") if n.strip()]
     if not names or len(names) > 7 or len(names) != len(set(names)) or any(n not in ALLOW for n in names):
         sys.exit("Invalid model list: choose up to seven distinct allowlisted aliases.")

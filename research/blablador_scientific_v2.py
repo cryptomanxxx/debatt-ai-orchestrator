@@ -52,7 +52,7 @@ def api(key, path, payload=None):
 def main():
     key = os.environ.get("BLABLADOR_API_KEY", "")
     if not key:
-        sys.exit("BLABLADOR_API_KEY GitHub secret is missing.")
+        sys.exit("BLABLADOR_API_KEY research-inference environment secret is missing.")
     raw = os.environ.get("BENCHMARK_MODELS", ",".join(MODELS))
     models = [x.strip() for x in raw.split(",") if x.strip()]
     repeats_text = os.environ.get("BENCHMARK_REPEATS", "2")

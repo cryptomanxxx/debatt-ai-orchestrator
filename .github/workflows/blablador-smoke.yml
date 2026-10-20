@@ -14,6 +14,8 @@ permissions:
 
 jobs:
   blablador-smoke:
+    environment: research-inference
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -34,7 +36,7 @@ jobs:
           key = os.environ.get("BLABLADOR_API_KEY", "")
           model = os.environ.get("BLABLADOR_TEST_MODEL", "alias-fast")
           if not key:
-              sys.exit("BLABLADOR_API_KEY is missing from repository Actions secrets.")
+              sys.exit("BLABLADOR_API_KEY is missing from research-inference environment secrets.")
           if not model or len(model) > 160 or not all(c.isalnum() or c in "._-/" for c in model):
               sys.exit("Invalid model alias.")
 
