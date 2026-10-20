@@ -11,7 +11,7 @@ const reader=response.body?.getReader();if(!reader)throw Error('invalid_catalog_
 let size=0;const chunks=[];
 try{
   while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;
-    if(size>65536){await reader.cancel();throw Error('catalog_too_large');}chunks.push(value);}
+    if(size>131072){await reader.cancel();throw Error('catalog_too_large');}chunks.push(value);}
 }finally{reader.releaseLock();}
 const bytes=new Uint8Array(size);let offset=0;
 for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
@@ -23,7 +23,7 @@ for(const name of ['hip','blablador']){
  const p=parsed.providers[name];
  if(p?.status==='catalog_unverified' && p.provider===name && p.backendIdentityVerified===false &&
    Array.isArray(p.models) && p.models.length<=200 &&
-   p.models.every(id=>typeof id==='string'&&/^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,127}$/.test(id))){
+   p.models.every(id=>typeof id==='string'&&/^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,199}$/.test(id))){
      result.providers[name]={status:'catalog_unverified',models:p.models};
  }else{
      result.providers[name]={status:'failed'};
