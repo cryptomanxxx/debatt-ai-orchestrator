@@ -25,5 +25,5 @@ export function sympyWorkerPrompt(messages) {
     'reason ska vara en kort svensk motivering (max 800 tecken).',
     'Exempel på format, INTE lösningen: {"method":"sympy","roots":["-2","1/2"],"reason":"Kontroll med diskriminanten."}',
     'Beräkna svaret för de angivna koefficienterna och returnera endast JSON.'
-  ].join('\\n');
+  ].join(String.fromCharCode(10));
 }
