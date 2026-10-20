@@ -4,7 +4,18 @@ const PROVIDERS = {
   hip: { base: 'https://llm-service.ai.tu-darmstadt.de/v1', key: 'HIP_API_KEY', models: ['GLM-5.2-AWQ-INT4', 'Mistral-Medium-3.5-128B'] },
   blablador: { base: 'https://api.blablador.fz-juelich.de/v1', key: 'BLABLADOR_API_KEY', models: ['alias-fast', 'alias-glm-5.3-flash'] }
 } as const;
-const MAX_RESPONSE_BYTES = 65536;
+// Explicit, documented alias target candidates only. Never accept arbitrary returned model IDs.
+// Ref: https://sdlaml.pages.jsc.fz-juelich.de/ai/guides/blablador_api_access/
+// Blablador may retarget an alias: backendIdentityVerified must remain false.
+const BLABLADOR_FAST_TARGETS = new Set(['openai/gpt-oss-120b', 'GPT-OSS-120B']);
+export function classifyResearchModelIdentity(provider: string, requested: string, returned: unknown) {
+  if (typeof returned !== 'string' || returned.length > 128) return 'mismatch';
+  if (returned === requested) return 'exact';
+  if (provider === 'blablador' && requested === 'alias-fast' && BLABLADOR_FAST_TARGETS.has(returned))
+    return 'documented_alias_target';
+  return 'mismatch';
+}
+
 const failed = (error: string) => ({ status: 502, data: { error } });
 function upstreamFailure(status: number) {
   if (status === 401 || status === 403) return 'research_upstream_auth_rejected';
@@ -52,11 +63,12 @@ export async function researchInference(input: unknown, keys: ResearchKeys, tran
     try { result = JSON.parse(text); } catch { return failed('research_response_invalid_json'); }
     const answer = result?.choices?.[0]?.message?.content;
     if (typeof answer === 'string' && answer.includes(key)) return failed('research_response_secret_echo');
-    if (result?.model !== body.model) return failed('research_response_model_mismatch');
+    const modelIdentity = classifyResearchModelIdentity(provider, body.model, result?.model);
+    if (modelIdentity === 'mismatch') return failed('research_response_model_mismatch');
     if (result?.choices?.[0]?.finish_reason !== 'stop') return failed('research_response_incomplete');
     if (typeof answer !== 'string' || !answer.trim() || answer.length > 16000)
       return failed('research_response_invalid_answer');
-    return { status: 200, data: { status: 'completed_unverified', provider, model: body.model, answer, scientificallyVerified: false, backendIdentityVerified: false } };
+    return { status: 200, data: { status: 'completed_unverified', provider, model: body.model, modelIdentity, answer, scientificallyVerified: false, backendIdentityVerified: false } };
   } catch {
     return failed('research_transport_or_decode_failed');
   }
