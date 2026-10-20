@@ -13,7 +13,7 @@ from scientific_model_router import (RouterError, candidates, choose_model, disc
 class RouterTests(unittest.TestCase):
     def test_profiles_are_explicit_and_bounded(self):
         self.assertEqual(candidates("reasoning")[0], ("blablador", "alias-kimi-k3-1m"))
-        self.assertEqual(candidates("reasoning", "hip"), [("hip", "Kimi-K2.6")])
+        self.assertEqual(candidates("reasoning", "hip"), [("hip", "Mistral-Medium-3.5-128B")])
         with self.assertRaises(ValueError):
             candidates("unknown")
 
@@ -21,10 +21,10 @@ class RouterTests(unittest.TestCase):
         calls = []
         def discovery(base, key, path):
             calls.append((base, path))
-            return {"data": [{"id": "Kimi-K2.6"}]}
+            return {"data": [{"id": "Mistral-Medium-3.5-128B"}]}
         selected = choose_model("reasoning", {"HIP_API_KEY": "example-key-12345"}, discover=discovery)
         self.assertEqual(selected["provider"], "hip")
-        self.assertEqual(selected["model"], "Kimi-K2.6")
+        self.assertEqual(selected["model"], "Mistral-Medium-3.5-128B")
         self.assertEqual(len(calls), 1)
         self.assertEqual(selected["discovery_issues"][0]["error"], "key_not_configured")
 
