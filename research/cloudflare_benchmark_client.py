@@ -3,6 +3,15 @@ import json
 import urllib.request
 from urllib.error import HTTPError, URLError
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+SAFE_ERRORS = frozenset({'missing_orchestrator_key','invalid_gateway_path','gateway_transport_or_http_failed',
+    'gateway_response_too_large','gateway_invalid_json','gateway_invalid_response',
+    'invalid_provider','gateway_catalog_failed','gateway_catalog_invalid',
+    'invalid_benchmark_request','gateway_completion_invalid','gateway_latency_invalid','gateway_usage_invalid'})
+
 WORKER = "https://debatt-ai-orchestrator.xx8031126.workers.dev"
 MAX_BYTES = 131072
 
@@ -14,7 +23,7 @@ def _request(api_key, path, body=None, open_url=None):
         raise GatewayError("missing_orchestrator_key")
     if path not in ("/v1/research/models", "/v1/research/benchmark"):
         raise GatewayError("invalid_gateway_path")
-    transport = open_url or urllib.request.urlopen
+    transport = open_url or urllib.request.build_opener(NoRedirect()).open
     data = json.dumps(body).encode("utf-8") if body is not None else None
     req = urllib.request.Request(WORKER + path, data=data,
         headers={"Authorization": "Bearer " + api_key, "Accept": "application/json",
@@ -40,7 +49,7 @@ def catalog_models(api_key, provider, open_url=None):
         raise GatewayError("invalid_provider")
     obj = _request(api_key, "/v1/research/models", open_url=open_url)
     p = obj.get("providers", {}).get(provider)
-    if obj.get("status") != "discovered_unverified" or not isinstance(p, dict) or p.get("status") != "catalog_unverified":
+    if obj.get("status") != "discovered_unverified" or not isinstance(p, dict) or p.get("status") != "catalog_unverified" or p.get("provider") != provider or p.get("backendIdentityVerified") is not False:
         raise GatewayError("gateway_catalog_failed")
     models = p.get("models")
     if not isinstance(models, list) or len(models) > 200 or any(not isinstance(x, str) for x in models):
