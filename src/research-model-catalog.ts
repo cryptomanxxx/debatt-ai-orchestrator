@@ -7,7 +7,7 @@ const SOURCES = {
 } as const;
 type Provider = keyof typeof SOURCES;
 const MAX_BYTES=65536;
-const MODEL_ID=/^[a-zA-Z0-9][a-zA-Z0-9_./:+-]{0,127}$/;
+const MODEL_ID=/^[a-zA-Z0-9][a-zA-Z0-9_./:+-]{0,199}$/;
 export async function discoverResearchModels(provider: string, keys: ResearchKeys, transport: typeof fetch=fetch) {
   if(!Object.hasOwn(SOURCES,provider)) return {status:400,data:{error:'invalid_provider'}};
   const p=SOURCES[provider as Provider];
@@ -44,13 +44,17 @@ export async function discoverResearchModels(provider: string, keys: ResearchKey
     const bytes=new Uint8Array(size);let offset=0;
     for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
     const parsed=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
-    if(!Array.isArray(parsed?.data) || parsed.data.length>200 ||
-       parsed.data.some((item:unknown)=> !item || typeof item!=='object' ||
-         (typeof (item as {id?:unknown}).id !== 'string' ||
-          !MODEL_ID.test((item as {id:string}).id) ||
-          (item as {id:string}).id.includes(key))))
-       return {status:502,data:{error:'model_catalog_invalid_response'}};
-    const ids=[...new Set(parsed.data.map((x:{id:string})=>x.id))].sort();
+    if(!Array.isArray(parsed?.data) || parsed.data.length>500)
+      return {status:502,data:{error:'model_catalog_invalid_response'}};
+    // Reuse the established research router strategy: ignore malformed individual
+    // rows, not the entire catalog. Keep strict output character and size bounds.
+    const ids=[...new Set(parsed.data.flatMap((item:unknown)=>{
+      if(!item || typeof item!=='object' || Array.isArray(item)) return [];
+      const id=(item as {id?:unknown}).id;
+      return typeof id==='string' && MODEL_ID.test(id) && !id.includes(key) ? [id] : [];
+    }))].sort();
+    if(ids.length>200 || (parsed.data.length>0 && ids.length===0))
+      return {status:502,data:{error:'model_catalog_invalid_response'}};
     return {status:200,data:{status:'catalog_unverified',provider,models:ids,
       modelCount:ids.length,backendIdentityVerified:false}};
   }catch{return {status:502,data:{error:'model_catalog_invalid_response'}};}
