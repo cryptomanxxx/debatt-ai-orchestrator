@@ -16,8 +16,8 @@ test('provider route and seed are bounded, secret names remain private', () => {
   assert.match(text, /ROUTER_PROVIDER: .*matrix\.provider/);
   assert.match(text, /EXPERIMENT_SEED: .*inputs\.seed/);
   assert.match(text, /node research\/github-router-sympy-pilot\.mjs/);
-  assert.match(text, /BLABLADOR_API_KEY: .*secrets\.BLABLADOR_API_KEY/);
-  assert.match(text, /HIP_API_KEY: .*secrets\.HIP_API_KEY/);
+  assert.match(text, /BLABLADOR_API_KEY: .*matrix\.provider == 'blablador' && secrets\.BLABLADOR_API_KEY/);
+  assert.match(text, /HIP_API_KEY: .*matrix\.provider == 'hip' && secrets\.HIP_API_KEY/);
   assert.match(text, /sympy-provider-.*matrix\.provider/);
   assert.doesNotMatch(text, /ORCHESTRATOR_API_KEY|SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SECRET_KEY|pull_request_target/);
 });
