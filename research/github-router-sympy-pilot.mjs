@@ -102,17 +102,16 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     if(!/^\d{1,9}$/.test(seed))throw new ResearchError('invalid_seed');
     let selected=select;
     if(!selected) {
-      let stdout;
-      try {selected=await selectWorkerModel(env.ROUTER_PROVIDER||'auto','reasoning',env.ORCHESTRATOR_API_KEY);
+      try {
+        selected=await selectWorkerModel(env.ROUTER_PROVIDER||'auto','reasoning',env.ORCHESTRATOR_API_KEY);
       } catch(error) {
-        try {
-          const failure=JSON.parse(error?.stdout||'');
-          if(failure?.status==='failed') {
-            report.discoveryIssues=safeIssues(failure.issues);
-            throw new ResearchError('no_available_allowlisted_model');
-          }
-        } catch(inner) {if(inner instanceof ResearchError)throw inner;}
-        throw new ResearchError('router_selection_failed');
+        // Preserve only defined, non-sensitive diagnostic codes, never upstream bodies.
+        const knownSelection=new Set(['missing_orchestrator_key','invalid_route_options',
+          'invalid_worker_catalog','no_available_allowlisted_model','worker_missing_body',
+          'worker_response_too_large','worker_invalid_json']);
+        const code=error instanceof Error ? error.message : '';
+        throw new ResearchError(knownSelection.has(code) || /^worker_http_[0-9]{3}$/.test(code)
+          ? code : 'router_selection_failed');
       }
       // The authenticated Worker catalog already selected the bounded model.
     }
@@ -136,7 +135,7 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     await persist();return report;
   }catch(error){
     report.status='failed';
-    const known=['missing_orchestrator_key','no_available_allowlisted_model','invalid_worker_inference_response','invalid_worker_inference','invalid_worker_catalog','invalid_seed','untrusted_route','untrusted_model','missing_provider_key',
+    const known=['missing_orchestrator_key','no_available_allowlisted_model','invalid_worker_inference_response','invalid_worker_inference','invalid_worker_catalog','invalid_route_options','worker_missing_body','worker_response_too_large','worker_invalid_json','invalid_seed','untrusted_route','untrusted_model','missing_provider_key',
       'model_call_budget_exceeded','model_identity_mismatch','incomplete_model_response',
       'invalid_model_answer','provider_secret_echoed','oversized_provider_response','invalid_model_proposal',
       'model_upstream_http_error','invalid_model_response','no_available_allowlisted_model','router_selection_failed',
