@@ -9,7 +9,7 @@ export async function researchInference(input: unknown, keys: ResearchKeys, tran
   if (!input || typeof input !== 'object' || Array.isArray(input)) return { status: 400, data: { error: 'invalid_request' } };
   const body = input as Record<string, unknown>;
   if (Object.keys(body).some(k => !['provider', 'model', 'prompt'].includes(k)) ||
-      typeof body.provider !== 'string' || !(body.provider in PROVIDERS) ||
+      typeof body.provider !== 'string' || !Object.hasOwn(PROVIDERS, body.provider) ||
       typeof body.model !== 'string' || typeof body.prompt !== 'string' ||
       !body.prompt.trim() || body.prompt.length > 4000)
     return { status: 400, data: { error: 'invalid_request' } };
@@ -43,7 +43,7 @@ export async function researchInference(input: unknown, keys: ResearchKeys, tran
     const result = JSON.parse(text);
     const answer = result?.choices?.[0]?.message?.content;
     if (result?.choices?.[0]?.finish_reason !== 'stop' || typeof answer !== 'string' ||
-        !answer.trim() || answer.length > 16000 || result.model !== body.model)
+        !answer.trim() || answer.length > 16000 || answer.includes(key) || result.model !== body.model)
       return { status: 502, data: { error: 'research_invalid_response' } };
     return { status: 200, data: { status: 'completed_unverified', provider, model: body.model, answer, scientificallyVerified: false, backendIdentityVerified: false } };
   } catch {
