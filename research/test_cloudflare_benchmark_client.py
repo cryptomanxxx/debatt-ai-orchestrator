@@ -1,0 +1,33 @@
+import json
+import unittest
+from cloudflare_benchmark_client import catalog_models, benchmark_completion, GatewayError, WORKER
+KEY="test-orchestrator-secret-value-12345"
+MODEL="alias-glm-5.3-flash"
+PAYLOAD={"model":MODEL,"messages":[{"role":"user","content":"2+2"}],"temperature":0,"max_tokens":256}
+class Stub:
+    def __init__(self, obj): self.data=json.dumps(obj).encode()
+    def __enter__(self): return self
+    def __exit__(self,*args): return False
+    def read(self,n): return self.data[:n]
+def fake(obj,seen):
+    def call(req,timeout):
+        seen.append((req.full_url,req.get_method(),json.loads(req.data) if req.data else None))
+        return Stub(obj)
+    return call
+class CloudflareAdapterTest(unittest.TestCase):
+    def test_catalog_uses_worker_only(self):
+        seen=[]
+        data=catalog_models(KEY,"blablador",fake({"status":"discovered_unverified","providers":{"blablador":{"status":"catalog_unverified","provider":"blablador","backendIdentityVerified":False,"models":[MODEL]}}},seen))
+        self.assertEqual(data,{"data":[{"id":MODEL}]})
+        self.assertEqual(seen[0][0],WORKER+"/v1/research/models")
+    def test_completion_preserves_experiment(self):
+        seen=[]
+        data=benchmark_completion(KEY,"blablador",PAYLOAD,fake({"status":"completed_unverified","provider":"blablador","model":MODEL,"answer":"4","finish_reason":"stop","scientificallyVerified":False,"backendIdentityVerified":False,"completion_latency_seconds":1.2,"usage":{"prompt_tokens":5,"completion_tokens":1,"total_tokens":6}},seen))
+        self.assertEqual(data["choices"][0]["message"]["content"],"4")
+        self.assertEqual(data["_completion_latency_seconds"],1.2)
+        self.assertEqual(seen[0][0],WORKER+"/v1/research/benchmark")
+        self.assertEqual(seen[0][2]["messages"],PAYLOAD["messages"])
+    def test_invalid_usage_fails(self):
+        with self.assertRaises(GatewayError):
+            benchmark_completion(KEY,"blablador",PAYLOAD,fake({"status":"completed_unverified","provider":"blablador","model":MODEL,"answer":"4","finish_reason":"stop","scientificallyVerified":False,"backendIdentityVerified":False,"completion_latency_seconds":1,"usage":{"prompt_tokens":3,"completion_tokens":257,"total_tokens":260}},[]))
+if __name__=="__main__": unittest.main()

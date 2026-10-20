@@ -21,12 +21,14 @@ jobs:
     environment: research-inference
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Test Cloudflare benchmark transport offline
+        run: python3 -m unittest discover -s research -p 'test_cloudflare_benchmark_client.py'
       - name: Compare models on bounded research tasks
         env:
-          BLABLADOR_API_KEY: ${{ secrets.BLABLADOR_API_KEY }}
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
           BENCHMARK_MODELS: ${{ inputs.models }}
         run: python3 research/blablador_benchmark.py
       - name: Upload benchmark results

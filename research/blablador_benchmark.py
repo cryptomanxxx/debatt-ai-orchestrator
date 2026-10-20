@@ -9,6 +9,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from cloudflare_benchmark_client import catalog_models, benchmark_completion, GatewayError, SAFE_ERRORS
 
 BASE = "https://api.blablador.fz-juelich.de/v1"
 ALLOW = {
@@ -24,19 +25,16 @@ TASKS = [
 ]
 # Strict exact-match tasks intentionally avoid subjective grading.
 def query(key, path, payload=None):
-    data = None if payload is None else json.dumps(payload).encode("utf-8")
-    headers = {"Authorization": "Bearer " + key, "Accept": "application/json"}
-    if data is not None:
-        headers["Content-Type"] = "application/json"
-    req = urllib.request.Request(BASE + path, headers=headers, data=data,
-                                 method="POST" if data is not None else "GET")
-    with urllib.request.urlopen(req, timeout=75) as response:
-        return json.load(response)
+    if path == "/models" and payload is None:
+        return catalog_models(key, "blablador")
+    if path == "/chat/completions" and payload is not None:
+        return benchmark_completion(key, "blablador", payload)
+    raise GatewayError("invalid_benchmark_route")
 
 def main():
-    key = os.getenv("BLABLADOR_API_KEY", "")
+    key = os.getenv("ORCHESTRATOR_API_KEY", "")
     if not key:
-        sys.exit("Missing BLABLADOR_API_KEY research-inference environment secret.")
+        sys.exit("Missing ORCHESTRATOR_API_KEY research-inference environment secret.")
     names = [n.strip() for n in os.getenv("BENCHMARK_MODELS", "").split(",") if n.strip()]
     if not names or len(names) > 7 or len(names) != len(set(names)) or any(n not in ALLOW for n in names):
         sys.exit("Invalid model list: choose up to seven distinct allowlisted aliases.")
@@ -46,7 +44,7 @@ def main():
                     for m in discovered.get("data", []) if isinstance(m, dict) and isinstance(m.get("id"), str)} 
         ids = set(metadata)
     except (urllib.error.HTTPError, urllib.error.URLError, ValueError, TimeoutError, http.client.IncompleteRead,
-            http.client.RemoteDisconnected, ConnectionResetError, AttributeError, TypeError) as error:
+            http.client.RemoteDisconnected, ConnectionResetError, AttributeError, TypeError, GatewayError) as error:
         sys.exit("Model discovery failed (" + type(error).__name__ + ").")
     report = []
     for model in names:
@@ -66,7 +64,7 @@ def main():
                     "max_tokens": 256, 
                     "temperature": 0 
                 })
-                result["latency_seconds"] = round(time.monotonic() - start, 3)
+                result["latency_seconds"] = response.get("_completion_latency_seconds")
                 raw = response.get("choices", [{}])[0].get("message", {}).get("content", "")
                 answer = raw.strip() if isinstance(raw, str) else ""
                 result["correct"] = answer == expected
@@ -76,17 +74,17 @@ def main():
                 result["status"] = "ok" if answer else "empty_response"
             except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError,
                     KeyError, IndexError, TypeError, AttributeError, http.client.IncompleteRead,
-                    http.client.RemoteDisconnected, ConnectionResetError) as error:
-                result["latency_seconds"] = round(time.monotonic() - start, 3)
+                    http.client.RemoteDisconnected, ConnectionResetError, GatewayError) as error:
+                result["latency_seconds"] = None
                 result["correct"] = False
-                result["status"] = "request_failed_" + type(error).__name__
+                result["status"] = ("gateway_" + str(error) if isinstance(error, GatewayError) and str(error) in SAFE_ERRORS else "request_failed_" + type(error).__name__)
             report.append(result)
             print(f"{model}: {task}: {result['status']}, correct={result['correct']}, latency={result['latency_seconds']}s", flush=True)
             time.sleep(1.1)
     out = Path("blablador-benchmark.json")
     out.write_text(json.dumps({"schema_version": 1, "scoring": "strict_exact_match",
                                "models": names, "model_metadata": {n: metadata.get(n) for n in names}, 
-                               "generation": {"temperature": 0, "max_tokens": 256}, "results": report}, indent=2) + "\n", encoding="utf-8")
+                               "generation": {"temperature": 0, "max_tokens": 256}, "transport": "cloudflare-benchmark-v1", "metadata_scope": "catalog_ids_only", "inference_timeout_seconds": 60, "previous_inference_timeout_seconds": 75, "results": report}, indent=2) + "\n", encoding="utf-8")
     print("\n| Model | Correct/3 | Completed/3 | Avg latency (s) | Total tokens (reported) |")
     print("| --- | ---: | ---: | ---: | ---: |")
     for model in names:
