@@ -45,7 +45,8 @@ def main():
         ids = set(metadata)
     except (urllib.error.HTTPError, urllib.error.URLError, ValueError, TimeoutError, http.client.IncompleteRead,
             http.client.RemoteDisconnected, ConnectionResetError, AttributeError, TypeError, GatewayError) as error:
-        sys.exit("Model discovery failed (" + type(error).__name__ + ").")
+        code = str(error) if isinstance(error, GatewayError) and str(error) in SAFE_ERRORS else type(error).__name__
+        sys.exit("Model discovery failed (" + code + ").")
     report = []
     for model in names:
         for task, prompt, expected in TASKS:
