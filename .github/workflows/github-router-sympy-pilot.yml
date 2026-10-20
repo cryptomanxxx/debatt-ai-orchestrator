@@ -20,6 +20,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   research:
+    environment: research-inference
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
