@@ -11,7 +11,7 @@ export default {
     // Configuration comes from this request's bindings, never process.env or cached globals.
     const strings = Object.fromEntries(Object.entries(env).filter(([, value]) => typeof value === 'string')) as Record<string, string>;
     // The dedicated inference path must reach the authenticated API router, not the dashboard 404 catch-all.
-    if (new URL(request.url).pathname !== '/v1/research/inference') {
+    if (!['/v1/research/inference','/v1/research/models'].includes(new URL(request.url).pathname)) {
       const dashboard = await researchRoute(request, strings);
       if (dashboard) return dashboard;
     }
