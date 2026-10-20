@@ -1,18 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {sympyWorkerPrompt} from '../research/sympy-worker-prompt.mjs';
+import {sympyWorkerPrompt,SYMPY_WORKER_PROMPT_VERSION} from '../research/sympy-worker-prompt.mjs';
 import {makeSympyCases,parseSympyProposal} from '../research/sympy.mjs';
 test('same seeded scientific coefficients, explicit JSON-only contract, no answer leakage',()=>{
- const cases=makeSympyCases('20261020');
+ const cases=[...makeSympyCases('20261020'),...makeSympyCases('27')];
+ assert.equal(SYMPY_WORKER_PROMPT_VERSION,'sympy-worker-json-v2');
  for(const f of cases){
   const prompt=sympyWorkerPrompt([{role:'system',content:'fixed experiment'},
-    {role:'user',content:JSON.stringify({coefficients:f.input.coefficients})}]);
+    {role:'user',content:JSON.stringify({protocol:{id:'exact-quadratic-v1'},coefficients:f.input.coefficients})}]);
   assert.ok(prompt.includes(JSON.stringify(f.input.coefficients)));
   assert.ok(prompt.includes('"method", "roots", "reason"'));
   assert.ok(prompt.includes('utan kodblock'));
   assert.ok(prompt.length<4000);
   assert.ok(prompt.split(String.fromCharCode(10)).length>4);
   assert.ok(!prompt.includes(f.commitment));
+  assert.ok(!prompt.includes(JSON.stringify(f.truth.roots)));
+  assert.ok(!prompt.includes('"roots":["-2","1/2"]'));
  }
 });
 test('strict verifier format remains enforced',()=>{
@@ -23,6 +26,6 @@ test('strict verifier format remains enforced',()=>{
 test('malformed or unexpected experiment input fails closed',()=>{
  for(const messages of [[],[{role:'user',content:'{}'}],
   [{role:'system',content:''},{role:'user',content:'not JSON'}],
-  [{role:'system',content:''},{role:'user',content:JSON.stringify({coefficients:['1','2','3'],extra:'x'}),extra:true}],
- ]){if(messages.length===2 && messages[1].extra)continue;assert.throws(()=>sympyWorkerPrompt(messages),/invalid_sympy_messages/);}
+  [{role:'system',content:''},{role:'user',content:JSON.stringify({protocol:{id:'exact-quadratic-v1'},coefficients:['1','2','3'],extra:'x'})}],
+ ]){assert.throws(()=>sympyWorkerPrompt(messages),/invalid_sympy_messages/);}
 });
