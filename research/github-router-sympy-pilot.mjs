@@ -125,7 +125,17 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     report.discoveryIssues=safeIssues(selected.issues);
     report.status='running';await persist();
     const runner=await runSympyExperiment(seed,propose||(!select ? async messages=>({
-      text:await workerInference(selected,messages.map(m=>m.role+': '+m.content).join('\n'),env.ORCHESTRATOR_API_KEY),
+      text:await (async()=>{
+        try {return await workerInference(selected,messages.map(m=>m.role+': '+m.content).join('\n'),env.ORCHESTRATOR_API_KEY);}
+        catch(error){
+          const code=error instanceof Error ? error.message : '';
+          const safe=new Set(['missing_orchestrator_key','invalid_worker_inference',
+            'invalid_worker_inference_response','worker_missing_body','worker_response_too_large',
+            'worker_invalid_json']);
+          throw new ResearchError(safe.has(code)||/^worker_http_[0-9]{3}$/.test(code)
+            ? code : 'model_transport_error');
+        }
+      })(),
       provider:selected.provider,model:selected.model
     }) : researchProposer(selected,env)),tool,
       async commitments=>{report.commitments=commitments;await persist();},
@@ -135,7 +145,7 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     await persist();return report;
   }catch(error){
     report.status='failed';
-    const known=['missing_orchestrator_key','no_available_allowlisted_model','invalid_worker_inference_response','invalid_worker_inference','invalid_worker_catalog','invalid_route_options','worker_missing_body','worker_response_too_large','worker_invalid_json','invalid_seed','untrusted_route','untrusted_model','missing_provider_key',
+    const known=['missing_orchestrator_key','no_available_allowlisted_model','invalid_worker_inference_response','invalid_worker_inference','invalid_worker_catalog','invalid_route_options','worker_http_502','worker_missing_body','worker_response_too_large','worker_invalid_json','invalid_seed','untrusted_route','untrusted_model','missing_provider_key',
       'model_call_budget_exceeded','model_identity_mismatch','incomplete_model_response',
       'invalid_model_answer','provider_secret_echoed','oversized_provider_response','invalid_model_proposal',
       'model_upstream_http_error','invalid_model_response','no_available_allowlisted_model','router_selection_failed',
@@ -147,7 +157,8 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
       if(['initial_proposal','correction','positive_control','negative_control'].includes(operation))report.failureOperation=operation;
     }
     report.failureCode=known.includes(originating)?originating
-      :known.includes(error?.message)?error.message:'research_pilot_failed';
+      :known.includes(error?.message) || /^worker_http_[0-9]{3}$/.test(error?.message||'')
+        ? error.message:'research_pilot_failed';
     await persist();throw new Error(report.failureCode);
   }
 }
