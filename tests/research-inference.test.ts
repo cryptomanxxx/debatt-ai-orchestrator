@@ -50,3 +50,31 @@ test('never reflects an upstream response containing the provider secret', async
   assert.equal(result.status,502);
   assert.ok(!JSON.stringify(result.data).includes(hip.HIP_API_KEY));
 });
+
+test('diagnoses upstream HTTP errors without reflecting upstream response bodies', async () => {
+  for (const [status,expected] of [
+    [400,'research_upstream_model_or_request_rejected'],
+    [401,'research_upstream_auth_rejected'],
+    [403,'research_upstream_auth_rejected'],
+    [404,'research_upstream_model_or_request_rejected'],
+    [429,'research_upstream_rate_limited'],
+    [503,'research_upstream_unavailable']
+  ] as const) {
+    const result=await researchInference(request,hip,(async()=>Response.json({
+      error:'sensitive upstream response',api_key:hip.HIP_API_KEY
+    },{status})) as typeof fetch);
+    assert.equal(result.status,502);
+    assert.deepEqual(result.data,{error:expected});
+    assert.ok(!JSON.stringify(result.data).includes(hip.HIP_API_KEY));
+  }
+});
+test('distinguishes model mismatch and incomplete model output, without echoing responses', async()=>{
+  const wrong=await researchInference(request,hip,(async()=>Response.json({
+    model:'a different model',choices:[{message:{content:'ok'},finish_reason:'stop'}]
+  })) as typeof fetch);
+  assert.deepEqual(wrong.data,{error:'research_response_model_mismatch'});
+  const unfinished=await researchInference(request,hip,(async()=>Response.json({
+    model:request.model,choices:[{message:{content:'partial'},finish_reason:'length'}]
+  })) as typeof fetch);
+  assert.deepEqual(unfinished.data,{error:'research_response_incomplete'});
+});
