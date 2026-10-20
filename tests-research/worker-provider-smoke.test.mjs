@@ -40,3 +40,22 @@ test('fails closed on redirect, authentication error, bad identity and oversized
     assert.equal(Object.hasOwn(result,'answer'),false);
   }
 });
+
+test('reports only allowlisted diagnostic values from a bounded Worker error body',async()=>{
+  const valid=await probe('blablador',{key,fetchImpl:async()=>Response.json({
+    error:'research_response_model_mismatch',answer:'NEVER STORE ME'
+  },{status:502})});
+  assert.deepEqual(valid,{provider:'blablador',model:MODELS.blablador,
+    status:'failed',error:'research_response_model_mismatch'});
+  for(const error of ['secret data','__proto__','research_random_error']){
+    const result=await probe('blablador',{key,fetchImpl:async()=>Response.json({
+      error,credential:key
+    },{status:502})});
+    assert.equal(result.error,'http_502');
+    assert.ok(!JSON.stringify(result).includes(key));
+  }
+  const large=await probe('blablador',{key,fetchImpl:async()=>Response.json({
+    error:'research_response_model_mismatch',junk:'x'.repeat(2000)
+  },{status:502})});
+  assert.equal(large.error,'http_502');
+});
