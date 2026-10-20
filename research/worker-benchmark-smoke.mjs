@@ -25,10 +25,19 @@ if(result?.status!=='completed_unverified'||result.provider!==provider||result.m
     typeof result.answer!=='string'||!result.answer.trim()||result.answer.includes(key)||
     typeof result.completion_latency_seconds!=='number'||!Number.isFinite(result.completion_latency_seconds))
  throw Error('invalid_benchmark_response');
+const fields=['prompt_tokens','completion_tokens','total_tokens'];
+const reportedUsage=result.usage;
+if(!reportedUsage||typeof reportedUsage!=='object'||Array.isArray(reportedUsage)||
+    Object.keys(reportedUsage).some(k=>!fields.includes(k))||
+    fields.some(k=>!Object.hasOwn(reportedUsage,k)||!(reportedUsage[k]===null||
+      (Number.isSafeInteger(reportedUsage[k])&&reportedUsage[k]>=0)))||
+    (reportedUsage.completion_tokens!==null&&reportedUsage.completion_tokens>64))
+ throw Error('invalid_benchmark_usage');
+const safeUsage=Object.fromEntries(fields.map(k=>[k,reportedUsage[k]]));
 await mkdir('reports/worker-benchmark-smoke',{recursive:true});
 await writeFile('reports/worker-benchmark-smoke/report.json',JSON.stringify({
  schemaVersion:1,provider,model,status:'completed_unverified',
  benchmarkGatewayDeployed:true,backendIdentityVerified:false,scientificallyVerified:false,
  completionLatencySeconds:result.completion_latency_seconds,
- usage:result.usage??null},null,2)+'\n');
+ usage:safeUsage},null,2)+'\n');
 console.log(provider+': benchmark gateway accepted a bounded Cloudflare-backed request; answer not stored.');
