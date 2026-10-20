@@ -5,6 +5,14 @@ const PROVIDERS = {
   blablador: { base: 'https://api.blablador.fz-juelich.de/v1', key: 'BLABLADOR_API_KEY', models: ['alias-fast', 'alias-glm-5.3-flash'] }
 } as const;
 const MAX_RESPONSE_BYTES = 65536;
+const failed = (error: string) => ({ status: 502, data: { error } });
+function upstreamFailure(status: number) {
+  if (status === 401 || status === 403) return 'research_upstream_auth_rejected';
+  if (status === 404 || status === 400 || status === 422) return 'research_upstream_model_or_request_rejected';
+  if (status === 429) return 'research_upstream_rate_limited';
+  if (status >= 500) return 'research_upstream_unavailable';
+  return 'research_upstream_http_failed';
+}
 export async function researchInference(input: unknown, keys: ResearchKeys, transport: typeof fetch = fetch) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return { status: 400, data: { error: 'invalid_request' } };
   const body = input as Record<string, unknown>;
@@ -24,9 +32,9 @@ export async function researchInference(input: unknown, keys: ResearchKeys, tran
       headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: body.model, messages: [{ role: 'user', content: body.prompt }], max_tokens: 512, temperature: 0 })
     });
-    if (!response.ok) { await response.body?.cancel(); return { status: 502, data: { error: 'research_upstream_failed' } }; }
+    if (!response.ok) { await response.body?.cancel(); return failed(upstreamFailure(response.status)); }
     const reader = response.body?.getReader();
-    if (!reader) return { status: 502, data: { error: 'research_invalid_response' } };
+    if (!reader) return failed('research_response_missing_body');
     let total = 0;
     const chunks: Uint8Array[] = [];
     try {
@@ -34,19 +42,22 @@ export async function researchInference(input: unknown, keys: ResearchKeys, tran
         const { done, value } = await reader.read();
         if (done) break;
         total += value.byteLength;
-        if (total > MAX_RESPONSE_BYTES) { await reader.cancel(); return { status: 502, data: { error: 'research_invalid_response' } }; }
+        if (total > MAX_RESPONSE_BYTES) { await reader.cancel(); return failed('research_response_too_large'); }
         chunks.push(value);
       }
     } finally { reader.releaseLock(); }
     const text = new TextDecoder('utf-8', { fatal: true }).decode(
       Uint8Array.from(chunks.flatMap(chunk => Array.from(chunk))));
-    const result = JSON.parse(text);
+    let result: any;
+    try { result = JSON.parse(text); } catch { return failed('research_response_invalid_json'); }
     const answer = result?.choices?.[0]?.message?.content;
-    if (result?.choices?.[0]?.finish_reason !== 'stop' || typeof answer !== 'string' ||
-        !answer.trim() || answer.length > 16000 || answer.includes(key) || result.model !== body.model)
-      return { status: 502, data: { error: 'research_invalid_response' } };
+    if (typeof answer === 'string' && answer.includes(key)) return failed('research_response_secret_echo');
+    if (result?.model !== body.model) return failed('research_response_model_mismatch');
+    if (result?.choices?.[0]?.finish_reason !== 'stop') return failed('research_response_incomplete');
+    if (typeof answer !== 'string' || !answer.trim() || answer.length > 16000)
+      return failed('research_response_invalid_answer');
     return { status: 200, data: { status: 'completed_unverified', provider, model: body.model, answer, scientificallyVerified: false, backendIdentityVerified: false } };
   } catch {
-    return { status: 502, data: { error: 'research_upstream_failed' } };
+    return failed('research_transport_or_decode_failed');
   }
 }
