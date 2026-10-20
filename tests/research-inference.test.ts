@@ -82,7 +82,7 @@ test('distinguishes model mismatch and incomplete model output, without echoing 
 test('only documented Blablador alias-fast targets pass, all others fail closed',async()=>{
   const keys={BLABLADOR_API_KEY:'test-blablador-key-not-real'};
   const body={provider:'blablador',model:'alias-fast',prompt:'READY'};
-  for(const returned of ['openai/gpt-oss-120b','GPT-OSS-120B','alias-fast']){
+  for(const returned of ['openai/gpt-oss-120b','alias-fast']){
     const out=await researchInference(body,keys,(async()=>Response.json({
       model:returned,choices:[{finish_reason:'stop',message:{content:'READY'}}]
     })) as typeof fetch);
@@ -90,7 +90,7 @@ test('only documented Blablador alias-fast targets pass, all others fail closed'
     assert.equal(out.data.backendIdentityVerified,false);
     assert.equal(out.data.modelIdentity,returned==='alias-fast'?'exact':'documented_alias_target');
   }
-  for(const returned of ['arbitrary-model','openai/gpt-oss-120b-evil','GPT-OSS-120B/latest',
+  for(const returned of ['arbitrary-model','openai/gpt-oss-120b-evil','GPT-OSS-120B','GPT-OSS-120B/latest',
      '__proto__',null,keys.BLABLADOR_API_KEY]){
     const out=await researchInference(body,keys,(async()=>Response.json({
       model:returned,choices:[{finish_reason:'stop',message:{content:'READY'}}]
