@@ -25,6 +25,7 @@ concurrency:
 jobs:
   scientific-v2:
     environment: research-inference
+    environment: research-inference
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
