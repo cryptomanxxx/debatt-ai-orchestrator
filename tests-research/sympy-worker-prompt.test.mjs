@@ -14,7 +14,8 @@ test('same seeded scientific coefficients, explicit JSON-only contract, no answe
   assert.ok(prompt.length<4000);
   assert.ok(prompt.split(String.fromCharCode(10)).length>4);
   assert.ok(!prompt.includes(f.commitment));
-  assert.ok(!prompt.includes(JSON.stringify(f.truth.roots)));
+  if (f.truth.roots.length > 0) assert.ok(!prompt.includes(JSON.stringify(f.truth.roots)));
+  // The empty roots array [] is an essential formatting instruction, not a leaked answer.
   assert.ok(!prompt.includes('"roots":["-2","1/2"]'));
  }
 });
