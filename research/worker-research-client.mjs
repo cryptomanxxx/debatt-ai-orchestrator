@@ -20,9 +20,9 @@ export async function boundedJson(response,max=MAX_BYTES){
 }
 export async function workerRequest(path,key,body,fetchImpl=fetch){
   if(typeof key!=='string'||key.length<24)throw Error('missing_orchestrator_key');
-  if(!['/v1/research/models','/v1/research/inference'].includes(path))throw Error('invalid_worker_path');
+  if(!['/v1/research/models','/v1/research/inference','/v1/research/benchmark'].includes(path))throw Error('invalid_worker_path');
   const response=await fetchImpl(WORKER+path,{method:body?'POST':'GET',redirect:'manual',
-    signal:AbortSignal.timeout(65000),
+    signal:AbortSignal.timeout(path==='/v1/research/benchmark'?95000:65000),
     headers:{Authorization:'Bearer '+key,Accept:'application/json',
       ...(body?{'Content-Type':'application/json'}:{})},
     ...(body?{body:JSON.stringify(body)}:{})});
