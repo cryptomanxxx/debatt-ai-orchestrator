@@ -46,7 +46,9 @@ export async function discoverResearchModels(provider: string, keys: ResearchKey
     const parsed=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
     if(!Array.isArray(parsed?.data) || parsed.data.length>200 ||
        parsed.data.some((item:unknown)=> !item || typeof item!=='object' ||
-         !MODEL_ID.test((item as {id?:unknown}).id as string)))
+         (typeof (item as {id?:unknown}).id !== 'string' ||
+          !MODEL_ID.test((item as {id:string}).id) ||
+          (item as {id:string}).id.includes(key))))
        return {status:502,data:{error:'model_catalog_invalid_response'}};
     const ids=[...new Set(parsed.data.map((x:{id:string})=>x.id))].sort();
     return {status:200,data:{status:'catalog_unverified',provider,models:ids,
