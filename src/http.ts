@@ -1,3 +1,4 @@
+import { researchBenchmark } from './research-benchmark-gateway.ts';
 import { timingSafeEqual } from 'node:crypto';
 import { discoverResearchModels } from './research-model-catalog.ts';
 import { researchInference } from './research-inference.ts';
@@ -26,8 +27,9 @@ export async function handleApiRequest(request: Request, config: Config, runtime
   const profile = request.method === 'GET' && pathname === '/v1/model-profile';
   const diagnostic = pathname === '/v1/diagnostics/bootloops';
   const research = pathname === '/v1/research/inference';
+  const benchmark = pathname === '/v1/research/benchmark';
   const catalog = pathname === '/v1/research/models';
-  if ((!profile && !catalog && (request.method !== 'POST' || (!diagnostic && !research && pathname !== '/v1/query'))) ||
+  if ((!profile && !catalog && (request.method !== 'POST' || (!diagnostic && !research && !benchmark && pathname !== '/v1/query'))) ||
       (catalog && request.method !== 'GET') || search)
     return json(404, { error: 'not_found' });
   const actual = encoder.encode(request.headers.get('Authorization') ?? '');
@@ -67,7 +69,8 @@ export async function handleApiRequest(request: Request, config: Config, runtime
   let input: unknown;
   try { input = JSON.parse(body); }
   catch { return json(400, { error: 'invalid_json' }); }
-  const result = research ? await researchInference(input, runtime.research ?? {})
+  const result = benchmark ? await researchBenchmark(input, runtime.research ?? {})
+    : research ? await researchInference(input, runtime.research ?? {})
     : diagnostic ? await diagnoseBootLoops(input, runtime.diagnostics)
     : await executeQuery(input, config, runtime.bootloops);
   return json(result.status, result.data);
