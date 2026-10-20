@@ -10,7 +10,7 @@ Example authenticated JSON input:
 {"provider":"hip","model":"GLM-5.2-AWQ-INT4","prompt":"Find the roots of x² - 5x + 6 = 0."}
 ```
 
-HIP: `GLM-5.2-AWQ-INT4`, `Mistral-Medium-3.5-128B`. Blablador: `alias-fast`, `alias-glm-5.3-flash`. Responses must report the exact requested model ID; providers whose aliases return a different ID fail closed until a separately reviewed, auditable resolved-model policy is introduced.
+HIP: `GLM-5.2-AWQ-INT4`, `Mistral-Medium-3.5-128B`. Blablador: `alias-fast`, `alias-glm-5.3-flash`. Responses ordinarily must report the exact requested model ID. The sole current exception is Blablador's `alias-fast`: the returned model ID may be the exact requested `alias-fast` or `openai/gpt-oss-120b`, a documented `root` identifier in the Blablador model catalog. All other IDs, including the human-readable title `GPT-OSS-120B`, fail closed. The Worker labels this distinction as `modelIdentity: exact` or `documented_alias_target`, and always reports `backendIdentityVerified: false`; neither matching the API-reported ID nor a mutable alias attests to an immutable backend. This mapping must be re-evaluated when the provider catalog changes. Model catalog lookup is a separate future opt-in improvement, not implemented by this PR.
 
 ## Deployment gates
 
