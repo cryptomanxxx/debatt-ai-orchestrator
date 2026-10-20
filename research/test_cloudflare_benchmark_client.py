@@ -17,7 +17,7 @@ def fake(obj,seen):
 class CloudflareAdapterTest(unittest.TestCase):
     def test_catalog_uses_worker_only(self):
         seen=[]
-        data=catalog_models(KEY,"blablador",fake({"status":"discovered_unverified","providers":{"blablador":{"status":"catalog_unverified","models":[MODEL]}}},seen))
+        data=catalog_models(KEY,"blablador",fake({"status":"discovered_unverified","providers":{"blablador":{"status":"catalog_unverified","provider":"blablador","backendIdentityVerified":False,"models":[MODEL]}}},seen))
         self.assertEqual(data,{"data":[{"id":MODEL}]})
         self.assertEqual(seen[0][0],WORKER+"/v1/research/models")
     def test_completion_preserves_experiment(self):
