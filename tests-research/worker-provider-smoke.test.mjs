@@ -59,3 +59,14 @@ test('reports only allowlisted diagnostic values from a bounded Worker error bod
   },{status:502})});
   assert.equal(large.error,'http_502');
 });
+
+test('allows documented alias target classification but not unrecognized classifications',async()=>{
+ const make=modelIdentity=>async()=>Response.json({status:'completed_unverified',provider:'blablador',
+  model:MODELS.blablador,modelIdentity,answer:'READY',scientificallyVerified:false,
+  backendIdentityVerified:false});
+ assert.equal((await probe('blablador',{key,fetchImpl:make('documented_alias_target')})).status,'connected_unverified');
+ assert.equal((await probe('blablador',{key,fetchImpl:make('anything')})).status,'failed');
+ assert.equal((await probe('hip',{key,fetchImpl:async()=>Response.json({
+  status:'completed_unverified',provider:'hip',model:MODELS.hip,modelIdentity:'documented_alias_target',
+  answer:'READY',scientificallyVerified:false,backendIdentityVerified:false})})).status,'failed');
+});
