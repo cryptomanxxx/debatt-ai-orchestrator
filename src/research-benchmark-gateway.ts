@@ -10,7 +10,7 @@ type Provider=keyof typeof SOURCES;
 const SAFE_ID=/^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,199}$/;
 const BUDGET={standard:{tokens:512,chars:4000,timeout:45000},benchmark:{tokens:768,chars:12000,timeout:60000}} as const;
 const MAX_RESPONSE=65536;
-const blockedId=(id:string)=>/embedding|rerank|bge-|gte-|whisper|transcri|tts|audio|image|vision|vl-|all-proxy|moderation/i.test(id);
+const blockedId=(id:string)=>/embedding|rerank|bge-|gte-|whisper|transcri|tts|audio|image|all-proxy|moderation/i.test(id);
 const error=(status:number,code:string)=>({status,data:{error:code}});
 async function boundedJson(response:Response){
   const reader=response.body?.getReader();
@@ -57,6 +57,7 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
   const models=(catalog.data as {models?:string[]}).models;
   if(!Array.isArray(models)||!models.includes(model))return error(400,'benchmark_model_not_listed');
   let response:Response;
+  const started=performance.now();
   try{
     response=await transport(source.url,{method:'POST',redirect:'manual',
       signal:AbortSignal.timeout(profile.timeout),
@@ -70,10 +71,13 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
   if(typeof answer!=='string'||!answer.trim()||answer.length>16000||
      answer.includes(key)||data?.model!==model||data?.choices?.[0]?.finish_reason!=='stop')
     return error(502,'benchmark_invalid_response');
+  const completionLatencySeconds=Math.round((performance.now()-started)/10)/100;
   const usage=data?.usage;
+  if(Number.isSafeInteger(usage?.completion_tokens) && usage.completion_tokens>Number(x.max_tokens))
+    return error(502,'benchmark_token_budget_exceeded');
   const safeUsage=(name:string)=>Number.isSafeInteger(usage?.[name])&&usage[name]>=0?usage[name]:null;
   return {status:200,data:{status:'completed_unverified',provider,model,answer,
-    finish_reason:'stop',usage:{prompt_tokens:safeUsage('prompt_tokens'),
+    finish_reason:'stop',completion_latency_seconds:completionLatencySeconds,usage:{prompt_tokens:safeUsage('prompt_tokens'),
       completion_tokens:safeUsage('completion_tokens'),total_tokens:safeUsage('total_tokens')},
     scientificallyVerified:false,backendIdentityVerified:false}};
 }
