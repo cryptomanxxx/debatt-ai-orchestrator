@@ -1,3 +1,4 @@
+import {sympyWorkerPrompt,SYMPY_WORKER_PROMPT_VERSION} from './sympy-worker-prompt.mjs';
 import {selectWorkerModel,workerInference} from './worker-research-client.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -74,7 +75,8 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
   const dir='reports/github-router-sympy';
   await mkdir(dir,{recursive:true});
   const report={schemaVersion:1,status:'preflight',seed,startedAt:new Date().toISOString(),
-    githubSha:env.GITHUB_SHA||null,modelCallsMax:3,results:[]};
+    githubSha:env.GITHUB_SHA||null,modelCallsMax:3,
+    promptVersion:select?'sympy-quadratic-v1':SYMPY_WORKER_PROMPT_VERSION,results:[]};
   const safeIssues=issues=>Array.isArray(issues)?issues.filter(x=>
     x&&typeof x==='object'&&Object.hasOwn(ROUTES,x.provider)&&typeof x.error==='string'&&
     (['key_not_configured','not_listed','invalid_api_key','upstream_timeout',
@@ -126,7 +128,7 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     report.status='running';await persist();
     const runner=await runSympyExperiment(seed,propose||(!select ? async messages=>({
       text:await (async()=>{
-        try {return await workerInference(selected,messages.map(m=>m.role+': '+m.content).join('\n'),env.ORCHESTRATOR_API_KEY);}
+        try {return await workerInference(selected,sympyWorkerPrompt(messages),env.ORCHESTRATOR_API_KEY);}
         catch(error){
           const code=error instanceof Error ? error.message : '';
           const safe=new Set(['missing_orchestrator_key','invalid_worker_inference',
