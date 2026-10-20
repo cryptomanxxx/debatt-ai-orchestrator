@@ -1,0 +1,51 @@
+name: Compare HIP and Blablador on verified SymPy cases
+on:
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: Same deterministic 1-9 digit seed for both providers
+        type: string
+        required: true
+        default: '20261020'
+permissions:
+  contents: read
+concurrency:
+  group: sympy-provider-comparison
+  cancel-in-progress: false
+jobs:
+  compare:
+    if: github.ref == 'refs/heads/main'
+    environment: research-inference
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [hip, blablador]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Install pinned SymPy verifier
+        run: python3 -m pip install -r research/sympy-requirements.lock
+      - name: Validate existing scientific pilot without provider secrets
+        run: node --test tests-research/github-router-sympy-pilot.test.mjs
+      - name: Run provider-specific verified research
+        env:
+          BLABLADOR_API_KEY: ${{ secrets.BLABLADOR_API_KEY }}
+          HIP_API_KEY: ${{ secrets.HIP_API_KEY }}
+          ROUTER_PROVIDER: ${{ matrix.provider }}
+          EXPERIMENT_SEED: ${{ inputs.seed }}
+        run: node research/github-router-sympy-pilot.mjs
+      - name: Preserve separate provider reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sympy-provider-${{ matrix.provider }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/github-router-sympy/
+          if-no-files-found: warn
+          retention-days: 30
