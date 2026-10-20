@@ -1,34 +1,17 @@
-# GitHub Scientific Model Router → Oraklet SymPy pilot
+# GitHub Router + Professor Oraklet verified SymPy pilot
 
-This manual, opt-in research workflow connects the existing GitHub Scientific Model Router to **Professor Oraklet's real, existing, independently verified SymPy experiment** without Cloudflare or Supabase.
+The manual [GitHub Router + SymPy workflow](../.github/workflows/github-router-sympy-pilot.yml) and [HIP/Blablador comparison matrix](../.github/workflows/sympy-provider-comparison.yml) now use the fixed Cloudflare Worker. GitHub Actions needs only `ORCHESTRATOR_API_KEY`; HIP_API_KEY and BLABLADOR_API_KEY stay in Cloudflare Worker secrets, **not** GitHub Actions.
 
 ## Execution
 
-After merging, go to GitHub Actions → **GitHub Router + Oraklet SymPy research pilot** → Run workflow. Choose `auto`, `blablador`, or `hip` and a one-to-nine-digit seed.
+Run either workflow on `main`. For the pilot, choose `auto`, `hip` or `blablador` and a one-to-nine-digit deterministic seed. The comparison workflow runs both providers with the same seed and stores separate artifacts. Both use authenticated `GET /v1/research/models` and bounded `POST /v1/research/inference` via Cloudflare, checking a fixed model allowlist and fail-closed model identity.
 
-- The existing Python router performs live discovery using the already configured GitHub Secrets `BLABLADOR_API_KEY` and `HIP_API_KEY` and selects an allowlisted model for the `reasoning` category. The runner independently checks the returned provider/model against a small explicit allowlist.
-- A Node.js GitHub runner calls that model's OpenAI-compatible endpoint directly. The **API model identifier** is pinned across three experiment cases, but a provider alias may retarget its underlying backend during or after the experiment. The report explicitly marks `backendIdentityVerified: false`; this pilot must not be represented as a backend-reproducible cross-model benchmark, with at most **three model inference calls** and 768 output tokens requested per call.
-- The original `runSympyExperiment` creates three committed synthetic problems, asks the model for exact roots, runs the existing locked SymPy Python verifier and independent BigInt oracle, and records positive and negative controls. The model cannot supply a self-declared correctness score.
-- Complete and partial JSON results, including selected model, commitments, controls and verifications, are retained as a GitHub Actions artifact for 30 days.
+The original `runSympyExperiment` still produces three seeded synthetic quadratic cases (two, one or no distinct real roots), commits the case fixtures before AI proposals, and verifies answers against locked SymPy Python tooling, the independent BigInt oracle, and positive and negative controls. Complete and partial reports remain in GitHub Actions artifacts for 30 days. Scientific failure of a valid proposed answer is distinct from an inference/transport/workflow error.
 
-The model can make incorrect proposals and the research run still finishes with a scientific `failed` result. That differs from workflow failure caused by transport, invalid model response or a broken verification chain.
+## Limits and validation
 
-## Research guardrails
+Provider aliases may change backend; a matching API model ID does not prove immutable model identity, so `backendIdentityVerified` remains false. The Cloudflare endpoint is a constrained text inference API, **not** an OpenAI-compatible multi-turn session: the SymPy runner serializes its two messages to one user prompt, and the Worker currently limits prompt length to 4000 characters and generation to 512 tokens. This difference must be evaluated in end-to-end smoke tests. A previous Blablador completion produced `research_response_model_mismatch`; no unknown backend identity is silently accepted.
 
-This is a manual pilot, **not** a deployment or integration into the daily scheduled research planner. There is **no Cloudflare model call, no Groq requirement, no Supabase database write and no new secrets**. No silent mid-experiment provider fallback. The selection priority remains static; it is not proof of superior model quality. The model's provider-listed availability is checked before committing a route, while downstream output identity must match the selected model.
+Validation: `node --test tests-research/github-router-sympy-pilot.test.mjs tests-research/worker-research-client.test.mjs`. Workflow additionally installs pinned SymPy packages for scientific verification. The existing directly authenticated `research/scientific_model_router.py` remains a historical offline test fixture, **not** the live workflow entry point.
 
-The user inputs do not authorize arbitrary URLs, code execution, experiment types, new secrets or unrestricted tool calls.
-
-## Validation
-
-```sh
-node --test tests-research/github-router-sympy-pilot.test.mjs
-```
-
-The workflow also installs pinned SymPy requirements before live scientific verification.
-
-Next: compare identical seeds across HIP and Blablador, add strict context/token limits from validated provider metadata, score cost and latency, and only then propose reviewable integration into the daily Oraklet research loop.
-
-## Reproducibility caveat
-
-Model IDs beginning with `alias-` are provider-controlled indirections; matching these response IDs verifies only API-level identifier consistency, **not** immutable backend identity. Even non-alias model strings are not independently proven immutable in this pilot. `selected.backendIdentityVerified` is therefore always `false`, and `identityScope` explicitly states `api_model_id_only`. Before making scientific comparisons claiming a locked architecture, the provider must expose a verifiable resolved backend identifier or immutable model revision and the runner must validate and store it per inference call.
+Keep HIP/Blablador GitHub secrets until both providers succeed in the Cloudflare-backed live workflows and all other consumers have been inventoried. Afterwards remove stale secrets at repository and Environment scopes; keep `research-inference` if approval or branch protections are useful.

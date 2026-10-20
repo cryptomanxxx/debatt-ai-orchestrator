@@ -36,8 +36,7 @@ jobs:
         run: node --test tests-research/github-router-sympy-pilot.test.mjs
       - name: Run provider-specific verified research
         env:
-          BLABLADOR_API_KEY: ${{ matrix.provider == 'blablador' && secrets.BLABLADOR_API_KEY || '' }}
-          HIP_API_KEY: ${{ matrix.provider == 'hip' && secrets.HIP_API_KEY || '' }}
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
           ROUTER_PROVIDER: ${{ matrix.provider }}
           EXPERIMENT_SEED: ${{ inputs.seed }}
         run: node research/github-router-sympy-pilot.mjs

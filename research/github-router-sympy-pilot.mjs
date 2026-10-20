@@ -1,3 +1,4 @@
+import {selectWorkerModel,workerInference} from './worker-research-client.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -101,24 +102,20 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     if(!/^\d{1,9}$/.test(seed))throw new ResearchError('invalid_seed');
     let selected=select;
     if(!selected) {
-      let stdout;
-      try {({stdout}=await exec('python3',[fileURLToPath(new URL('./router_select.py',import.meta.url))],
-        {timeout:65000,maxBuffer:8192,env:{
-          PATH:env.PATH,ROUTER_PROVIDER:env.ROUTER_PROVIDER||'auto',
-          BLABLADOR_API_KEY:env.BLABLADOR_API_KEY||'',HIP_API_KEY:env.HIP_API_KEY||''}}));
+      try {
+        selected=await selectWorkerModel(env.ROUTER_PROVIDER||'auto','reasoning',env.ORCHESTRATOR_API_KEY);
       } catch(error) {
-        try {
-          const failure=JSON.parse(error?.stdout||'');
-          if(failure?.status==='failed') {
-            report.discoveryIssues=safeIssues(failure.issues);
-            throw new ResearchError('no_available_allowlisted_model');
-          }
-        } catch(inner) {if(inner instanceof ResearchError)throw inner;}
-        throw new ResearchError('router_selection_failed');
+        // Preserve only defined, non-sensitive diagnostic codes, never upstream bodies.
+        const knownSelection=new Set(['missing_orchestrator_key','invalid_route_options',
+          'invalid_worker_catalog','no_available_allowlisted_model','worker_missing_body',
+          'worker_response_too_large','worker_invalid_json']);
+        const code=error instanceof Error ? error.message : '';
+        throw new ResearchError(knownSelection.has(code) || /^worker_http_[0-9]{3}$/.test(code)
+          ? code : 'router_selection_failed');
       }
-      selected=JSON.parse(stdout);
+      // The authenticated Worker catalog already selected the bounded model.
     }
-    const route=checkedSelection(selected,env);
+    const route=selected && !select ? {provider:selected.provider,model:selected.model} : checkedSelection(selected,env);
     report.selected={provider:route.provider,model:route.model,
       backendIdentityVerified:false,
       identityScope:'api_model_id_only',
@@ -127,7 +124,20 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     // Routing issues are fixed, non-secret diagnostic enums from the Python selector.
     report.discoveryIssues=safeIssues(selected.issues);
     report.status='running';await persist();
-    const runner=await runSympyExperiment(seed,propose||researchProposer(selected,env),tool,
+    const runner=await runSympyExperiment(seed,propose||(!select ? async messages=>({
+      text:await (async()=>{
+        try {return await workerInference(selected,messages.map(m=>m.role+': '+m.content).join('\n'),env.ORCHESTRATOR_API_KEY);}
+        catch(error){
+          const code=error instanceof Error ? error.message : '';
+          const safe=new Set(['missing_orchestrator_key','invalid_worker_inference',
+            'invalid_worker_inference_response','worker_missing_body','worker_response_too_large',
+            'worker_invalid_json']);
+          throw new ResearchError(safe.has(code)||/^worker_http_[0-9]{3}$/.test(code)
+            ? code : 'model_transport_error');
+        }
+      })(),
+      provider:selected.provider,model:selected.model
+    }) : researchProposer(selected,env)),tool,
       async commitments=>{report.commitments=commitments;await persist();},
       {onProgress:async cases=>{report.results=cases;await persist();}});
     report.status='completed';report.scientificStatus=runner.status;
@@ -135,7 +145,7 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     await persist();return report;
   }catch(error){
     report.status='failed';
-    const known=['invalid_seed','untrusted_route','untrusted_model','missing_provider_key',
+    const known=['missing_orchestrator_key','no_available_allowlisted_model','invalid_worker_inference_response','invalid_worker_inference','invalid_worker_catalog','invalid_route_options','worker_http_502','worker_missing_body','worker_response_too_large','worker_invalid_json','invalid_seed','untrusted_route','untrusted_model','missing_provider_key',
       'model_call_budget_exceeded','model_identity_mismatch','incomplete_model_response',
       'invalid_model_answer','provider_secret_echoed','oversized_provider_response','invalid_model_proposal',
       'model_upstream_http_error','invalid_model_response','no_available_allowlisted_model','router_selection_failed',
@@ -147,7 +157,8 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
       if(['initial_proposal','correction','positive_control','negative_control'].includes(operation))report.failureOperation=operation;
     }
     report.failureCode=known.includes(originating)?originating
-      :known.includes(error?.message)?error.message:'research_pilot_failed';
+      :known.includes(error?.message) || /^worker_http_[0-9]{3}$/.test(error?.message||'')
+        ? error.message:'research_pilot_failed';
     await persist();throw new Error(report.failureCode);
   }
 }
