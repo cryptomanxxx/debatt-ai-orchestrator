@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
+import { discoverResearchModels } from './research-model-catalog.ts';
 import { researchInference } from './research-inference.ts';
 import type { ResearchKeys } from './research-inference.ts';
 import type { Config } from './config.ts';
@@ -25,13 +26,20 @@ export async function handleApiRequest(request: Request, config: Config, runtime
   const profile = request.method === 'GET' && pathname === '/v1/model-profile';
   const diagnostic = pathname === '/v1/diagnostics/bootloops';
   const research = pathname === '/v1/research/inference';
-  if ((!profile && (request.method !== 'POST' || (!diagnostic && !research && pathname !== '/v1/query'))) || search)
+  const catalog = pathname === '/v1/research/models';
+  if ((!profile && !catalog && (request.method !== 'POST' || (!diagnostic && !research && pathname !== '/v1/query'))) ||
+      (catalog && request.method !== 'GET') || search)
     return json(404, { error: 'not_found' });
   const actual = encoder.encode(request.headers.get('Authorization') ?? '');
   const expected = encoder.encode(`Bearer ${config.apiKey}`);
   if (actual.length !== expected.length || !timingSafeEqual(actual, expected))
     return json(401, { error: 'unauthorized' });
   if (profile) return json(200, defaultModelProfile(config));
+  if (catalog) {
+    // Fixed two-provider inventory: no user-controlled URL, query string, or HTTP body.
+    const outputs = await Promise.all(['hip','blablador'].map(name=>discoverResearchModels(name,runtime.research??{})));
+    return json(200,{status:'discovered_unverified',providers:{hip:outputs[0].data,blablador:outputs[1].data}});
+  }
   if (request.headers.get('Content-Type')?.split(';')[0].trim() !== 'application/json')
     return json(415, { error: 'application_json_required' });
 
