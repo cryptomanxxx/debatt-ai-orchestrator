@@ -31,8 +31,8 @@ test('does not leak upstream credentials, response bodies, or untrusted IDs',asy
     Response.json({error:keys.HIP_API_KEY},{status:401}),
     Response.json({data:[{id:keys.HIP_API_KEY}]}),
     Response.json({data:[{id:'evil\nheader'}]}),
-    Response.json({data:[{id:'x'.repeat(130)}]}),
-    Response.json({data:Array.from({length:201},(_,i)=>({id:'model-'+i}))}),
+    Response.json({data:[{id:'x'.repeat(201)}]}),
+    Response.json({data:Array.from({length:501},(_,i)=>({id:'model-'+i}))}),
     new Response('x'.repeat(70000),{status:200}),
     Response.json({data:'bad'})
   ];
@@ -41,4 +41,24 @@ test('does not leak upstream credentials, response bodies, or untrusted IDs',asy
     assert.notEqual(result.status,200);
     assert.ok(!JSON.stringify(result).includes(keys.HIP_API_KEY));
   }
+});
+
+test('mixed catalogs retain valid models and discard invalid entries without leaks',async()=>{
+  const response=Response.json({data:[
+    {id:'alias-kimi-k3-1m'},null,{id:'bad\\nheader'}, {id:keys.BLABLADOR_API_KEY},
+    {id:'alias-fast'}, {id:'GPT OSS with spaces'}, {irrelevant:true},
+    {id:'alias-fast'}, {id:'long-id-'+ 'x'.repeat(220)}
+  ]});
+  const result=await discoverResearchModels('blablador',keys,(async()=>response) as typeof fetch);
+  assert.equal(result.status,200);
+  assert.deepEqual(result.data.models,['alias-fast','alias-kimi-k3-1m']);
+  assert.ok(!JSON.stringify(result.data).includes(keys.BLABLADOR_API_KEY));
+});
+test('valid 200-character model ID is supported; excessive output model count is refused',async()=>{
+  const valid='m'+'x'.repeat(199);
+  const ok=await discoverResearchModels('hip',keys,(async()=>Response.json({data:[{id:valid}]})) as typeof fetch);
+  assert.equal(ok.status,200);
+  const tooMany=await discoverResearchModels('hip',keys,(async()=>Response.json({data:
+    Array.from({length:201},(_,i)=>({id:'m'+i}))})) as typeof fetch);
+  assert.equal(tooMany.status,502);
 });

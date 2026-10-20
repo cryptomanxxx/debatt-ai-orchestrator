@@ -190,14 +190,14 @@ test('auto fallback captures oversized discovery and provider-specific rejected 
     env:{EXPERIMENT_SEED:'20261016',...env},
     select:{...choice,reason:'fallback',issues:[
       {provider:'hip',error:'oversized_response'},
-      {provider:'hip',model:'Kimi-K2.6',error:'not_listed'},
+      {provider:'hip',model:'Mistral-Medium-3.5-128B',error:'not_listed'},
       {provider:'blablador',model:'alias-glm-5.3-flash',error:'not_listed'}]},
     propose:async()=>{throw new Error('halt');},
     write:async(path,text)=>writes.push(JSON.parse(text)),
   }),/research_pilot_failed/);
   assert.deepEqual(writes.at(-1).discoveryIssues,[
     {provider:'hip',error:'oversized_response'},
-    {provider:'hip',error:'not_listed',model:'Kimi-K2.6'},
+    {provider:'hip',error:'not_listed',model:'Mistral-Medium-3.5-128B'},
     {provider:'blablador',error:'not_listed',model:'alias-glm-5.3-flash'}]);
 });
 test('tool diagnostic preserves case and operation context',async()=>{

@@ -21,13 +21,14 @@ PROVIDERS = {
     "hip": {
         "base": "https://llm-service.ai.tu-darmstadt.de/v1",
         "secret": "HIP_API_KEY",
-        "models": ("Kimi-K2.6", "GLM-5.2-AWQ-INT4", "Mistral-Medium-3.5-128B",
+        "models": ("GLM-5.2-AWQ-INT4", "Mistral-Medium-3.5-128B",
                    "Qwen3.8-27B", "Ministral-3-14B-Instruct-2512"),
     },
 }
+# HIP announced Kimi-K2.6 retirement on 2026-10-28; do not select it in any profile.
 # Operator-owned priority profiles: not scientific performance rankings.
 PROFILES = {
-    "reasoning": (("blablador", "alias-kimi-k3-1m"), ("hip", "Kimi-K2.6"),
+    "reasoning": (("blablador", "alias-kimi-k3-1m"), ("hip", "Mistral-Medium-3.5-128B"),
                   ("blablador", "alias-glm-5.3-flash")),
     "literature": (("hip", "Mistral-Medium-3.5-128B"), ("blablador", "alias-kimi-k3-1m")),
     "coding": (("blablador", "alias-glm-5.3-flash"), ("hip", "GLM-5.2-AWQ-INT4")),

@@ -11,7 +11,7 @@ export const ROUTES = Object.freeze({
   blablador: { base: 'https://api.blablador.fz-juelich.de/v1', secret: 'BLABLADOR_API_KEY',
     models: ['alias-kimi-k3-1m','alias-glm-5.3-flash'] },
   hip: { base: 'https://llm-service.ai.tu-darmstadt.de/v1', secret: 'HIP_API_KEY',
-    models: ['Kimi-K2.6'] },
+    models: ['Mistral-Medium-3.5-128B'] },
 });
 export function checkedSelection(selection, env) {
   if (!selection || !Object.hasOwn(ROUTES,selection.provider)) throw new Error('untrusted_route');
