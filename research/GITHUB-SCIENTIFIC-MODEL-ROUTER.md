@@ -1,6 +1,6 @@
 # Scientific Model Router — GitHub Actions v0.1
 
-**GitHub Actions owns the model selection.** This pilot does not call Cloudflare, does not need `ORCHESTRATOR_API_KEY`, and reuses existing GitHub repository secrets `BLABLADOR_API_KEY` and `HIP_API_KEY`. It never publishes provider keys or changes the daily research runner.
+**GitHub Actions owns the model selection.** This pilot does not call Cloudflare, does not need `ORCHESTRATOR_API_KEY`, and reuses GitHub environment secrets `BLABLADOR_API_KEY` and `HIP_API_KEY` scoped to `research-inference`. It never publishes provider keys or changes the daily research runner.
 
 ## Operation
 
