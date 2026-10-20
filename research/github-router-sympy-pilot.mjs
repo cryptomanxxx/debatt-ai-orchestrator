@@ -1,3 +1,4 @@
+import {selectWorkerModel,workerInference} from './worker-research-client.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -102,10 +103,7 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     let selected=select;
     if(!selected) {
       let stdout;
-      try {({stdout}=await exec('python3',[fileURLToPath(new URL('./router_select.py',import.meta.url))],
-        {timeout:65000,maxBuffer:8192,env:{
-          PATH:env.PATH,ROUTER_PROVIDER:env.ROUTER_PROVIDER||'auto',
-          BLABLADOR_API_KEY:env.BLABLADOR_API_KEY||'',HIP_API_KEY:env.HIP_API_KEY||''}}));
+      try {selected=await selectWorkerModel(env.ROUTER_PROVIDER||'auto','reasoning',env.ORCHESTRATOR_API_KEY);
       } catch(error) {
         try {
           const failure=JSON.parse(error?.stdout||'');
@@ -116,9 +114,9 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
         } catch(inner) {if(inner instanceof ResearchError)throw inner;}
         throw new ResearchError('router_selection_failed');
       }
-      selected=JSON.parse(stdout);
+      // The authenticated Worker catalog already selected the bounded model.
     }
-    const route=checkedSelection(selected,env);
+    const route=selected && !select ? {provider:selected.provider,model:selected.model} : checkedSelection(selected,env);
     report.selected={provider:route.provider,model:route.model,
       backendIdentityVerified:false,
       identityScope:'api_model_id_only',
@@ -127,7 +125,10 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     // Routing issues are fixed, non-secret diagnostic enums from the Python selector.
     report.discoveryIssues=safeIssues(selected.issues);
     report.status='running';await persist();
-    const runner=await runSympyExperiment(seed,propose||researchProposer(selected,env),tool,
+    const runner=await runSympyExperiment(seed,propose||(!select ? async messages=>({
+      text:await workerInference(selected,messages.map(m=>m.role+': '+m.content).join('\n'),env.ORCHESTRATOR_API_KEY),
+      provider:selected.provider,model:selected.model
+    }) : researchProposer(selected,env)),tool,
       async commitments=>{report.commitments=commitments;await persist();},
       {onProgress:async cases=>{report.results=cases;await persist();}});
     report.status='completed';report.scientificStatus=runner.status;
@@ -135,7 +136,7 @@ export async function runPilot({env=process.env,select,propose,tool=callSympy,wr
     await persist();return report;
   }catch(error){
     report.status='failed';
-    const known=['invalid_seed','untrusted_route','untrusted_model','missing_provider_key',
+    const known=['missing_orchestrator_key','no_available_allowlisted_model','invalid_worker_inference_response','invalid_worker_inference','invalid_worker_catalog','invalid_seed','untrusted_route','untrusted_model','missing_provider_key',
       'model_call_budget_exceeded','model_identity_mismatch','incomplete_model_response',
       'invalid_model_answer','provider_secret_echoed','oversized_provider_response','invalid_model_proposal',
       'model_upstream_http_error','invalid_model_response','no_available_allowlisted_model','router_selection_failed',
