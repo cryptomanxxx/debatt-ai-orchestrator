@@ -73,7 +73,10 @@ export async function probe(provider, {key, fetchImpl=fetch}={}) {
     for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
     const data=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
     if(data.status!=='completed_unverified' || data.provider!==provider ||
-        data.model!==MODELS[provider] || typeof data.answer!=='string' ||
+        data.model!==MODELS[provider] ||
+        (data.modelIdentity !== undefined && !['exact','documented_alias_target'].includes(data.modelIdentity)) ||
+        (provider==='hip' && data.modelIdentity==='documented_alias_target') ||
+        typeof data.answer!=='string' ||
         !data.answer.trim() || data.scientificallyVerified!==false ||
         data.backendIdentityVerified!==false) throw Error('invalid');
     return {provider,model:MODELS[provider],status:'connected_unverified'};
