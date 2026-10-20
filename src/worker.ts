@@ -10,8 +10,11 @@ export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     // Configuration comes from this request's bindings, never process.env or cached globals.
     const strings = Object.fromEntries(Object.entries(env).filter(([, value]) => typeof value === 'string')) as Record<string, string>;
-    const dashboard = await researchRoute(request, strings);
-    if (dashboard) return dashboard;
+    // The dedicated inference path must reach the authenticated API router, not the dashboard 404 catch-all.
+    if (new URL(request.url).pathname !== '/v1/research/inference') {
+      const dashboard = await researchRoute(request, strings);
+      if (dashboard) return dashboard;
+    }
     let config;
     try { config = loadConfig(strings); }
     catch { return json(503, { error: 'service_not_configured' }); }
