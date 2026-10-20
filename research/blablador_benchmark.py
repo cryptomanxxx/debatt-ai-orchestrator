@@ -9,7 +9,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from cloudflare_benchmark_client import catalog_models, benchmark_completion, GatewayError
+from cloudflare_benchmark_client import catalog_models, benchmark_completion, GatewayError, SAFE_ERRORS
 
 BASE = "https://api.blablador.fz-juelich.de/v1"
 ALLOW = {
@@ -75,16 +75,16 @@ def main():
             except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError,
                     KeyError, IndexError, TypeError, AttributeError, http.client.IncompleteRead,
                     http.client.RemoteDisconnected, ConnectionResetError, GatewayError) as error:
-                result["latency_seconds"] = round(time.monotonic() - start, 3)
+                result["latency_seconds"] = None
                 result["correct"] = False
-                result["status"] = "request_failed_" + type(error).__name__
+                result["status"] = ("gateway_" + str(error) if isinstance(error, GatewayError) and str(error) in SAFE_ERRORS else "request_failed_" + type(error).__name__)
             report.append(result)
             print(f"{model}: {task}: {result['status']}, correct={result['correct']}, latency={result['latency_seconds']}s", flush=True)
             time.sleep(1.1)
     out = Path("blablador-benchmark.json")
     out.write_text(json.dumps({"schema_version": 1, "scoring": "strict_exact_match",
                                "models": names, "model_metadata": {n: metadata.get(n) for n in names}, 
-                               "generation": {"temperature": 0, "max_tokens": 256}, "transport": "cloudflare-benchmark-v1", "metadata_scope": "catalog_ids_only", "results": report}, indent=2) + "\n", encoding="utf-8")
+                               "generation": {"temperature": 0, "max_tokens": 256}, "transport": "cloudflare-benchmark-v1", "metadata_scope": "catalog_ids_only", "inference_timeout_seconds": 60, "previous_inference_timeout_seconds": 75, "results": report}, indent=2) + "\n", encoding="utf-8")
     print("\n| Model | Correct/3 | Completed/3 | Avg latency (s) | Total tokens (reported) |")
     print("| --- | ---: | ---: | ---: | ---: |")
     for model in names:
