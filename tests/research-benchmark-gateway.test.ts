@@ -201,3 +201,29 @@ test('alias prefixes are case-insensitive: an upper-case alias still needs its r
  const ok:any=await researchBenchmark(input,keys,t('openai/gpt-oss-120b'));
  assert.equal(ok.status,200);assert.equal(ok.data.resolved_model,'openai/gpt-oss-120b');
 });
+test('reuses a verified catalog for a minute per provider and key, never a failed one',async()=>{
+ let catalogCalls=0,fail=false;
+ const counting=(async(url:string|URL|Request,init?:RequestInit)=>{
+  if(String(url).endsWith('/models')){
+   catalogCalls++;
+   return fail?new Response('busy',{status:503}):Response.json({data:[{id:input.model}]});
+  }
+  return transport(url,init);
+ }) as typeof fetch;
+ const cache=new Map();
+ for(const now of [1000,30000,60999])
+  assert.equal((await researchBenchmark(input,keys,counting,cache,now)).status,200);
+ assert.equal(catalogCalls,1);
+ fail=true;
+ const expired=await researchBenchmark(input,keys,counting,cache,61000);
+ assert.equal((expired.data as any).error,'benchmark_catalog_unavailable');
+ assert.equal(catalogCalls,2);
+ assert.equal((await researchBenchmark(input,keys,counting,cache,61001)).status,502);
+ assert.equal(catalogCalls,3);
+ fail=false;
+ assert.equal((await researchBenchmark(input,keys,counting,cache,62000)).status,200);
+ const rotated={...keys,HIP_API_KEY:keys.HIP_API_KEY};
+ cache.set('hip',{...cache.get('hip'),key:'old-key-0000000000'});
+ assert.equal((await researchBenchmark(input,rotated,counting,cache,62001)).status,200);
+ assert.equal(catalogCalls,5);
+});

@@ -11,6 +11,8 @@ const MIN_ATTEMPTS=5;
 const NOT_MODEL_ATTEMPT=new Set(['discovery_failed','not_listed','not_started','rate_limited',
  // Refused by the Worker before any provider call (alias lost its root, non-chat root, delisted).
  'gateway_benchmark_alias_unresolved','gateway_benchmark_non_chat_model','gateway_benchmark_model_not_listed',
+ // Provider catalog unreachable: the prompt never reached the model.
+ 'gateway_benchmark_catalog_unavailable',
  'http_401','http_403','http_429','gateway_http_401','gateway_http_403','gateway_http_429',
  'gateway_benchmark_upstream_auth_rejected','gateway_benchmark_upstream_quota_exhausted']);
 

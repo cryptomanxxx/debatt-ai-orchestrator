@@ -10,6 +10,25 @@ from blablador_scientific_v3 import evaluate
 
 
 class ScientificValidatorTests(unittest.TestCase):
+    def test_api_retries_rate_limits_and_catalog_outages_only(self):
+        from cloudflare_benchmark_client import GatewayError
+        ok = {"choices": []}
+        for code in ("gateway_http_429", "benchmark_catalog_unavailable"):
+            with self.subTest(code=code), patch.object(benchmark, "benchmark_completion",
+                    side_effect=[GatewayError(code), GatewayError(code), ok]) as call, \
+                 patch.object(benchmark.time, "sleep") as sleep:
+                self.assertIs(benchmark.api("k", "/chat/completions", {"model": "m"}), ok)
+                self.assertEqual(call.call_count, 3)
+                self.assertEqual([c.args[0] for c in sleep.call_args_list], [5, 15])
+        with patch.object(benchmark, "benchmark_completion", side_effect=GatewayError("benchmark_catalog_unavailable")) as call, \
+             patch.object(benchmark.time, "sleep"), self.assertRaises(GatewayError):
+            benchmark.api("k", "/chat/completions", {"model": "m"})
+        self.assertEqual(call.call_count, 3)
+        with patch.object(benchmark, "benchmark_completion", side_effect=GatewayError("benchmark_upstream_failed")) as call, \
+             patch.object(benchmark.time, "sleep"), self.assertRaises(GatewayError):
+            benchmark.api("k", "/chat/completions", {"model": "m"})
+        self.assertEqual(call.call_count, 1)
+
     def test_migrated_end_to_end_offline(self):
         calls = []
         expected_tasks = (

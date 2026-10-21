@@ -30,7 +30,25 @@ async function boundedJson(response:Response){
   for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
   return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
 }
-export async function researchBenchmark(input:unknown,keys:ResearchKeys,transport:typeof fetch=fetch){
+// A benchmark run sends dozens of completions within minutes; refetching the provider catalog
+// before every one made Blablador stop answering /models mid-run. A verified catalog is reused
+// for CATALOG_TTL_MS per provider and key. Only successful catalogs are cached.
+const CATALOG_TTL_MS=60000;
+type Catalog=Awaited<ReturnType<typeof discoverResearchModels>>;
+export type CatalogCache=Map<string,{key:string,at:number,catalog:Catalog}>;
+const sharedCatalogCache:CatalogCache=new Map();
+async function catalogFor(provider:Provider,keys:ResearchKeys,transport:typeof fetch,cache:CatalogCache|undefined,now:number){
+  const key=keys[SOURCES[provider].key]??'';
+  const hit=cache?.get(provider);
+  if(hit&&hit.key===key&&now-hit.at>=0&&now-hit.at<CATALOG_TTL_MS)return hit.catalog;
+  const catalog=await discoverResearchModels(provider,keys,transport);
+  if(catalog.status===200)cache?.set(provider,{key,at:now,catalog});
+  else cache?.delete(provider);
+  return catalog;
+}
+// The shared cache applies only to the production transport; tests pass their own cache.
+export async function researchBenchmark(input:unknown,keys:ResearchKeys,transport:typeof fetch=fetch,
+  cache:CatalogCache|undefined=transport===fetch?sharedCatalogCache:undefined,now:number=Date.now()){
   if(!input||typeof input!=='object'||Array.isArray(input))return error(400,'invalid_benchmark_request');
   const x=input as Record<string,unknown>;
   if(Object.keys(x).some(k=>!['provider','model','messages','profile','max_tokens'].includes(k))||
@@ -53,7 +71,7 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
   if(typeof key!=='string'||key.length<8||/\s/.test(key))return error(503,'research_provider_not_configured');
   // Membership is checked before sending a prompt: the caller cannot create arbitrary
   // provider model names or direct arbitrary requests to a backend.
-  const catalog=await discoverResearchModels(provider,keys,transport);
+  const catalog=await catalogFor(provider,keys,transport,cache,now);
   if(catalog.status!==200)return error(502,'benchmark_catalog_unavailable');
   const models=(catalog.data as {models?:string[]}).models;
   if(!Array.isArray(models)||!models.includes(model))return error(400,'benchmark_model_not_listed');
