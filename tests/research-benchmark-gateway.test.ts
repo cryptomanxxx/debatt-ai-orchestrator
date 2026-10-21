@@ -242,3 +242,28 @@ test('a failed catalog lookup never evicts one a concurrent request cached',asyn
  assert.equal((await failing).status,502);
  assert.equal(cache.get('hip')?.at,1000);
 });
+test('an explicit model may answer under its own catalog root, never another root',async()=>{
+ const explicit={...aliasInput,model:'Swift-Qwen3.8-27b'};
+ const t=(replied:unknown)=>(async(url:string|URL|Request)=>{
+  if(String(url).endsWith('/models'))return Response.json({data:[
+   {id:'Swift-Qwen3.8-27b',root:'/p/scratch/swift/Qwen3.8-27B'},
+   {id:'Qwen3.8 Swift - speculative decoding',root:'/p/scratch/swift/Qwen3.8-27B'},
+   {id:'alias-fast',root:'openai/gpt-oss-120b'},{id:'plain-model'},
+   {id:'chatty-name',root:'BAAI/bge-reranker-v2'}]});
+  return Response.json({model:replied,choices:[{finish_reason:'stop',message:{content:'2'}}]});
+ }) as typeof fetch;
+ for(const replied of ['Swift-Qwen3.8-27b','/p/scratch/swift/Qwen3.8-27B','Qwen3.8 Swift - speculative decoding']){
+  const r:any=await researchBenchmark(explicit,keys,t(replied));
+  assert.equal(r.status,200,replied);
+  assert.equal(r.data.model,'Swift-Qwen3.8-27b');
+  assert.equal(r.data.resolved_model,undefined,'only aliases report a resolved model');
+ }
+ for(const replied of ['openai/gpt-oss-120b','alias-fast','Qwen/Qwen3.8-27B-FP8',null]){
+  const r:any=await researchBenchmark(explicit,keys,t(replied));
+  assert.equal(r.data.error,'benchmark_model_identity_mismatch',String(replied));
+ }
+ const rootless:any=await researchBenchmark({...explicit,model:'plain-model'},keys,t('/p/scratch/swift/Qwen3.8-27B'));
+ assert.equal(rootless.data.error,'benchmark_model_identity_mismatch');
+ const nonChat:any=await researchBenchmark({...explicit,model:'chatty-name'},keys,t('BAAI/bge-reranker-v2'));
+ assert.equal(nonChat.data.error,'benchmark_model_identity_mismatch','a non-chat root never vouches for a reply');
+});
