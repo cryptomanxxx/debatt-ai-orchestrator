@@ -64,7 +64,7 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
       headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},
       body:JSON.stringify({model,messages,max_tokens:x.max_tokens,temperature:0})});
   }catch{return error(502,'benchmark_transport_failed');}
-  if(!response.ok){await response.body?.cancel().catch(()=>{});return error(502,'benchmark_upstream_failed');}
+  if(!response.ok){const throttled=response.status===429;await response.body?.cancel().catch(()=>{});return throttled?error(429,'benchmark_upstream_rate_limited'):error(502,'benchmark_upstream_failed');}
   let data:any;
   try{data=await boundedJson(response);}catch{return error(502,'benchmark_invalid_response');}
   const answer=data?.choices?.[0]?.message?.content;
