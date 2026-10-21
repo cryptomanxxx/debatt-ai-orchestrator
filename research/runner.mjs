@@ -3,6 +3,7 @@ import { ResearchError, diagnostic } from './errors.mjs';
 import { mkdir, writeFile, appendFile } from 'node:fs/promises';
 import { randomUUID, createHash } from 'node:crypto';
 import { CATALOG, choosePlan, lockModel } from './catalog.mjs';
+import { loadResearchChoices, chosenResearchModel, unwrapJsonAnswer } from './lab-models.mjs';
 import { runExperiment } from './ratfit.mjs';
 import { runRankExperiment, callRankscreen } from './rankscreen.mjs';
 import { runScienceExperiment } from './science.mjs';
@@ -98,6 +99,31 @@ const proposer = mode => lockModel(async messages => {
 });
 const planningPropose = proposer('default');
 
+// A benchmark-ranked HIP/Blablador model, called through the Worker's research gateway with the
+// lab's token budget. It shares the seven-call ceiling and locks its own identity like any mode.
+const researchProposer = ({ provider, model }) => lockModel(async messages => {
+  if (++modelCalls > 7) throw new ResearchError('model_budget_exceeded');
+  const payload = { provider, model, profile: 'lab', max_tokens: completionTokenLimit, messages: [{ role: 'user',
+    content: JSON.stringify({ instruction: 'Följ denna konversation och svara endast med begärd JSON.', messages }) }] };
+  let response;
+  try {
+    response = await fetch(API.replace(/\/v1\/query$/, '/v1/research/benchmark'), {
+      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(55000),
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  } catch { throw new ResearchError('model_transport_error'); }
+  let data;
+  try { data = await readJson(response); } catch { throw new ResearchError('model_invalid_response', { httpStatus: response.status }); }
+  if (response.status !== 200) {
+    const code = data?.error === 'benchmark_model_identity_mismatch' ? 'model_identity_mismatch'
+      : data?.error === 'benchmark_missing_answer' ? 'model_empty_response' : 'model_upstream_http_error';
+    throw new ResearchError(code, { httpStatus: response.status });
+  }
+  if (data?.status !== 'completed_unverified' || data.provider !== provider || data.model !== model || typeof data.answer !== 'string')
+    throw new ResearchError('invalid_model_response');
+  if (data.finish_reason !== 'stop') throw new ResearchError('model_output_truncated');
+  return { text: unwrapJsonAnswer(data.answer), provider: data.provider, model: data.model };
+});
+
 // The planner may choose the reasoning model only when the orchestrator reports one configured.
 async function plannerModelModes() {
   try {
@@ -123,9 +149,16 @@ let completedCases = [];
 let plan, planCommitment, report, executionFailed = false, stage = 'planning';
 try {
   const modelModes = selection === 'auto' ? await plannerModelModes() : ['default'];
-  plan = await choosePlan(selection, seed, history, planningPropose, modelModes);
+  const researchChoices = selection === 'auto' ? await loadResearchChoices() : {};
+  plan = await choosePlan(selection, seed, history, planningPropose, modelModes, researchChoices);
+  const domain = CATALOG.find(e => e.id === plan.experimentId)?.domain;
+  const ranked = chosenResearchModel(plan.modelMode, domain, researchChoices);
+  // The evidence behind a ranked choice is committed with the plan, before any experiment call.
+  if (ranked) plan.modelChoice = { domain, provider: ranked.provider, model: ranked.model,
+    evidence: { suite: 'Scientific benchmark v4', correct: ranked.correct, attempts: ranked.attempts } };
   // A default-mode plan keeps the planning identity lock, exactly as before model choice existed.
-  const propose = (plan.modelMode ?? 'default') === 'default' ? planningPropose : proposer(plan.modelMode);
+  const propose = ranked ? researchProposer(ranked)
+    : (plan.modelMode ?? 'default') === 'default' ? planningPropose : proposer(plan.modelMode);
   if (plan.seedAdjustment) console.log('Seed ändrad före datagenerering:', JSON.stringify(plan.seedAdjustment), '→', plan.seed);
   planCommitment = createHash('sha256').update(JSON.stringify(plan)).digest('hex');
   await writeFile(`${directory}/plan.json`, JSON.stringify({ plan, planCommitment, ...metadata }, null, 2));

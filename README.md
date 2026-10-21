@@ -53,11 +53,11 @@ See the [experiment catalog](research/EXPERIMENTS.md), [hypothesis protocols](re
 | Decision | Current implementation | Development goal |
 | --- | --- | --- |
 | Research task | Select an existing catalog experiment and seed using recent report summaries | Select and formulate a wider range of research questions |
-| AI model | Choose the configured default or reasoning model (when one is configured) with a recorded rationale; identity stays fixed during a run | Let Oraklet choose suitable AI models for research tasks |
+| AI model | Choose the configured default or reasoning model, or one of the HIP/Blablador models ranked best in the experiment's research domain by [Scientific benchmark v4](research/SCIENTIFIC-V4.md), with a recorded rationale and the ranking evidence; identity stays fixed during a run | Learn from the lab's own results which models suit which research tasks |
 | Scientific tools | Use the fixed adapter associated with the selected experiment | Let Oraklet choose and combine suitable scientific tools |
 | Experiment design | Follow predefined protocols, assumptions and verification criteria | Develop and revise research plans within explicit budgets and verification requirements |
 
-**The project's goal is greater research autonomy:** Professor Oraklet should be able to decide which AI models to run and which tools to use for a research question, execute the investigation and evaluate the evidence. Choosing between operator-configured models is implemented in the daily workflow; open-ended model selection and general tool composition remain development goals.
+**The project's goal is greater research autonomy:** Professor Oraklet should be able to decide which AI models to run and which tools to use for a research question, execute the investigation and evaluate the evidence. Choosing between operator-configured models and benchmark-ranked HIP/Blablador models per research domain is implemented in the daily workflow; general tool composition remains a development goal.
 
 The repository also contains a persistent Problem Bank and Research Loop integration for tracking catalog-backed problems, hypotheses, attempts and results. A separate proposal workflow produces deterministic catalog-based research suggestions for review, and links saved literature research candidates to catalog experiments in the same research area (for example symbolic regression or fluid state estimation) as Problem Bank proposals that a person must approve and register. These provide a foundation for broader autonomy; they do not yet generate unrestricted new experiments. See [Problem Bank](research/PROBLEM-BANK.md) and [Research Loop](research/RESEARCH-LOOP.md).
 

@@ -97,3 +97,61 @@ globalThis.fetch = async (url, options = {}) => {
     } finally { await rm(dir, { recursive: true, force: true }); }
   }
 });
+
+test('runner calls a benchmark-ranked model chosen by the planner through the lab gateway profile', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'oraklet-runner-ranked-'));
+  try {
+    const { mkdir } = await import('node:fs/promises');
+    await mkdir(join(dir, 'research'));
+    const domains = { symbolic: { correct: 8, attempts: 8, latencies: [3] } };
+    await writeFile(join(dir, 'research/model-scores.json'), JSON.stringify({ runs: { '9': { provider: 'hip', suite: 'domains-v1',
+      models: { 'GLM-5.2-AWQ-INT4': { correct: 8, attempts: 8, latencies: [3], domains } } } } }));
+    await writeFile(join(dir, 'research/model-catalog.json'), JSON.stringify({ providers: { hip: ['GLM-5.2-AWQ-INT4'], blablador: [] }, aliasRoots: {} }));
+    const mock = `
+import { writeFile } from 'node:fs/promises';
+import { makeCases, UPSTREAM } from ${JSON.stringify(core)};
+const cases = makeCases('123'); let planned = false, labCalls = 0;
+globalThis.fetch = async (url, options = {}) => {
+  if (String(url).includes('supabase.co')) {
+    if (options.method === 'POST') { await writeFile('saved.json', options.body); return new Response('', { status: 201 }); }
+    return Response.json([]);
+  }
+  if (String(url).endsWith('/v1/model-profile')) return Response.json({ reasoningAvailable: false });
+  const body = JSON.parse(options.body);
+  if (body.tool) {
+    const fixture = cases.find(c => JSON.stringify(c.input.banked) === JSON.stringify(body.input.banked));
+    const accepted = JSON.stringify(fixture.input.holdout) === JSON.stringify(body.input.holdout);
+    return Response.json({ provider: 'bootloops', mock: false,
+      toolResult: { tool: 'bootloops_ratfit', upstreamCommit: UPSTREAM, accepted, depth: 3, checked: 3, failed: accepted ? 0 : 1 },
+      verification: { status: accepted ? 'passed' : 'failed', scope: 'exact_rational_holdout', factualityChecked: false } }, { status: accepted ? 200 : 422 });
+  }
+  if (String(url).endsWith('/v1/research/benchmark')) {
+    if (!planned) throw new Error('Lab gateway called before planning');
+    if (body.profile !== 'lab' || body.max_tokens !== 4096 || body.provider !== 'hip' || body.model !== 'GLM-5.2-AWQ-INT4')
+      throw new Error('Unexpected lab request ' + JSON.stringify({ ...body, messages: undefined }));
+    labCalls++;
+    const banked = JSON.parse(JSON.parse(body.messages[0].content).messages[1].content).banked;
+    const answer = { method: 'bootloops_ratfit', coefficients: cases.find(c => JSON.stringify(c.input.banked) === JSON.stringify(banked)).truth, reason: 'Förslag.' };
+    return Response.json({ status: 'completed_unverified', provider: 'hip', model: 'GLM-5.2-AWQ-INT4', finish_reason: 'stop',
+      answer: '\`\`\`json\\n' + JSON.stringify(answer) + '\\n\`\`\`', scientificallyVerified: false, backendIdentityVerified: false });
+  }
+  if (planned) throw new Error('Configured model used after a ranked choice');
+  const prompt = JSON.parse(JSON.parse(body.message).messages[1].content);
+  if (prompt.researchModels?.symbolic?.[0]?.modelMode !== 'hip / GLM-5.2-AWQ-INT4') throw new Error('Ranked models missing from prompt');
+  planned = true;
+  return Response.json({ answer: JSON.stringify({ experimentId: 'ratfit-feedback', seed: '123', reason: 'Bäst rankad i symbolisk matematik.',
+    modelMode: 'hip / GLM-5.2-AWQ-INT4' }), provider: 'groq', model: 'same', mock: false, inference: { completionTokenLimit: 4096 } });
+};`;
+    const preload = join(dir, 'mock.mjs'); await writeFile(preload, mock);
+    await run(process.execPath, ['--import', pathToFileURL(preload).href, runner], {
+      cwd: dir, env: { ...process.env, ORCHESTRATOR_API_KEY: 'test'.repeat(8), SUPABASE_SERVICE_ROLE_KEY: 'test',
+        EXPERIMENT: 'auto', EXPERIMENT_SEED: '123' }, timeout: 15000 });
+    const saved = JSON.parse(await readFile(join(dir, 'saved.json'), 'utf8'));
+    assert.equal(saved.rapport.executionStatus, 'completed');
+    assert.equal(saved.rapport.modelMode, 'hip / GLM-5.2-AWQ-INT4');
+    assert.deepEqual(saved.rapport.plan.modelChoice, { domain: 'symbolic', provider: 'hip', model: 'GLM-5.2-AWQ-INT4',
+      evidence: { suite: 'Scientific benchmark v4', correct: 8, attempts: 8 } });
+    assert.equal(saved.rapport.cases.length, 3);
+    assert.ok(saved.rapport.modelCalls >= 4);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

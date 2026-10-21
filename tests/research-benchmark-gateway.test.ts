@@ -267,3 +267,14 @@ test('an explicit model may answer under its own catalog root, never another roo
  const nonChat:any=await researchBenchmark({...explicit,model:'chatty-name'},keys,t('BAAI/bge-reranker-v2'));
  assert.equal(nonChat.data.error,'benchmark_model_identity_mismatch','a non-chat root never vouches for a reply');
 });
+test('the lab profile allows the lab 4,096-token budget and nothing above it',async()=>{
+ const lab={...input,profile:'lab',max_tokens:4096};
+ const t=(async(url:string|URL|Request,init?:RequestInit)=>{
+  if(String(url).endsWith('/models'))return Response.json({data:[{id:input.model}]});
+  assert.equal(JSON.parse(String(init?.body)).max_tokens,4096);
+  return Response.json({model:input.model,choices:[{finish_reason:'stop',message:{content:'{"ok":true}'}}],usage:{completion_tokens:900}});
+ }) as typeof fetch;
+ assert.equal((await researchBenchmark(lab,keys,t)).status,200);
+ assert.equal((await researchBenchmark({...lab,max_tokens:4097},keys,t)).status,400);
+ assert.equal((await researchBenchmark({...input,max_tokens:769},keys,t)).status,400,'benchmark keeps its 768 cap');
+});
