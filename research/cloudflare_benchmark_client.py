@@ -11,10 +11,18 @@ SAFE_ERRORS = frozenset({'missing_orchestrator_key','invalid_gateway_path','gate
     'gateway_response_too_large','gateway_invalid_json','gateway_invalid_response',
     'invalid_provider','gateway_catalog_failed','gateway_catalog_invalid',
     'invalid_benchmark_request','gateway_completion_invalid','gateway_latency_invalid','gateway_usage_invalid',
-    'gateway_http_401','gateway_http_403','gateway_http_404','gateway_http_429','gateway_http_5xx','gateway_http_other'})
+    'gateway_http_401','gateway_http_403','gateway_http_404','gateway_http_429','gateway_http_5xx','gateway_http_other',
+    'benchmark_catalog_unavailable','benchmark_transport_failed','benchmark_upstream_failed',
+    'benchmark_invalid_response','benchmark_token_budget_exceeded'})
 
 WORKER = "https://debatt-ai-orchestrator.xx8031126.workers.dev"
 MAX_BYTES = 131072
+MAX_ERROR_BYTES = 1024
+WORKER_ERROR_CODES = frozenset({
+    "benchmark_catalog_unavailable", "benchmark_transport_failed",
+    "benchmark_upstream_failed", "benchmark_invalid_response",
+    "benchmark_token_budget_exceeded",
+})
 
 class GatewayError(Exception):
     pass
@@ -36,8 +44,23 @@ def _request(api_key, path, body=None, open_url=None):
             raw = res.read(MAX_BYTES + 1)
     except HTTPError as error:
         status = error.code
-        error.close()
         category = "gateway_http_" + str(status) if status in (401, 403, 404, 429) else ("gateway_http_5xx" if 500 <= status <= 599 else "gateway_http_other")
+        try:
+            # Only a bounded JSON object with a known Worker-generated error code is trusted.
+            # Never expose arbitrary HTML, HTTP reason text, response bodies or secrets.
+            if status == 502 and error.headers and error.headers.get_content_type() == "application/json":
+                raw_error = error.read(MAX_ERROR_BYTES + 1)
+                if len(raw_error) <= MAX_ERROR_BYTES:
+                    data_error = json.loads(raw_error)
+                    if (isinstance(data_error, dict) and
+                        set(data_error) == {"error"} and
+                        type(data_error["error"]) is str and
+                        data_error["error"] in WORKER_ERROR_CODES):
+                        category = data_error["error"]
+        except (ValueError, UnicodeDecodeError, OSError, TypeError, AttributeError):
+            pass
+        finally:
+            error.close()
         raise GatewayError(category) from None
     except (URLError, OSError, TimeoutError):
         raise GatewayError("gateway_transport_or_http_failed") from None
