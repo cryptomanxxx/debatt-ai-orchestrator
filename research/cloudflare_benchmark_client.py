@@ -14,6 +14,7 @@ SAFE_ERRORS = frozenset({'missing_orchestrator_key','invalid_gateway_path','gate
     'invalid_benchmark_request','gateway_completion_invalid','gateway_latency_invalid','gateway_usage_invalid',
     'gateway_http_401','gateway_http_403','gateway_http_404','gateway_http_429','gateway_http_5xx','gateway_http_other',
     'benchmark_catalog_unavailable','benchmark_transport_failed','benchmark_upstream_failed',
+    'benchmark_upstream_auth_rejected','benchmark_upstream_quota_exhausted',
     'benchmark_invalid_response','benchmark_token_budget_exceeded',
     'benchmark_missing_answer','benchmark_response_too_large','benchmark_model_identity_mismatch',
     'benchmark_invalid_finish_reason','benchmark_invalid_upstream_json'})
@@ -23,7 +24,8 @@ MAX_BYTES = 131072
 MAX_ERROR_BYTES = 1024
 WORKER_ERROR_CODES = frozenset({
     "benchmark_catalog_unavailable", "benchmark_transport_failed",
-    "benchmark_upstream_failed", "benchmark_invalid_response",
+    "benchmark_upstream_failed", "benchmark_upstream_auth_rejected",
+    "benchmark_upstream_quota_exhausted", "benchmark_invalid_response",
     "benchmark_token_budget_exceeded",
     "benchmark_missing_answer", "benchmark_response_too_large",
     "benchmark_model_identity_mismatch", "benchmark_invalid_finish_reason",

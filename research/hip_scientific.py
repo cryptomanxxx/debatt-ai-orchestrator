@@ -18,6 +18,11 @@ MODELS = ('GLM-5.2-AWQ-INT4', 'Kimi-K2.6', 'Ministral-3-14B-Instruct-2512',
 EXCLUDED = ('all-proxy-models', 'bge-reranker-v2-m3', 'gte-Qwen2-1.5B-instruct')
 SYSTEM = 'Solve the scientific question. End with one separate line exactly FINAL_ANSWER: <answer>. No text after that line.'
 
+# Orchestrator key rejected (http_401/403), throttled (http_429), or the Worker reports
+# that HIP itself rejected its key or quota: further calls cannot succeed.
+STOP_STATUSES = ('http_401', 'http_403', 'http_429',
+                 'gateway_benchmark_upstream_auth_rejected', 'gateway_benchmark_upstream_quota_exhausted')
+
 class ApiError(Exception):
     pass
 
@@ -150,7 +155,7 @@ def main():
                 results.append(row)
                 save()
                 print(f"{model} {repeat} {task}: {row['status']} {row['scientific_verdict']}", flush=True)
-                if row['status'] in ('http_401', 'http_402', 'http_403', 'http_429'):
+                if row['status'] in STOP_STATUSES:
                     report['stopped_early'] = row['status']
                     save()
                     raise SystemExit('Stopped for authentication, quota or rate limit; inspect partial report')

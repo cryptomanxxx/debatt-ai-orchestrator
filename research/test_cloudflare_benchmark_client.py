@@ -45,6 +45,8 @@ class CloudflareAdapterTest(unittest.TestCase):
         cases = [
             (502, "application/json", b'{"error":"benchmark_upstream_failed"}', "benchmark_upstream_failed"),
             (502, "application/json", b'{"error":"benchmark_invalid_response"}', "benchmark_invalid_response"),
+            (502, "application/json", b'{"error":"benchmark_upstream_auth_rejected"}', "benchmark_upstream_auth_rejected"),
+            (502, "application/json", b'{"error":"benchmark_upstream_quota_exhausted"}', "benchmark_upstream_quota_exhausted"),
             (502, "application/json", b'{"error":"benchmark_catalog_unavailable"}', "benchmark_catalog_unavailable"),
             (502, "application/json", b'{"error":"benchmark_transport_failed"}', "benchmark_transport_failed"),
             (502, "application/json", b'{"error":"benchmark_token_budget_exceeded"}', "benchmark_token_budget_exceeded"),

@@ -84,6 +84,19 @@ test('maps provider throttling into bounded HTTP 429 without exposing backend re
  assert.deepEqual(r.data,{error:'benchmark_upstream_rate_limited'});
  assert.ok(!JSON.stringify(r).includes('upstream secret'));
 });
+test('keeps provider authentication and quota rejections distinct and terminal',async()=>{
+ for(const [status,code] of [[401,'benchmark_upstream_auth_rejected'],[403,'benchmark_upstream_auth_rejected'],
+   [402,'benchmark_upstream_quota_exhausted'],[500,'benchmark_upstream_failed']] as const){
+  const stub=async(url:string|URL|Request)=>{
+    if(String(url).endsWith('/models'))return Response.json({data:[{id:input.model}]});
+    return new Response('upstream secret', {status});
+  };
+  const r=await researchBenchmark(input,keys,stub as typeof fetch);
+  assert.equal(r.status,502);
+  assert.deepEqual(r.data,{error:code});
+  assert.ok(!JSON.stringify(r).includes('upstream secret'));
+ }
+});
 test('retains safe length responses without claiming scientific verification',async()=>{
  const stub=async(url:string|URL|Request)=>{
    if(String(url).endsWith('/models'))return Response.json({data:[{id:input.model}]});

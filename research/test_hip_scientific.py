@@ -3,7 +3,7 @@ import unittest
 import http.client
 from unittest.mock import patch, MagicMock
 import urllib.error
-from hip_scientific import MODELS, EXCLUDED, TASKS, settings, score, summary, api, ApiError, model_ids
+from hip_scientific import STOP_STATUSES, MODELS, EXCLUDED, TASKS, settings, score, summary, api, ApiError, model_ids
 from cloudflare_benchmark_client import GatewayError
 
 KEY = 'test-orchestrator-key-not-real-1234'
@@ -77,9 +77,18 @@ class HipScientificTests(unittest.TestCase):
         self.assertEqual(json.loads(sent[0].data)['provider'], 'hip')
         self.assertEqual(score(reply, '2', KEY, MODELS[0])['status'], 'truncated')
 
+    def test_upstream_quota_and_auth_rejections_stop_the_run(self):
+        for code in ('benchmark_upstream_quota_exhausted', 'benchmark_upstream_auth_rejected'):
+            with self.subTest(code=code), patch('hip_scientific.benchmark_completion', side_effect=GatewayError(code)):
+                with self.assertRaises(ApiError) as error:
+                    api(KEY, '/chat/completions', dict(model=MODELS[0], messages=[], temperature=0, max_tokens=768))
+                self.assertIn(str(error.exception), STOP_STATUSES)
+        self.assertNotIn('gateway_benchmark_upstream_failed', STOP_STATUSES)
+
     def test_gateway_errors_are_sanitized(self):
         for raised, expected in (('gateway_http_429', 'http_429'), ('gateway_http_5xx', 'gateway_http_5xx'),
                                  ('benchmark_model_identity_mismatch', 'gateway_benchmark_model_identity_mismatch'),
+                                 ('benchmark_upstream_quota_exhausted', 'gateway_benchmark_upstream_quota_exhausted'),
                                  (KEY, 'gateway_error')):
             with self.subTest(raised=raised), patch('hip_scientific.catalog_models', side_effect=GatewayError(raised)):
                 with self.assertRaisesRegex(ApiError, '^' + expected + '$'):
