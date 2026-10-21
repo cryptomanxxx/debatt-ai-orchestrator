@@ -64,7 +64,14 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
       headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},
       body:JSON.stringify({model,messages,max_tokens:x.max_tokens,temperature:0})});
   }catch{return error(502,'benchmark_transport_failed');}
-  if(!response.ok){const throttled=response.status===429;await response.body?.cancel().catch(()=>{});return throttled?error(429,'benchmark_upstream_rate_limited'):error(502,'benchmark_upstream_failed');}
+  if(!response.ok){
+    const status=response.status;await response.body?.cancel().catch(()=>{});
+    if(status===429)return error(429,'benchmark_upstream_rate_limited');
+    // Distinct terminal codes let callers stop instead of exhausting a quota or a rejected key.
+    if(status===401||status===403)return error(502,'benchmark_upstream_auth_rejected');
+    if(status===402)return error(502,'benchmark_upstream_quota_exhausted');
+    return error(502,'benchmark_upstream_failed');
+  }
   let data:any;
   try{data=await boundedJson(response);}catch(e){return error(502,e instanceof Error && e.message==='oversized'?'benchmark_response_too_large':'benchmark_invalid_upstream_json');}
   const answer=data?.choices?.[0]?.message?.content;

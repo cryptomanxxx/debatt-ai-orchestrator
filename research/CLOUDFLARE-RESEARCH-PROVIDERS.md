@@ -17,7 +17,7 @@ HIP: `GLM-5.2-AWQ-INT4`, `Mistral-Medium-3.5-128B`. Blablador: `alias-fast`, `al
 1. Obtain CI and Codex approval, merge, deploy the Worker via the repo's existing deployment process.
 2. Add secrets in the Cloudflare dashboard to the `debatt-ai-orchestrator` Worker. Keep existing `MODEL_API_KEY` and Groq model configuration.
 3. Run a bounded authenticated request for one model per provider; inspect failure diagnostics without exposing keys.
-4. In a **separate PR**, build an opt-in GitHub Actions client which uses the existing `ORCHESTRATOR_API_KEY` to call the new endpoint and runs the independent SymPy verifier. Keep existing HIP/Blablador GitHub Environment Secrets until this route is proven.
+4. In a **separate PR**, build an opt-in GitHub Actions client which uses the existing `ORCHESTRATOR_API_KEY` to call the new endpoint and runs the independent SymPy verifier. Done: all HIP/Blablador GitHub workflows now use the Worker, so the GitHub copies of the provider keys can be removed.
 5. Only after end-to-end validation consider migrating daily research and deleting duplicate long-lived provider credentials from GitHub. A shared bearer key remains a security tradeoff; consider GitHub OIDC and task-specific rate limits before exposing scheduled or untrusted agents.
 
 This is not a generalized model proxy or an assertion that the two providers' service availability is guaranteed. Check API grants, quotas and provider-specific model IDs before enabling it.

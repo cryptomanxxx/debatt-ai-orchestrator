@@ -16,13 +16,12 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
+      - name: Test explicit model filtering
+        run: node --test tests-research/explicit-models.test.mjs
       - name: Run bounded read-only model discovery
-        id: discovery
         env:
           ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
         run: node research/discover-worker-models.mjs
-      - name: Test generated dropdown validation
-        run: node --test tests-research/update-scientific-model-menu.test.mjs
       - name: Archive catalog for research model selection
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -31,8 +30,3 @@ jobs:
           path: reports/provider-catalog/
           if-no-files-found: ignore
           retention-days: 14
-      - name: Publish dynamic model choices to Scientific v3 on main
-        if: success() || (failure() && steps.discovery.outcome == 'failure')
-        env:
-          MODEL_MENU_WORKFLOW_TOKEN: ${{ secrets.MODEL_MENU_WORKFLOW_TOKEN }}
-        run: node research/update-scientific-model-menu.mjs

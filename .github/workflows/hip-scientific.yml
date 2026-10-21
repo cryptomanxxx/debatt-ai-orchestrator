@@ -36,10 +36,12 @@ jobs:
       - name: Install exact validator dependency
         run: python -m pip install sympy==1.13.3
       - name: Test scoring and HIP runner offline
-        run: python -m unittest discover -s research -p 'test_*scientific*.py'
-      - name: Compare HIP chat models (internal research)
+        run: |
+          python -m unittest discover -s research -p 'test_cloudflare_benchmark_client.py'
+          python -m unittest discover -s research -p 'test_*scientific*.py'
+      - name: Compare HIP chat models via Cloudflare Worker (internal research)
         env:
-          HIP_API_KEY: ${{ secrets.HIP_API_KEY }}
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
           BENCHMARK_MODELS: ${{ inputs.models }}
           BENCHMARK_REPEATS: ${{ inputs.repeats }}
         run: python research/hip_scientific.py

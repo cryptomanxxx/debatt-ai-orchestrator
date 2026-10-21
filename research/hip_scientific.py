@@ -7,12 +7,10 @@ import os
 import re
 import statistics
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
 from blablador_scientific_v3 import TASKS, evaluate
+from cloudflare_benchmark_client import catalog_models, benchmark_completion, GatewayError, SAFE_ERRORS
 
-BASE = 'https://llm-service.ai.tu-darmstadt.de/v1'
 MODELS = ('GLM-5.2-AWQ-INT4', 'Kimi-K2.6', 'Ministral-3-14B-Instruct-2512',
           'Mistral-Medium-3.5-128B', 'Qwen3.8-27B', 'gemma-4-31B-it',
           'leo-hessianai-13b-chat', 'occiglot-7b-eu5-instruct',
@@ -20,32 +18,32 @@ MODELS = ('GLM-5.2-AWQ-INT4', 'Kimi-K2.6', 'Ministral-3-14B-Instruct-2512',
 EXCLUDED = ('all-proxy-models', 'bge-reranker-v2-m3', 'gte-Qwen2-1.5B-instruct')
 SYSTEM = 'Solve the scientific question. End with one separate line exactly FINAL_ANSWER: <answer>. No text after that line.'
 
+# Orchestrator key rejected (http_401/403), throttled (http_429), or the Worker reports
+# that HIP itself rejected its key or quota: further calls cannot succeed.
+STOP_STATUSES = ('http_401', 'http_403', 'http_429',
+                 'gateway_benchmark_upstream_auth_rejected', 'gateway_benchmark_upstream_quota_exhausted')
+
 class ApiError(Exception):
     pass
 
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
-
 def api(key, path, payload=None):
-    headers = {'Authorization': 'Bearer ' + key, 'Accept': 'application/json'}
-    data = None
-    if payload is not None:
-        data = json.dumps(payload).encode()
-        headers['Content-Type'] = 'application/json'
-    req = urllib.request.Request(BASE + path, headers=headers, data=data)
+    """HIP via the Cloudflare benchmark gateway; HIP_API_KEY stays a Worker secret."""
     try:
-        with urllib.request.build_opener(NoRedirect).open(req, timeout=90) as response:
-            raw = response.read(1024 * 1024 + 1)
-            if len(raw) > 1024 * 1024:
-                raise ApiError('response_too_large')
-            return json.loads(raw)
-    except urllib.error.HTTPError as error:
-        code = error.code
-        error.close()
-        raise ApiError(f'http_{code}') from None
-    except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException):
+        if path == '/models' and payload is None:
+            return catalog_models(key, 'hip')
+        if path == '/chat/completions' and payload is not None:
+            return benchmark_completion(key, 'hip', payload, allow_truncated=True)
+    except GatewayError as error:
+        code = str(error)
+        # Keep http_401/403/429 so authentication, quota and rate limits still stop the run.
+        if code in ('gateway_http_401', 'gateway_http_403', 'gateway_http_429'):
+            raise ApiError(code[len('gateway_'):]) from None
+        if code not in SAFE_ERRORS:
+            code = 'error'
+        raise ApiError(code if code.startswith('gateway_') else 'gateway_' + code) from None
+    except (OSError, ValueError, http.client.HTTPException):
         raise ApiError('transport_or_json_error') from None
+    raise ApiError('invalid_gateway_path')
 
 def model_ids(response):
     rows = response.get('data') if isinstance(response, dict) else None
@@ -109,13 +107,14 @@ def summary(models, results):
 
 def main():
     models, repeats = settings(os.environ)
-    key = os.environ.get('HIP_API_KEY', '')
-    if len(key) < 8 or any(c.isspace() for c in key):
-        raise SystemExit('Missing or invalid HIP_API_KEY')
+    key = os.environ.get('ORCHESTRATOR_API_KEY', '')
+    if len(key) < 24 or any(c.isspace() for c in key):
+        raise SystemExit('Missing or invalid ORCHESTRATOR_API_KEY')
     dest = Path('reports/hip-scientific')
     dest.mkdir(parents=True, exist_ok=True)
     results = []
     report = dict(schema_version=1, provider='hessian.AI HIP', purpose='internal-research',
+                  transport='cloudflare-benchmark-v1',
                   benchmark='blablador-scientific-v3', code_commit=os.getenv('GITHUB_SHA'),
                   generated_utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                   generation=dict(temperature=0, max_tokens=768), tasks=TASKS,
@@ -142,21 +141,22 @@ def main():
                            status='not_listed', scientific_verdict='not_evaluated',
                            format_compliant=False, latency_seconds=None)
                 if model in available:
-                    start = time.monotonic()
                     try:
                         response = api(key, '/chat/completions', dict(model=model,
                             messages=[dict(role='system', content=SYSTEM), dict(role='user', content=question)],
                             temperature=0, max_tokens=768))
                         row.update(score(response, expected, key, model))
+                        # Worker-measured upstream time, excluding the gateway's catalog check and
+                        # GitHub-to-Worker transport; same latency source as Blablador v3.
+                        row['latency_seconds'] = response['_completion_latency_seconds']
                     except ApiError as error:
                         row['status'] = str(error)
                     except (KeyError, IndexError, TypeError, ValueError, AttributeError):
                         row['status'] = 'malformed_response'
-                    row['latency_seconds'] = round(time.monotonic() - start, 3)
                 results.append(row)
                 save()
                 print(f"{model} {repeat} {task}: {row['status']} {row['scientific_verdict']}", flush=True)
-                if row['status'] in ('http_401', 'http_402', 'http_403', 'http_429'):
+                if row['status'] in STOP_STATUSES:
                     report['stopped_early'] = row['status']
                     save()
                     raise SystemExit('Stopped for authentication, quota or rate limit; inspect partial report')

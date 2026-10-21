@@ -14,4 +14,4 @@ Provider aliases may change backend; a matching API model ID does not prove immu
 
 Validation: `node --test tests-research/github-router-sympy-pilot.test.mjs tests-research/worker-research-client.test.mjs`. Workflow additionally installs pinned SymPy packages for scientific verification. The existing directly authenticated `research/scientific_model_router.py` remains a historical offline test fixture, **not** the live workflow entry point.
 
-Keep HIP/Blablador GitHub secrets until both providers succeed in the Cloudflare-backed live workflows and all other consumers have been inventoried. Afterwards remove stale secrets at repository and Environment scopes; keep `research-inference` if approval or branch protections are useful.
+No GitHub workflow consumes the HIP/Blablador secrets any more (see [GITHUB-SCIENTIFIC-MODEL-ROUTER.md](GITHUB-SCIENTIFIC-MODEL-ROUTER.md)). Remove them at repository and Environment scopes once the Cloudflare-backed runs succeed; keep `research-inference` if approval or branch protections are useful.
