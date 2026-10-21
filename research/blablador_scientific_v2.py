@@ -9,9 +9,9 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from cloudflare_benchmark_client import catalog_models, benchmark_completion, GatewayError, SAFE_ERRORS
 from pathlib import Path
 
-BASE = "https://api.blablador.fz-juelich.de/v1"
 MODELS = ("alias-kimi-k3-1m", "alias-glm-5.3-flash",
           "alias-deepseek-v41-flash-booster", "alias-mimo-v2.6-pro",
           "alias-qwen3.8-flash-next", "alias-fast")
@@ -25,34 +25,25 @@ TASKS = (
 )
 ERRORS = (urllib.error.HTTPError, urllib.error.URLError, TimeoutError,
           ValueError, TypeError, AttributeError, KeyError, IndexError,
-          http.client.HTTPException, ConnectionError, OSError)
+          http.client.HTTPException, ConnectionError, OSError, GatewayError)
 
 def api(key, path, payload=None):
-    data = json.dumps(payload).encode() if payload is not None else None
-    headers = {"Authorization": "Bearer " + key, "Accept": "application/json"}
-    if data is not None:
-        headers["Content-Type"] = "application/json"
-    request = urllib.request.Request(BASE + path, headers=headers, data=data,
-                                     method="POST" if data is not None else "GET")
-    for attempt in range(3):
-        try:
-            with urllib.request.urlopen(request, timeout=90) as response:
-                return json.load(response)
-        except urllib.error.HTTPError as error:
-            if error.code != 429 or attempt == 2:
-                raise
-            header = error.headers.get("Retry-After", "")
-            try:
-                delay = max(1.0, min(60.0, float(header)))
-            except (ValueError, TypeError):
-                delay = [5.0, 15.0][attempt]
-            error.close()
-            time.sleep(delay)
+    if path == "/models" and payload is None:
+        return catalog_models(key, "blablador")
+    if path == "/chat/completions" and payload is not None:
+        return benchmark_completion(key, "blablador", payload)
+    raise GatewayError("invalid_gateway_path")
+
+
+def safe_error(error):
+    if isinstance(error, GatewayError) and str(error) in SAFE_ERRORS:
+        return "gateway_" + str(error)
+    return "request_failed_" + type(error).__name__
 
 def main():
-    key = os.environ.get("BLABLADOR_API_KEY", "")
+    key = os.environ.get("ORCHESTRATOR_API_KEY", "")
     if not key:
-        sys.exit("BLABLADOR_API_KEY research-inference environment secret is missing.")
+        sys.exit("ORCHESTRATOR_API_KEY research-inference environment secret is missing.")
     raw = os.environ.get("BENCHMARK_MODELS", ",".join(MODELS))
     models = [x.strip() for x in raw.split(",") if x.strip()]
     repeats_text = os.environ.get("BENCHMARK_REPEATS", "2")
@@ -69,12 +60,15 @@ def main():
         metadata = {m["id"]: {"root": m.get("root"), "max_model_len": m.get("max_model_len")}
                     for m in listing["data"] if isinstance(m, dict) and isinstance(m.get("id"), str)}
     except ERRORS as error:
-        discovery_error = type(error).__name__
+        discovery_error = safe_error(error)
 
     report_file = Path("blablador-scientific-v2.json")
     def save():
         report_file.write_text(json.dumps({
-            "schema_version": 2, "utc_generated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "schema_version": 2, "transport": "cloudflare-benchmark-v1",
+            "metadata_scope": "catalog_ids_only", "inference_timeout_seconds": 60,
+            "previous_inference_timeout_seconds": 90,
+            "utc_generated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "model_metadata": {m: metadata.get(m) for m in models},
             "discovery_error": discovery_error, "temperature": 0,
             "scoring": "case_sensitive_exact_match_after_whitespace_trim",
@@ -91,7 +85,6 @@ def main():
                 if discovery_error or model not in metadata:
                     item["status"] = "discovery_failed" if discovery_error else "not_listed"
                 else:
-                    started = time.monotonic()
                     try:
                         response = api(key, "/chat/completions", {
                             "model": model,
@@ -99,6 +92,7 @@ def main():
                                          {"role": "user", "content": question}],
                             "temperature": 0, "max_tokens": 384
                         })
+                        item["latency_seconds"] = response["_completion_latency_seconds"]
                         choice = response["choices"][0]
                         answer = choice["message"]["content"]
                         usage = response.get("usage") or {}
@@ -110,11 +104,9 @@ def main():
                         item["status"] = "ok" if answer.strip() else "empty_response"
                         item["correct"] = item["status"] == "ok" and answer.strip() == expected
                     except ERRORS as error:
-                        item["status"] = ("rate_limited" if isinstance(error, urllib.error.HTTPError) and error.code == 429
-                                          else "request_failed_" + type(error).__name__)
+                        item["status"] = ("rate_limited" if isinstance(error, GatewayError) and str(error) == "gateway_http_429"
+                                          else safe_error(error))
                         item["correct"] = False
-                    finally:
-                        item["latency_seconds"] = round(time.monotonic() - started, 3)
                 results.append(item)
                 save()  # Preserve partial findings even after a later process interruption.
                 print(f"{model} repeat={repetition} {task_id}: {item['status']}, "

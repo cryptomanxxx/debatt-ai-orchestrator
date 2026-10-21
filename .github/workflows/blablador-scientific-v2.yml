@@ -30,9 +30,13 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Test shared Cloudflare transport offline
+        run: |
+          python3 -m unittest discover -s research -p 'test_cloudflare_benchmark_client.py'
+          python3 -m unittest discover -s research -p 'test_blablador_scientific_v2.py'
       - name: Run repeatable scientific questions
         env:
-          BLABLADOR_API_KEY: ${{ secrets.BLABLADOR_API_KEY }}
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
           BENCHMARK_MODELS: ${{ inputs.models }}
           BENCHMARK_REPEATS: ${{ inputs.repeats }}
         run: python3 research/blablador_scientific_v2.py
