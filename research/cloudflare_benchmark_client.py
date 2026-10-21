@@ -21,7 +21,7 @@ SAFE_ERRORS = frozenset({'missing_orchestrator_key','invalid_gateway_path','gate
     'benchmark_invalid_finish_reason','benchmark_invalid_upstream_json'})
 
 WORKER = "https://debatt-ai-orchestrator.xx8031126.workers.dev"
-MAX_BYTES = 131072
+MAX_BYTES = 262144
 RESOLVED_MODEL = re.compile(r"^[A-Za-z0-9_./:+-]{1,300}$")
 MAX_ERROR_BYTES = 1024
 WORKER_ERROR_CODES = frozenset({
@@ -103,8 +103,12 @@ def catalog_models(api_key, provider, open_url=None):
     models = p.get("models")
     if not isinstance(models, list) or len(models) > 200 or any(not isinstance(x, str) for x in models):
         raise GatewayError("gateway_catalog_invalid")
-    # This endpoint intentionally provides only IDs, not unverified upstream root metadata.
-    return {"data": [{"id": m} for m in models]}
+    # IDs only, plus the validated catalog root of each listed alias (what that alias runs now).
+    aliases = p.get("aliases", {})
+    if not isinstance(aliases, dict):
+        raise GatewayError("gateway_catalog_invalid")
+    roots = {a: r for a, r in aliases.items() if a in models and isinstance(r, str) and RESOLVED_MODEL.fullmatch(r)}
+    return {"data": [{"id": m, **({"root": roots[m]} if m in roots else {})} for m in models]}
 
 def benchmark_completion(api_key, provider, payload, open_url=None, allow_truncated=False):
     if provider not in ("hip", "blablador") or not isinstance(payload, dict):

@@ -12,7 +12,7 @@ const reader=response.body?.getReader();if(!reader)throw Error('invalid_catalog_
 let size=0;const chunks=[];
 try{
   while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;
-    if(size>131072){await reader.cancel();throw Error('catalog_too_large');}chunks.push(value);}
+    if(size>262144){await reader.cancel();throw Error('catalog_too_large');}chunks.push(value);}
 }finally{reader.releaseLock();}
 const bytes=new Uint8Array(size);let offset=0;
 for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}

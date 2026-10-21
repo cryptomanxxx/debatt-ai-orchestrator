@@ -116,6 +116,16 @@ class CloudflareAdapterTest(unittest.TestCase):
         with self.assertRaises(GatewayError):
             benchmark_completion(KEY,"blablador",explicit,fake({**body,"model":"Qwen3.8-27B"},[]))
 
+    def test_catalog_returns_validated_alias_roots(self):
+        body={"status":"discovered_unverified","providers":{"blablador":{"status":"catalog_unverified","provider":"blablador",
+              "backendIdentityVerified":False,"models":["alias-fast","Qwen3.8-27B"],
+              "aliases":{"alias-fast":"openai/gpt-oss-120b","alias-gone":"x/y","alias-bad":"evil root"}}}}
+        self.assertEqual(catalog_models(KEY,"blablador",fake(body,[])),
+                         {"data":[{"id":"alias-fast","root":"openai/gpt-oss-120b"},{"id":"Qwen3.8-27B"}]})
+        body["providers"]["blablador"]["aliases"]=["alias-fast"]
+        with self.assertRaises(GatewayError):
+            catalog_models(KEY,"blablador",fake(body,[]))
+
     def test_invalid_usage_fails(self):
         with self.assertRaises(GatewayError):
             benchmark_completion(KEY,"blablador",PAYLOAD,fake({"status":"completed_unverified","provider":"blablador","model":MODEL,"answer":"4","finish_reason":"stop","scientificallyVerified":False,"backendIdentityVerified":False,"completion_latency_seconds":1,"usage":{"prompt_tokens":3,"completion_tokens":257,"total_tokens":260}},[]))

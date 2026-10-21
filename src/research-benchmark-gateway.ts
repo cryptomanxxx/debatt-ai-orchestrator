@@ -60,6 +60,7 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
   // model is the alias's catalog root, or a catalog entry with that same root.
   const aliasRoot=model.startsWith('alias-')?(catalog.data as {aliases?:Record<string,string>}).aliases?.[model]:undefined;
   const roots='roots' in catalog?catalog.roots:undefined;
+  if(aliasRoot!==undefined && blockedId(aliasRoot))return error(400,'benchmark_non_chat_model');
   let response:Response;
   const started=performance.now();
   try{

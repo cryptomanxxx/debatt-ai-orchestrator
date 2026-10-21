@@ -56,7 +56,7 @@ async function call(fetchImpl, path, key, body) {
     throw Error('redirect_rejected');
   }
   if (!response.ok) throw Error(await safeWorkerError(response));
-  try {return await boundedJson(response,path==='/v1/research/models'?131072:32768);}
+  try {return await boundedJson(response,path==='/v1/research/models'?262144:32768);}
   catch {throw Error('invalid_response');}
 }
 export async function probe(provider, {key, fetchImpl=fetch}={}) {

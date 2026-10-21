@@ -175,3 +175,8 @@ reports/oraklet-lab/
 
 # HIP connection-test artifacts
 reports/hip-test/
+
+# Benchmark outputs written by research runners (uploaded as artifacts, never committed)
+/blablador-scientific-v3.json
+/blablador-scientific-v2.json
+/blablador-benchmark.json

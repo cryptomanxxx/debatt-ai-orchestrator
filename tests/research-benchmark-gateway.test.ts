@@ -168,3 +168,13 @@ test('an alias never accepts another alias root',async()=>{
  const r:any=await researchBenchmark({...aliasInput,model:'alias-code'},keys,aliasTransport('openai/gpt-oss-120b'));
  assert.deepEqual(r.data,{error:'benchmark_model_identity_mismatch'});
 });
+test('an alias whose current root is a non-chat model is refused before any completion',async()=>{
+ let completions=0;
+ const t=(async(url:string|URL|Request)=>{
+  if(String(url).endsWith('/models'))return Response.json({data:[{id:'alias-fast',root:'Qwen/Qwen3-Embedding-8B'}]});
+  completions++;return Response.json({});
+ }) as typeof fetch;
+ const r:any=await researchBenchmark(aliasInput,keys,t);
+ assert.equal(r.status,400);assert.deepEqual(r.data,{error:'benchmark_non_chat_model'});
+ assert.equal(completions,0);
+});

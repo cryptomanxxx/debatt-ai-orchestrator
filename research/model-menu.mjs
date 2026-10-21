@@ -91,7 +91,7 @@ if(process.argv[1]?.endsWith('/model-menu.mjs')){
  const {models,aliasRoots,sources}=mergeCatalog(fresh,snapshot.providers??{},snapshot.aliasRoots??{});
  let runs={};
  try{runs=JSON.parse(await readFile('research/model-scores.json','utf8')).runs??{};}catch{}
- const ranked=rankings(runs,models);
+ const ranked=rankings(runs,models,aliasRoots);
  const recommended=recommendations(ranked);
  const markdown=rankingMarkdown(ranked,models,aliasRoots);
  await writeFile('research/MODEL-RANKING.md',markdown);

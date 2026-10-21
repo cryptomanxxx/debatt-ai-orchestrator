@@ -31,7 +31,15 @@ export function tallyReport(fileName,report){
   // Scientific v3 prefixes gateway codes once more ("gateway_gateway_http_401").
   const status=typeof row.status==='string'?row.status.replace(/^(?:gateway_)+/,'gateway_'):row.status;
   if(!isMenuModelId(id)||NOT_MODEL_ATTEMPT.has(status))continue;
-  const m=models[id]??={correct:0,attempts:0,latencies:[]};
+  // An alias's evidence belongs to the model it ran: key it "alias@root", using the verified
+  // resolved_model or the root recorded at discovery. Alias rows with no known root are dropped.
+  let key=id;
+  if(id.toLowerCase().startsWith('alias-')){
+   const root=row.resolved_model??report.model_metadata?.[id]?.root;
+   if(typeof root!=='string'||!/^[A-Za-z0-9_./:+-]{1,300}$/.test(root))continue;
+   key=id+'@'+root;
+  }
+  const m=models[key]??={correct:0,attempts:0,latencies:[]};
   m.attempts++;
   if(row.scientific_verdict==='correct')m.correct++;
   const latency=row.latency_seconds;
@@ -52,7 +60,7 @@ export function mergeRuns(existing,fresh){
  const keep=PROVIDERS.flatMap(p=>ids.filter(id=>runs[id].provider===p).slice(0,MAX_RUNS));
  return Object.fromEntries(keep.sort((a,b)=>Number(b)-Number(a)).map(id=>[id,runs[id]]));
 }
-export function rankings(runs,catalog){
+export function rankings(runs,catalog,aliasRoots={}){
  const result={};
  for(const provider of PROVIDERS){
   const totals={};
@@ -65,7 +73,12 @@ export function rankings(runs,catalog){
    }
   }
   const listed=new Set(catalog?.[provider]??[]);
-  result[provider]=Object.entries(totals).filter(([id])=>listed.has(id)).map(([model,t])=>({model,correct:t.correct,
+  // Alias evidence only counts for the alias's current root; a remapped alias starts afresh.
+  const current=([key])=>{
+   const [id,root]=key.split('@');
+   return listed.has(id)&&(root??null)===(aliasRoots?.[provider]?.[id]??null);
+  };
+  result[provider]=Object.entries(totals).filter(current).map(([key,t])=>({model:key.split('@')[0],correct:t.correct,
    attempts:t.attempts,rate:t.attempts?t.correct/t.attempts:0,medianLatency:median(t.latencies)}))
    .sort((a,b)=>b.rate-a.rate||b.attempts-a.attempts||(a.medianLatency??1e9)-(b.medianLatency??1e9)||a.model.localeCompare(b.model,'en'));
  }

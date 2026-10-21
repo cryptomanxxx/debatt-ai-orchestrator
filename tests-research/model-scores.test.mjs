@@ -9,9 +9,9 @@ const v3={provider:'blablador',results:[row('Qwen3.8-27B','correct'),row('Qwen3.
  row('Qwen3.8-27B','not_evaluated','gateway_gateway_http_401',null),row('Qwen3.8-27B','not_evaluated','gateway_gateway_http_403',null)]};
 const hip={provider:'hessian.AI HIP',results:[row('GLM-5.2-AWQ-INT4','correct','ok',8),row('GLM-5.2-AWQ-INT4','correct','ok',10)]};
 
-test('tallies reports; outages, quota stops and alias-default are not model attempts',()=>{
+test('tallies reports; outages, quota stops, alias-default and rootless aliases are not model attempts',()=>{
  assert.deepEqual(tallyReport('blablador-scientific-v3.json',v3),{provider:'blablador',
-  models:{'Qwen3.8-27B':{correct:1,attempts:3,latencies:[1,1]},'alias-fast':{correct:1,attempts:1,latencies:[1]}}});
+  models:{'Qwen3.8-27B':{correct:1,attempts:3,latencies:[1,1]}}});
  assert.deepEqual(tallyReport('results.json',hip),{provider:'hip',
   models:{'GLM-5.2-AWQ-INT4':{correct:2,attempts:2,latencies:[8,10]}}});
  assert.equal(tallyReport('blablador-scientific-v3.json',{...v3,provider:'hip'}).provider,'hip');
@@ -52,4 +52,19 @@ test('latency ties use the median of all calls, not of run medians',()=>{
   B:{correct:15,attempts:15,latencies:Array(15).fill(50)}}}};
  const ranked=rankings(runs,{hip:['A','B']}).hip;
  assert.deepEqual(ranked.map(r=>[r.model,r.medianLatency]),[['B',50],['A',100]]);
+});
+test('alias evidence is keyed by the model it ran and ignored after a remap',()=>{
+ const report={provider:'blablador',model_metadata:{'alias-fast':{root:'openai/gpt-oss-120b'}},results:[
+  {...row('alias-fast','correct'),resolved_model:'openai/gpt-oss-120b'},
+  row('alias-fast','not_evaluated','gateway_benchmark_model_identity_mismatch',null),
+  row('alias-orphan','correct')]};
+ const t=tallyReport('blablador-scientific-v3.json',report);
+ assert.deepEqual(Object.keys(t.models),['alias-fast@openai/gpt-oss-120b']);
+ assert.equal(t.models['alias-fast@openai/gpt-oss-120b'].attempts,2);
+ const runs={'1':t,'2':{provider:'blablador',models:{'alias-fast@openai/gpt-oss-120b':{correct:4,attempts:4,latencies:[1]}}}};
+ const same=rankings(runs,{blablador:['alias-fast']},{blablador:{'alias-fast':'openai/gpt-oss-120b'}}).blablador;
+ assert.deepEqual(same.map(r=>[r.model,r.correct,r.attempts]),[['alias-fast',5,6]]);
+ assert.deepEqual(recommendations({hip:[],blablador:same}),{blablador:{model:'alias-fast',correct:5,attempts:6}});
+ const remapped=rankings(runs,{blablador:['alias-fast']},{blablador:{'alias-fast':'Qwen/Qwen3.8-27B-FP8'}}).blablador;
+ assert.deepEqual(remapped,[]);
 });
