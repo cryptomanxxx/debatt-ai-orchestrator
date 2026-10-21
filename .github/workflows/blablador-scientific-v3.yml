@@ -7,8 +7,9 @@ on:
         description: 'Provider / model (menu refreshed from the Cloudflare catalog by "Refresh HIP/Blablador model menu")'
         required: true
         type: choice
-        # BEGIN GENERATED RESEARCH MODEL OPTIONS providers=hip,blablador
+        # BEGIN GENERATED RESEARCH MODEL OPTIONS providers=hip,blablador all=12
         options:
+          - "hip / alla"
           - "hip / gemma-4-31B-it"
           - "hip / GLM-5.2-AWQ-INT4"
           - "hip / Kimi-K2.6"
@@ -18,6 +19,7 @@ on:
           - "hip / occiglot-7b-eu5-instruct"
           - "hip / qwen3-vl-30b-a3b-instruct-awq"
           - "hip / Qwen3.8-27B"
+          - "blablador / alla"
           - "blablador / deepseek-v4.1-flash-at-hzdr"
           - "blablador / Swift-Qwen3.8-27b"
           - "blablador / trustllm-v2-8b-sft"

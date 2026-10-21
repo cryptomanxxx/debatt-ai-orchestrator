@@ -13,7 +13,7 @@ import urllib.request
 from pathlib import Path
 from sympy import Rational
 from cloudflare_benchmark_client import catalog_models, benchmark_completion, GatewayError, SAFE_ERRORS
-from model_choice import parse_model_choice
+from model_choice import parse_model_choice, snapshot_models
 
 MODEL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,199}$")
 def explicit_model_id(model):
@@ -92,14 +92,15 @@ def main():
         # Workflow dropdown: one "provider / model" entry from the generated menu.
         try:
             provider, model = parse_model_choice(os.environ["BENCHMARK_MODEL"], explicit_model_id)
+            # "provider / alla" runs every explicit model in the committed menu snapshot.
+            models = [model] if model else snapshot_models(provider, explicit_model_id)
         except ValueError as error:
             sys.exit(str(error))
-        models = [model] if model else []
     else:
         models = [m.strip() for m in os.getenv("BENCHMARK_MODELS", "").split(",") if m.strip()]
     rep = os.getenv("BENCHMARK_REPEATS", "2")
-    if rep not in ("1", "2", "3") or not models or len(models) > 6 or len(models) != len(set(models)) or any(not explicit_model_id(m) for m in models):
-        sys.exit("Select 1-6 explicit non-alias model IDs from the current discovered catalog; repeats must be 1-3.")
+    if rep not in ("1", "2", "3") or not models or len(models) > 12 or len(models) != len(set(models)) or any(not explicit_model_id(m) for m in models):
+        sys.exit("Select 1-12 explicit non-alias model IDs from the current discovered catalog; repeats must be 1-3.")
     metadata = {}
     discovery_error = None
     try:

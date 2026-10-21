@@ -3,16 +3,23 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '17 3 * * *'
+  # Refresh the recommended models as soon as a scientific benchmark finishes.
+  workflow_run:
+    workflows: ['Scientific benchmark v3 (HIP or Blablador)', 'HIP scientific benchmark']
+    types: [completed]
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: research-provider-model-discovery
   cancel-in-progress: false
 jobs:
   refresh:
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -20,8 +27,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
-      - name: Test model filtering and menu generation
-        run: node --test tests-research/explicit-models.test.mjs tests-research/model-menu.test.mjs
+      - name: Test model filtering, scoring and menu generation
+        run: node --test tests-research/explicit-models.test.mjs tests-research/model-menu.test.mjs tests-research/model-scores.test.mjs
       - name: Run bounded read-only model discovery
         id: discovery
         env:
@@ -35,6 +42,22 @@ jobs:
           path: reports/provider-catalog/
           if-no-files-found: ignore
           retention-days: 14
+      # Completed benchmark runs on main, failed ones included, from the last 30 days (artifact
+      # retention); runs that left no usable report are skipped by model-scores.mjs.
+      # Runs already in research/model-scores.json are kept even after their artifacts expire.
+      - name: Collect scientific benchmark results
+        if: success() || steps.discovery.outcome == 'failure'
+        # Missing results only delay recommendations; never block the menu refresh.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for workflow in blablador-scientific-v3.yml hip-scientific.yml; do
+            for run in $(gh run list -R "$GITHUB_REPOSITORY" -w "$workflow" -b main -s completed -L 15 --json databaseId -q '.[].databaseId'); do
+              gh run download "$run" -R "$GITHUB_REPOSITORY" -D "reports/benchmarks/$run" || echo "No artifacts left for run $run"
+            done
+          done
+          node research/model-scores.mjs
       # A provider whose discovery failed keeps its last committed models, so this step and
       # the publish steps below also run after a discovery failure (never after cancellation).
       - name: Regenerate workflow model menus
@@ -42,7 +65,7 @@ jobs:
         if: success() || steps.discovery.outcome == 'failure'
         run: |
           node research/model-menu.mjs
-          git add -A .github/workflows research/model-catalog.json
+          git add -A .github/workflows research/model-catalog.json research/model-scores.json research/MODEL-RANKING.md
           if git diff --cached --quiet; then
             echo "Model menus already current."
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -73,8 +96,9 @@ jobs:
           if ! git push origin HEAD:main; then
             git fetch --depth=1 origin main
             git reset -q --hard origin/main
+            node research/model-scores.mjs
             node research/model-menu.mjs
-            git add -A .github/workflows research/model-catalog.json
+            git add -A .github/workflows research/model-catalog.json research/model-scores.json research/MODEL-RANKING.md
             git diff --cached --quiet && exit 0
             git commit -q -m 'chore(research): refresh HIP/Blablador model menu'
             git push origin HEAD:main
