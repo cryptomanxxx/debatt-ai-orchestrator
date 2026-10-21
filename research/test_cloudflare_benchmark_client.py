@@ -44,8 +44,11 @@ class CloudflareAdapterTest(unittest.TestCase):
                   "answer":"partial","finish_reason":"length","scientificallyVerified":False,
                   "backendIdentityVerified":False,"completion_latency_seconds":0.8,
                   "usage":{"prompt_tokens":10,"completion_tokens":256,"total_tokens":266}}
-        result=benchmark_completion(KEY,"blablador",PAYLOAD,fake(response,seen))
+        result=benchmark_completion(KEY,"blablador",PAYLOAD,fake(response,seen),allow_truncated=True)
         self.assertEqual(result["choices"][0]["finish_reason"],"length")
+        with self.assertRaises(GatewayError) as error:
+            benchmark_completion(KEY,"blablador",PAYLOAD,fake(response,[]))
+        self.assertEqual(str(error.exception),"gateway_completion_invalid")
 
     def test_invalid_usage_fails(self):
         with self.assertRaises(GatewayError):
