@@ -97,3 +97,73 @@ globalThis.fetch = async (url, options = {}) => {
     } finally { await rm(dir, { recursive: true, force: true }); }
   }
 });
+
+for (const variant of ['explicit', 'alias', 'alias_remapped', 'gateway_error']) test(`runner calls a benchmark-ranked model chosen by the planner through the lab gateway profile (${variant})`, async () => {
+  const alias = variant !== 'explicit';
+  const provider = alias ? 'blablador' : 'hip', model = alias ? 'alias-fast' : 'GLM-5.2-AWQ-INT4', choice = `${provider} / ${model}`;
+  const dir = await mkdtemp(join(tmpdir(), 'oraklet-runner-ranked-'));
+  try {
+    const { mkdir } = await import('node:fs/promises');
+    await mkdir(join(dir, 'research'));
+    const domains = { symbolic: { correct: 8, attempts: 8, latencies: [3] } };
+    await writeFile(join(dir, 'research/model-scores.json'), JSON.stringify({ runs: { '9': { provider, suite: 'domains-v1',
+      models: { [alias ? 'alias-fast@openai/gpt-oss-120b' : model]: { correct: 8, attempts: 8, latencies: [3], domains } } } } }));
+    await writeFile(join(dir, 'research/model-catalog.json'), JSON.stringify({ providers: { hip: alias ? [] : [model], blablador: alias ? [model] : [] },
+      aliasRoots: alias ? { blablador: { 'alias-fast': 'openai/gpt-oss-120b' } } : {} }));
+    const mock = `
+import { writeFile } from 'node:fs/promises';
+import { makeCases, UPSTREAM } from ${JSON.stringify(core)};
+const cases = makeCases('123'); let planned = false;
+globalThis.fetch = async (url, options = {}) => {
+  if (String(url).includes('supabase.co')) {
+    if (options.method === 'POST') { await writeFile('saved.json', options.body); return new Response('', { status: 201 }); }
+    return Response.json([]);
+  }
+  if (String(url).endsWith('/v1/model-profile')) return Response.json({ reasoningAvailable: false });
+  const body = JSON.parse(options.body);
+  if (body.tool) {
+    const fixture = cases.find(c => JSON.stringify(c.input.banked) === JSON.stringify(body.input.banked));
+    const accepted = JSON.stringify(fixture.input.holdout) === JSON.stringify(body.input.holdout);
+    return Response.json({ provider: 'bootloops', mock: false,
+      toolResult: { tool: 'bootloops_ratfit', upstreamCommit: UPSTREAM, accepted, depth: 3, checked: 3, failed: accepted ? 0 : 1 },
+      verification: { status: accepted ? 'passed' : 'failed', scope: 'exact_rational_holdout', factualityChecked: false } }, { status: accepted ? 200 : 422 });
+  }
+  if (String(url).endsWith('/v1/research/benchmark')) {
+    if (!planned) throw new Error('Lab gateway called before planning');
+    if (body.profile !== 'lab' || body.max_tokens !== 4096 || body.provider !== ${JSON.stringify(provider)} || body.model !== ${JSON.stringify(model)})
+      throw new Error('Unexpected lab request ' + JSON.stringify({ ...body, messages: undefined }));
+    if (${JSON.stringify(variant)} === 'gateway_error') return Response.json({ error: 'benchmark_response_too_large' }, { status: 502 });
+    const banked = JSON.parse(JSON.parse(body.messages[0].content).messages[1].content).banked;
+    const answer = { method: 'bootloops_ratfit', coefficients: cases.find(c => JSON.stringify(c.input.banked) === JSON.stringify(banked)).truth, reason: 'Förslag.' };
+    return Response.json({ status: 'completed_unverified', provider: ${JSON.stringify(provider)}, model: ${JSON.stringify(model)}, finish_reason: 'stop',
+      ...(${alias} ? { resolved_model: ${JSON.stringify(variant === 'alias_remapped' ? 'Qwen/Qwen3.8-27B-FP8' : 'openai/gpt-oss-120b')} } : {}),
+      answer: '\`\`\`json\\n' + JSON.stringify(answer) + '\\n\`\`\`', scientificallyVerified: false, backendIdentityVerified: false });
+  }
+  if (planned) throw new Error('Configured model used after a ranked choice');
+  const prompt = JSON.parse(JSON.parse(body.message).messages[1].content);
+  if (prompt.researchModels?.symbolic?.[0]?.modelMode !== ${JSON.stringify(choice)}) throw new Error('Ranked models missing from prompt');
+  planned = true;
+  return Response.json({ answer: JSON.stringify({ experimentId: 'ratfit-feedback', seed: '123', reason: 'Bäst rankad i symbolisk matematik.',
+    modelMode: ${JSON.stringify(choice)} }), provider: 'groq', model: 'same', mock: false, inference: { completionTokenLimit: 4096 } });
+};`;
+    const preload = join(dir, 'mock.mjs'); await writeFile(preload, mock);
+    const child = run(process.execPath, ['--import', pathToFileURL(preload).href, runner], {
+      cwd: dir, env: { ...process.env, ORCHESTRATOR_API_KEY: 'test'.repeat(8), SUPABASE_SERVICE_ROLE_KEY: 'test',
+        EXPERIMENT: 'auto', EXPERIMENT_SEED: '123' }, timeout: 15000 });
+    const fails = { alias_remapped: 'model_identity_mismatch', gateway_error: 'oversized_provider_response' }[variant];
+    if (fails) await assert.rejects(child); else await child;
+    const saved = JSON.parse(await readFile(join(dir, 'saved.json'), 'utf8'));
+    assert.deepEqual(saved.rapport.plan.modelChoice, { domain: 'symbolic', provider, model, ...(alias ? { root: 'openai/gpt-oss-120b' } : {}),
+      evidence: { suite: 'Scientific benchmark v4', correct: 8, attempts: 8 } });
+    if (fails) {
+      assert.equal(saved.rapport.executionStatus, 'error');
+      assert.equal(saved.rapport.failure.code, fails);
+      if (variant === 'gateway_error') assert.equal(saved.rapport.failure.httpStatus, 502);
+      return;
+    }
+    assert.equal(saved.rapport.executionStatus, 'completed');
+    assert.equal(saved.rapport.modelMode, choice);
+    assert.equal(saved.rapport.cases.length, 3);
+    assert.ok(saved.rapport.modelCalls >= 4);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

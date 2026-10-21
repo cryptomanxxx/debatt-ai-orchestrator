@@ -3,6 +3,7 @@ import { ResearchError, diagnostic } from './errors.mjs';
 import { mkdir, writeFile, appendFile } from 'node:fs/promises';
 import { randomUUID, createHash } from 'node:crypto';
 import { CATALOG, choosePlan, lockModel } from './catalog.mjs';
+import { loadResearchChoices, chosenResearchModel, unwrapJsonAnswer } from './lab-models.mjs';
 import { runExperiment } from './ratfit.mjs';
 import { runRankExperiment, callRankscreen } from './rankscreen.mjs';
 import { runScienceExperiment } from './science.mjs';
@@ -98,6 +99,42 @@ const proposer = mode => lockModel(async messages => {
 });
 const planningPropose = proposer('default');
 
+// A benchmark-ranked HIP/Blablador model, called through the Worker's research gateway with the
+// lab's token budget. It shares the seven-call ceiling and locks its own identity like any mode.
+// The gateway's fixed error codes keep their category in the lab's diagnostics; provider HTTP,
+// quota, rate-limit and catalog failures stay model_upstream_http_error with the HTTP status.
+const GATEWAY_ERRORS = Object.freeze({
+  benchmark_transport_failed: 'model_transport_error',
+  benchmark_invalid_upstream_json: 'model_invalid_response', benchmark_invalid_response: 'model_invalid_response',
+  benchmark_response_too_large: 'oversized_provider_response',
+  benchmark_invalid_finish_reason: 'incomplete_model_response',
+  benchmark_token_budget_exceeded: 'model_budget_not_applied',
+  benchmark_missing_answer: 'model_empty_response',
+  benchmark_model_identity_mismatch: 'model_identity_mismatch',
+});
+// The request may include a catalog lookup (up to 25 s) before the 50-second lab completion.
+const researchProposer = ({ provider, model, root }) => lockModel(async messages => {
+  if (++modelCalls > 7) throw new ResearchError('model_budget_exceeded');
+  const payload = { provider, model, profile: 'lab', max_tokens: completionTokenLimit, messages: [{ role: 'user',
+    content: JSON.stringify({ instruction: 'Följ denna konversation och svara endast med begärd JSON.', messages }) }] };
+  let response;
+  try {
+    response = await fetch(API.replace(/\/v1\/query$/, '/v1/research/benchmark'), {
+      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(80000),
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  } catch { throw new ResearchError('model_transport_error'); }
+  let data;
+  try { data = await readJson(response); } catch { throw new ResearchError('model_invalid_response', { httpStatus: response.status }); }
+  if (response.status !== 200)
+    throw new ResearchError(GATEWAY_ERRORS[data?.error] ?? 'model_upstream_http_error', { httpStatus: response.status });
+  if (data?.status !== 'completed_unverified' || data.provider !== provider || data.model !== model || typeof data.answer !== 'string')
+    throw new ResearchError('invalid_model_response');
+  // An alias must still run the backing model its ranking evidence came from.
+  if (root && data.resolved_model !== root) throw new ResearchError('model_identity_mismatch');
+  if (data.finish_reason !== 'stop') throw new ResearchError('model_output_truncated');
+  return { text: unwrapJsonAnswer(data.answer), provider: data.provider, model: data.model };
+});
+
 // The planner may choose the reasoning model only when the orchestrator reports one configured.
 async function plannerModelModes() {
   try {
@@ -123,9 +160,16 @@ let completedCases = [];
 let plan, planCommitment, report, executionFailed = false, stage = 'planning';
 try {
   const modelModes = selection === 'auto' ? await plannerModelModes() : ['default'];
-  plan = await choosePlan(selection, seed, history, planningPropose, modelModes);
+  const researchChoices = selection === 'auto' ? await loadResearchChoices() : {};
+  plan = await choosePlan(selection, seed, history, planningPropose, modelModes, researchChoices);
+  const domain = CATALOG.find(e => e.id === plan.experimentId)?.domain;
+  const ranked = chosenResearchModel(plan.modelMode, domain, researchChoices);
+  // The evidence behind a ranked choice is committed with the plan, before any experiment call.
+  if (ranked) plan.modelChoice = { domain, provider: ranked.provider, model: ranked.model, ...(ranked.root ? { root: ranked.root } : {}),
+    evidence: { suite: 'Scientific benchmark v4', correct: ranked.correct, attempts: ranked.attempts } };
   // A default-mode plan keeps the planning identity lock, exactly as before model choice existed.
-  const propose = (plan.modelMode ?? 'default') === 'default' ? planningPropose : proposer(plan.modelMode);
+  const propose = ranked ? researchProposer(ranked)
+    : (plan.modelMode ?? 'default') === 'default' ? planningPropose : proposer(plan.modelMode);
   if (plan.seedAdjustment) console.log('Seed ändrad före datagenerering:', JSON.stringify(plan.seedAdjustment), '→', plan.seed);
   planCommitment = createHash('sha256').update(JSON.stringify(plan)).digest('hex');
   await writeFile(`${directory}/plan.json`, JSON.stringify({ plan, planCommitment, ...metadata }, null, 2));

@@ -8,7 +8,10 @@ const SOURCES = {
 } as const;
 type Provider=keyof typeof SOURCES;
 const SAFE_ID=/^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,199}$/;
-const BUDGET={standard:{tokens:512,chars:4000,timeout:45000},benchmark:{tokens:768,chars:12000,timeout:60000}} as const;
+// lab: Oraklet's experiment calls on a benchmark-ranked model, with the lab's own 4,096-token
+// budget; catalog lookup (25 s) plus this timeout stay below the lab client's 80-second timeout.
+const BUDGET={standard:{tokens:512,chars:4000,timeout:45000},benchmark:{tokens:768,chars:12000,timeout:60000},
+  lab:{tokens:4096,chars:12000,timeout:50000}} as const;
 const MAX_RESPONSE=65536;
 // Same non-chat predicate as the menu's catalog filter (research/explicit-models.mjs).
 const blockedId=(id:string)=>/embedding|rerank|bge-|gte-|whisper|transcri|tts|audio|image|all-proxy|moderation|anonymiz/i.test(id);
