@@ -99,3 +99,13 @@ test('one alias per backing model, shown with the model it runs',()=>{
  for(const option of options)assert.equal(parseChoice(option).provider,'blablador');
  assert.equal(parseChoice(options[0]).model,'alias-fast');
 });
+test('aliases are offered for Blablador only, with bounded labels',()=>{
+ const long='org/'+'x'.repeat(290);
+ const fresh={providers:{hip:{status:'catalog_unverified',models:['Kimi-K2.6','alias-hip'],aliases:{'alias-hip':'org/hip-model'}},
+  blablador:{status:'catalog_unverified',models:['alias-long'],aliases:{'alias-long':long}}}};
+ const {models,aliasRoots}=mergeCatalog(fresh);
+ assert.deepEqual(models.hip,['Kimi-K2.6']);
+ const [option]=optionsFor(models,['blablador'],false,{},Infinity,aliasRoots);
+ assert.equal(option,'blablador / alias-long = '+'x'.repeat(80));
+ assert.equal(parseChoice(option).model,'alias-long');
+});

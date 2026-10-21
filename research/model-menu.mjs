@@ -6,6 +6,8 @@ import {rankings,recommendations,rankingMarkdown} from './model-scores.mjs';
 
 export const PROVIDERS=['hip','blablador'];
 export const PLACEHOLDER='REFRESH_MODEL_MENU_FIRST';
+// Only the Scientific v3 runner resolves aliases; the HIP runner accepts explicit IDs only.
+const ALIAS_PROVIDERS=['blablador'];
 // " all" adds "<provider> / alla"; " all=12" adds it only while the provider has at most 12 models.
 const BEGIN=/^( *)# BEGIN GENERATED RESEARCH MODEL OPTIONS providers=([a-z,]+)(?:( all)(?:=(\d{1,3}))?)?$/;
 const END=/^ *# END GENERATED RESEARCH MODEL OPTIONS$/;
@@ -20,7 +22,7 @@ export function mergeCatalog(fresh,previous={},previousAliases={}){
   const p=fresh?.providers?.[name];
   const isFresh=p?.status==='catalog_unverified'&&Array.isArray(p.models);
   const ids=isFresh?p.models:(Array.isArray(previous?.[name])?previous[name]:[]);
-  const picked=aliasModels(isFresh?p.aliases:previousAliases?.[name]);
+  const picked=ALIAS_PROVIDERS.includes(name)?aliasModels(isFresh?p.aliases:previousAliases?.[name]):{};
   aliasRoots[name]=Object.fromEntries(Object.entries(picked).filter(([alias])=>ids.includes(alias)));
   merged[name]=[...explicitModels(ids),...Object.keys(aliasRoots[name])];
   sources[name]=isFresh?'fresh':'previous_snapshot';

@@ -28,4 +28,5 @@ export function aliasModels(map){
  return Object.fromEntries([...byRoot].map(([root,alias])=>[alias,root]).sort(([a],[b])=>a.localeCompare(b,'en')));
 }
 // "openai/gpt-oss-120b" -> "gpt-oss-120b"; a /p/scratch/... path -> its last segment.
-export const rootLabel=root=>String(root).split('/').filter(Boolean).pop()??String(root);
+// Capped at 80 characters so every generated label stays within the choice parsers' bounds.
+export const rootLabel=root=>(String(root).split('/').filter(Boolean).pop()??String(root)).slice(0,80);
