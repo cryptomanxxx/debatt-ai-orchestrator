@@ -38,6 +38,15 @@ class CloudflareAdapterTest(unittest.TestCase):
                 catalog_models(KEY,"blablador",rejected)
             self.assertEqual(str(error.exception),expected)
 
+    def test_truncated_completion_preserves_length(self):
+        seen=[]
+        response={"status":"completed_unverified","provider":"blablador","model":MODEL,
+                  "answer":"partial","finish_reason":"length","scientificallyVerified":False,
+                  "backendIdentityVerified":False,"completion_latency_seconds":0.8,
+                  "usage":{"prompt_tokens":10,"completion_tokens":256,"total_tokens":266}}
+        result=benchmark_completion(KEY,"blablador",PAYLOAD,fake(response,seen))
+        self.assertEqual(result["choices"][0]["finish_reason"],"length")
+
     def test_invalid_usage_fails(self):
         with self.assertRaises(GatewayError):
             benchmark_completion(KEY,"blablador",PAYLOAD,fake({"status":"completed_unverified","provider":"blablador","model":MODEL,"answer":"4","finish_reason":"stop","scientificallyVerified":False,"backendIdentityVerified":False,"completion_latency_seconds":1,"usage":{"prompt_tokens":3,"completion_tokens":257,"total_tokens":260}},[]))
