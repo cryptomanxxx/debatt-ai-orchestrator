@@ -9,7 +9,7 @@ on:
         type: choice
         # BEGIN GENERATED RESEARCH MODEL OPTIONS providers=hip,blablador all=12
         options:
-          - "hip / GLM-5.2-AWQ-INT4 (rekommenderad 15/15)"
+          - "hip / GLM-5.2-AWQ-INT4 (rekommenderad 20/20)"
           - "blablador / deepseek-v4.1-flash-at-hzdr (rekommenderad 5/5)"
           - "hip / alla"
           - "hip / gemma-4-31B-it"
@@ -31,7 +31,7 @@ on:
           - "blablador / alias-fast = gpt-oss-120b"
           - "blablador / alias-qwen3.8-flash-next = Qwen3.8-Flash-Next-NVFP4"
           - "blablador / alias-qwen38-27b = Qwen3.8-27B-FP8"
-        default: "hip / GLM-5.2-AWQ-INT4 (rekommenderad 15/15)"
+        default: "hip / GLM-5.2-AWQ-INT4 (rekommenderad 20/20)"
         # END GENERATED RESEARCH MODEL OPTIONS
       repeats:
         description: 'Runs per task (1–3)'

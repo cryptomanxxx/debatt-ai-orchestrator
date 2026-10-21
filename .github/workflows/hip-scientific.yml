@@ -9,7 +9,7 @@ on:
         type: choice
         # BEGIN GENERATED RESEARCH MODEL OPTIONS providers=hip all
         options:
-          - "hip / GLM-5.2-AWQ-INT4 (rekommenderad 15/15)"
+          - "hip / GLM-5.2-AWQ-INT4 (rekommenderad 20/20)"
           - "hip / alla"
           - "hip / gemma-4-31B-it"
           - "hip / GLM-5.2-AWQ-INT4"
@@ -20,7 +20,7 @@ on:
           - "hip / occiglot-7b-eu5-instruct"
           - "hip / qwen3-vl-30b-a3b-instruct-awq"
           - "hip / Qwen3.8-27B"
-        default: "hip / GLM-5.2-AWQ-INT4 (rekommenderad 15/15)"
+        default: "hip / GLM-5.2-AWQ-INT4 (rekommenderad 20/20)"
         # END GENERATED RESEARCH MODEL OPTIONS
       repeats:
         description: 'Repeats per task (all models: 45, 90 or 135 inference calls)'
