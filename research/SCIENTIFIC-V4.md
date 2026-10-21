@@ -26,7 +26,7 @@ Actions → *Scientific benchmark v4 (domains)* → Run workflow:
 - `tasks_per_domain`: 8 (40 tasks) or 4 (20 tasks).
 - `repeats`: 1 or 2.
 
-Calls go through the Cloudflare Worker exactly like v3, with temperature 0 and at most 768 tokens. The artifact `scientific-v4-results` holds every answer.
+Calls go through the Cloudflare Worker exactly like v3, with temperature 0 and at most 768 tokens. The artifact `scientific-v4-<run id>-<attempt>` holds every answer; for a rerun only the latest attempt is scored.
 
 ## Ranking
 

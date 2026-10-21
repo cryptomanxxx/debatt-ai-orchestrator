@@ -82,7 +82,7 @@ test('pre-dispatch refusals are not attempts; synonyms of one root share evidenc
  const slash={provider:'blablador',model_metadata:{'alias-x':{root:'/'}},results:[row('alias-x','correct')]};
  assert.equal(tallyReport('blablador-scientific-v3.json',slash),null);
 });
-import {domainRankings,domainRecommendations,domainMarkdown,DOMAIN_SUITE,DOMAINS} from '../research/model-scores.mjs';
+import {domainRankings,domainRecommendations,domainMarkdown,DOMAIN_SUITE,DOMAINS,latestRunTally} from '../research/model-scores.mjs';
 const drow=(model,domain,verdict,status='ok',extra={})=>({model,domain,scientific_verdict:verdict,status,latency_seconds:1,...extra});
 test('Scientific v4 reports are tallied per domain and kept out of the classic ranking',()=>{
  const report={schema_version:4,suite:DOMAIN_SUITE,provider:'hip',results:[
@@ -134,4 +134,14 @@ test('domain ties break on latency in that domain only; suites keep separate run
  const kept=mergeRuns(many,{});
  assert.ok(kept['5'],'the older classic run survives 45 newer domain runs');
  assert.equal(Object.values(kept).filter(r=>r.suite===DOMAIN_SUITE).length,40);
+});
+test('only the newest attempt of a rerun is scored, and an unusable newest attempt clears the run',async()=>{
+ const good={schema_version:4,suite:DOMAIN_SUITE,provider:'hip',results:[drow('Qwen3.8-27B','causal','correct')]};
+ const failed={...good,results:[drow('Qwen3.8-27B','causal','not_evaluated','discovery_failed')]};
+ const files=[{name:'scientific-v4.json',path:'a1',attempt:1},{name:'scientific-v4.json',path:'a2',attempt:2}];
+ const read=bodies=>async path=>JSON.stringify(bodies[path]);
+ assert.equal(await latestRunTally(files,read({a1:good,a2:failed})),null);
+ assert.equal((await latestRunTally(files,read({a1:failed,a2:good}))).models['Qwen3.8-27B'].correct,1);
+ const stored={'7':tallyReport('scientific-v4.json',good)};
+ assert.deepEqual(mergeRuns(stored,{'7':null}),{});
 });
