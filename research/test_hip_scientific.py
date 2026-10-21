@@ -1,8 +1,12 @@
+import json
 import unittest
 import http.client
 from unittest.mock import patch, MagicMock
 import urllib.error
 from hip_scientific import MODELS, EXCLUDED, TASKS, settings, score, summary, api, ApiError, model_ids
+from cloudflare_benchmark_client import GatewayError
+
+KEY = 'test-orchestrator-key-not-real-1234'
 from blablador_scientific_v3 import TASKS as ORIGINAL_TASKS
 
 class HipScientificTests(unittest.TestCase):
@@ -48,10 +52,38 @@ class HipScientificTests(unittest.TestCase):
         self.assertIn('not proof', text)
 
     def test_http_errors_hide_body_and_credentials(self):
-        error = urllib.error.HTTPError('https://example.invalid/test-secret', 401, 'test-secret', {}, None)
+        error = urllib.error.HTTPError('https://example.invalid/' + KEY, 401, KEY, {}, None)
         with patch('urllib.request.OpenerDirector.open', side_effect=error):
             with self.assertRaisesRegex(ApiError, '^http_401$'):
-                api('test-secret', '/models')
+                api(KEY, '/models')
+
+    def test_only_worker_gateway_is_called_without_provider_key(self):
+        sent = []
+        def fake_open(req, timeout=None):
+            sent.append(req)
+            response = MagicMock()
+            body = {'status': 'completed_unverified', 'provider': 'hip', 'model': MODELS[0],
+                    'answer': 'FINAL_ANSWER: 2', 'finish_reason': 'length',
+                    'completion_latency_seconds': 1.5, 'scientificallyVerified': False,
+                    'backendIdentityVerified': False,
+                    'usage': {'prompt_tokens': 1, 'completion_tokens': 2, 'total_tokens': 3}}
+            response.__enter__.return_value.read.return_value = json.dumps(body).encode()
+            return response
+        with patch('urllib.request.OpenerDirector.open', side_effect=fake_open):
+            reply = api(KEY, '/chat/completions', dict(model=MODELS[0],
+                        messages=[dict(role='user', content='q')], temperature=0, max_tokens=768))
+        self.assertEqual(sent[0].full_url, 'https://debatt-ai-orchestrator.xx8031126.workers.dev/v1/research/benchmark')
+        self.assertEqual(sent[0].get_header('Authorization'), 'Bearer ' + KEY)
+        self.assertEqual(json.loads(sent[0].data)['provider'], 'hip')
+        self.assertEqual(score(reply, '2', KEY, MODELS[0])['status'], 'truncated')
+
+    def test_gateway_errors_are_sanitized(self):
+        for raised, expected in (('gateway_http_429', 'http_429'), ('gateway_http_5xx', 'gateway_http_5xx'),
+                                 ('benchmark_model_identity_mismatch', 'gateway_benchmark_model_identity_mismatch'),
+                                 (KEY, 'gateway_error')):
+            with self.subTest(raised=raised), patch('hip_scientific.catalog_models', side_effect=GatewayError(raised)):
+                with self.assertRaisesRegex(ApiError, '^' + expected + '$'):
+                    api(KEY, '/models')
 
 class HipReviewRegressionTests(unittest.TestCase):
     def test_incomplete_body_becomes_sanitized_per_model_error(self):
@@ -59,7 +91,7 @@ class HipReviewRegressionTests(unittest.TestCase):
         response.__enter__.return_value.read.side_effect = http.client.IncompleteRead(b'test-secret')
         with patch('urllib.request.OpenerDirector.open', return_value=response):
             with self.assertRaisesRegex(ApiError, '^transport_or_json_error$'):
-                api('test-secret', '/chat/completions', {'model': MODELS[0]})
+                api(KEY, '/chat/completions', dict(model=MODELS[0], messages=[], temperature=0, max_tokens=768))
 
     def test_malformed_model_lists_are_discovery_errors(self):
         for value in (None, [], {}, 'model', {'data': {}}, {'data': 'model'},

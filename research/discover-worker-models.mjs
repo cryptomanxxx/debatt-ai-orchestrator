@@ -1,5 +1,6 @@
 // Export provider-scoped model IDs only; no credentials, inference, or provider metadata.
-import {mkdir,writeFile} from 'node:fs/promises';
+import {mkdir,writeFile,appendFile} from 'node:fs/promises';
+import {explicitModels} from './explicit-models.mjs';
 const url='https://debatt-ai-orchestrator.xx8031126.workers.dev/v1/research/models';
 const key=process.env.ORCHESTRATOR_API_KEY;
 if(typeof key!=='string'||key.length<24)throw Error('missing_orchestrator_key');
@@ -24,7 +25,7 @@ for(const name of ['hip','blablador']){
  if(p?.status==='catalog_unverified' && p.provider===name && p.backendIdentityVerified===false &&
    Array.isArray(p.models) && p.models.length<=200 &&
    p.models.every(id=>typeof id==='string'&&/^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,199}$/.test(id))){
-     result.providers[name]={status:'catalog_unverified',models:p.models};
+     result.providers[name]={status:'catalog_unverified',models:p.models,explicitChatModels:explicitModels(p.models)};
  }else{
      result.providers[name]={status:'failed'};
  }
@@ -32,4 +33,11 @@ for(const name of ['hip','blablador']){
 await mkdir('reports/provider-catalog',{recursive:true});
 await writeFile('reports/provider-catalog/catalog.json',JSON.stringify(result,null,2)+'\n');
 for(const [name,p] of Object.entries(result.providers))console.log(name,p.status,p.models?.length??0,'models');
+// Catalog IDs are character-validated above, so they are safe inside Markdown code spans.
+const summary=['# Research model catalog','','Use these explicit IDs as workflow inputs (e.g. Blablador scientific v3). Catalog presence is not proof of chat capability.',''];
+for(const [name,p] of Object.entries(result.providers)){
+ summary.push('## '+name,'');
+ summary.push(p.status==='failed'?'Discovery failed.':(p.explicitChatModels.map(id=>'- `'+id+'`').join('\n')||'No explicit chat model IDs.'),'');
+}
+if(process.env.GITHUB_STEP_SUMMARY)await appendFile(process.env.GITHUB_STEP_SUMMARY,summary.join('\n')+'\n');
 if(Object.values(result.providers).some(p=>p.status==='failed'))process.exitCode=1;
