@@ -35,7 +35,6 @@ test('rejects invalid, oversize and unknown model requests before completion',as
 test('strictly rejects upstream identity swaps, secrets, malformed and incomplete replies',async()=>{
  const responses=[
   {model:'other',choices:[{finish_reason:'stop',message:{content:'ok'}}]},
-  {model:input.model,choices:[{finish_reason:'length',message:{content:'ok'}}]},
   {model:input.model,choices:[{finish_reason:'stop',message:{content:keys.HIP_API_KEY}}]}
  ];
  for(const answer of responses){
@@ -48,6 +47,18 @@ test('strictly rejects upstream identity swaps, secrets, malformed and incomplet
  }
 });
 
+test('retains safe length responses without claiming scientific verification',async()=>{
+ const stub=async(url:string|URL|Request)=>{
+   if(String(url).endsWith('/models'))return Response.json({data:[{id:input.model}]});
+   return Response.json({model:input.model,choices:[{finish_reason:'length',message:{content:'partial answer'}}],
+     usage:{prompt_tokens:8,completion_tokens:768,total_tokens:776}});
+ };
+ const r=await researchBenchmark(input,keys,stub as typeof fetch);
+ assert.equal(r.status,200);
+ assert.equal((r.data as any).finish_reason,'length');
+ assert.equal((r.data as any).answer,'partial answer');
+ assert.equal((r.data as any).scientificallyVerified,false);
+});
 test('rejects provider keys containing whitespace before calling discovery',async()=>{
  let calls=0;
  const result=await researchBenchmark(input,{HIP_API_KEY:'invalid secret value'},(async()=>{
