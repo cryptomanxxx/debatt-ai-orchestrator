@@ -28,7 +28,9 @@ export function tallyReport(fileName,report){
  const models={};
  for(const row of report.results){
   const id=row?.model;
-  if(typeof id!=='string'||!explicitModels([id]).length||NOT_MODEL_ATTEMPT.has(row.status))continue;
+  // Scientific v3 prefixes gateway codes once more ("gateway_gateway_http_401").
+  const status=typeof row.status==='string'?row.status.replace(/^(?:gateway_)+/,'gateway_'):row.status;
+  if(typeof id!=='string'||!explicitModels([id]).length||NOT_MODEL_ATTEMPT.has(status))continue;
   const m=models[id]??={correct:0,attempts:0,latencies:[]};
   m.attempts++;
   if(row.scientific_verdict==='correct')m.correct++;
@@ -42,10 +44,13 @@ export function tallyReport(fileName,report){
  return Object.keys(out).length?{provider,models:out}:null;
 }
 // Runs are keyed by Actions run ID, so re-ingesting an artifact never double counts.
+// The newest MAX_RUNS are kept per provider, so a rarely benchmarked provider keeps its history.
 export function mergeRuns(existing,fresh){
  const runs={...(existing??{}),...fresh};
- const keep=Object.keys(runs).filter(id=>/^\d{1,20}$/.test(id)).sort((a,b)=>Number(b)-Number(a)).slice(0,MAX_RUNS);
- return Object.fromEntries(keep.map(id=>[id,runs[id]]));
+ const ids=Object.keys(runs).filter(id=>/^\d{1,20}$/.test(id)&&PROVIDERS.includes(runs[id]?.provider))
+  .sort((a,b)=>Number(b)-Number(a));
+ const keep=PROVIDERS.flatMap(p=>ids.filter(id=>runs[id].provider===p).slice(0,MAX_RUNS));
+ return Object.fromEntries(keep.sort((a,b)=>Number(b)-Number(a)).map(id=>[id,runs[id]]));
 }
 export function rankings(runs,catalog){
  const result={};

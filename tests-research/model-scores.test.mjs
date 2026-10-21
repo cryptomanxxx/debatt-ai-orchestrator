@@ -5,7 +5,8 @@ import {tallyReport,mergeRuns,rankings,recommendations,rankingMarkdown,attemptOf
 const row=(model,verdict,status='ok',latency=1)=>({model,scientific_verdict:verdict,status,latency_seconds:latency});
 const v3={provider:'blablador',results:[row('Qwen3.8-27B','correct'),row('Qwen3.8-27B','incorrect',)
  ,row('alias-fast','correct'),row('Qwen3.8-27B','not_evaluated','gateway_http_5xx',null),
- row('Qwen3.8-27B','not_evaluated','discovery_failed',null),row('Qwen3.8-27B','not_evaluated','rate_limited',null)]};
+ row('Qwen3.8-27B','not_evaluated','discovery_failed',null),row('Qwen3.8-27B','not_evaluated','rate_limited',null),
+ row('Qwen3.8-27B','not_evaluated','gateway_gateway_http_401',null),row('Qwen3.8-27B','not_evaluated','gateway_gateway_http_403',null)]};
 const hip={provider:'hessian.AI HIP',results:[row('GLM-5.2-AWQ-INT4','correct','ok',8),row('GLM-5.2-AWQ-INT4','correct','ok',10)]};
 
 test('tallies reports; outages, quota stops and aliases are not model attempts',()=>{
@@ -25,10 +26,12 @@ test('the latest rerun attempt is identified from the artifact directory',()=>{
 test('runs are keyed by run ID, never double counted, and capped',()=>{
  const run={provider:'hip',models:{a:{correct:1,attempts:1,latencies:[1]}}};
  assert.deepEqual(Object.keys(mergeRuns({'5':run},{'5':run,'7':run})).sort(),['5','7']);
- const many=Object.fromEntries(Array.from({length:45},(_,i)=>[String(i+1),run]));
- const kept=Object.keys(mergeRuns(many,{}));
- assert.equal(kept.length,40);assert.ok(!kept.includes('1'));
- assert.deepEqual(Object.keys(mergeRuns({x:run},{})),[]);
+ const many=Object.fromEntries(Array.from({length:45},(_,i)=>[String(i+100),run]));
+ const blab={provider:'blablador',models:{q:{correct:1,attempts:1,latencies:[1]}}};
+ const kept=Object.keys(mergeRuns(many,{'5':blab,'6':blab}));
+ assert.equal(kept.length,42);assert.ok(!kept.includes('100'));
+ assert.ok(kept.includes('5')&&kept.includes('6'),'older runs of the other provider are kept');
+ assert.deepEqual(Object.keys(mergeRuns({x:run,'9':{provider:'other'}},{})),[]);
 });
 test('ranks by correct share, needs five answers, and only recommends catalog models',()=>{
  const runs={
