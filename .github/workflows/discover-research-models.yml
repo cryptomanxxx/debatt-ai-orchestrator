@@ -17,6 +17,7 @@ jobs:
         with:
           node-version: '24'
       - name: Run bounded read-only model discovery
+        id: discovery
         env:
           ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
         run: node research/discover-worker-models.mjs
@@ -31,6 +32,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
       - name: Publish dynamic model choices to Scientific v3 on main
+        if: success() || (failure() && steps.discovery.outcome == 'failure')
         env:
           MODEL_MENU_WORKFLOW_TOKEN: ${{ secrets.MODEL_MENU_WORKFLOW_TOKEN }}
         run: node research/update-scientific-model-menu.mjs
