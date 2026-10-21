@@ -70,6 +70,8 @@ def evaluate(content, expected):
             pass
     return "unverified", compliant, candidate
 
+RETRYABLE = frozenset({"gateway_http_429", "benchmark_catalog_unavailable"})
+
 def api(key, path, payload=None, provider="blablador"):
     if path == "/models" and payload is None:
         return catalog_models(key, provider)
@@ -78,10 +80,10 @@ def api(key, path, payload=None, provider="blablador"):
             try:
                 return benchmark_completion(key, provider, payload, allow_truncated=True)
             except GatewayError as error:
-                if str(error) != "gateway_http_429" or attempt == 2:
+                # Rate limits and a briefly unreachable provider catalog are retried with backoff.
+                if str(error) not in RETRYABLE or attempt == 2:
                     raise
                 time.sleep((5, 15)[attempt])
-        raise GatewayError("gateway_http_429")
     raise GatewayError("invalid_gateway_path")
 
 

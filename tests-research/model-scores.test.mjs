@@ -73,7 +73,8 @@ test('pre-dispatch refusals are not attempts; synonyms of one root share evidenc
   {...row('alias-fast','correct'),resolved_model:'openai/gpt-oss-120b'},
   row('alias-fast','not_evaluated','gateway_benchmark_alias_unresolved',null),
   row('alias-fast','not_evaluated','gateway_gateway_benchmark_non_chat_model',null),
-  row('alias-fast','not_evaluated','gateway_benchmark_model_not_listed',null)]};
+  row('alias-fast','not_evaluated','gateway_benchmark_model_not_listed',null),
+  row('alias-fast','not_evaluated','gateway_benchmark_catalog_unavailable',null)]};
  const t=tallyReport('blablador-scientific-v3.json',report);
  assert.equal(t.models['alias-fast@openai/gpt-oss-120b'].attempts,1);
  const renamed=rankings({'1':t},{blablador:['alias-gpt-oss-120b']},{blablador:{'alias-gpt-oss-120b':'openai/gpt-oss-120b'}}).blablador;
