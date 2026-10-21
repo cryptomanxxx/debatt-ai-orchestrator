@@ -35,7 +35,8 @@ jobs:
           path: reports/provider-catalog/
           if-no-files-found: ignore
           retention-days: 14
-      # A provider whose discovery failed keeps its last committed models.
+      # A provider whose discovery failed keeps its last committed models, so this step and
+      # the publish steps below also run after a discovery failure (never after cancellation).
       - name: Regenerate workflow model menus
         id: menu
         if: success() || steps.discovery.outcome == 'failure'
@@ -52,7 +53,7 @@ jobs:
       # The app is a bypass actor on main's ruleset; its token exists only for this push.
       - name: Create model-menu app token
         id: app
-        if: steps.menu.outputs.changed == 'true'
+        if: ${{ !cancelled() && steps.menu.outputs.changed == 'true' }}
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ secrets.MODEL_MENU_APP_CLIENT_ID }}
@@ -60,7 +61,7 @@ jobs:
           permission-contents: write
           permission-workflows: write
       - name: Commit menus to main
-        if: steps.menu.outputs.changed == 'true'
+        if: ${{ !cancelled() && steps.menu.outputs.changed == 'true' }}
         env:
           TOKEN: ${{ steps.app.outputs.token }}
         run: |
