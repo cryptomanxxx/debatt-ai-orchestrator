@@ -266,8 +266,11 @@ def evaluate(content, expected):
     """(verdict, format_compliant, candidate). Only an unambiguous final answer is scored."""
     text = content.strip()
     markers = _FINAL.findall(text)
-    candidate = markers[-1].strip() if markers else text
-    compliant = bool(markers) and bool(re.fullmatch(r"FINAL_ANSWER: [^\r\n]+", text.splitlines()[-1].strip()))
+    if not markers:
+        # Without the requested marker nothing is scored, even a bare correct value.
+        return "unverified", False, text
+    candidate = markers[-1].strip()
+    compliant = bool(re.fullmatch(r"FINAL_ANSWER: [^\r\n]+", text.splitlines()[-1].strip()))
     cleaned = _clean(candidate)
     if expected in CHOICES:
         word = cleaned.lower()

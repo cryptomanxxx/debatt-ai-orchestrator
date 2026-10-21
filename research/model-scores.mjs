@@ -52,12 +52,14 @@ export function tallyReport(fileName,report){
   const m=models[key]??={correct:0,attempts:0,latencies:[]};
   m.attempts++;
   if(row.scientific_verdict==='correct')m.correct++;
+  const latency=row.latency_seconds;
   if(suite){
-   const d=(m.domains??={})[row.domain]??={correct:0,attempts:0};
+   const d=(m.domains??={})[row.domain]??={correct:0,attempts:0,latencies:[]};
    d.attempts++;
    if(row.scientific_verdict==='correct')d.correct++;
+   if(row.status==='ok'&&typeof latency==='number'&&Number.isFinite(latency)&&latency>=0&&d.latencies.length<500)
+    d.latencies.push(Math.round(latency*100)/100);
   }
-  const latency=row.latency_seconds;
   if(row.status==='ok'&&typeof latency==='number'&&Number.isFinite(latency)&&latency>=0&&m.latencies.length<500)
    m.latencies.push(Math.round(latency*100)/100);
  }
@@ -68,12 +70,14 @@ export function tallyReport(fileName,report){
  return Object.keys(out).length?{provider,...(suite?{suite}:{}),models:out}:null;
 }
 // Runs are keyed by Actions run ID, so re-ingesting an artifact never double counts.
-// The newest MAX_RUNS are kept per provider, so a rarely benchmarked provider keeps its history.
+// The newest MAX_RUNS are kept per provider and suite, so a rarely benchmarked provider keeps
+// its history and domain runs never displace the classic evidence behind the menu recommendation.
 export function mergeRuns(existing,fresh){
  const runs={...(existing??{}),...fresh};
  const ids=Object.keys(runs).filter(id=>/^\d{1,20}$/.test(id)&&PROVIDERS.includes(runs[id]?.provider))
   .sort((a,b)=>Number(b)-Number(a));
- const keep=PROVIDERS.flatMap(p=>ids.filter(id=>runs[id].provider===p).slice(0,MAX_RUNS));
+ const keep=PROVIDERS.flatMap(p=>[undefined,DOMAIN_SUITE].flatMap(suite=>
+  ids.filter(id=>runs[id].provider===p&&runs[id].suite===suite).slice(0,MAX_RUNS)));
  return Object.fromEntries(keep.sort((a,b)=>Number(b)-Number(a)).map(id=>[id,runs[id]]));
 }
 export function rankings(runs,catalog,aliasRoots={}){
@@ -122,13 +126,14 @@ export function domainRankings(runs,catalog,aliasRoots={}){
    for(const [key,m] of Object.entries(run.models??{})){
     const root=key.split('@')[1];
     const subject=root===undefined?'id:'+key:'root:'+root;
-    const t=totals[subject]??={latencies:[],domains:{}};
-    if(Array.isArray(m.latencies))t.latencies.push(...m.latencies);
+    const t=totals[subject]??={domains:{}};
     for(const domain of DOMAINS){
      const d=m.domains?.[domain];
      if(!Number.isSafeInteger(d?.attempts)||!Number.isSafeInteger(d?.correct))continue;
-     const td=t.domains[domain]??={correct:0,attempts:0};
+     const td=t.domains[domain]??={correct:0,attempts:0,latencies:[]};
      td.correct+=d.correct;td.attempts+=d.attempts;
+     // Ties break on latency in this domain only, never on speed in unrelated domains.
+     if(Array.isArray(d.latencies))td.latencies.push(...d.latencies);
     }
    }
   }
@@ -139,7 +144,7 @@ export function domainRankings(runs,catalog,aliasRoots={}){
     const root=aliasRoots?.[provider]?.[model];
     const t=totals[root===undefined?'id:'+model:'root:'+root];
     const d=t?.domains[domain];
-    if(d?.attempts)rows.push({model,correct:d.correct,attempts:d.attempts,rate:d.correct/d.attempts,medianLatency:median(t.latencies)});
+    if(d?.attempts)rows.push({model,correct:d.correct,attempts:d.attempts,rate:d.correct/d.attempts,medianLatency:median(d.latencies)});
    }
    result[provider][domain]=rows.sort((a,b)=>b.rate-a.rate||b.attempts-a.attempts||(a.medianLatency??1e9)-(b.medianLatency??1e9)||a.model.localeCompare(b.model,'en'));
   }

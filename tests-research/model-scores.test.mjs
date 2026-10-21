@@ -91,7 +91,7 @@ test('Scientific v4 reports are tallied per domain and kept out of the classic r
   drow('Qwen3.8-27B','astrology','correct')]};
  const t=tallyReport('scientific-v4.json',report);
  assert.equal(t.suite,DOMAIN_SUITE);
- assert.deepEqual(t.models['Qwen3.8-27B'].domains,{causal:{correct:1,attempts:2},symbolic:{correct:0,attempts:1}});
+ assert.deepEqual(t.models['Qwen3.8-27B'].domains,{causal:{correct:1,attempts:2,latencies:[1,1]},symbolic:{correct:0,attempts:1,latencies:[]}});
  assert.equal(tallyReport('scientific-v4.json',{...report,suite:'other'}),null);
  assert.equal(tallyReport('scientific-v4.json',{...report,provider:'groq'}),null);
  const runs={'10':t,'11':tallyReport('results.json',hip)};
@@ -120,4 +120,18 @@ test('domain rankings pool runs and aliases by root and recommend per domain',()
  assert.ok(md.includes('| `alias-fast` = `gpt-oss-120b` | – | – | 7/8 ★ | – | – |'),md);
  assert.match(md,/### hip\n\nNo domain benchmark results yet\./);
  assert.equal(DOMAINS.length,5);
+});
+test('domain ties break on latency in that domain only; suites keep separate run quotas',()=>{
+ const run={provider:'hip',suite:DOMAIN_SUITE,models:{
+  fast:{correct:0,attempts:0,latencies:[],domains:{causal:{correct:4,attempts:4,latencies:[9]},symbolic:{correct:4,attempts:4,latencies:[1,1,1]}}},
+  slow:{correct:0,attempts:0,latencies:[],domains:{causal:{correct:4,attempts:4,latencies:[2]},symbolic:{correct:4,attempts:4,latencies:[8]}}}}};
+ const ranked=domainRankings({'1':run},{hip:['fast','slow'],blablador:[]});
+ assert.deepEqual(ranked.hip.causal.map(r=>r.model),['slow','fast']);
+ assert.deepEqual(ranked.hip.symbolic.map(r=>r.model),['fast','slow']);
+ const classic={provider:'hip',models:{a:{correct:1,attempts:1,latencies:[1]}}};
+ const domain={provider:'hip',suite:DOMAIN_SUITE,models:{}};
+ const many={'5':classic,...Object.fromEntries(Array.from({length:45},(_,i)=>[String(i+100),domain]))};
+ const kept=mergeRuns(many,{});
+ assert.ok(kept['5'],'the older classic run survives 45 newer domain runs');
+ assert.equal(Object.values(kept).filter(r=>r.suite===DOMAIN_SUITE).length,40);
 });

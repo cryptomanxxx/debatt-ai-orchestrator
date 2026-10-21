@@ -88,6 +88,7 @@ class EvaluateTests(unittest.TestCase):
                  ("FINAL_ANSWER: 3", "2/13", "incorrect", True),
                  ("FINAL_ANSWER: about two thirteenths", "2/13", "unverified", True),
                  ("The answer is 2/13", "2/13", "unverified", False),
+                 ("2/13", "2/13", "unverified", False),
                  ("FINAL_ANSWER: 2/13\nThanks!", "2/13", "correct", False)]
         for content, expected, verdict, compliant in cases:
             with self.subTest(content=content):
@@ -98,6 +99,7 @@ class EvaluateTests(unittest.TestCase):
         self.assertEqual(domain_tasks.evaluate("FINAL_ANSWER: **Yes**", "yes")[0], "correct")
         self.assertEqual(domain_tasks.evaluate("FINAL_ANSWER: confounder", "mediator")[0], "incorrect")
         self.assertEqual(domain_tasks.evaluate("FINAL_ANSWER: it is a mediator", "mediator")[0], "unverified")
+        self.assertEqual(domain_tasks.evaluate("yes", "yes")[0], "unverified")
 
 
 class RunnerTests(unittest.TestCase):
