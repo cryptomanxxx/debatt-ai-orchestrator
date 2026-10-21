@@ -66,11 +66,15 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
   }catch{return error(502,'benchmark_transport_failed');}
   if(!response.ok){const throttled=response.status===429;await response.body?.cancel().catch(()=>{});return throttled?error(429,'benchmark_upstream_rate_limited'):error(502,'benchmark_upstream_failed');}
   let data:any;
-  try{data=await boundedJson(response);}catch{return error(502,'benchmark_invalid_response');}
+  try{data=await boundedJson(response);}catch(e){return error(502,e instanceof Error && e.message==='oversized'?'benchmark_response_too_large':'benchmark_invalid_upstream_json');}
   const answer=data?.choices?.[0]?.message?.content;
-  if(typeof answer!=='string'||!answer.trim()||answer.length>16000||
-     answer.includes(key)||data?.model!==model||!['stop','length'].includes(data?.choices?.[0]?.finish_reason))
-    return error(502,'benchmark_invalid_response');
+  // No untrusted upstream values are returned in diagnostics: only static error codes.
+  if(typeof answer!=='string'||!answer.trim())return error(502,'benchmark_missing_answer');
+  if(answer.includes(key))return error(502,'benchmark_invalid_response');
+  if(answer.length>16000)return error(502,'benchmark_response_too_large');
+  if(data?.model!==model)return error(502,'benchmark_model_identity_mismatch');
+  if(!['stop','length'].includes(data?.choices?.[0]?.finish_reason))
+    return error(502,'benchmark_invalid_finish_reason');
   const completionLatencySeconds=Math.round((performance.now()-started)/10)/100;
   const usage=data?.usage;
   if(Number.isSafeInteger(usage?.completion_tokens) && usage.completion_tokens>Number(x.max_tokens))
