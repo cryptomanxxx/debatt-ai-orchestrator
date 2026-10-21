@@ -69,7 +69,7 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
   try{data=await boundedJson(response);}catch{return error(502,'benchmark_invalid_response');}
   const answer=data?.choices?.[0]?.message?.content;
   if(typeof answer!=='string'||!answer.trim()||answer.length>16000||
-     answer.includes(key)||data?.model!==model||data?.choices?.[0]?.finish_reason!=='stop')
+     answer.includes(key)||data?.model!==model||!['stop','length'].includes(data?.choices?.[0]?.finish_reason))
     return error(502,'benchmark_invalid_response');
   const completionLatencySeconds=Math.round((performance.now()-started)/10)/100;
   const usage=data?.usage;
@@ -77,7 +77,7 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
     return error(502,'benchmark_token_budget_exceeded');
   const safeUsage=(name:string)=>Number.isSafeInteger(usage?.[name])&&usage[name]>=0?usage[name]:null;
   return {status:200,data:{status:'completed_unverified',provider,model,answer,
-    finish_reason:'stop',completion_latency_seconds:completionLatencySeconds,usage:{prompt_tokens:safeUsage('prompt_tokens'),
+    finish_reason:data.choices[0].finish_reason,completion_latency_seconds:completionLatencySeconds,usage:{prompt_tokens:safeUsage('prompt_tokens'),
       completion_tokens:safeUsage('completion_tokens'),total_tokens:safeUsage('total_tokens')},
     scientificallyVerified:false,backendIdentityVerified:false}};
 }
