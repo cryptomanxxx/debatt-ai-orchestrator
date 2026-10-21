@@ -31,17 +31,42 @@ export async function updateMenu({catalog,repository,token,fetchImpl=fetch}){
  const url='https://api.github.com/repos/'+repository+'/contents/'+file;
  const headers={Authorization:'Bearer '+token,Accept:'application/vnd.github+json',
   'X-GitHub-Api-Version':'2022-11-28','User-Agent':'DebattAI-Research-ModelMenu'};
- const read=await fetchImpl(url+'?ref=main',{headers,redirect:'manual'});
- if(!read.ok)throw Error('github_read_workflow_http_'+read.status);
- const meta=await read.json();
- if(typeof meta.sha!=='string'||meta.encoding!=='base64'||typeof meta.content!=='string')throw Error('invalid_github_workflow_file');
- const original=Buffer.from(meta.content.replace(/\s/g,''),'base64').toString('utf8');
- const updated=withOptions(original,models);
- if(updated===original){console.log('Scientific model dropdown already current ('+models.length+' models)');return;}
- const put=await fetchImpl(url,{method:'PUT',headers:{...headers,'Content-Type':'application/json'},redirect:'manual',
-  body:JSON.stringify({message:'chore(research): refresh scientific Blablador model choices',content:Buffer.from(updated).toString('base64'),sha:meta.sha,branch:'main'})});
- if(!put.ok)throw Error('github_update_workflow_http_'+put.status);
- console.log('Scientific model dropdown updated ('+models.length+' explicit model IDs).');
+
+ // Never print the raw GitHub response: it may contain untrusted or sensitive text.
+ async function failure(response,operation){
+  let detail='';
+  try { const body=await response.json(); if(typeof body?.message==='string')detail=body.message.toLowerCase(); }
+  catch {}
+  const category=/protected branch|branch protection|ruleset|repository rule|required status check|pushes to this branch/.test(detail)
+   ?'branch_protection_or_ruleset'
+   : /workflow|permission|resource not accessible|must have write/.test(detail)
+   ?'workflow_or_token_permission'
+   : response.status===409?'write_conflict'
+   : response.status===422?'unprocessable_write'
+   : response.status===403?'forbidden'
+   : response.status===401?'unauthorized':'github_api_error';
+  return Error('github_'+operation+'_http_'+response.status+'_'+category);
+ }
+ for(let attempt=0;attempt<2;attempt++){
+  const read=await fetchImpl(url+'?ref=main',{headers,redirect:'manual'});
+  if(!read.ok)throw await failure(read,'read_workflow');
+  const meta=await read.json();
+  if(typeof meta.sha!=='string'||meta.encoding!=='base64'||typeof meta.content!=='string')throw Error('invalid_github_workflow_file');
+  const original=Buffer.from(meta.content.replace(/\\s/g,''),'base64').toString('utf8');
+  const updated=withOptions(original,models);
+  if(updated===original){console.log('Scientific model dropdown already current ('+models.length+' models)');return;}
+  const put=await fetchImpl(url,{method:'PUT',headers:{...headers,'Content-Type':'application/json'},redirect:'manual',
+   body:JSON.stringify({message:'chore(research): refresh scientific Blablador model choices',content:Buffer.from(updated).toString('base64'),sha:meta.sha,branch:'main'})});
+  if(put.ok){console.log('Scientific model dropdown updated ('+models.length+' explicit model IDs).');return;}
+  // Retry only once on a genuine SHA conflict, never on protections/permissions.
+  const error=await failure(put,'update_workflow');
+  if(attempt===0 && put.status===409 && error.message.endsWith('_write_conflict')){
+   console.log('GitHub reported a workflow write conflict; refreshing file SHA once.');
+   continue;
+  }
+  throw error;
+ }
+
 }
 if(process.argv[1]?.endsWith('/update-scientific-model-menu.mjs')){
  try{
