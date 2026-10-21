@@ -101,6 +101,17 @@ const planningPropose = proposer('default');
 
 // A benchmark-ranked HIP/Blablador model, called through the Worker's research gateway with the
 // lab's token budget. It shares the seven-call ceiling and locks its own identity like any mode.
+// The gateway's fixed error codes keep their category in the lab's diagnostics; provider HTTP,
+// quota, rate-limit and catalog failures stay model_upstream_http_error with the HTTP status.
+const GATEWAY_ERRORS = Object.freeze({
+  benchmark_transport_failed: 'model_transport_error',
+  benchmark_invalid_upstream_json: 'model_invalid_response', benchmark_invalid_response: 'model_invalid_response',
+  benchmark_response_too_large: 'oversized_provider_response',
+  benchmark_invalid_finish_reason: 'incomplete_model_response',
+  benchmark_token_budget_exceeded: 'model_budget_not_applied',
+  benchmark_missing_answer: 'model_empty_response',
+  benchmark_model_identity_mismatch: 'model_identity_mismatch',
+});
 // The request may include a catalog lookup (up to 25 s) before the 50-second lab completion.
 const researchProposer = ({ provider, model, root }) => lockModel(async messages => {
   if (++modelCalls > 7) throw new ResearchError('model_budget_exceeded');
@@ -114,11 +125,8 @@ const researchProposer = ({ provider, model, root }) => lockModel(async messages
   } catch { throw new ResearchError('model_transport_error'); }
   let data;
   try { data = await readJson(response); } catch { throw new ResearchError('model_invalid_response', { httpStatus: response.status }); }
-  if (response.status !== 200) {
-    const code = data?.error === 'benchmark_model_identity_mismatch' ? 'model_identity_mismatch'
-      : data?.error === 'benchmark_missing_answer' ? 'model_empty_response' : 'model_upstream_http_error';
-    throw new ResearchError(code, { httpStatus: response.status });
-  }
+  if (response.status !== 200)
+    throw new ResearchError(GATEWAY_ERRORS[data?.error] ?? 'model_upstream_http_error', { httpStatus: response.status });
   if (data?.status !== 'completed_unverified' || data.provider !== provider || data.model !== model || typeof data.answer !== 'string')
     throw new ResearchError('invalid_model_response');
   // An alias must still run the backing model its ranking evidence came from.

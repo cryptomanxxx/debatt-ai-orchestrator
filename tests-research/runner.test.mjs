@@ -98,7 +98,7 @@ globalThis.fetch = async (url, options = {}) => {
   }
 });
 
-for (const variant of ['explicit', 'alias', 'alias_remapped']) test(`runner calls a benchmark-ranked model chosen by the planner through the lab gateway profile (${variant})`, async () => {
+for (const variant of ['explicit', 'alias', 'alias_remapped', 'gateway_error']) test(`runner calls a benchmark-ranked model chosen by the planner through the lab gateway profile (${variant})`, async () => {
   const alias = variant !== 'explicit';
   const provider = alias ? 'blablador' : 'hip', model = alias ? 'alias-fast' : 'GLM-5.2-AWQ-INT4', choice = `${provider} / ${model}`;
   const dir = await mkdtemp(join(tmpdir(), 'oraklet-runner-ranked-'));
@@ -132,6 +132,7 @@ globalThis.fetch = async (url, options = {}) => {
     if (!planned) throw new Error('Lab gateway called before planning');
     if (body.profile !== 'lab' || body.max_tokens !== 4096 || body.provider !== ${JSON.stringify(provider)} || body.model !== ${JSON.stringify(model)})
       throw new Error('Unexpected lab request ' + JSON.stringify({ ...body, messages: undefined }));
+    if (${JSON.stringify(variant)} === 'gateway_error') return Response.json({ error: 'benchmark_response_too_large' }, { status: 502 });
     const banked = JSON.parse(JSON.parse(body.messages[0].content).messages[1].content).banked;
     const answer = { method: 'bootloops_ratfit', coefficients: cases.find(c => JSON.stringify(c.input.banked) === JSON.stringify(banked)).truth, reason: 'Förslag.' };
     return Response.json({ status: 'completed_unverified', provider: ${JSON.stringify(provider)}, model: ${JSON.stringify(model)}, finish_reason: 'stop',
@@ -149,13 +150,15 @@ globalThis.fetch = async (url, options = {}) => {
     const child = run(process.execPath, ['--import', pathToFileURL(preload).href, runner], {
       cwd: dir, env: { ...process.env, ORCHESTRATOR_API_KEY: 'test'.repeat(8), SUPABASE_SERVICE_ROLE_KEY: 'test',
         EXPERIMENT: 'auto', EXPERIMENT_SEED: '123' }, timeout: 15000 });
-    if (variant === 'alias_remapped') await assert.rejects(child); else await child;
+    const fails = { alias_remapped: 'model_identity_mismatch', gateway_error: 'oversized_provider_response' }[variant];
+    if (fails) await assert.rejects(child); else await child;
     const saved = JSON.parse(await readFile(join(dir, 'saved.json'), 'utf8'));
     assert.deepEqual(saved.rapport.plan.modelChoice, { domain: 'symbolic', provider, model, ...(alias ? { root: 'openai/gpt-oss-120b' } : {}),
       evidence: { suite: 'Scientific benchmark v4', correct: 8, attempts: 8 } });
-    if (variant === 'alias_remapped') {
+    if (fails) {
       assert.equal(saved.rapport.executionStatus, 'error');
-      assert.equal(saved.rapport.failure.code, 'model_identity_mismatch');
+      assert.equal(saved.rapport.failure.code, fails);
+      if (variant === 'gateway_error') assert.equal(saved.rapport.failure.httpStatus, 502);
       return;
     }
     assert.equal(saved.rapport.executionStatus, 'completed');
