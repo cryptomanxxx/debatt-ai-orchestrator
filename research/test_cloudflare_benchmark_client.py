@@ -3,6 +3,7 @@ import unittest
 from urllib.error import HTTPError
 from email.message import Message
 from io import BytesIO
+import http.client
 from cloudflare_benchmark_client import catalog_models, benchmark_completion, GatewayError, WORKER
 KEY="test-orchestrator-secret-value-12345"
 MODEL="alias-glm-5.3-flash"
@@ -48,6 +49,9 @@ class CloudflareAdapterTest(unittest.TestCase):
             (502, "application/json", b'{"error":"benchmark_transport_failed"}', "benchmark_transport_failed"),
             (502, "application/json", b'{"error":"benchmark_token_budget_exceeded"}', "benchmark_token_budget_exceeded"),
             (502, "application/json", b'{"error":"backend_secret_response"}', "gateway_http_5xx"),
+            (502, "application/json", b'{"error":"unknown","error":"benchmark_upstream_failed"}', "gateway_http_5xx"),
+            (502, "application/json", '{"error":"benchmark_upstream_failed"}'.encode("utf-16"), "gateway_http_5xx"),
+            (502, "application/json", '{"error":"benchmark_upstream_failed"}'.encode("utf-32"), "gateway_http_5xx"),
             (502, "application/json", b'{"error":"benchmark_invalid_response","detail":"sensitive"}', "gateway_http_5xx"),
             (502, "text/html", b'{"error":"benchmark_upstream_failed"}', "gateway_http_5xx"),
             (502, "application/json", b'not valid json sensitive body', "gateway_http_5xx"),
@@ -65,6 +69,20 @@ class CloudflareAdapterTest(unittest.TestCase):
                 self.assertEqual(str(error.exception), expected)
                 self.assertNotIn("sensitive", str(error.exception))
                 self.assertNotIn("secret", str(error.exception))
+
+    def test_incomplete_http_error_body_is_sanitized(self):
+        def rejected(req, timeout):
+            headers = Message()
+            headers["Content-Type"] = "application/json"
+            class BadStream:
+                def read(self, limit):
+                    raise http.client.IncompleteRead(b'sensitive upstream bytes', 200)
+                def close(self):
+                    pass
+            raise HTTPError(req.full_url, 502, "untrusted reason", headers, BadStream())
+        with self.assertRaises(GatewayError) as error:
+            benchmark_completion(KEY, "blablador", PAYLOAD, open_url=rejected)
+        self.assertEqual(str(error.exception), "gateway_http_5xx")
 
     def test_truncated_completion_preserves_length(self):
         seen=[]
