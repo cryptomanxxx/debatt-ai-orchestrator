@@ -57,8 +57,15 @@ export function parseChoice(value){
  return {provider:match[1],model:match[2]};
 }
 
+// A Worker-wide outage leaves no discovery file: treat every provider as failed so the
+// snapshot fallback applies. Any other read or parse error still fails the step.
+export async function readFreshCatalog(path,read=readFile){
+ try{return JSON.parse(await read(path,'utf8'));}
+ catch(error){if(error?.code==='ENOENT')return {providers:{}};throw error;}
+}
+
 if(process.argv[1]?.endsWith('/model-menu.mjs')){
- const fresh=JSON.parse(await readFile('reports/provider-catalog/catalog.json','utf8'));
+ const fresh=await readFreshCatalog('reports/provider-catalog/catalog.json');
  let previous={};
  try{previous=JSON.parse(await readFile('research/model-catalog.json','utf8')).providers??{};}catch{}
  const {models,sources}=mergeCatalog(fresh,previous);

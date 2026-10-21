@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mergeCatalog,optionsFor,rewriteWorkflow,parseChoice,PLACEHOLDER} from '../research/model-menu.mjs';
+import {mergeCatalog,optionsFor,rewriteWorkflow,parseChoice,readFreshCatalog,PLACEHOLDER} from '../research/model-menu.mjs';
 
 const template=`on:
   workflow_dispatch:
@@ -52,4 +52,12 @@ test('parses menu choices strictly',()=>{
  assert.deepEqual(parseChoice('blablador / alla'),{provider:'blablador',model:null});
  for(const bad of [PLACEHOLDER,'openai / gpt','hip / alias-fast','hip/GLM','hip / a b',''])
   assert.throws(()=>parseChoice(bad),/invalid_model_choice/);
+});
+test('missing discovery file falls back to the snapshot for every provider',async()=>{
+ const missing=async()=>{throw Object.assign(Error('missing'),{code:'ENOENT'});};
+ const fresh=await readFreshCatalog('reports/provider-catalog/catalog.json',missing);
+ assert.deepEqual(mergeCatalog(fresh,{hip:['Kimi-K2.6'],blablador:['Qwen3.8-27B']}),{
+  models:{hip:['Kimi-K2.6'],blablador:['Qwen3.8-27B']},sources:{hip:'previous_snapshot',blablador:'previous_snapshot'}});
+ await assert.rejects(readFreshCatalog('x',async()=>'{not json'),SyntaxError);
+ await assert.rejects(readFreshCatalog('x',async()=>{throw Object.assign(Error('denied'),{code:'EACCES'});}),/denied/);
 });
