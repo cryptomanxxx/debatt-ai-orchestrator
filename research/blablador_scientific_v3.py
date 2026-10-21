@@ -63,7 +63,14 @@ def api(key, path, payload=None):
     if path == "/models" and payload is None:
         return catalog_models(key, "blablador")
     if path == "/chat/completions" and payload is not None:
-        return benchmark_completion(key, "blablador", payload)
+        for attempt in range(3):
+            try:
+                return benchmark_completion(key, "blablador", payload)
+            except GatewayError as error:
+                if str(error) != "gateway_http_429" or attempt == 2:
+                    raise
+                time.sleep((5, 15)[attempt])
+        raise GatewayError("gateway_http_429")
     raise GatewayError("invalid_gateway_path")
 
 
