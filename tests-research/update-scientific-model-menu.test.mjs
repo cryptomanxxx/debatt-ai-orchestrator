@@ -51,3 +51,28 @@ test('does not attempt writes when credential is missing',async()=>{
  repository:'example/repo',token:'',fetchImpl:async()=>{calls++;}}),/credential/);
  assert.equal(calls,0);
 });
+
+test('retries one stale SHA conflict using a fresh read, without logging response bodies',async()=>{
+ let reads=0,writes=0;
+ const fake=async(_url,opts)=>{
+  if(opts.method==='PUT'){
+   writes++;
+   return writes===1?{ok:false,status:409,json:async()=>({message:'Conflict'})}:{ok:true,status:200};
+  }
+  reads++;
+  return {ok:true,json:async()=>({sha:'sha-'+reads,encoding:'base64',content:Buffer.from(template).toString('base64')})};
+ };
+ await updateMenu({catalog:{providers:{blablador:{status:'catalog_unverified',models:['Qwen3.8-27B']}}},
+  repository:'example/repo',token:'test-token',fetchImpl:fake});
+ assert.equal(reads,2);assert.equal(writes,2);
+});
+test('does not retry when GitHub rejects a protected branch',async()=>{
+ let reads=0,writes=0;
+ const fake=async(_url,opts)=>{
+  if(opts.method==='PUT'){writes++;return {ok:false,status:409,json:async()=>({message:'Changes must be made through a pull request: protected branch'})};}
+  reads++;return {ok:true,json:async()=>({sha:'sha',encoding:'base64',content:Buffer.from(template).toString('base64')})};
+ };
+ await assert.rejects(updateMenu({catalog:{providers:{blablador:{status:'catalog_unverified',models:['Qwen3.8-27B']}}},
+  repository:'example/repo',token:'test-token',fetchImpl:fake}),/409_branch_protection_or_ruleset/);
+ assert.equal(reads,1);assert.equal(writes,1);
+});
