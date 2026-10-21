@@ -24,7 +24,7 @@ class ScientificValidatorTests(unittest.TestCase):
         def stub(key, path, payload=None):
             self.assertEqual(key, "test-orchestrator-secret-value-12345")
             if path == "/models":
-                return {"data": [{"id": "alias-glm-5.3-flash"}]}
+                return {"data": [{"id": "Qwen3.8-27B"}]}
             self.assertEqual(path, "/chat/completions")
             self.assertEqual(payload["temperature"], 0)
             self.assertEqual(payload["max_tokens"], 768)
@@ -41,7 +41,7 @@ class ScientificValidatorTests(unittest.TestCase):
             try:
                 os.chdir(directory)
                 with patch.dict(os.environ, {"ORCHESTRATOR_API_KEY": "test-orchestrator-secret-value-12345",
-                                             "BENCHMARK_MODELS": "alias-glm-5.3-flash",
+                                             "BENCHMARK_MODELS": "Qwen3.8-27B",
                                              "BENCHMARK_REPEATS": "1"}), patch.object(benchmark, "api", side_effect=stub), patch.object(benchmark.time, "sleep"):
                     benchmark.main()
                 report = json.loads(Path("blablador-scientific-v3.json").read_text())
@@ -54,6 +54,12 @@ class ScientificValidatorTests(unittest.TestCase):
         self.assertTrue(all(x["latency_seconds"] == 0.42 for x in report["results"]))
         self.assertEqual(report["transport"], "cloudflare-benchmark-v1")
         self.assertEqual(report["metadata_scope"], "catalog_ids_only")
+
+    def test_explicit_model_id_validation(self):
+        self.assertTrue(benchmark.explicit_model_id("Qwen3.8-27B"))
+        self.assertTrue(benchmark.explicit_model_id("deepseek-v4.1-flash-at-hzdr"))
+        for name in ["alias-fast", "ALIAS-default", "", "../ a", "model;bad"]:
+            self.assertFalse(benchmark.explicit_model_id(name))
 
     def test_retry_429_and_preserve_length(self):
         calls=[]
