@@ -47,6 +47,33 @@ test('strictly rejects upstream identity swaps, secrets, malformed and incomplet
  }
 });
 
+test('distinguishes safe validation failures without leaking upstream contents',async()=>{
+ const cases=[
+  {answer:{model:'other',choices:[{finish_reason:'stop',message:{content:'secret reply'}}]},code:'benchmark_model_identity_mismatch'},
+  {answer:{model:input.model,choices:[{finish_reason:'stop',message:{content:''}}]},code:'benchmark_missing_answer'},
+  {answer:{model:input.model,choices:[{finish_reason:'other',message:{content:'valid'}}]},code:'benchmark_invalid_finish_reason'},
+  {answer:{model:input.model,choices:[{finish_reason:'stop',message:{content:'x'.repeat(16001)}}]},code:'benchmark_response_too_large'},
+ ];
+ for(const {answer,code} of cases){
+  const r=await researchBenchmark(input,keys,(async(url:string|URL|Request)=>{
+   if(String(url).endsWith('/models'))return Response.json({data:[{id:input.model}]});
+   return Response.json(answer);
+  }) as typeof fetch);
+  assert.equal(r.status,502);
+  assert.deepEqual(r.data,{error:code});
+  assert.ok(!JSON.stringify(r.data).includes('secret reply'));
+ }
+ const invalid=await researchBenchmark(input,keys,(async(url:string|URL|Request)=>{
+  if(String(url).endsWith('/models'))return Response.json({data:[{id:input.model}]});
+  return new Response('private upstream contents',{status:200});
+ }) as typeof fetch);
+ assert.deepEqual(invalid.data,{error:'benchmark_invalid_upstream_json'});
+ const huge=await researchBenchmark(input,keys,(async(url:string|URL|Request)=>{
+  if(String(url).endsWith('/models'))return Response.json({data:[{id:input.model}]});
+  return new Response('x'.repeat(65537),{status:200});
+ }) as typeof fetch);
+ assert.deepEqual(huge.data,{error:'benchmark_response_too_large'});
+});
 test('maps provider throttling into bounded HTTP 429 without exposing backend response',async()=>{
  const stub=async(url:string|URL|Request)=>{
    if(String(url).endsWith('/models'))return Response.json({data:[{id:input.model}]});
