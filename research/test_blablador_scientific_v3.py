@@ -12,7 +12,15 @@ from blablador_scientific_v3 import evaluate
 class ScientificValidatorTests(unittest.TestCase):
     def test_migrated_end_to_end_offline(self):
         calls = []
-        answers = {q: expected for _task, q, expected in benchmark.TASKS}
+        expected_tasks = (
+            ("determinant", "Compute the determinant of [[2,4,6],[1,2,3],[0,1,1]].", "0"),
+            ("bayes", "Disease prevalence is 1%, sensitivity 90%, specificity 95%. Give P(disease | positive) as a reduced fraction.", "2/13"),
+            ("causal", "In DAG X -> M -> Y and X -> Y, classify M for the total causal effect X on Y: mediator, confounder, or collider.", "mediator"),
+            ("slope", "Find the OLS slope with intercept for points (1,2),(2,4),(3,6).", "2"),
+            ("sequence", "A geometric sequence starts 2,6,18,54, and each term is three times its predecessor. Find term 7.", "1458"),
+        )
+        self.assertEqual(benchmark.TASKS, expected_tasks)
+        answers = {q: expected for _task, q, expected in expected_tasks}
         def stub(key, path, payload=None):
             self.assertEqual(key, "test-orchestrator-secret-value-12345")
             if path == "/models":
@@ -20,7 +28,7 @@ class ScientificValidatorTests(unittest.TestCase):
             self.assertEqual(path, "/chat/completions")
             self.assertEqual(payload["temperature"], 0)
             self.assertEqual(payload["max_tokens"], 768)
-            self.assertEqual(payload["messages"][0]["role"], "system")
+            self.assertEqual(payload["messages"][0], {"role": "system", "content": "Solve the scientific question. End with one separate line exactly FINAL_ANSWER: <answer>. No text after that line."})
             calls.append(payload)
             return {
                 "choices": [{"message": {"content": "FINAL_ANSWER: " + answers[payload["messages"][1]["content"]]},
@@ -46,6 +54,19 @@ class ScientificValidatorTests(unittest.TestCase):
         self.assertTrue(all(x["latency_seconds"] == 0.42 for x in report["results"]))
         self.assertEqual(report["transport"], "cloudflare-benchmark-v1")
         self.assertEqual(report["metadata_scope"], "catalog_ids_only")
+
+    def test_retry_429_and_preserve_length(self):
+        calls=[]
+        def completion(key,provider,payload):
+            calls.append(payload)
+            if len(calls)<3:
+                raise benchmark.GatewayError("gateway_http_429")
+            return {"choices":[{"message":{"content":"partial"},"finish_reason":"length"}]}
+        with patch.object(benchmark, "benchmark_completion",side_effect=completion),patch.object(benchmark.time,"sleep") as sleeper:
+            result=benchmark.api("secret","/chat/completions",{"model":"x"})
+        self.assertEqual(result["choices"][0]["finish_reason"],"length")
+        self.assertEqual(len(calls),3)
+        self.assertEqual([x.args[0] for x in sleeper.call_args_list],[5,15])
 
     def test_gateway_route_and_safe_errors(self):
         with patch.object(benchmark, "catalog_models", return_value={"data": []}) as discovery:
