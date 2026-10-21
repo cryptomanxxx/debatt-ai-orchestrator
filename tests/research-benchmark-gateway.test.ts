@@ -156,7 +156,7 @@ test('an alias is accepted only when the reply comes from its catalog root',asyn
   const r:any=await researchBenchmark(aliasInput,keys,aliasTransport(replied));
   assert.equal(r.status,200,replied);
   assert.equal(r.data.model,'alias-fast');
-  assert.equal(r.data.resolved_model,replied==='alias-fast'?undefined:'openai/gpt-oss-120b');
+  assert.equal(r.data.resolved_model,'openai/gpt-oss-120b','every rooted alias reply names its root');
   assert.ok(!JSON.stringify(r.data).includes('01 - GPT'),'upstream display name is never echoed');
  }
  for(const replied of ['Qwen/Qwen3.8-27B-FP8','07 - Qwen3.8-27B-FP8','other',null]){
@@ -177,4 +177,16 @@ test('an alias whose current root is a non-chat model is refused before any comp
  const r:any=await researchBenchmark(aliasInput,keys,t);
  assert.equal(r.status,400);assert.deepEqual(r.data,{error:'benchmark_non_chat_model'});
  assert.equal(completions,0);
+});
+test('rootless aliases and anonymizer roots are refused before any completion',async()=>{
+ for(const [root,code] of [[undefined,'benchmark_alias_unresolved'],['None','benchmark_alias_unresolved'],
+   ['bad root','benchmark_alias_unresolved'],['org/text-anonymizer-v1','benchmark_non_chat_model']]){
+  let completions=0;
+  const t=(async(url:string|URL|Request)=>{
+   if(String(url).endsWith('/models'))return Response.json({data:[{id:'alias-fast',...(root?{root}:{})}]});
+   completions++;return Response.json({model:'alias-fast',choices:[{finish_reason:'stop',message:{content:'2'}}]});
+  }) as typeof fetch;
+  const r:any=await researchBenchmark(aliasInput,keys,t);
+  assert.deepEqual(r.data,{error:code},String(root));assert.equal(completions,0);
+ }
 });

@@ -14,7 +14,7 @@ const SAFE_ERRORS = new Set([
   'benchmark_invalid_response','benchmark_token_budget_exceeded','benchmark_missing_answer',
   'benchmark_response_too_large','benchmark_model_identity_mismatch',
   'benchmark_invalid_finish_reason','benchmark_invalid_upstream_json',
-  'research_provider_not_configured'
+  'research_provider_not_configured','benchmark_alias_unresolved'
 ]);
 async function boundedJson(response, max) {
   const length=Number(response.headers.get('content-length')||0);

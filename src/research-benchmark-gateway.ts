@@ -10,7 +10,8 @@ type Provider=keyof typeof SOURCES;
 const SAFE_ID=/^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,199}$/;
 const BUDGET={standard:{tokens:512,chars:4000,timeout:45000},benchmark:{tokens:768,chars:12000,timeout:60000}} as const;
 const MAX_RESPONSE=65536;
-const blockedId=(id:string)=>/embedding|rerank|bge-|gte-|whisper|transcri|tts|audio|image|all-proxy|moderation/i.test(id);
+// Same non-chat predicate as the menu's catalog filter (research/explicit-models.mjs).
+const blockedId=(id:string)=>/embedding|rerank|bge-|gte-|whisper|transcri|tts|audio|image|all-proxy|moderation|anonymiz/i.test(id);
 const error=(status:number,code:string)=>({status,data:{error:code}});
 async function boundedJson(response:Response){
   const reader=response.body?.getReader();
@@ -60,6 +61,8 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
   // model is the alias's catalog root, or a catalog entry with that same root.
   const aliasRoot=model.startsWith('alias-')?(catalog.data as {aliases?:Record<string,string>}).aliases?.[model]:undefined;
   const roots='roots' in catalog?catalog.roots:undefined;
+  // An alias is only run while the live catalog names a usable root, so its reply is always verifiable.
+  if(model.startsWith('alias-') && aliasRoot===undefined)return error(400,'benchmark_alias_unresolved');
   if(aliasRoot!==undefined && blockedId(aliasRoot))return error(400,'benchmark_non_chat_model');
   let response:Response;
   const started=performance.now();
@@ -99,6 +102,6 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
     finish_reason:data.choices[0].finish_reason,completion_latency_seconds:completionLatencySeconds,usage:{prompt_tokens:safeUsage('prompt_tokens'),
       completion_tokens:safeUsage('completion_tokens'),total_tokens:safeUsage('total_tokens')},
     // resolved_model comes from the validated catalog root, never from the upstream reply.
-    ...(replied!==model?{resolved_model:aliasRoot}:{}),
+    ...(aliasRoot!==undefined?{resolved_model:aliasRoot}:{}),
     scientificallyVerified:false,backendIdentityVerified:false}};
 }
