@@ -18,6 +18,11 @@ on:
           - "hip / occiglot-7b-eu5-instruct"
           - "hip / qwen3-vl-30b-a3b-instruct-awq"
           - "hip / Qwen3.8-27B"
+          - "blablador / deepseek-v4.1-flash-at-hzdr"
+          - "blablador / Swift-Qwen3.8-27b"
+          - "blablador / trustllm-v2-8b-sft"
+          - "blablador / trustllm-v2-8b-sft-8k"
+          - "blablador / trustllm-v2-8b-sft-mixb2-exp"
         # END GENERATED RESEARCH MODEL OPTIONS
       repeats:
         description: 'Runs per task (1–3)'

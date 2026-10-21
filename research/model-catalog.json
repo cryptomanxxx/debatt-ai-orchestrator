@@ -13,6 +13,12 @@
       "qwen3-vl-30b-a3b-instruct-awq",
       "Qwen3.8-27B"
     ],
-    "blablador": []
+    "blablador": [
+      "deepseek-v4.1-flash-at-hzdr",
+      "Swift-Qwen3.8-27b",
+      "trustllm-v2-8b-sft",
+      "trustllm-v2-8b-sft-8k",
+      "trustllm-v2-8b-sft-mixb2-exp"
+    ]
   }
 }
