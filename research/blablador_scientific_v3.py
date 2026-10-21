@@ -18,7 +18,8 @@ MODEL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,199}$")
 
 def explicit_model_id(model):
     """Reject dynamic provider aliases; catalog membership is checked separately."""
-    return bool(MODEL_ID.fullmatch(model)) and not model.lower().startswith("alias-")
+    return (bool(MODEL_ID.fullmatch(model)) and not model.lower().startswith("alias-")
+            and ".." not in model.split("/"))
 TASKS = (
     ("determinant", "Compute the determinant of [[2,4,6],[1,2,3],[0,1,1]].", "0"),
     ("bayes", "Disease prevalence is 1%, sensitivity 90%, specificity 95%. Give P(disease | positive) as a reduced fraction.", "2/13"),
