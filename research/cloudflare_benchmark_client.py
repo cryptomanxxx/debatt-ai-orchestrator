@@ -28,6 +28,7 @@ def _request(api_key, path, body=None, open_url=None):
     data = json.dumps(body).encode("utf-8") if body is not None else None
     req = urllib.request.Request(WORKER + path, data=data,
         headers={"Authorization": "Bearer " + api_key, "Accept": "application/json",
+                 "User-Agent": "DebattAI-Orchestrator-ResearchBenchmark/1.0",
                  **({"Content-Type": "application/json"} if body is not None else {})},
         method="POST" if body is not None else "GET")
     try:
