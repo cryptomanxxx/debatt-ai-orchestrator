@@ -28,11 +28,11 @@ A workflow opts in with a marker block on a `type: choice` input:
 
 ## Which model to use: recommendations
 
-The refresh workflow also runs when *Scientific benchmark v3* or *HIP scientific benchmark* finishes on `main`. It downloads the result artifacts of the latest successful runs (artifacts live 30 days) and stores per-run tallies in `research/model-scores.json`, keyed by run ID so nothing is counted twice; the 40 newest runs are kept. `research/MODEL-RANKING.md` ranks every catalog model by correct answers / all attempts, so failed calls count against a model; ties go to more evidence, then lower median latency.
+The refresh workflow also runs when *Scientific benchmark v3*, *Scientific benchmark v4* or *HIP scientific benchmark* finishes on `main`. It downloads the result artifacts of the latest successful runs (artifacts live 30 days) and stores per-run tallies in `research/model-scores.json`, keyed by run ID so nothing is counted twice; the 40 newest runs are kept. `research/MODEL-RANKING.md` ranks every catalog model by correct answers / all attempts, so failed calls count against a model; ties go to more evidence, then lower median latency. Scientific v4 results are ranked separately, per research domain, in the same file ([SCIENTIFIC-V4.md](SCIENTIFIC-V4.md)); they do not change the menu recommendation.
 
 The best model per provider with at least five answers appears **first** in each menu as `hip / <model> (rekommenderad 9/10)` and is preselected. The plain `hip / <model>` entry stays in the list, so API callers such as Oraklet can keep sending stable values; runners accept both. To compare everything once, run *HIP scientific benchmark* with `hip / alla` and *Scientific benchmark v3* with `blablador / alla`.
 
-Current menus: *Scientific benchmark v3 (HIP or Blablador)* and *HIP scientific benchmark*. Oraklet and other API callers must send an exact menu value; GitHub rejects anything else. They can read the valid IDs from `research/model-catalog.json`.
+Current menus: *Scientific benchmark v3 (HIP or Blablador)*, *Scientific benchmark v4 (domains)* and *HIP scientific benchmark*. Oraklet and other API callers must send an exact menu value; GitHub rejects anything else. They can read the valid IDs from `research/model-catalog.json`.
 
 ## One-time setup (repository owner)
 

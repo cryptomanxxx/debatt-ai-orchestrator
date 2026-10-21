@@ -82,3 +82,42 @@ test('pre-dispatch refusals are not attempts; synonyms of one root share evidenc
  const slash={provider:'blablador',model_metadata:{'alias-x':{root:'/'}},results:[row('alias-x','correct')]};
  assert.equal(tallyReport('blablador-scientific-v3.json',slash),null);
 });
+import {domainRankings,domainRecommendations,domainMarkdown,DOMAIN_SUITE,DOMAINS} from '../research/model-scores.mjs';
+const drow=(model,domain,verdict,status='ok',extra={})=>({model,domain,scientific_verdict:verdict,status,latency_seconds:1,...extra});
+test('Scientific v4 reports are tallied per domain and kept out of the classic ranking',()=>{
+ const report={schema_version:4,suite:DOMAIN_SUITE,provider:'hip',results:[
+  drow('Qwen3.8-27B','causal','correct'),drow('Qwen3.8-27B','causal','incorrect'),
+  drow('Qwen3.8-27B','symbolic','unverified','truncated'),drow('Qwen3.8-27B','symbolic','not_evaluated','gateway_benchmark_catalog_unavailable'),
+  drow('Qwen3.8-27B','astrology','correct')]};
+ const t=tallyReport('scientific-v4.json',report);
+ assert.equal(t.suite,DOMAIN_SUITE);
+ assert.deepEqual(t.models['Qwen3.8-27B'].domains,{causal:{correct:1,attempts:2},symbolic:{correct:0,attempts:1}});
+ assert.equal(tallyReport('scientific-v4.json',{...report,suite:'other'}),null);
+ assert.equal(tallyReport('scientific-v4.json',{...report,provider:'groq'}),null);
+ const runs={'10':t,'11':tallyReport('results.json',hip)};
+ assert.deepEqual(rankings(runs,{hip:['Qwen3.8-27B','GLM-5.2-AWQ-INT4']}).hip.map(r=>r.model),['GLM-5.2-AWQ-INT4']);
+});
+test('domain rankings pool runs and aliases by root and recommend per domain',()=>{
+ const run=(provider,models)=>({provider,suite:DOMAIN_SUITE,models});
+ const m=(domains)=>({correct:0,attempts:0,latencies:[2],domains});
+ const runs={
+  '20':run('blablador',{'alias-fast@openai/gpt-oss-120b':m({causal:{correct:3,attempts:4}}),
+   'deepseek':m({causal:{correct:2,attempts:4},symbolic:{correct:4,attempts:4}})}),
+  '21':run('blablador',{'alias-gpt@openai/gpt-oss-120b':m({causal:{correct:4,attempts:4}})}),
+  '22':{provider:'blablador',models:{deepseek:{correct:5,attempts:5,latencies:[1]}}}};
+ const catalog={hip:[],blablador:['deepseek','alias-fast']};
+ const aliasRoots={blablador:{'alias-fast':'openai/gpt-oss-120b'}};
+ const ranked=domainRankings(runs,catalog,aliasRoots);
+ assert.deepEqual(ranked.blablador.causal.map(r=>[r.model,r.correct,r.attempts]),[['alias-fast',7,8],['deepseek',2,4]]);
+ assert.deepEqual(ranked.blablador.symbolic.map(r=>r.model),['deepseek']);
+ assert.deepEqual(ranked.blablador.statistics,[]);
+ const rec=domainRecommendations(ranked);
+ assert.deepEqual(rec.blablador.causal,{model:'alias-fast',correct:7,attempts:8});
+ assert.equal(rec.blablador.statistics,undefined);
+ assert.deepEqual(Object.keys(rec.hip),[]);
+ const md=domainMarkdown(ranked,catalog,aliasRoots);
+ assert.ok(md.includes('| `deepseek` | 4/4 ★ | – | 2/4 | – | – |'),md);
+ assert.ok(md.includes('| `alias-fast` = `gpt-oss-120b` | – | – | 7/8 ★ | – | – |'),md);
+ assert.match(md,/### hip\n\nNo domain benchmark results yet\./);
+ assert.equal(DOMAINS.length,5);
+});

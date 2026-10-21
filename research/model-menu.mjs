@@ -2,7 +2,7 @@
 // Worker catalog. Only text between the BEGIN/END markers is ever changed.
 import {readFile,writeFile,readdir,appendFile} from 'node:fs/promises';
 import {explicitModels,aliasModels,isMenuModelId,rootLabel} from './explicit-models.mjs';
-import {rankings,recommendations,rankingMarkdown} from './model-scores.mjs';
+import {rankings,recommendations,rankingMarkdown,domainRankings,domainMarkdown} from './model-scores.mjs';
 
 export const PROVIDERS=['hip','blablador'];
 export const PLACEHOLDER='REFRESH_MODEL_MENU_FIRST';
@@ -93,7 +93,7 @@ if(process.argv[1]?.endsWith('/model-menu.mjs')){
  try{runs=JSON.parse(await readFile('research/model-scores.json','utf8')).runs??{};}catch{}
  const ranked=rankings(runs,models,aliasRoots);
  const recommended=recommendations(ranked);
- const markdown=rankingMarkdown(ranked,models,aliasRoots);
+ const markdown=rankingMarkdown(ranked,models,aliasRoots)+'\n'+domainMarkdown(domainRankings(runs,models,aliasRoots),models,aliasRoots);
  await writeFile('research/MODEL-RANKING.md',markdown);
  if(process.env.GITHUB_STEP_SUMMARY)await appendFile(process.env.GITHUB_STEP_SUMMARY,markdown);
  await writeFile('research/model-catalog.json',JSON.stringify({schemaVersion:1,

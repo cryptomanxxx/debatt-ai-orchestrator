@@ -178,5 +178,6 @@ reports/hip-test/
 
 # Benchmark outputs written by research runners (uploaded as artifacts, never committed)
 /blablador-scientific-v3.json
+/scientific-v4.json
 /blablador-scientific-v2.json
 /blablador-benchmark.json

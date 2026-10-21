@@ -5,7 +5,7 @@ on:
     - cron: '17 3 * * *'
   # Refresh the recommended models as soon as a scientific benchmark finishes.
   workflow_run:
-    workflows: ['Scientific benchmark v3 (HIP or Blablador)', 'HIP scientific benchmark']
+    workflows: ['Scientific benchmark v3 (HIP or Blablador)', 'Scientific benchmark v4 (domains)', 'HIP scientific benchmark']
     types: [completed]
 permissions:
   contents: read
@@ -52,7 +52,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for workflow in blablador-scientific-v3.yml hip-scientific.yml; do
+          for workflow in blablador-scientific-v3.yml scientific-v4.yml hip-scientific.yml; do
             for run in $(gh run list -R "$GITHUB_REPOSITORY" -w "$workflow" -b main -s completed -L 15 --json databaseId -q '.[].databaseId'); do
               gh run download "$run" -R "$GITHUB_REPOSITORY" -D "reports/benchmarks/$run" || echo "No artifacts left for run $run"
             done
