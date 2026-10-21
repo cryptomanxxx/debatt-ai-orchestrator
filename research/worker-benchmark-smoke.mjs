@@ -14,10 +14,9 @@ const inventory=await workerRequest('/v1/research/models',key,null);
 const entry=inventory?.providers?.[provider];
 if(inventory?.status!=='discovered_unverified'||entry?.status!=='catalog_unverified')
  throw Error('provider_catalog_unavailable');
-const model=process.env.RESEARCH_MODEL_ID;
-if(typeof model!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,199}$/.test(model)||
-   model.toLowerCase().startsWith('alias-')||!entry.models?.includes(model))
- throw Error('explicit_catalog_model_id_required');
+const preferred=provider==='hip'?['Mistral-Medium-3.5-128B','GLM-5.2-AWQ-INT4']:['alias-glm-5.3-flash','alias-fast'];
+const model=preferred.find(x=>entry.models?.includes(x));
+if(!model)throw Error('no_compatible_smoke_model');
 const body={provider,model,profile:'standard',max_tokens:64,
  messages:[{role:'system',content:'Return a brief answer.'},{role:'user',content:'What is 2 + 2? Reply with the number only.'}]};
 const result=await workerRequest('/v1/research/benchmark',key,body);
