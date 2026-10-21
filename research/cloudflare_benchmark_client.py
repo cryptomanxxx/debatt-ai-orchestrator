@@ -1,5 +1,6 @@
 """Restricted GitHub -> Cloudflare research benchmark transport; never sees provider keys."""
 import json
+import http.client
 import urllib.request
 from urllib.error import HTTPError, URLError
 
@@ -27,6 +28,15 @@ WORKER_ERROR_CODES = frozenset({
 class GatewayError(Exception):
     pass
 
+def _unique_object(pairs):
+    obj = {}
+    for name, value in pairs:
+        if name in obj:
+            raise ValueError("duplicate_json_member")
+        obj[name] = value
+    return obj
+
+
 def _request(api_key, path, body=None, open_url=None):
     if not isinstance(api_key, str) or len(api_key) < 24 or any(c.isspace() for c in api_key):
         raise GatewayError("missing_orchestrator_key")
@@ -51,13 +61,13 @@ def _request(api_key, path, body=None, open_url=None):
             if status == 502 and error.headers and error.headers.get_content_type() == "application/json":
                 raw_error = error.read(MAX_ERROR_BYTES + 1)
                 if len(raw_error) <= MAX_ERROR_BYTES:
-                    data_error = json.loads(raw_error)
+                    data_error = json.loads(raw_error.decode("utf-8", errors="strict"), object_pairs_hook=_unique_object)
                     if (isinstance(data_error, dict) and
                         set(data_error) == {"error"} and
                         type(data_error["error"]) is str and
                         data_error["error"] in WORKER_ERROR_CODES):
                         category = data_error["error"]
-        except (ValueError, UnicodeDecodeError, OSError, TypeError, AttributeError):
+        except (ValueError, UnicodeDecodeError, OSError, TypeError, AttributeError, http.client.HTTPException):
             pass
         finally:
             error.close()
