@@ -65,7 +65,7 @@ def api(key, path, payload=None):
     if path == "/chat/completions" and payload is not None:
         for attempt in range(3):
             try:
-                return benchmark_completion(key, "blablador", payload)
+                return benchmark_completion(key, "blablador", payload, allow_truncated=True)
             except GatewayError as error:
                 if str(error) != "gateway_http_429" or attempt == 2:
                     raise
