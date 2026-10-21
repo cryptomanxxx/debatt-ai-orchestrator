@@ -47,6 +47,16 @@ test('strictly rejects upstream identity swaps, secrets, malformed and incomplet
  }
 });
 
+test('maps provider throttling into bounded HTTP 429 without exposing backend response',async()=>{
+ const stub=async(url:string|URL|Request)=>{
+   if(String(url).endsWith('/models'))return Response.json({data:[{id:input.model}]});
+   return new Response('upstream secret', {status:429});
+ };
+ const r=await researchBenchmark(input,keys,stub as typeof fetch);
+ assert.equal(r.status,429);
+ assert.deepEqual(r.data,{error:'benchmark_upstream_rate_limited'});
+ assert.ok(!JSON.stringify(r).includes('upstream secret'));
+});
 test('retains safe length responses without claiming scientific verification',async()=>{
  const stub=async(url:string|URL|Request)=>{
    if(String(url).endsWith('/models'))return Response.json({data:[{id:input.model}]});
