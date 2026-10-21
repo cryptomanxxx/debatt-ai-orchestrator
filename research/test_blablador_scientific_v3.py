@@ -74,7 +74,7 @@ class ScientificValidatorTests(unittest.TestCase):
             discovery.assert_called_once_with("secret", "blablador")
         with patch.object(benchmark, "benchmark_completion", return_value={}) as inference:
             benchmark.api("secret", "/chat/completions", {"model": "x"})
-            inference.assert_called_once_with("secret", "blablador", {"model": "x"})
+            inference.assert_called_once_with("secret", "blablador", {"model": "x"}, allow_truncated=True)
         self.assertEqual(benchmark.safe_error(benchmark.GatewayError("gateway_http_403")), "gateway_gateway_http_403")
         self.assertEqual(benchmark.safe_error(benchmark.GatewayError("raw upstream secret")), "request_failed_GatewayError")
 
