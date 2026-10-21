@@ -42,7 +42,8 @@ jobs:
           path: reports/provider-catalog/
           if-no-files-found: ignore
           retention-days: 14
-      # Successful benchmark runs on main from the last 30 days (artifact retention).
+      # Completed benchmark runs on main, failed ones included, from the last 30 days (artifact
+      # retention); runs that left no usable report are skipped by model-scores.mjs.
       # Runs already in research/model-scores.json are kept even after their artifacts expire.
       - name: Collect scientific benchmark results
         if: success() || steps.discovery.outcome == 'failure'
@@ -52,7 +53,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           for workflow in blablador-scientific-v3.yml hip-scientific.yml; do
-            for run in $(gh run list -R "$GITHUB_REPOSITORY" -w "$workflow" -b main -s success -L 15 --json databaseId -q '.[].databaseId'); do
+            for run in $(gh run list -R "$GITHUB_REPOSITORY" -w "$workflow" -b main -s completed -L 15 --json databaseId -q '.[].databaseId'); do
               gh run download "$run" -R "$GITHUB_REPOSITORY" -D "reports/benchmarks/$run" || echo "No artifacts left for run $run"
             done
           done

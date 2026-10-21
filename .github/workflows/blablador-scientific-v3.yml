@@ -7,7 +7,7 @@ on:
         description: 'Provider / model (menu refreshed from the Cloudflare catalog by "Refresh HIP/Blablador model menu")'
         required: true
         type: choice
-        # BEGIN GENERATED RESEARCH MODEL OPTIONS providers=hip,blablador all
+        # BEGIN GENERATED RESEARCH MODEL OPTIONS providers=hip,blablador all=12
         options:
           - "hip / alla"
           - "hip / gemma-4-31B-it"

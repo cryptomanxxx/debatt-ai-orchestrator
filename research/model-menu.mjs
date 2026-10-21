@@ -6,7 +6,8 @@ import {rankings,recommendations,rankingMarkdown} from './model-scores.mjs';
 
 export const PROVIDERS=['hip','blablador'];
 export const PLACEHOLDER='REFRESH_MODEL_MENU_FIRST';
-const BEGIN=/^( *)# BEGIN GENERATED RESEARCH MODEL OPTIONS providers=([a-z,]+)( all)?$/;
+// " all" adds "<provider> / alla"; " all=12" adds it only while the provider has at most 12 models.
+const BEGIN=/^( *)# BEGIN GENERATED RESEARCH MODEL OPTIONS providers=([a-z,]+)(?:( all)(?:=(\d{1,3}))?)?$/;
 const END=/^ *# END GENERATED RESEARCH MODEL OPTIONS$/;
 const MAX_OPTIONS=120;
 
@@ -24,7 +25,7 @@ export function mergeCatalog(fresh,previous={}){
 // Recommended entries come first and duplicate a plain entry, so the plain
 // "provider / model" values that API callers send stay stable.
 export const recommendedLabel=(name,r)=>`${name} / ${r.model} (rekommenderad ${r.correct}/${r.attempts})`;
-export function optionsFor(models,providers,all,recommended={}){
+export function optionsFor(models,providers,all,recommended={},allLimit=Infinity){
  const options=[];
  for(const name of providers){
   if(!PROVIDERS.includes(name))throw Error('unknown_menu_provider');
@@ -32,7 +33,7 @@ export function optionsFor(models,providers,all,recommended={}){
   if(r&&models[name].includes(r.model))options.push(recommendedLabel(name,r));
  }
  for(const name of providers){
-  if(all&&models[name].length)options.push(name+' / alla');
+  if(all&&models[name].length&&models[name].length<=allLimit)options.push(name+' / alla');
   for(const id of models[name])options.push(name+' / '+id);
  }
  if(options.length>MAX_OPTIONS)throw Error('model_menu_too_large');
@@ -50,7 +51,7 @@ export function rewriteWorkflow(text,models,recommended={}){
   while(j<lines.length&&!END.test(lines[j])){if(BEGIN.test(lines[j]))throw Error('nested_model_menu');j++;}
   if(j===lines.length)throw Error('unterminated_model_menu');
   const indent=begin[1];
-  const options=optionsFor(models,begin[2].split(','),Boolean(begin[3]),recommended);
+  const options=optionsFor(models,begin[2].split(','),Boolean(begin[3]),recommended,begin[4]?Number(begin[4]):Infinity);
   const preselect=options[0].includes(' (rekommenderad ')?[indent+'default: '+JSON.stringify(options[0])]:[];
   out.push(lines[i],indent+'options:',...options.map(o=>indent+'  - '+JSON.stringify(o)),...preselect,lines[j]);
   i=j;blocks++;

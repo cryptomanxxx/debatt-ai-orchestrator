@@ -6,6 +6,11 @@ import {explicitModels} from './explicit-models.mjs';
 export const PROVIDERS=['hip','blablador'];
 const MAX_RUNS=40;
 const MIN_ATTEMPTS=5;
+// Rows that say nothing about the model itself: discovery outages, models missing from
+// the catalog, and quota or credential stops. Model-attributable failures still count.
+const NOT_MODEL_ATTEMPT=new Set(['discovery_failed','not_listed','not_started','rate_limited',
+ 'http_401','http_403','http_429','gateway_http_401','gateway_http_403','gateway_http_429',
+ 'gateway_benchmark_upstream_auth_rejected','gateway_benchmark_upstream_quota_exhausted']);
 
 const median=values=>{
  const v=values.filter(x=>typeof x==='number'&&Number.isFinite(x)&&x>=0).sort((a,b)=>a-b);
@@ -23,14 +28,17 @@ export function tallyReport(fileName,report){
  const models={};
  for(const row of report.results){
   const id=row?.model;
-  if(typeof id!=='string'||!explicitModels([id]).length)continue;
+  if(typeof id!=='string'||!explicitModels([id]).length||NOT_MODEL_ATTEMPT.has(row.status))continue;
   const m=models[id]??={correct:0,attempts:0,latencies:[]};
   m.attempts++;
   if(row.scientific_verdict==='correct')m.correct++;
-  if(row.status==='ok')m.latencies.push(row.latency_seconds);
+  const latency=row.latency_seconds;
+  if(row.status==='ok'&&typeof latency==='number'&&Number.isFinite(latency)&&latency>=0&&m.latencies.length<500)
+   m.latencies.push(Math.round(latency*100)/100);
  }
  const out={};
- for(const [id,m] of Object.entries(models))out[id]={correct:m.correct,attempts:m.attempts,medianLatency:median(m.latencies)};
+ // Individual latencies are kept so totals across runs use the median of all calls.
+ for(const [id,m] of Object.entries(models))out[id]={correct:m.correct,attempts:m.attempts,latencies:m.latencies};
  return Object.keys(out).length?{provider,models:out}:null;
 }
 // Runs are keyed by Actions run ID, so re-ingesting an artifact never double counts.
@@ -47,7 +55,8 @@ export function rankings(runs,catalog){
    if(run?.provider!==provider)continue;
    for(const [id,m] of Object.entries(run.models??{})){
     const t=totals[id]??={correct:0,attempts:0,latencies:[]};
-    t.correct+=m.correct;t.attempts+=m.attempts;t.latencies.push(m.medianLatency);
+    t.correct+=m.correct;t.attempts+=m.attempts;
+    if(Array.isArray(m.latencies))t.latencies.push(...m.latencies);
    }
   }
   const listed=new Set(catalog?.[provider]??[]);
@@ -81,13 +90,20 @@ export function rankingMarkdown(ranked,catalog){
  }
  return lines.join('\n');
 }
+// A rerun uploads one artifact per attempt (…-<run id>-<attempt>); only the latest
+// attempt's report is scored for a run.
+export function attemptOf(dir){
+ const m=String(dir).match(/-(\d{1,4})\/?$/);
+ return m?Number(m[1]):0;
+}
 async function reportFiles(dir){
  const found=[];
  for(const entry of await readdir(dir,{withFileTypes:true,recursive:true}).catch(()=>[])){
+  const parent=entry.parentPath??entry.path;
   if(entry.isFile()&&['blablador-scientific-v3.json','results.json'].includes(entry.name))
-   found.push({name:entry.name,path:(entry.parentPath??entry.path)+'/'+entry.name});
+   found.push({name:entry.name,path:parent+'/'+entry.name,attempt:attemptOf(parent)});
  }
- return found;
+ return found.sort((a,b)=>a.attempt-b.attempt||a.path.localeCompare(b.path));
 }
 
 if(process.argv[1]?.endsWith('/model-scores.mjs')){

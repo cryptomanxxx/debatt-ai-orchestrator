@@ -72,3 +72,9 @@ test('recommended entries come first, keep plain values, and become the default'
  assert.deepEqual(parseChoice('hip / Kimi-K2.6 (rekommenderad 9/10)'),{provider:'hip',model:'Kimi-K2.6'});
  assert.throws(()=>parseChoice('hip / Kimi-K2.6 (rekommenderad)'),/invalid_model_choice/);
 });
+test('"all=N" drops the alla entry once a provider has more than N models',()=>{
+ const block=n=>'        # BEGIN GENERATED RESEARCH MODEL OPTIONS providers=hip all='+n+'\n        # END GENERATED RESEARCH MODEL OPTIONS\n';
+ assert.match(rewriteWorkflow(block(2),models).text,/"hip \/ alla"/);
+ assert.doesNotMatch(rewriteWorkflow(block(1),models).text,/alla/);
+ assert.deepEqual(optionsFor(models,['hip'],true,{},1),['hip / GLM-5.2-AWQ-INT4','hip / Kimi-K2.6']);
+});
