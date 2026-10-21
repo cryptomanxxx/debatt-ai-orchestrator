@@ -66,6 +66,8 @@ def main():
                     "temperature": 0 
                 })
                 result["latency_seconds"] = response.get("_completion_latency_seconds")
+                if response.get("_resolved_model"):
+                    result["resolved_model"] = response["_resolved_model"]
                 raw = response.get("choices", [{}])[0].get("message", {}).get("content", "")
                 answer = raw.strip() if isinstance(raw, str) else ""
                 result["correct"] = answer == expected

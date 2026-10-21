@@ -18,7 +18,8 @@ SAFE_ERRORS = frozenset({'missing_orchestrator_key','invalid_gateway_path','gate
     'benchmark_upstream_auth_rejected','benchmark_upstream_quota_exhausted',
     'benchmark_invalid_response','benchmark_token_budget_exceeded',
     'benchmark_missing_answer','benchmark_response_too_large','benchmark_model_identity_mismatch',
-    'benchmark_invalid_finish_reason','benchmark_invalid_upstream_json'})
+    'benchmark_invalid_finish_reason','benchmark_invalid_upstream_json',
+    'benchmark_alias_unresolved','benchmark_non_chat_model','benchmark_model_not_listed'})
 
 WORKER = "https://debatt-ai-orchestrator.xx8031126.workers.dev"
 MAX_BYTES = 262144
@@ -32,6 +33,11 @@ WORKER_ERROR_CODES = frozenset({
     "benchmark_missing_answer", "benchmark_response_too_large",
     "benchmark_model_identity_mismatch", "benchmark_invalid_finish_reason",
     "benchmark_invalid_upstream_json",
+})
+# Request-validation codes the Worker returns with HTTP 400 (alias without a usable root,
+# non-chat backing model, model missing from the live catalog).
+WORKER_400_CODES = frozenset({
+    "benchmark_alias_unresolved", "benchmark_non_chat_model", "benchmark_model_not_listed",
 })
 
 class GatewayError(Exception):
@@ -67,14 +73,15 @@ def _request(api_key, path, body=None, open_url=None):
         try:
             # Only a bounded JSON object with a known Worker-generated error code is trusted.
             # Never expose arbitrary HTML, HTTP reason text, response bodies or secrets.
-            if status == 502 and error.headers and error.headers.get_content_type() == "application/json":
+            allowed = WORKER_ERROR_CODES if status == 502 else WORKER_400_CODES if status == 400 else frozenset()
+            if allowed and error.headers and error.headers.get_content_type() == "application/json":
                 raw_error = error.read(MAX_ERROR_BYTES + 1)
                 if len(raw_error) <= MAX_ERROR_BYTES:
                     data_error = json.loads(raw_error.decode("utf-8", errors="strict"), object_pairs_hook=_unique_object)
                     if (isinstance(data_error, dict) and
                         set(data_error) == {"error"} and
                         type(data_error["error"]) is str and
-                        data_error["error"] in WORKER_ERROR_CODES):
+                        data_error["error"] in allowed):
                         category = data_error["error"]
         except (ValueError, UnicodeDecodeError, OSError, TypeError, AttributeError, http.client.HTTPException):
             pass

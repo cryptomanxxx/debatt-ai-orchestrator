@@ -84,7 +84,8 @@ test('"all=N" drops the alla entry once a provider has more than N models',()=>{
 test('one alias per backing model, shown with the model it runs',()=>{
  const catalog={'alias-code':'Qwen/Qwen3.8-27B-FP8','alias-qwen38-27b':'Qwen/Qwen3.8-27B-FP8',
   'alias-fast':'openai/gpt-oss-120b','alias-default':'openai/gpt-oss-120b','alias-embeddings':'Qwen/Qwen3-Embedding-8B',
-  'alias-none':'None','alias-deepseek-v41-flash-booster':'/p/scratch/ccstao/x/DeepSeek-V4.1-Flash-1017','alias-bad':'a b'};
+  'alias-none':'None','alias-deepseek-v41-flash-booster':'/p/scratch/ccstao/x/DeepSeek-V4.1-Flash-1017','alias-bad':'a b',
+  'alias-slash':'/','alias-slashes':'///'};
  const picked=aliasModels(catalog);
  assert.deepEqual(picked,{'alias-deepseek-v41-flash-booster':'/p/scratch/ccstao/x/DeepSeek-V4.1-Flash-1017',
   'alias-fast':'openai/gpt-oss-120b','alias-qwen38-27b':'Qwen/Qwen3.8-27B-FP8'});

@@ -25,7 +25,7 @@ class ScientificV2Test(unittest.TestCase):
             calls.append(payload)
             return {"choices": [{"message": {"content": answers[payload["messages"][1]["content"]]}}],
                     "usage": {"prompt_tokens": 12, "completion_tokens": 3},
-                    "_completion_latency_seconds": 0.5}
+                    "_completion_latency_seconds": 0.5, "_resolved_model": "zai-org/GLM-5.3-Flash"}
 
         with tempfile.TemporaryDirectory() as directory:
             previous = os.getcwd()
@@ -43,6 +43,7 @@ class ScientificV2Test(unittest.TestCase):
         self.assertEqual(len(report["results"]), 10)
         self.assertTrue(all(item["correct"] and item["status"] == "ok" for item in report["results"]))
         self.assertTrue(all(item["latency_seconds"] == 0.5 for item in report["results"]))
+        self.assertTrue(all(item["resolved_model"] == "zai-org/GLM-5.3-Flash" for item in report["results"]))
         self.assertEqual(report["transport"], "cloudflare-benchmark-v1")
         self.assertEqual(report["metadata_scope"], "catalog_ids_only")
         self.assertEqual(report["inference_timeout_seconds"], 60)
