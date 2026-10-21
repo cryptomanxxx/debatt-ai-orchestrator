@@ -1,5 +1,6 @@
 import json
 import unittest
+from urllib.error import HTTPError
 from cloudflare_benchmark_client import catalog_models, benchmark_completion, GatewayError, WORKER
 KEY="test-orchestrator-secret-value-12345"
 MODEL="alias-glm-5.3-flash"
@@ -27,6 +28,14 @@ class CloudflareAdapterTest(unittest.TestCase):
         self.assertEqual(data["_completion_latency_seconds"],1.2)
         self.assertEqual(seen[0][0],WORKER+"/v1/research/benchmark")
         self.assertEqual(seen[0][2]["messages"],PAYLOAD["messages"])
+    def test_status_buckets_do_not_leak_response_bodies(self):
+        for code, expected in [(401,"gateway_http_401"),(403,"gateway_http_403"),(404,"gateway_http_404"),(429,"gateway_http_429"),(503,"gateway_http_5xx")]:
+            def rejected(req, timeout):
+                raise HTTPError(req.full_url, code, "secret response detail", {}, None)
+            with self.subTest(code=code), self.assertRaises(GatewayError) as error:
+                catalog_models(KEY,"blablador",rejected)
+            self.assertEqual(str(error.exception),expected)
+
     def test_invalid_usage_fails(self):
         with self.assertRaises(GatewayError):
             benchmark_completion(KEY,"blablador",PAYLOAD,fake({"status":"completed_unverified","provider":"blablador","model":MODEL,"answer":"4","finish_reason":"stop","scientificallyVerified":False,"backendIdentityVerified":False,"completion_latency_seconds":1,"usage":{"prompt_tokens":3,"completion_tokens":257,"total_tokens":260}},[]))

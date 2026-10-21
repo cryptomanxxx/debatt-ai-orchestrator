@@ -10,7 +10,8 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 SAFE_ERRORS = frozenset({'missing_orchestrator_key','invalid_gateway_path','gateway_transport_or_http_failed',
     'gateway_response_too_large','gateway_invalid_json','gateway_invalid_response',
     'invalid_provider','gateway_catalog_failed','gateway_catalog_invalid',
-    'invalid_benchmark_request','gateway_completion_invalid','gateway_latency_invalid','gateway_usage_invalid'})
+    'invalid_benchmark_request','gateway_completion_invalid','gateway_latency_invalid','gateway_usage_invalid',
+    'gateway_http_401','gateway_http_403','gateway_http_404','gateway_http_429','gateway_http_5xx','gateway_http_other'})
 
 WORKER = "https://debatt-ai-orchestrator.xx8031126.workers.dev"
 MAX_BYTES = 131072
@@ -32,7 +33,12 @@ def _request(api_key, path, body=None, open_url=None):
     try:
         with transport(req, timeout=100) as res:
             raw = res.read(MAX_BYTES + 1)
-    except (HTTPError, URLError, OSError, TimeoutError) as error:
+    except HTTPError as error:
+        status = error.code
+        error.close()
+        category = "gateway_http_" + str(status) if status in (401, 403, 404, 429) else ("gateway_http_5xx" if 500 <= status <= 599 else "gateway_http_other")
+        raise GatewayError(category) from None
+    except (URLError, OSError, TimeoutError):
         raise GatewayError("gateway_transport_or_http_failed") from None
     if len(raw) > MAX_BYTES:
         raise GatewayError("gateway_response_too_large")
