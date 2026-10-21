@@ -93,6 +93,9 @@ def main():
                             "temperature": 0, "max_tokens": 384
                         })
                         item["latency_seconds"] = response["_completion_latency_seconds"]
+                        # The alias root the Worker verified this call against (may change mid-run).
+                        if response.get("_resolved_model"):
+                            item["resolved_model"] = response["_resolved_model"]
                         choice = response["choices"][0]
                         answer = choice["message"]["content"]
                         usage = response.get("usage") or {}

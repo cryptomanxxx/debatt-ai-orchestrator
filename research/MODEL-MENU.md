@@ -7,7 +7,7 @@ HIP and Blablador workflows offer **one dropdown** whose entries carry both prov
 **Refresh HIP/Blablador model menu** (`discover-research-models.yml`) runs nightly at 03:17 UTC and on demand. It:
 
 1. reads `GET /v1/research/models` from the Cloudflare Worker with `ORCHESTRATOR_API_KEY`;
-2. keeps explicit chat model IDs only (`research/explicit-models.mjs`): no `alias-*`, embedding, reranker, audio or image models;
+2. keeps chat models only (`research/explicit-models.mjs`): explicit IDs, plus one Blablador alias per backing model (see below). Embedding, reranker, audio and image models are dropped;
 3. rewrites only the lines between `# BEGIN/END GENERATED RESEARCH MODEL OPTIONS` in every workflow, the snapshot `research/model-catalog.json`, and the ranking files described below;
 4. commits to `main` with a dedicated GitHub App token if anything changed.
 
@@ -48,3 +48,9 @@ Current menus: *Scientific benchmark v3 (HIP or Blablador)* and *HIP scientific 
 5. **Run the refresh workflow once.** Until then, Blablador entries are missing and HIP shows the nine standard models from the seed snapshot.
 
 The app token is created only after the menu actually changed, and it is scoped to Contents and Workflows. The generator cannot touch anything outside the marker blocks and the snapshot file.
+
+## Blablador aliases
+
+Blablador lists its main models under display names with spaces (e.g. `01 - GPT-OSS-120b - …`), which cannot be used as IDs, and exposes them through `alias-*` IDs. Its catalog gives each alias's backing model (`root`). An alias answers under that backing model's name, so the Worker accepts the reply only when its model is the alias's catalog root, or a catalog entry with that same root. Any other reply is still `benchmark_model_identity_mismatch`. The Worker returns that root as `resolved_model`, taken from the catalog and never from the upstream reply, and Scientific v3 stores it per result.
+
+The menu keeps one alias per backing model (the longest, usually most descriptive name) and shows what it runs, e.g. `blablador / alias-fast = gpt-oss-120b`. The ` = …` part is a label; runners ignore it. `alias-default` and aliases without a usable root are left out, and the Worker refuses an alias whose live root is missing or a non-chat model. Scores are kept per alias *and* backing model (`alias@root`): when Blablador re-maps an alias, the next refresh shows the new model and the alias starts a fresh record instead of inheriting the old model's results.

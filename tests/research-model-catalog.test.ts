@@ -18,7 +18,7 @@ test('two hardcoded authenticated HTTPS catalogs, no arbitrary URLs',async()=>{
     }) as typeof fetch);
     assert.equal(calls,1);
     assert.deepEqual(result.data,{status:'catalog_unverified',provider,
-      models:['alias-fast','some/model-1'],modelCount:2,backendIdentityVerified:false});
+      models:['alias-fast','some/model-1'],modelCount:2,backendIdentityVerified:false,aliases:{}});
   }
 });
 test('rejects provider injection and missing credentials before fetch',async()=>{
@@ -61,4 +61,26 @@ test('valid 200-character model ID is supported; excessive output model count is
   const tooMany=await discoverResearchModels('hip',keys,(async()=>Response.json({data:
     Array.from({length:201},(_,i)=>({id:'m'+i}))})) as typeof fetch);
   assert.equal(tooMany.status,502);
+});
+
+test('exports alias roots but keeps display-name roots internal',async()=>{
+  const response=Response.json({data:[
+    {id:'01 - GPT-OSS-120b - an open model',root:'openai/gpt-oss-120b'},
+    {id:'alias-fast',root:'openai/gpt-oss-120b'},
+    {id:'alias-default',root:'None'},
+    {id:'alias-bad',root:'evil root'},
+    {id:'alias-secret',root:keys.BLABLADOR_API_KEY},
+    {id:'alias-slash',root:'/'},{id:'alias-dots',root:'a/..'},
+    {id:'ALIAS-Upper',root:'org/upper-model'},
+    {id:'__proto__',root:'polluted/root'},
+    {id:'deepseek-v4.1-flash-at-hzdr',root:'None'}
+  ]});
+  const result:any=await discoverResearchModels('blablador',keys,(async()=>response) as typeof fetch);
+  assert.equal(result.status,200);
+  assert.deepEqual(result.data.aliases,{'alias-fast':'openai/gpt-oss-120b','ALIAS-Upper':'org/upper-model'});
+  assert.equal(result.roots.get('01 - GPT-OSS-120b - an open model'),'openai/gpt-oss-120b');
+  assert.equal(result.roots.get('__proto__'),'polluted/root');
+  assert.equal(({} as any).polluted,undefined);
+  assert.ok(!JSON.stringify(result.data).includes('01 - GPT'));
+  assert.ok(!JSON.stringify(result).includes(keys.BLABLADOR_API_KEY));
 });

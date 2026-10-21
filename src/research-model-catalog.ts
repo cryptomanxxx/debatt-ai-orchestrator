@@ -8,6 +8,15 @@ const SOURCES = {
 type Provider = keyof typeof SOURCES;
 const MAX_BYTES=65536;
 const MODEL_ID=/^[a-zA-Z0-9][a-zA-Z0-9_./:+-]{0,199}$/;
+// Backing model ("root") of a catalog entry, e.g. "openai/gpt-oss-120b" or a /p/scratch path.
+const ROOT=/^[a-zA-Z0-9_./:+-]{1,300}$/;
+// Display names such as "01 - GPT-OSS-120b - an open model…" may contain spaces; they are
+// only used internally to match a completion's model against an alias's root.
+const DISPLAY_ID=/^[\x20-\x7e]{1,300}$/;
+// A root must name a model: its last path segment needs a letter or digit ("/" or ".." do not).
+const namesModel=(root:string)=>/[a-zA-Z0-9]/.test(root.split('/').filter(Boolean).pop()??'');
+// Alias IDs are recognised case-insensitively everywhere (catalog, gateway, menus, runners).
+export const isAlias=(id:string)=>id.toLowerCase().startsWith('alias-');
 export async function discoverResearchModels(provider: string, keys: ResearchKeys, transport: typeof fetch=fetch) {
   if(!Object.hasOwn(SOURCES,provider)) return {status:400,data:{error:'invalid_provider'}};
   const p=SOURCES[provider as Provider];
@@ -55,7 +64,19 @@ export async function discoverResearchModels(provider: string, keys: ResearchKey
     }))].sort();
     if(ids.length>200 || (parsed.data.length>0 && ids.length===0))
       return {status:502,data:{error:'model_catalog_invalid_response'}};
+    // roots: every entry's backing model (internal only, never returned to callers).
+    // aliases: alias-* IDs with a usable root, exported so callers can show what an alias runs.
+    const roots=new Map<string,string>();
+    const aliases:Record<string,string>=Object.create(null);
+    for(const item of parsed.data){
+      if(!item || typeof item!=='object' || Array.isArray(item)) continue;
+      const {id,root}=item as {id?:unknown;root?:unknown};
+      if(typeof id!=='string' || typeof root!=='string' || !DISPLAY_ID.test(id) || !ROOT.test(root) || !namesModel(root) ||
+         root==='None' || id.includes(key) || root.includes(key)) continue;
+      roots.set(id,root);
+      if(isAlias(id) && MODEL_ID.test(id)) aliases[id]=root;
+    }
     return {status:200,data:{status:'catalog_unverified',provider,models:ids,
-      modelCount:ids.length,backendIdentityVerified:false}};
+      modelCount:ids.length,backendIdentityVerified:false,aliases:{...aliases}},roots};
   }catch{return {status:502,data:{error:'model_catalog_invalid_response'}};}
 }

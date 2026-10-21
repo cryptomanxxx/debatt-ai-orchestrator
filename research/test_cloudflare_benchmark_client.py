@@ -55,6 +55,10 @@ class CloudflareAdapterTest(unittest.TestCase):
             (502, "application/json", b'{"error":"benchmark_invalid_finish_reason"}', "benchmark_invalid_finish_reason"),
             (502, "application/json", b'{"error":"benchmark_response_too_large"}', "benchmark_response_too_large"),
             (502, "application/json", b'{"error":"benchmark_invalid_upstream_json"}', "benchmark_invalid_upstream_json"),
+            (400, "application/json", b'{"error":"benchmark_alias_unresolved"}', "benchmark_alias_unresolved"),
+            (400, "application/json", b'{"error":"benchmark_non_chat_model"}', "benchmark_non_chat_model"),
+            (400, "application/json", b'{"error":"benchmark_upstream_failed"}', "gateway_http_other"),
+            (502, "application/json", b'{"error":"benchmark_alias_unresolved"}', "gateway_http_5xx"),
             (502, "application/json", b'{"error":"backend_secret_response"}', "gateway_http_5xx"),
             (502, "application/json", b'{"error":"unknown","error":"benchmark_upstream_failed"}', "gateway_http_5xx"),
             (502, "application/json", '{"error":"benchmark_upstream_failed"}'.encode("utf-16"), "gateway_http_5xx"),
@@ -102,6 +106,29 @@ class CloudflareAdapterTest(unittest.TestCase):
         with self.assertRaises(GatewayError) as error:
             benchmark_completion(KEY,"blablador",PAYLOAD,fake(response,[]))
         self.assertEqual(str(error.exception),"gateway_completion_invalid")
+
+    def test_resolved_model_only_for_aliases_and_validated(self):
+        body={"status":"completed_unverified","provider":"blablador","model":"alias-fast","answer":"4","finish_reason":"stop",
+              "scientificallyVerified":False,"backendIdentityVerified":False,"completion_latency_seconds":1,
+              "usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2},"resolved_model":"openai/gpt-oss-120b"}
+        alias_payload={**PAYLOAD,"model":"alias-fast"}
+        self.assertEqual(benchmark_completion(KEY,"blablador",alias_payload,fake(body,[]))["_resolved_model"],"openai/gpt-oss-120b")
+        for bad in ("evil root", 7, "x"*301, "/", "a/.."):
+            with self.subTest(bad=bad), self.assertRaises(GatewayError):
+                benchmark_completion(KEY,"blablador",alias_payload,fake({**body,"resolved_model":bad},[]))
+        explicit={**PAYLOAD,"model":"Qwen3.8-27B"}
+        with self.assertRaises(GatewayError):
+            benchmark_completion(KEY,"blablador",explicit,fake({**body,"model":"Qwen3.8-27B"},[]))
+
+    def test_catalog_returns_validated_alias_roots(self):
+        body={"status":"discovered_unverified","providers":{"blablador":{"status":"catalog_unverified","provider":"blablador",
+              "backendIdentityVerified":False,"models":["alias-fast","Qwen3.8-27B"],
+              "aliases":{"alias-fast":"openai/gpt-oss-120b","alias-gone":"x/y","alias-bad":"evil root","Qwen3.8-27B":"/"}}}}
+        self.assertEqual(catalog_models(KEY,"blablador",fake(body,[])),
+                         {"data":[{"id":"alias-fast","root":"openai/gpt-oss-120b"},{"id":"Qwen3.8-27B"}]})
+        body["providers"]["blablador"]["aliases"]=["alias-fast"]
+        with self.assertRaises(GatewayError):
+            catalog_models(KEY,"blablador",fake(body,[]))
 
     def test_invalid_usage_fails(self):
         with self.assertRaises(GatewayError):

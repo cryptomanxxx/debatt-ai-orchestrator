@@ -16,10 +16,17 @@ from cloudflare_benchmark_client import catalog_models, benchmark_completion, Ga
 from model_choice import parse_model_choice, snapshot_models
 
 MODEL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,199}$")
+NON_CHAT = re.compile(r"embedding|rerank|bge-|gte-|whisper|transcri|tts|audio|image|all-proxy|moderation|anonymiz", re.I)
 def explicit_model_id(model):
     return (bool(MODEL_ID.fullmatch(model)) and not model.lower().startswith("alias-") and ".." not in model.split("/") and
             model.lower() not in {"default","fast","gpt-3.5-turbo","text-davinci-003","text-embedding-ada-002"} and
-            not re.search(r"embedding|rerank|bge-|gte-|whisper|transcri|tts|audio|image|all-proxy|moderation|anonymiz", model, re.I))
+            not NON_CHAT.search(model))
+
+def menu_model_id(model):
+    """Explicit IDs, plus alias-* IDs: the Worker accepts an alias's reply only from its catalog root."""
+    return explicit_model_id(model) or (
+        bool(MODEL_ID.fullmatch(model)) and model.lower().startswith("alias-") and model.lower() != "alias-default"
+        and ".." not in model.split("/") and not NON_CHAT.search(model))
 
 TASKS = (
     ("determinant", "Compute the determinant of [[2,4,6],[1,2,3],[0,1,1]].", "0"),
@@ -91,15 +98,15 @@ def main():
     if os.getenv("BENCHMARK_MODEL"):
         # Workflow dropdown: one "provider / model" entry from the generated menu.
         try:
-            provider, model = parse_model_choice(os.environ["BENCHMARK_MODEL"], explicit_model_id)
+            provider, model = parse_model_choice(os.environ["BENCHMARK_MODEL"], menu_model_id)
             # "provider / alla" runs every explicit model in the committed menu snapshot.
-            models = [model] if model else snapshot_models(provider, explicit_model_id)
+            models = [model] if model else snapshot_models(provider, menu_model_id)
         except ValueError as error:
             sys.exit(str(error))
     else:
         models = [m.strip() for m in os.getenv("BENCHMARK_MODELS", "").split(",") if m.strip()]
     rep = os.getenv("BENCHMARK_REPEATS", "2")
-    if rep not in ("1", "2", "3") or not models or len(models) > 12 or len(models) != len(set(models)) or any(not explicit_model_id(m) for m in models):
+    if rep not in ("1", "2", "3") or not models or len(models) > 12 or len(models) != len(set(models)) or any(not menu_model_id(m) for m in models):
         sys.exit("Select 1-12 explicit non-alias model IDs from the current discovered catalog; repeats must be 1-3.")
     metadata = {}
     discovery_error = None
@@ -157,6 +164,8 @@ def main():
                             raise ValueError("Malformed model response")
                         item["raw_response"] = content[:6000]
                         item["finish_reason"] = choice.get("finish_reason")
+                        if response.get("_resolved_model"):
+                            item["resolved_model"] = response["_resolved_model"]
                         item["prompt_tokens"] = usage.get("prompt_tokens")
                         item["completion_tokens"] = usage.get("completion_tokens")
                         item["status"] = "ok" if content.strip() else "empty_response"

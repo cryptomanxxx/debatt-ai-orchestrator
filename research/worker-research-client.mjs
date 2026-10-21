@@ -5,6 +5,8 @@ export const ALLOWED=Object.freeze({
   blablador:['alias-glm-5.3-flash','alias-fast']
 });
 const MAX_BYTES=131072;
+// The two-provider catalog (IDs plus alias roots) may exceed a single completion's bound.
+const MAX_CATALOG_BYTES=262144;
 export async function boundedJson(response,max=MAX_BYTES){
   const reader=response.body?.getReader();
   if(!reader)throw Error('worker_missing_body');
@@ -27,7 +29,7 @@ export async function workerRequest(path,key,body,fetchImpl=fetch){
       ...(body?{'Content-Type':'application/json'}:{})},
     ...(body?{body:JSON.stringify(body)}:{})});
   if(!response.ok){await response.body?.cancel().catch(()=>{});throw Error('worker_http_'+response.status);}
-  return boundedJson(response);
+  return boundedJson(response,path==='/v1/research/models'?MAX_CATALOG_BYTES:MAX_BYTES);
 }
 export async function selectWorkerModel(provider,task,key,fetchImpl=fetch){
   if(!['auto','hip','blablador'].includes(provider)||!['reasoning','literature','coding','fast'].includes(task))

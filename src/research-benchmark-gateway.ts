@@ -1,6 +1,6 @@
 // A separate, opt-in gateway for bounded scientific benchmarks.
 // Catalog presence is necessary but never proof of chat capability or scientific validity.
-import { discoverResearchModels } from './research-model-catalog.ts';
+import { discoverResearchModels, isAlias } from './research-model-catalog.ts';
 import type { ResearchKeys } from './research-inference.ts';
 const SOURCES = {
   hip: { url:'https://llm-service.ai.tu-darmstadt.de/v1/chat/completions', key:'HIP_API_KEY' },
@@ -10,7 +10,8 @@ type Provider=keyof typeof SOURCES;
 const SAFE_ID=/^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,199}$/;
 const BUDGET={standard:{tokens:512,chars:4000,timeout:45000},benchmark:{tokens:768,chars:12000,timeout:60000}} as const;
 const MAX_RESPONSE=65536;
-const blockedId=(id:string)=>/embedding|rerank|bge-|gte-|whisper|transcri|tts|audio|image|all-proxy|moderation/i.test(id);
+// Same non-chat predicate as the menu's catalog filter (research/explicit-models.mjs).
+const blockedId=(id:string)=>/embedding|rerank|bge-|gte-|whisper|transcri|tts|audio|image|all-proxy|moderation|anonymiz/i.test(id);
 const error=(status:number,code:string)=>({status,data:{error:code}});
 async function boundedJson(response:Response){
   const reader=response.body?.getReader();
@@ -56,6 +57,13 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
   if(catalog.status!==200)return error(502,'benchmark_catalog_unavailable');
   const models=(catalog.data as {models?:string[]}).models;
   if(!Array.isArray(models)||!models.includes(model))return error(400,'benchmark_model_not_listed');
+  // An alias answers under its backing model's name. It is accepted only when the reply's
+  // model is the alias's catalog root, or a catalog entry with that same root.
+  const aliasRoot=isAlias(model)?(catalog.data as {aliases?:Record<string,string>}).aliases?.[model]:undefined;
+  const roots='roots' in catalog?catalog.roots:undefined;
+  // An alias is only run while the live catalog names a usable root, so its reply is always verifiable.
+  if(isAlias(model) && aliasRoot===undefined)return error(400,'benchmark_alias_unresolved');
+  if(aliasRoot!==undefined && blockedId(aliasRoot))return error(400,'benchmark_non_chat_model');
   let response:Response;
   const started=performance.now();
   try{
@@ -79,7 +87,10 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
   if(typeof answer!=='string'||!answer.trim())return error(502,'benchmark_missing_answer');
   if(answer.includes(key))return error(502,'benchmark_invalid_response');
   if(answer.length>16000)return error(502,'benchmark_response_too_large');
-  if(data?.model!==model)return error(502,'benchmark_model_identity_mismatch');
+  const replied=data?.model;
+  const viaAlias=aliasRoot!==undefined && typeof replied==='string' &&
+    (replied===aliasRoot || roots?.get(replied)===aliasRoot);
+  if(replied!==model && !viaAlias)return error(502,'benchmark_model_identity_mismatch');
   if(!['stop','length'].includes(data?.choices?.[0]?.finish_reason))
     return error(502,'benchmark_invalid_finish_reason');
   const completionLatencySeconds=Math.round((performance.now()-started)/10)/100;
@@ -90,5 +101,7 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
   return {status:200,data:{status:'completed_unverified',provider,model,answer,
     finish_reason:data.choices[0].finish_reason,completion_latency_seconds:completionLatencySeconds,usage:{prompt_tokens:safeUsage('prompt_tokens'),
       completion_tokens:safeUsage('completion_tokens'),total_tokens:safeUsage('total_tokens')},
+    // resolved_model comes from the validated catalog root, never from the upstream reply.
+    ...(aliasRoot!==undefined?{resolved_model:aliasRoot}:{}),
     scientificallyVerified:false,backendIdentityVerified:false}};
 }

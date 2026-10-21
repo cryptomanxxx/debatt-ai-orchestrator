@@ -138,3 +138,66 @@ test('catalog-listed HIP VL chat model is allowed for text prompts',async()=>{
  }) as typeof fetch);
  assert.equal(result.status,200);
 });
+
+const aliasInput={provider:'blablador',model:'alias-fast',profile:'benchmark',max_tokens:768,
+  messages:[{role:'user',content:'Solve x^2=4.'}]};
+function aliasTransport(replyModel:unknown){
+  return (async(url:string|URL|Request)=>{
+    if(String(url).endsWith('/models'))return Response.json({data:[
+      {id:'01 - GPT-OSS-120b - an open model',root:'openai/gpt-oss-120b'},
+      {id:'alias-fast',root:'openai/gpt-oss-120b'},
+      {id:'alias-code',root:'Qwen/Qwen3.8-27B-FP8'},
+      {id:'07 - Qwen3.8-27B-FP8',root:'Qwen/Qwen3.8-27B-FP8'}]});
+    return Response.json({model:replyModel,choices:[{finish_reason:'stop',message:{content:'2'}}],usage:{}});
+  }) as typeof fetch;
+}
+test('an alias is accepted only when the reply comes from its catalog root',async()=>{
+ for(const replied of ['openai/gpt-oss-120b','01 - GPT-OSS-120b - an open model','alias-fast']){
+  const r:any=await researchBenchmark(aliasInput,keys,aliasTransport(replied));
+  assert.equal(r.status,200,replied);
+  assert.equal(r.data.model,'alias-fast');
+  assert.equal(r.data.resolved_model,'openai/gpt-oss-120b','every rooted alias reply names its root');
+  assert.ok(!JSON.stringify(r.data).includes('01 - GPT'),'upstream display name is never echoed');
+ }
+ for(const replied of ['Qwen/Qwen3.8-27B-FP8','07 - Qwen3.8-27B-FP8','other',null]){
+  const r:any=await researchBenchmark(aliasInput,keys,aliasTransport(replied));
+  assert.deepEqual(r.data,{error:'benchmark_model_identity_mismatch'},String(replied));
+ }
+});
+test('an alias never accepts another alias root',async()=>{
+ const r:any=await researchBenchmark({...aliasInput,model:'alias-code'},keys,aliasTransport('openai/gpt-oss-120b'));
+ assert.deepEqual(r.data,{error:'benchmark_model_identity_mismatch'});
+});
+test('an alias whose current root is a non-chat model is refused before any completion',async()=>{
+ let completions=0;
+ const t=(async(url:string|URL|Request)=>{
+  if(String(url).endsWith('/models'))return Response.json({data:[{id:'alias-fast',root:'Qwen/Qwen3-Embedding-8B'}]});
+  completions++;return Response.json({});
+ }) as typeof fetch;
+ const r:any=await researchBenchmark(aliasInput,keys,t);
+ assert.equal(r.status,400);assert.deepEqual(r.data,{error:'benchmark_non_chat_model'});
+ assert.equal(completions,0);
+});
+test('rootless aliases and anonymizer roots are refused before any completion',async()=>{
+ for(const [root,code] of [[undefined,'benchmark_alias_unresolved'],['None','benchmark_alias_unresolved'],
+   ['bad root','benchmark_alias_unresolved'],['org/text-anonymizer-v1','benchmark_non_chat_model']]){
+  let completions=0;
+  const t=(async(url:string|URL|Request)=>{
+   if(String(url).endsWith('/models'))return Response.json({data:[{id:'alias-fast',...(root?{root}:{})}]});
+   completions++;return Response.json({model:'alias-fast',choices:[{finish_reason:'stop',message:{content:'2'}}]});
+  }) as typeof fetch;
+  const r:any=await researchBenchmark(aliasInput,keys,t);
+  assert.deepEqual(r.data,{error:code},String(root));assert.equal(completions,0);
+ }
+});
+test('alias prefixes are case-insensitive: an upper-case alias still needs its root',async()=>{
+ const t=(root?:string)=>(async(url:string|URL|Request)=>{
+  if(String(url).endsWith('/models'))return Response.json({data:[{id:'ALIAS-Fast',...(root?{root}:{})}]});
+  return Response.json({model:'ALIAS-Fast',choices:[{finish_reason:'stop',message:{content:'2'}}]});
+ }) as typeof fetch;
+ const input={...aliasInput,model:'ALIAS-Fast'};
+ assert.deepEqual((await researchBenchmark(input,keys,t()) as any).data,{error:'benchmark_alias_unresolved'});
+ assert.deepEqual((await researchBenchmark(input,keys,t('/')) as any).data,{error:'benchmark_alias_unresolved'});
+ const ok:any=await researchBenchmark(input,keys,t('openai/gpt-oss-120b'));
+ assert.equal(ok.status,200);assert.equal(ok.data.resolved_model,'openai/gpt-oss-120b');
+});

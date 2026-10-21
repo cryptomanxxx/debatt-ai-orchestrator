@@ -1,5 +1,6 @@
 """Restricted GitHub -> Cloudflare research benchmark transport; never sees provider keys."""
 import json
+import re
 import http.client
 import urllib.request
 from urllib.error import HTTPError, URLError
@@ -17,10 +18,17 @@ SAFE_ERRORS = frozenset({'missing_orchestrator_key','invalid_gateway_path','gate
     'benchmark_upstream_auth_rejected','benchmark_upstream_quota_exhausted',
     'benchmark_invalid_response','benchmark_token_budget_exceeded',
     'benchmark_missing_answer','benchmark_response_too_large','benchmark_model_identity_mismatch',
-    'benchmark_invalid_finish_reason','benchmark_invalid_upstream_json'})
+    'benchmark_invalid_finish_reason','benchmark_invalid_upstream_json',
+    'benchmark_alias_unresolved','benchmark_non_chat_model','benchmark_model_not_listed'})
 
 WORKER = "https://debatt-ai-orchestrator.xx8031126.workers.dev"
-MAX_BYTES = 131072
+MAX_BYTES = 262144
+RESOLVED_MODEL = re.compile(r"^[A-Za-z0-9_./:+-]{1,300}$")
+
+def _names_model(root):
+    """A backing-model root whose last path segment names a model (not just "/" or "..")."""
+    segments = [s for s in root.split("/") if s]
+    return bool(segments) and any(c.isascii() and c.isalnum() for c in segments[-1])
 MAX_ERROR_BYTES = 1024
 WORKER_ERROR_CODES = frozenset({
     "benchmark_catalog_unavailable", "benchmark_transport_failed",
@@ -30,6 +38,11 @@ WORKER_ERROR_CODES = frozenset({
     "benchmark_missing_answer", "benchmark_response_too_large",
     "benchmark_model_identity_mismatch", "benchmark_invalid_finish_reason",
     "benchmark_invalid_upstream_json",
+})
+# Request-validation codes the Worker returns with HTTP 400 (alias without a usable root,
+# non-chat backing model, model missing from the live catalog).
+WORKER_400_CODES = frozenset({
+    "benchmark_alias_unresolved", "benchmark_non_chat_model", "benchmark_model_not_listed",
 })
 
 class GatewayError(Exception):
@@ -65,14 +78,15 @@ def _request(api_key, path, body=None, open_url=None):
         try:
             # Only a bounded JSON object with a known Worker-generated error code is trusted.
             # Never expose arbitrary HTML, HTTP reason text, response bodies or secrets.
-            if status == 502 and error.headers and error.headers.get_content_type() == "application/json":
+            allowed = WORKER_ERROR_CODES if status == 502 else WORKER_400_CODES if status == 400 else frozenset()
+            if allowed and error.headers and error.headers.get_content_type() == "application/json":
                 raw_error = error.read(MAX_ERROR_BYTES + 1)
                 if len(raw_error) <= MAX_ERROR_BYTES:
                     data_error = json.loads(raw_error.decode("utf-8", errors="strict"), object_pairs_hook=_unique_object)
                     if (isinstance(data_error, dict) and
                         set(data_error) == {"error"} and
                         type(data_error["error"]) is str and
-                        data_error["error"] in WORKER_ERROR_CODES):
+                        data_error["error"] in allowed):
                         category = data_error["error"]
         except (ValueError, UnicodeDecodeError, OSError, TypeError, AttributeError, http.client.HTTPException):
             pass
@@ -101,8 +115,13 @@ def catalog_models(api_key, provider, open_url=None):
     models = p.get("models")
     if not isinstance(models, list) or len(models) > 200 or any(not isinstance(x, str) for x in models):
         raise GatewayError("gateway_catalog_invalid")
-    # This endpoint intentionally provides only IDs, not unverified upstream root metadata.
-    return {"data": [{"id": m} for m in models]}
+    # IDs only, plus the validated catalog root of each listed alias (what that alias runs now).
+    aliases = p.get("aliases", {})
+    if not isinstance(aliases, dict):
+        raise GatewayError("gateway_catalog_invalid")
+    roots = {a: r for a, r in aliases.items()
+             if a in models and isinstance(r, str) and RESOLVED_MODEL.fullmatch(r) and _names_model(r)}
+    return {"data": [{"id": m, **({"root": roots[m]} if m in roots else {})} for m in models]}
 
 def benchmark_completion(api_key, provider, payload, open_url=None, allow_truncated=False):
     if provider not in ("hip", "blablador") or not isinstance(payload, dict):
@@ -130,5 +149,12 @@ def benchmark_completion(api_key, provider, payload, open_url=None, allow_trunca
     answer = obj["answer"]
     if len(answer) > 16000 or api_key in answer:
         raise GatewayError("gateway_completion_invalid")
-    return {"model": obj["model"], "choices": [{"message": {"content": answer}, "finish_reason": obj["finish_reason"]}],
+    # Set only for an alias: its catalog root, which the Worker verified the reply against.
+    resolved = obj.get("resolved_model")
+    if resolved is not None and (not isinstance(resolved, str) or not RESOLVED_MODEL.fullmatch(resolved)
+                                 or not _names_model(resolved)
+                                 or not payload["model"].lower().startswith("alias-")):
+        raise GatewayError("gateway_completion_invalid")
+    return {"model": obj["model"], "_resolved_model": resolved,
+            "choices": [{"message": {"content": answer}, "finish_reason": obj["finish_reason"]}],
             "usage": {k: usage[k] for k in fields}, "_completion_latency_seconds": latency}

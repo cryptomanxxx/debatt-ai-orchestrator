@@ -78,7 +78,7 @@ class ScientificValidatorTests(unittest.TestCase):
         self.assertEqual(report["provider"], "hip")
         self.assertEqual({p for _path, p, _m in seen}, {"hip"})
         self.assertEqual({m for path, _p, m in seen if path != "/models"}, {"GLM-5.2-AWQ-INT4"})
-        for bad in ("REFRESH_MODEL_MENU_FIRST", "hip / alias-fast", "openai / gpt-5"):
+        for bad in ("REFRESH_MODEL_MENU_FIRST", "hip / alias-default", "blablador / alias-embeddings", "openai / gpt-5"):
             with self.subTest(bad=bad), patch.dict(os.environ, {"ORCHESTRATOR_API_KEY": "test-orchestrator-secret-value-12345",
                                                                "BENCHMARK_MODEL": bad}), patch.object(benchmark, "api") as api:
                 with self.assertRaises(SystemExit):
@@ -116,6 +116,33 @@ class ScientificValidatorTests(unittest.TestCase):
                 os.chdir(previous)
         self.assertEqual(sorted(set(seen)), ["Qwen3.8-27B", "deepseek-v4.1-flash-at-hzdr"])
         self.assertEqual(len(seen), 10)
+
+    def test_alias_entries_parse_and_record_the_resolved_model(self):
+        from model_choice import parse_model_choice
+        self.assertEqual(parse_model_choice("blablador / alias-fast = gpt-oss-120b (rekommenderad 5/5)", benchmark.menu_model_id),
+                         ("blablador", "alias-fast"))
+        self.assertFalse(benchmark.explicit_model_id("alias-fast"))
+        self.assertTrue(benchmark.menu_model_id("alias-fast"))
+        seen = []
+        def stub(key, path, payload=None, provider="blablador"):
+            if path == "/models":
+                return {"data": [{"id": "alias-fast"}]}
+            seen.append(payload["model"])
+            return {"choices": [{"message": {"content": "FINAL_ANSWER: 0"}, "finish_reason": "stop"}], "usage": {},
+                    "_completion_latency_seconds": 1.0, "_resolved_model": "openai/gpt-oss-120b"}
+        previous = os.getcwd()
+        with tempfile.TemporaryDirectory() as directory:
+            try:
+                os.chdir(directory)
+                with patch.dict(os.environ, {"ORCHESTRATOR_API_KEY": "test-orchestrator-secret-value-12345",
+                                             "BENCHMARK_MODEL": "blablador / alias-fast = gpt-oss-120b", "BENCHMARK_REPEATS": "1"}), \
+                     patch.object(benchmark, "api", side_effect=stub), patch.object(benchmark.time, "sleep"):
+                    benchmark.main()
+                report = json.loads(Path("blablador-scientific-v3.json").read_text())
+            finally:
+                os.chdir(previous)
+        self.assertEqual(set(seen), {"alias-fast"})
+        self.assertEqual({r["resolved_model"] for r in report["results"]}, {"openai/gpt-oss-120b"})
 
     def test_explicit_model_id_validation(self):
         self.assertTrue(benchmark.explicit_model_id("Qwen3.8-27B"))

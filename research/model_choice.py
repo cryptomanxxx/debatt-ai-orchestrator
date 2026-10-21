@@ -5,7 +5,8 @@ from pathlib import Path
 
 PROVIDERS = ("hip", "blablador")
 # A trailing "(rekommenderad 9/10)" label marks the recommended entry and is ignored.
-CHOICE = re.compile(r"^(hip|blablador) / (\S{1,200})(?: \(rekommenderad \d{1,6}/\d{1,6}\))?$")
+# An alias entry also shows the model it runs ("blablador / alias-fast = gpt-oss-120b").
+CHOICE = re.compile(r"^(hip|blablador) / (\S{1,200})(?: = [A-Za-z0-9_.:+-]{1,200})?(?: \(rekommenderad \d{1,6}/\d{1,6}\))?$")
 SNAPSHOT = Path(__file__).resolve().parent / "model-catalog.json"
 
 
