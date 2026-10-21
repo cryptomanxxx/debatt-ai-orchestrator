@@ -12,8 +12,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from sympy import Rational
+from cloudflare_benchmark_client import catalog_models, benchmark_completion, GatewayError, SAFE_ERRORS
 
-BASE = "https://api.blablador.fz-juelich.de/v1"
 MODELS = ("alias-kimi-k3-1m", "alias-glm-5.3-flash",
           "alias-deepseek-v41-flash-booster", "alias-mimo-v2.6-pro",
           "alias-qwen3.8-flash-next", "alias-fast")
@@ -26,7 +26,7 @@ TASKS = (
 )
 REQUEST_ERRORS = (urllib.error.HTTPError, urllib.error.URLError, TimeoutError,
                   ValueError, TypeError, KeyError, IndexError, AttributeError,
-                  http.client.HTTPException, ConnectionError, OSError)
+                  http.client.HTTPException, ConnectionError, OSError, GatewayError)
 NUM = re.compile(r"^[+-]?\d+(?:/[+-]?\d+|(?:\.\d+)?)?$")
 
 def extracted_answer(content):
@@ -60,30 +60,29 @@ def evaluate(content, expected):
     return "unverified", compliant, candidate
 
 def api(key, path, payload=None):
-    data = json.dumps(payload).encode("utf-8") if payload is not None else None
-    headers = {"Authorization": "Bearer " + key, "Accept": "application/json"}
-    if data is not None:
-        headers["Content-Type"] = "application/json"
-    req = urllib.request.Request(BASE + path, headers=headers, data=data,
-                                 method="POST" if data is not None else "GET")
-    for attempt in range(3):
-        try:
-            with urllib.request.urlopen(req, timeout=90) as response:
-                return json.load(response)
-        except urllib.error.HTTPError as error:
-            if error.code != 429 or attempt == 2:
-                raise
+    if path == "/models" and payload is None:
+        return catalog_models(key, "blablador")
+    if path == "/chat/completions" and payload is not None:
+        for attempt in range(3):
             try:
-                wait = min(60, max(1, float(error.headers.get("Retry-After", ""))))
-            except (ValueError, TypeError):
-                wait = (5, 15)[attempt]
-            error.close()
-            time.sleep(wait)
+                return benchmark_completion(key, "blablador", payload, allow_truncated=True)
+            except GatewayError as error:
+                if str(error) != "gateway_http_429" or attempt == 2:
+                    raise
+                time.sleep((5, 15)[attempt])
+        raise GatewayError("gateway_http_429")
+    raise GatewayError("invalid_gateway_path")
+
+
+def safe_error(error):
+    if isinstance(error, GatewayError) and str(error) in SAFE_ERRORS:
+        return "gateway_" + str(error)
+    return "request_failed_" + type(error).__name__
 
 def main():
-    key = os.environ.get("BLABLADOR_API_KEY", "")
+    key = os.environ.get("ORCHESTRATOR_API_KEY", "")
     if not key:
-        sys.exit("Missing BLABLADOR_API_KEY research-inference environment secret.")
+        sys.exit("Missing ORCHESTRATOR_API_KEY research-inference environment secret.")
     models = [m.strip() for m in os.getenv("BENCHMARK_MODELS", ",".join(MODELS)).split(",") if m.strip()]
     rep = os.getenv("BENCHMARK_REPEATS", "2")
     if rep not in ("1", "2", "3") or not models or len(models) > 6 or len(models) != len(set(models)) or any(m not in MODELS for m in models):
@@ -95,13 +94,17 @@ def main():
         metadata = {m["id"]: {"root": m.get("root"), "max_model_len": m.get("max_model_len")}
                     for m in discovery["data"] if isinstance(m, dict) and isinstance(m.get("id"), str)}
     except REQUEST_ERRORS as error:
-        discovery_error = type(error).__name__
+        discovery_error = safe_error(error)
 
     results = []
     dest = Path("blablador-scientific-v3.json")
     def save():
         dest.write_text(json.dumps({
             "schema_version": 3,
+            "transport": "cloudflare-benchmark-v1",
+            "metadata_scope": "catalog_ids_only",
+            "inference_timeout_seconds": 60,
+            "previous_inference_timeout_seconds": 90,
             "generated_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "scoring_note": "Unambiguous short answers and FINAL_ANSWER lines only; unverified requires human review",
             "model_metadata": {m: metadata.get(m) for m in models},
@@ -121,7 +124,6 @@ def main():
                 if discovery_error or model not in metadata:
                     item["status"] = "discovery_failed" if discovery_error else "not_listed"
                 else:
-                    start = time.monotonic()
                     try:
                         response = api(key, "/chat/completions", {
                             "model": model,
@@ -131,6 +133,7 @@ def main():
                             ],
                             "temperature": 0, "max_tokens": 768
                         })
+                        item["latency_seconds"] = response["_completion_latency_seconds"]
                         choice = response["choices"][0]
                         msg = choice["message"]
                         content = msg["content"]
@@ -151,9 +154,8 @@ def main():
                             item["status"] = "truncated"
                             item["scientific_verdict"] = "unverified"
                     except REQUEST_ERRORS as error:
-                        item["status"] = "rate_limited" if isinstance(error, urllib.error.HTTPError) and error.code == 429 else "request_failed_" + type(error).__name__
-                    finally:
-                        item["latency_seconds"] = round(time.monotonic() - start, 3)
+                        item["status"] = ("rate_limited" if isinstance(error, GatewayError) and str(error) == "gateway_http_429"
+                                          else safe_error(error))
                 results.append(item)
                 save()
                 print(f"{model} {repeat} {task}: {item['status']} {item['scientific_verdict']} format={item['format_compliant']}", flush=True)
