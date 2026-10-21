@@ -1,24 +1,29 @@
-name: Discover HIP and Blablador research models
+name: Refresh HIP/Blablador model menu
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'
 permissions:
   contents: read
 concurrency:
   group: research-provider-model-discovery
   cancel-in-progress: false
 jobs:
-  discover:
+  refresh:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
-      - name: Test explicit model filtering
-        run: node --test tests-research/explicit-models.test.mjs
+      - name: Test model filtering and menu generation
+        run: node --test tests-research/explicit-models.test.mjs tests-research/model-menu.test.mjs
       - name: Run bounded read-only model discovery
+        id: discovery
         env:
           ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
         run: node research/discover-worker-models.mjs
@@ -30,3 +35,48 @@ jobs:
           path: reports/provider-catalog/
           if-no-files-found: ignore
           retention-days: 14
+      # A provider whose discovery failed keeps its last committed models, so this step and
+      # the publish steps below also run after a discovery failure (never after cancellation).
+      - name: Regenerate workflow model menus
+        id: menu
+        if: success() || steps.discovery.outcome == 'failure'
+        run: |
+          node research/model-menu.mjs
+          git add -A .github/workflows research/model-catalog.json
+          if git diff --cached --quiet; then
+            echo "Model menus already current."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git diff --cached --stat
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      # The app is a bypass actor on main's ruleset; its token exists only for this push.
+      - name: Create model-menu app token
+        id: app
+        if: ${{ !cancelled() && steps.menu.outputs.changed == 'true' }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.MODEL_MENU_APP_CLIENT_ID }}
+          private-key: ${{ secrets.MODEL_MENU_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-workflows: write
+      - name: Commit menus to main
+        if: ${{ !cancelled() && steps.menu.outputs.changed == 'true' }}
+        env:
+          TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          git config user.name 'debatt-ai-model-menu[bot]'
+          git config user.email 'debatt-ai-model-menu[bot]@users.noreply.github.com'
+          git commit -q -m 'chore(research): refresh HIP/Blablador model menu'
+          git remote set-url origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # If main moved since checkout, regenerate once on the latest main, then give up.
+          if ! git push origin HEAD:main; then
+            git fetch --depth=1 origin main
+            git reset -q --hard origin/main
+            node research/model-menu.mjs
+            git add -A .github/workflows research/model-catalog.json
+            git diff --cached --quiet && exit 0
+            git commit -q -m 'chore(research): refresh HIP/Blablador model menu'
+            git push origin HEAD:main
+          fi
+          echo "Model menus updated on main. Reload the Run workflow form to see them." >> "$GITHUB_STEP_SUMMARY"

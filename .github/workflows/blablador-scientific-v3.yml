@@ -1,12 +1,24 @@
-name: Blablador scientific benchmark v3
+name: Scientific benchmark v3 (HIP or Blablador)
 
 on:
   workflow_dispatch:
     inputs:
-      models:
-        description: '1-6 comma-separated explicit Blablador model IDs (copy from the latest "Discover HIP and Blablador research models" summary; alias-* is rejected)'
+      model:
+        description: 'Provider / model (menu refreshed from the Cloudflare catalog by "Refresh HIP/Blablador model menu")'
         required: true
-        type: string
+        type: choice
+        # BEGIN GENERATED RESEARCH MODEL OPTIONS providers=hip,blablador
+        options:
+          - "hip / gemma-4-31B-it"
+          - "hip / GLM-5.2-AWQ-INT4"
+          - "hip / Kimi-K2.6"
+          - "hip / leo-hessianai-13b-chat"
+          - "hip / Ministral-3-14B-Instruct-2512"
+          - "hip / Mistral-Medium-3.5-128B"
+          - "hip / occiglot-7b-eu5-instruct"
+          - "hip / qwen3-vl-30b-a3b-instruct-awq"
+          - "hip / Qwen3.8-27B"
+        # END GENERATED RESEARCH MODEL OPTIONS
       repeats:
         description: 'Runs per task (1–3)'
         required: true
@@ -41,7 +53,7 @@ jobs:
       - name: Benchmark models
         env:
           ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
-          BENCHMARK_MODELS: ${{ inputs.models }}
+          BENCHMARK_MODEL: ${{ inputs.model }}
           BENCHMARK_REPEATS: ${{ inputs.repeats }}
         run: python research/blablador_scientific_v3.py
       - name: Upload detailed results

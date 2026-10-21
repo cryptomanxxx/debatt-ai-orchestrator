@@ -13,6 +13,7 @@ import urllib.request
 from pathlib import Path
 from sympy import Rational
 from cloudflare_benchmark_client import catalog_models, benchmark_completion, GatewayError, SAFE_ERRORS
+from model_choice import parse_model_choice
 
 MODEL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,199}$")
 def explicit_model_id(model):
@@ -62,13 +63,13 @@ def evaluate(content, expected):
             pass
     return "unverified", compliant, candidate
 
-def api(key, path, payload=None):
+def api(key, path, payload=None, provider="blablador"):
     if path == "/models" and payload is None:
-        return catalog_models(key, "blablador")
+        return catalog_models(key, provider)
     if path == "/chat/completions" and payload is not None:
         for attempt in range(3):
             try:
-                return benchmark_completion(key, "blablador", payload, allow_truncated=True)
+                return benchmark_completion(key, provider, payload, allow_truncated=True)
             except GatewayError as error:
                 if str(error) != "gateway_http_429" or attempt == 2:
                     raise
@@ -86,14 +87,23 @@ def main():
     key = os.environ.get("ORCHESTRATOR_API_KEY", "")
     if not key:
         sys.exit("Missing ORCHESTRATOR_API_KEY research-inference environment secret.")
-    models = [m.strip() for m in os.getenv("BENCHMARK_MODELS", "").split(",") if m.strip()]
+    provider = "blablador"
+    if os.getenv("BENCHMARK_MODEL"):
+        # Workflow dropdown: one "provider / model" entry from the generated menu.
+        try:
+            provider, model = parse_model_choice(os.environ["BENCHMARK_MODEL"], explicit_model_id)
+        except ValueError as error:
+            sys.exit(str(error))
+        models = [model] if model else []
+    else:
+        models = [m.strip() for m in os.getenv("BENCHMARK_MODELS", "").split(",") if m.strip()]
     rep = os.getenv("BENCHMARK_REPEATS", "2")
     if rep not in ("1", "2", "3") or not models or len(models) > 6 or len(models) != len(set(models)) or any(not explicit_model_id(m) for m in models):
         sys.exit("Select 1-6 explicit non-alias model IDs from the current discovered catalog; repeats must be 1-3.")
     metadata = {}
     discovery_error = None
     try:
-        discovery = api(key, "/models")
+        discovery = api(key, "/models", provider=provider)
         metadata = {m["id"]: {"root": m.get("root"), "max_model_len": m.get("max_model_len")}
                     for m in discovery["data"] if isinstance(m, dict) and isinstance(m.get("id"), str)}
     except REQUEST_ERRORS as error:
@@ -104,6 +114,7 @@ def main():
     def save():
         dest.write_text(json.dumps({
             "schema_version": 3,
+            "provider": provider,
             "transport": "cloudflare-benchmark-v1",
             "metadata_scope": "catalog_ids_only",
             "inference_timeout_seconds": 60,
@@ -128,7 +139,7 @@ def main():
                     item["status"] = "discovery_failed" if discovery_error else "not_listed"
                 else:
                     try:
-                        response = api(key, "/chat/completions", {
+                        response = api(key, "/chat/completions", provider=provider, payload={
                             "model": model,
                             "messages": [
                                 {"role": "system", "content": "Solve the scientific question. End with one separate line exactly FINAL_ANSWER: <answer>. No text after that line."},
