@@ -57,7 +57,8 @@ class ScientificValidatorTests(unittest.TestCase):
 
     def test_retry_429_and_preserve_length(self):
         calls=[]
-        def completion(key,provider,payload):
+        def completion(key,provider,payload,*,allow_truncated=False):
+            self.assertTrue(allow_truncated)
             calls.append(payload)
             if len(calls)<3:
                 raise benchmark.GatewayError("gateway_http_429")
