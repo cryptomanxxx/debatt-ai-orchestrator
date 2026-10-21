@@ -24,7 +24,7 @@ class ScientificValidatorTests(unittest.TestCase):
         def stub(key, path, payload=None):
             self.assertEqual(key, "test-orchestrator-secret-value-12345")
             if path == "/models":
-                return {"data": [{"id": "alias-glm-5.3-flash"}]}
+                return {"data": [{"id": "qwen3.8-27b"}]}
             self.assertEqual(path, "/chat/completions")
             self.assertEqual(payload["temperature"], 0)
             self.assertEqual(payload["max_tokens"], 768)
@@ -54,6 +54,13 @@ class ScientificValidatorTests(unittest.TestCase):
         self.assertTrue(all(x["latency_seconds"] == 0.42 for x in report["results"]))
         self.assertEqual(report["transport"], "cloudflare-benchmark-v1")
         self.assertEqual(report["metadata_scope"], "catalog_ids_only")
+
+    def test_requires_explicit_model_ids(self):
+        self.assertTrue(benchmark.explicit_model_id("qwen3.8-27b"))
+        self.assertTrue(benchmark.explicit_model_id("org/model-2026"))
+        for model in ("", "alias-fast", "ALIAS-default", "../x", "bad model"):
+            with self.subTest(model=model):
+                self.assertFalse(benchmark.explicit_model_id(model))
 
     def test_retry_429_and_preserve_length(self):
         calls=[]
