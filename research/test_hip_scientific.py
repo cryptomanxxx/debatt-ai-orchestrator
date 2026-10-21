@@ -1,10 +1,16 @@
+import contextlib
+import io
 import json
+import os
+import tempfile
 import unittest
+from pathlib import Path
 import http.client
 from unittest.mock import patch, MagicMock
 import urllib.error
 from hip_scientific import STOP_STATUSES, MODELS, EXCLUDED, TASKS, settings, score, summary, api, ApiError, model_ids
 from cloudflare_benchmark_client import GatewayError
+import hip_scientific
 
 KEY = 'test-orchestrator-key-not-real-1234'
 from blablador_scientific_v3 import TASKS as ORIGINAL_TASKS
@@ -84,6 +90,20 @@ class HipScientificTests(unittest.TestCase):
                     api(KEY, '/chat/completions', dict(model=MODELS[0], messages=[], temperature=0, max_tokens=768))
                 self.assertIn(str(error.exception), STOP_STATUSES)
         self.assertNotIn('gateway_benchmark_upstream_failed', STOP_STATUSES)
+
+    def test_results_use_worker_measured_completion_latency(self):
+        reply = {'model': MODELS[0], 'choices': [{'message': {'content': 'FINAL_ANSWER: 0'}, 'finish_reason': 'stop'}],
+                 'usage': {}, '_completion_latency_seconds': 2.25}
+        def fake_api(_key, path, payload=None):
+            return {'data': [{'id': MODELS[0]}]} if path == '/models' else reply
+        env = {'ORCHESTRATOR_API_KEY': KEY, 'BENCHMARK_MODELS': MODELS[0], 'BENCHMARK_REPEATS': '1'}
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, env, clear=True), \
+             patch('hip_scientific.api', side_effect=fake_api), patch('hip_scientific.time.sleep'), \
+             patch('hip_scientific.Path', side_effect=lambda p: Path(tmp) / p), \
+             contextlib.redirect_stdout(io.StringIO()):
+            hip_scientific.main()
+            rows = json.loads((Path(tmp) / 'reports/hip-scientific/results.json').read_text())['results']
+        self.assertEqual({r['latency_seconds'] for r in rows}, {2.25})
 
     def test_gateway_errors_are_sanitized(self):
         for raised, expected in (('gateway_http_429', 'http_429'), ('gateway_http_5xx', 'gateway_http_5xx'),

@@ -141,17 +141,18 @@ def main():
                            status='not_listed', scientific_verdict='not_evaluated',
                            format_compliant=False, latency_seconds=None)
                 if model in available:
-                    start = time.monotonic()
                     try:
                         response = api(key, '/chat/completions', dict(model=model,
                             messages=[dict(role='system', content=SYSTEM), dict(role='user', content=question)],
                             temperature=0, max_tokens=768))
                         row.update(score(response, expected, key, model))
+                        # Worker-measured upstream time, excluding the gateway's catalog check and
+                        # GitHub-to-Worker transport; same latency source as Blablador v3.
+                        row['latency_seconds'] = response['_completion_latency_seconds']
                     except ApiError as error:
                         row['status'] = str(error)
                     except (KeyError, IndexError, TypeError, ValueError, AttributeError):
                         row['status'] = 'malformed_response'
-                    row['latency_seconds'] = round(time.monotonic() - start, 3)
                 results.append(row)
                 save()
                 print(f"{model} {repeat} {task}: {row['status']} {row['scientific_verdict']}", flush=True)
