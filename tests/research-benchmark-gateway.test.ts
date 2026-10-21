@@ -138,3 +138,33 @@ test('catalog-listed HIP VL chat model is allowed for text prompts',async()=>{
  }) as typeof fetch);
  assert.equal(result.status,200);
 });
+
+const aliasInput={provider:'blablador',model:'alias-fast',profile:'benchmark',max_tokens:768,
+  messages:[{role:'user',content:'Solve x^2=4.'}]};
+function aliasTransport(replyModel:unknown){
+  return (async(url:string|URL|Request)=>{
+    if(String(url).endsWith('/models'))return Response.json({data:[
+      {id:'01 - GPT-OSS-120b - an open model',root:'openai/gpt-oss-120b'},
+      {id:'alias-fast',root:'openai/gpt-oss-120b'},
+      {id:'alias-code',root:'Qwen/Qwen3.8-27B-FP8'},
+      {id:'07 - Qwen3.8-27B-FP8',root:'Qwen/Qwen3.8-27B-FP8'}]});
+    return Response.json({model:replyModel,choices:[{finish_reason:'stop',message:{content:'2'}}],usage:{}});
+  }) as typeof fetch;
+}
+test('an alias is accepted only when the reply comes from its catalog root',async()=>{
+ for(const replied of ['openai/gpt-oss-120b','01 - GPT-OSS-120b - an open model','alias-fast']){
+  const r:any=await researchBenchmark(aliasInput,keys,aliasTransport(replied));
+  assert.equal(r.status,200,replied);
+  assert.equal(r.data.model,'alias-fast');
+  assert.equal(r.data.resolved_model,replied==='alias-fast'?undefined:'openai/gpt-oss-120b');
+  assert.ok(!JSON.stringify(r.data).includes('01 - GPT'),'upstream display name is never echoed');
+ }
+ for(const replied of ['Qwen/Qwen3.8-27B-FP8','07 - Qwen3.8-27B-FP8','other',null]){
+  const r:any=await researchBenchmark(aliasInput,keys,aliasTransport(replied));
+  assert.deepEqual(r.data,{error:'benchmark_model_identity_mismatch'},String(replied));
+ }
+});
+test('an alias never accepts another alias root',async()=>{
+ const r:any=await researchBenchmark({...aliasInput,model:'alias-code'},keys,aliasTransport('openai/gpt-oss-120b'));
+ assert.deepEqual(r.data,{error:'benchmark_model_identity_mismatch'});
+});

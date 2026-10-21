@@ -1,5 +1,6 @@
 """Restricted GitHub -> Cloudflare research benchmark transport; never sees provider keys."""
 import json
+import re
 import http.client
 import urllib.request
 from urllib.error import HTTPError, URLError
@@ -21,6 +22,7 @@ SAFE_ERRORS = frozenset({'missing_orchestrator_key','invalid_gateway_path','gate
 
 WORKER = "https://debatt-ai-orchestrator.xx8031126.workers.dev"
 MAX_BYTES = 131072
+RESOLVED_MODEL = re.compile(r"^[A-Za-z0-9_./:+-]{1,300}$")
 MAX_ERROR_BYTES = 1024
 WORKER_ERROR_CODES = frozenset({
     "benchmark_catalog_unavailable", "benchmark_transport_failed",
@@ -130,5 +132,11 @@ def benchmark_completion(api_key, provider, payload, open_url=None, allow_trunca
     answer = obj["answer"]
     if len(answer) > 16000 or api_key in answer:
         raise GatewayError("gateway_completion_invalid")
-    return {"model": obj["model"], "choices": [{"message": {"content": answer}, "finish_reason": obj["finish_reason"]}],
+    # Set only for an alias: its catalog root, which the Worker verified the reply against.
+    resolved = obj.get("resolved_model")
+    if resolved is not None and (not isinstance(resolved, str) or not RESOLVED_MODEL.fullmatch(resolved)
+                                 or not payload["model"].startswith("alias-")):
+        raise GatewayError("gateway_completion_invalid")
+    return {"model": obj["model"], "_resolved_model": resolved,
+            "choices": [{"message": {"content": answer}, "finish_reason": obj["finish_reason"]}],
             "usage": {k: usage[k] for k in fields}, "_completion_latency_seconds": latency}

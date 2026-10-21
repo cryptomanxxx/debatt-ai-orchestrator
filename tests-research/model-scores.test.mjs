@@ -4,14 +4,14 @@ import {tallyReport,mergeRuns,rankings,recommendations,rankingMarkdown,attemptOf
 
 const row=(model,verdict,status='ok',latency=1)=>({model,scientific_verdict:verdict,status,latency_seconds:latency});
 const v3={provider:'blablador',results:[row('Qwen3.8-27B','correct'),row('Qwen3.8-27B','incorrect',)
- ,row('alias-fast','correct'),row('Qwen3.8-27B','not_evaluated','gateway_http_5xx',null),
+ ,row('alias-default','correct'),row('alias-fast','correct'),row('Qwen3.8-27B','not_evaluated','gateway_http_5xx',null),
  row('Qwen3.8-27B','not_evaluated','discovery_failed',null),row('Qwen3.8-27B','not_evaluated','rate_limited',null),
  row('Qwen3.8-27B','not_evaluated','gateway_gateway_http_401',null),row('Qwen3.8-27B','not_evaluated','gateway_gateway_http_403',null)]};
 const hip={provider:'hessian.AI HIP',results:[row('GLM-5.2-AWQ-INT4','correct','ok',8),row('GLM-5.2-AWQ-INT4','correct','ok',10)]};
 
-test('tallies reports; outages, quota stops and aliases are not model attempts',()=>{
+test('tallies reports; outages, quota stops and alias-default are not model attempts',()=>{
  assert.deepEqual(tallyReport('blablador-scientific-v3.json',v3),{provider:'blablador',
-  models:{'Qwen3.8-27B':{correct:1,attempts:3,latencies:[1,1]}}});
+  models:{'Qwen3.8-27B':{correct:1,attempts:3,latencies:[1,1]},'alias-fast':{correct:1,attempts:1,latencies:[1]}}});
  assert.deepEqual(tallyReport('results.json',hip),{provider:'hip',
   models:{'GLM-5.2-AWQ-INT4':{correct:2,attempts:2,latencies:[8,10]}}});
  assert.equal(tallyReport('blablador-scientific-v3.json',{...v3,provider:'hip'}).provider,'hip');

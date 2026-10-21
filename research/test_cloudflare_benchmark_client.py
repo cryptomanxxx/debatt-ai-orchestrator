@@ -103,6 +103,19 @@ class CloudflareAdapterTest(unittest.TestCase):
             benchmark_completion(KEY,"blablador",PAYLOAD,fake(response,[]))
         self.assertEqual(str(error.exception),"gateway_completion_invalid")
 
+    def test_resolved_model_only_for_aliases_and_validated(self):
+        body={"status":"completed_unverified","provider":"blablador","model":"alias-fast","answer":"4","finish_reason":"stop",
+              "scientificallyVerified":False,"backendIdentityVerified":False,"completion_latency_seconds":1,
+              "usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2},"resolved_model":"openai/gpt-oss-120b"}
+        alias_payload={**PAYLOAD,"model":"alias-fast"}
+        self.assertEqual(benchmark_completion(KEY,"blablador",alias_payload,fake(body,[]))["_resolved_model"],"openai/gpt-oss-120b")
+        for bad in ("evil root", 7, "x"*301):
+            with self.subTest(bad=bad), self.assertRaises(GatewayError):
+                benchmark_completion(KEY,"blablador",alias_payload,fake({**body,"resolved_model":bad},[]))
+        explicit={**PAYLOAD,"model":"Qwen3.8-27B"}
+        with self.assertRaises(GatewayError):
+            benchmark_completion(KEY,"blablador",explicit,fake({**body,"model":"Qwen3.8-27B"},[]))
+
     def test_invalid_usage_fails(self):
         with self.assertRaises(GatewayError):
             benchmark_completion(KEY,"blablador",PAYLOAD,fake({"status":"completed_unverified","provider":"blablador","model":MODEL,"answer":"4","finish_reason":"stop","scientificallyVerified":False,"backendIdentityVerified":False,"completion_latency_seconds":1,"usage":{"prompt_tokens":3,"completion_tokens":257,"total_tokens":260}},[]))

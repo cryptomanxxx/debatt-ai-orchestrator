@@ -56,6 +56,10 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
   if(catalog.status!==200)return error(502,'benchmark_catalog_unavailable');
   const models=(catalog.data as {models?:string[]}).models;
   if(!Array.isArray(models)||!models.includes(model))return error(400,'benchmark_model_not_listed');
+  // An alias answers under its backing model's name. It is accepted only when the reply's
+  // model is the alias's catalog root, or a catalog entry with that same root.
+  const aliasRoot=model.startsWith('alias-')?(catalog.data as {aliases?:Record<string,string>}).aliases?.[model]:undefined;
+  const roots='roots' in catalog?catalog.roots:undefined;
   let response:Response;
   const started=performance.now();
   try{
@@ -79,7 +83,10 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
   if(typeof answer!=='string'||!answer.trim())return error(502,'benchmark_missing_answer');
   if(answer.includes(key))return error(502,'benchmark_invalid_response');
   if(answer.length>16000)return error(502,'benchmark_response_too_large');
-  if(data?.model!==model)return error(502,'benchmark_model_identity_mismatch');
+  const replied=data?.model;
+  const viaAlias=aliasRoot!==undefined && typeof replied==='string' &&
+    (replied===aliasRoot || roots?.get(replied)===aliasRoot);
+  if(replied!==model && !viaAlias)return error(502,'benchmark_model_identity_mismatch');
   if(!['stop','length'].includes(data?.choices?.[0]?.finish_reason))
     return error(502,'benchmark_invalid_finish_reason');
   const completionLatencySeconds=Math.round((performance.now()-started)/10)/100;
@@ -90,5 +97,7 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
   return {status:200,data:{status:'completed_unverified',provider,model,answer,
     finish_reason:data.choices[0].finish_reason,completion_latency_seconds:completionLatencySeconds,usage:{prompt_tokens:safeUsage('prompt_tokens'),
       completion_tokens:safeUsage('completion_tokens'),total_tokens:safeUsage('total_tokens')},
+    // resolved_model comes from the validated catalog root, never from the upstream reply.
+    ...(replied!==model?{resolved_model:aliasRoot}:{}),
     scientificallyVerified:false,backendIdentityVerified:false}};
 }
