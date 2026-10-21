@@ -31,7 +31,9 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Test shared Cloudflare transport offline
-        run: python3 -m unittest discover -s research -p 'test_cloudflare_benchmark_client.py'
+        run: |
+          python3 -m unittest discover -s research -p 'test_cloudflare_benchmark_client.py'
+          python3 -m unittest discover -s research -p 'test_blablador_scientific_v2.py'
       - name: Run repeatable scientific questions
         env:
           ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
