@@ -19,7 +19,8 @@ test('filters aliases and non-chat models without hardcoded defaults',()=>{
 });
 test('only generated dropdown block is changed',()=>{
  const output=withOptions(template,['deepseek-v4.1-flash-at-hzdr','Qwen3.8-27B']);
- assert.match(output,/options:\n          - deepseek-v4.1-flash-at-hzdr\n          - Qwen3.8-27B/);
+ assert.ok(output.includes('          - "deepseek-v4.1-flash-at-hzdr"')); 
+ assert.ok(output.includes('          - "Qwen3.8-27B"'));
  assert.match(output,/      repeats:\n        type: choice/);
  assert.equal(withOptions(output,['deepseek-v4.1-flash-at-hzdr','Qwen3.8-27B']),output);
  assert.throws(()=>withOptions('without markers',['model']),/markers/);
