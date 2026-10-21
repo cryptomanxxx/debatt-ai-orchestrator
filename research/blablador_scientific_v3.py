@@ -16,7 +16,9 @@ from cloudflare_benchmark_client import catalog_models, benchmark_completion, Ga
 
 MODEL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,199}$")
 def explicit_model_id(model):
-    return bool(MODEL_ID.fullmatch(model)) and not model.lower().startswith("alias-")
+    return (bool(MODEL_ID.fullmatch(model)) and not model.lower().startswith("alias-") and
+            model.lower() not in {"default","fast","gpt-3.5-turbo","text-davinci-003","text-embedding-ada-002"} and
+            not re.search(r"embedding|rerank|bge-|gte-|whisper|transcri|tts|audio|image|all-proxy|moderation|anonymiz", model, re.I))
 
 TASKS = (
     ("determinant", "Compute the determinant of [[2,4,6],[1,2,3],[0,1,1]].", "0"),
