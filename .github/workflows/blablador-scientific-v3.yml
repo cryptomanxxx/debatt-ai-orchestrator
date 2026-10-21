@@ -4,9 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       models:
-        description: 'Comma-separated explicit model IDs from latest discovery (no alias-)'
+        description: 'Select explicit Blablador chat model (refresh catalog workflow first)'
         required: true
-        type: string
+        type: choice
+        # BEGIN GENERATED BLABLADOR MODEL OPTIONS
+        options:
+          - REFRESH_MODEL_CATALOG_FIRST
+        # END GENERATED BLABLADOR MODEL OPTIONS
       repeats:
         description: 'Runs per task (1–3)'
         required: true
