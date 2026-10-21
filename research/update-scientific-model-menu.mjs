@@ -10,7 +10,7 @@ const aliases=new Set(['default','fast','gpt-3.5-turbo','text-davinci-003','text
 export function eligibleModels(models){
  if(!Array.isArray(models))throw Error('invalid_model_catalog');
  const valid=models.filter(m=>typeof m==='string' && /^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,199}$/.test(m) &&
- !m.toLowerCase().startsWith('alias-') && !aliases.has(m.toLowerCase()) && !invalid.test(m));
+ !m.toLowerCase().startsWith('alias-') && !m.split('/').includes('..') && !aliases.has(m.toLowerCase()) && !invalid.test(m));
  if(new Set(valid).size!==valid.length)throw Error('duplicate_model_ids');
  const sorted=valid.sort((a,b)=>a.localeCompare(b,'en'));
  if(sorted.length<1||sorted.length>25)throw Error('model_dropdown_requires_1_to_25_eligible_models');
