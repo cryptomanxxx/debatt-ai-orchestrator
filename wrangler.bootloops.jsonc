@@ -9,6 +9,19 @@
   "workers_dev": true,
   "preview_urls": false,
   "send_metrics": false,
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+      "persist": true
+    },
+    "traces": {
+      "enabled": false,
+      "head_sampling_rate": 1,
+      "persist": true
+    }
+  },
   "vars": {
     "MODEL_PROVIDER": "openai",
     "MODEL_BASE_URL": "https://api.groq.com/openai/v1",
