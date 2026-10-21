@@ -1,0 +1,86 @@
+name: Scientific benchmark v4 (domains)
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: 'Provider / model (menu refreshed from the Cloudflare catalog by "Refresh HIP/Blablador model menu")'
+        required: true
+        type: choice
+        # BEGIN GENERATED RESEARCH MODEL OPTIONS providers=hip,blablador all=12
+        options:
+          - "hip / GLM-5.2-AWQ-INT4 (rekommenderad 20/20)"
+          - "blablador / alias-qwen3.8-flash-next = Qwen3.8-Flash-Next-NVFP4 (rekommenderad 20/20)"
+          - "hip / alla"
+          - "hip / gemma-4-31B-it"
+          - "hip / GLM-5.2-AWQ-INT4"
+          - "hip / Kimi-K2.6"
+          - "hip / leo-hessianai-13b-chat"
+          - "hip / Ministral-3-14B-Instruct-2512"
+          - "hip / Mistral-Medium-3.5-128B"
+          - "hip / occiglot-7b-eu5-instruct"
+          - "hip / qwen3-vl-30b-a3b-instruct-awq"
+          - "hip / Qwen3.8-27B"
+          - "blablador / alla"
+          - "blablador / deepseek-v4.1-flash-at-hzdr"
+          - "blablador / Swift-Qwen3.8-27b"
+          - "blablador / trustllm-v2-8b-sft"
+          - "blablador / trustllm-v2-8b-sft-8k"
+          - "blablador / trustllm-v2-8b-sft-mixb2-exp"
+          - "blablador / alias-eve = EVE-Instruct"
+          - "blablador / alias-fast = gpt-oss-120b"
+          - "blablador / alias-qwen3.8-flash-next = Qwen3.8-Flash-Next-NVFP4"
+          - "blablador / alias-qwen38-27b = Qwen3.8-27B-FP8"
+        default: "hip / GLM-5.2-AWQ-INT4 (rekommenderad 20/20)"
+        # END GENERATED RESEARCH MODEL OPTIONS
+      tasks_per_domain:
+        description: 'Tasks per domain (5 domains: symbolic, probability, causal, statistics, discrete)'
+        required: true
+        type: choice
+        options: ['8', '4']
+        default: '8'
+      repeats:
+        description: 'Runs per task (1–2)'
+        required: true
+        type: choice
+        options: ['1', '2']
+        default: '1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scientific-v4
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    environment: research-inference
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Install exact validator dependency
+        run: python -m pip install sympy==1.13.3
+      - name: Test task generation and scoring
+        run: python -m unittest discover -s research -p 'test_scientific_v4.py'
+      - name: Benchmark models per domain
+        env:
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
+          BENCHMARK_MODEL: ${{ inputs.model }}
+          TASKS_PER_DOMAIN: ${{ inputs.tasks_per_domain }}
+          BENCHMARK_REPEATS: ${{ inputs.repeats }}
+        run: python research/scientific_v4.py
+      - name: Upload detailed results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          # One artifact per attempt, so the menu refresh scores only a rerun's latest attempt.
+          name: scientific-v4-${{ github.run_id }}-${{ github.run_attempt }}
+          path: scientific-v4.json
+          retention-days: 30
+          if-no-files-found: warn

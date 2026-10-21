@@ -4,8 +4,12 @@ import {readFile,writeFile,readdir} from 'node:fs/promises';
 import {isMenuModelId,rootLabel} from './explicit-models.mjs';
 
 export const PROVIDERS=['hip','blablador'];
+// Scientific v4 (research/domain_tasks.py): ranked per domain, separately from the classic tasks.
+export const DOMAIN_SUITE='domains-v1';
+export const DOMAINS=['symbolic','probability','causal','statistics','discrete'];
 const MAX_RUNS=40;
 const MIN_ATTEMPTS=5;
+const MIN_DOMAIN_ATTEMPTS=4;
 // Rows that say nothing about the model itself: discovery outages, models missing from
 // the catalog, and quota or credential stops. Model-attributable failures still count.
 const NOT_MODEL_ATTEMPT=new Set(['discovery_failed','not_listed','not_started','rate_limited',
@@ -25,9 +29,10 @@ const median=values=>{
 // Benchmark reports are our own artifacts, but still validated: explicit model IDs only,
 // bounded row counts, and only fields the ranking needs.
 export function tallyReport(fileName,report){
- let provider=null;
+ let provider=null,suite=null;
  if(fileName==='blablador-scientific-v3.json')provider=report?.provider??'blablador';
  else if(fileName==='results.json'&&report?.provider==='hessian.AI HIP')provider='hip';
+ else if(fileName==='scientific-v4.json'&&report?.suite===DOMAIN_SUITE){provider=report.provider;suite=DOMAIN_SUITE;}
  if(!PROVIDERS.includes(provider)||!Array.isArray(report?.results)||report.results.length>2000)return null;
  const models={};
  for(const row of report.results){
@@ -35,6 +40,7 @@ export function tallyReport(fileName,report){
   // Scientific v3 prefixes gateway codes once more ("gateway_gateway_http_401").
   const status=typeof row.status==='string'?row.status.replace(/^(?:gateway_)+/,'gateway_'):row.status;
   if(!isMenuModelId(id)||NOT_MODEL_ATTEMPT.has(status))continue;
+  if(suite&&!DOMAINS.includes(row.domain))continue;
   // An alias's evidence belongs to the model it ran: key it "alias@root", using the verified
   // resolved_model or the root recorded at discovery. Alias rows with no known root are dropped.
   let key=id;
@@ -47,21 +53,31 @@ export function tallyReport(fileName,report){
   m.attempts++;
   if(row.scientific_verdict==='correct')m.correct++;
   const latency=row.latency_seconds;
+  if(suite){
+   const d=(m.domains??={})[row.domain]??={correct:0,attempts:0,latencies:[]};
+   d.attempts++;
+   if(row.scientific_verdict==='correct')d.correct++;
+   if(row.status==='ok'&&typeof latency==='number'&&Number.isFinite(latency)&&latency>=0&&d.latencies.length<500)
+    d.latencies.push(Math.round(latency*100)/100);
+  }
   if(row.status==='ok'&&typeof latency==='number'&&Number.isFinite(latency)&&latency>=0&&m.latencies.length<500)
    m.latencies.push(Math.round(latency*100)/100);
  }
  const out={};
  // Individual latencies are kept so totals across runs use the median of all calls.
- for(const [id,m] of Object.entries(models))out[id]={correct:m.correct,attempts:m.attempts,latencies:m.latencies};
- return Object.keys(out).length?{provider,models:out}:null;
+ for(const [id,m] of Object.entries(models))
+  out[id]={correct:m.correct,attempts:m.attempts,latencies:m.latencies,...(m.domains?{domains:m.domains}:{})};
+ return Object.keys(out).length?{provider,...(suite?{suite}:{}),models:out}:null;
 }
 // Runs are keyed by Actions run ID, so re-ingesting an artifact never double counts.
-// The newest MAX_RUNS are kept per provider, so a rarely benchmarked provider keeps its history.
+// The newest MAX_RUNS are kept per provider and suite, so a rarely benchmarked provider keeps
+// its history and domain runs never displace the classic evidence behind the menu recommendation.
 export function mergeRuns(existing,fresh){
  const runs={...(existing??{}),...fresh};
  const ids=Object.keys(runs).filter(id=>/^\d{1,20}$/.test(id)&&PROVIDERS.includes(runs[id]?.provider))
   .sort((a,b)=>Number(b)-Number(a));
- const keep=PROVIDERS.flatMap(p=>ids.filter(id=>runs[id].provider===p).slice(0,MAX_RUNS));
+ const keep=PROVIDERS.flatMap(p=>[undefined,DOMAIN_SUITE].flatMap(suite=>
+  ids.filter(id=>runs[id].provider===p&&runs[id].suite===suite).slice(0,MAX_RUNS)));
  return Object.fromEntries(keep.sort((a,b)=>Number(b)-Number(a)).map(id=>[id,runs[id]]));
 }
 export function rankings(runs,catalog,aliasRoots={}){
@@ -71,7 +87,8 @@ export function rankings(runs,catalog,aliasRoots={}){
   // the same root keeps the record, while a remapped alias starts afresh with its new root.
   const totals={};
   for(const run of Object.values(runs??{})){
-   if(run?.provider!==provider)continue;
+   // The menu recommendation stays on the classic tasks; domain runs are ranked per domain.
+   if(run?.provider!==provider||run.suite!==undefined)continue;
    for(const [key,m] of Object.entries(run.models??{})){
     const root=key.split('@')[1];
     const subject=root===undefined?'id:'+key:'root:'+root;
@@ -99,6 +116,73 @@ export function recommendations(ranked){
  }
  return rec;
 }
+// Scientific v4 evidence per provider and domain, pooled like rankings() (aliases by root).
+export function domainRankings(runs,catalog,aliasRoots={}){
+ const result={};
+ for(const provider of PROVIDERS){
+  const totals={};
+  for(const run of Object.values(runs??{})){
+   if(run?.provider!==provider||run.suite!==DOMAIN_SUITE)continue;
+   for(const [key,m] of Object.entries(run.models??{})){
+    const root=key.split('@')[1];
+    const subject=root===undefined?'id:'+key:'root:'+root;
+    const t=totals[subject]??={domains:{}};
+    for(const domain of DOMAINS){
+     const d=m.domains?.[domain];
+     if(!Number.isSafeInteger(d?.attempts)||!Number.isSafeInteger(d?.correct))continue;
+     const td=t.domains[domain]??={correct:0,attempts:0,latencies:[]};
+     td.correct+=d.correct;td.attempts+=d.attempts;
+     // Ties break on latency in this domain only, never on speed in unrelated domains.
+     if(Array.isArray(d.latencies))td.latencies.push(...d.latencies);
+    }
+   }
+  }
+  result[provider]={};
+  for(const domain of DOMAINS){
+   const rows=[];
+   for(const model of catalog?.[provider]??[]){
+    const root=aliasRoots?.[provider]?.[model];
+    const t=totals[root===undefined?'id:'+model:'root:'+root];
+    const d=t?.domains[domain];
+    if(d?.attempts)rows.push({model,correct:d.correct,attempts:d.attempts,rate:d.correct/d.attempts,medianLatency:median(d.latencies)});
+   }
+   result[provider][domain]=rows.sort((a,b)=>b.rate-a.rate||b.attempts-a.attempts||(a.medianLatency??1e9)-(b.medianLatency??1e9)||a.model.localeCompare(b.model,'en'));
+  }
+ }
+ return result;
+}
+// Best model per provider and domain with at least MIN_DOMAIN_ATTEMPTS answers in that domain.
+export function domainRecommendations(ranked){
+ const rec={};
+ for(const provider of PROVIDERS){
+  rec[provider]={};
+  for(const domain of DOMAINS){
+   const best=(ranked[provider]?.[domain]??[]).find(r=>r.attempts>=MIN_DOMAIN_ATTEMPTS);
+   if(best)rec[provider][domain]={model:best.model,correct:best.correct,attempts:best.attempts};
+  }
+ }
+ return rec;
+}
+export function domainMarkdown(ranked,catalog,aliasRoots={}){
+ const name=(provider,id)=>'`'+id+'`'+(aliasRoots?.[provider]?.[id]?' = `'+rootLabel(aliasRoots[provider][id])+'`':'');
+ const lines=['## Domain ranking (Scientific v4)','',
+  'Generated tasks with exactly computed answers in five research domains (*Scientific benchmark v4*). Each cell is correct / attempts; failed or truncated calls count against a model. The best model per domain needs at least '+MIN_DOMAIN_ATTEMPTS+' attempts in that domain.',''];
+ const rec=domainRecommendations(ranked);
+ for(const provider of PROVIDERS){
+  const models=(catalog?.[provider]??[]).filter(id=>DOMAINS.some(d=>ranked[provider]?.[d]?.some(r=>r.model===id)));
+  lines.push('### '+provider,'');
+  if(!models.length){lines.push('No domain benchmark results yet.','');continue;}
+  lines.push('| Model | '+DOMAINS.join(' | ')+' |','| --- |'+' ---: |'.repeat(DOMAINS.length));
+  for(const id of models){
+   lines.push('| '+name(provider,id)+' | '+DOMAINS.map(d=>{
+    const r=ranked[provider][d].find(x=>x.model===id);
+    return r?`${r.correct}/${r.attempts}${rec[provider][d]?.model===id?' ★':''}`:'–';
+   }).join(' | ')+' |');
+  }
+  lines.push('','★ = best model in that domain.','');
+ }
+ return lines.join('\n');
+}
 export function rankingMarkdown(ranked,catalog,aliasRoots={}){
  const name=(provider,id)=>'`'+id+'`'+(aliasRoots?.[provider]?.[id]?' = `'+rootLabel(aliasRoots[provider][id])+'`':'');
  const lines=['# HIP/Blablador model ranking','',
@@ -121,11 +205,23 @@ export function attemptOf(dir){
  const m=String(dir).match(/-(\d{1,4})\/?$/);
  return m?Number(m[1]):0;
 }
+// Only the newest attempt's reports count. When that attempt left nothing usable (e.g. every
+// row is discovery_failed) the run scores null, so an earlier attempt's results never linger;
+// mergeRuns drops null runs, also over a tally stored by an earlier refresh.
+export async function latestRunTally(files,read){
+ const newest=Math.max(...files.map(f=>f.attempt));
+ let tally=null;
+ for(const file of files.filter(f=>f.attempt===newest)){
+  try{tally=tallyReport(file.name,JSON.parse(await read(file.path)))??tally;}
+  catch{console.log('skipped unreadable report',file.path);}
+ }
+ return tally;
+}
 async function reportFiles(dir){
  const found=[];
  for(const entry of await readdir(dir,{withFileTypes:true,recursive:true}).catch(()=>[])){
   const parent=entry.parentPath??entry.path;
-  if(entry.isFile()&&['blablador-scientific-v3.json','results.json'].includes(entry.name))
+  if(entry.isFile()&&['blablador-scientific-v3.json','results.json','scientific-v4.json'].includes(entry.name))
    found.push({name:entry.name,path:parent+'/'+entry.name,attempt:attemptOf(parent)});
  }
  return found.sort((a,b)=>a.attempt-b.attempt||a.path.localeCompare(b.path));
@@ -137,15 +233,13 @@ if(process.argv[1]?.endsWith('/model-scores.mjs')){
  const fresh={};
  for(const run of await readdir(base).catch(()=>[])){
   if(!/^\d{1,20}$/.test(run))continue;
-  for(const file of await reportFiles(base+'/'+run)){
-   try{const t=tallyReport(file.name,JSON.parse(await readFile(file.path,'utf8')));if(t)fresh[run]=t;}
-   catch{console.log('skipped unreadable report in run',run);}
-  }
+  const files=await reportFiles(base+'/'+run);
+  if(files.length)fresh[run]=await latestRunTally(files,path=>readFile(path,'utf8'));
  }
  let existing={};
  try{existing=JSON.parse(await readFile('research/model-scores.json','utf8')).runs??{};}catch{}
  const runs=mergeRuns(existing,fresh);
  await writeFile('research/model-scores.json',JSON.stringify({schemaVersion:1,
   note:'Generated by the model-menu workflow from benchmark artifacts. Do not edit by hand.',runs},null,2)+'\n');
- console.log('benchmark runs ingested now:',Object.keys(fresh).length,'kept:',Object.keys(runs).length);
+ console.log('benchmark runs ingested now:',Object.values(fresh).filter(Boolean).length,'kept:',Object.keys(runs).length);
 }
