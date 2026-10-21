@@ -109,8 +109,9 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
   // Some explicit entries (e.g. Blablador's Swift-Qwen3.8-27b) also answer under their backing
   // model's name. Like an alias, such a reply is accepted only from the entry's own catalog root
   // or a catalog entry with that same root; any other name is still an identity mismatch.
+  // A non-chat root (embedding, reranker…) never vouches for a reply.
   const ownRoot=aliasRoot??roots?.get(model);
-  const viaRoot=ownRoot!==undefined && typeof replied==='string' &&
+  const viaRoot=ownRoot!==undefined && !blockedId(ownRoot) && typeof replied==='string' &&
     (replied===ownRoot || roots?.get(replied)===ownRoot);
   if(replied!==model && !viaRoot)return error(502,'benchmark_model_identity_mismatch');
   if(!['stop','length'].includes(data?.choices?.[0]?.finish_reason))
