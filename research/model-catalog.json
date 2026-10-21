@@ -18,7 +18,20 @@
       "Swift-Qwen3.8-27b",
       "trustllm-v2-8b-sft",
       "trustllm-v2-8b-sft-8k",
-      "trustllm-v2-8b-sft-mixb2-exp"
+      "trustllm-v2-8b-sft-mixb2-exp",
+      "alias-eve",
+      "alias-fast",
+      "alias-qwen3.8-flash-next",
+      "alias-qwen38-27b"
     ]
+  },
+  "aliasRoots": {
+    "hip": {},
+    "blablador": {
+      "alias-eve": "eve-esa/EVE-Instruct",
+      "alias-fast": "openai/gpt-oss-120b",
+      "alias-qwen3.8-flash-next": "nvidia/Qwen3.8-Flash-Next-NVFP4",
+      "alias-qwen38-27b": "Qwen/Qwen3.8-27B-FP8"
+    }
   }
 }
