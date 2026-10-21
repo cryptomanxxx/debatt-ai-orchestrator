@@ -10,6 +10,8 @@ import time
 from pathlib import Path
 from blablador_scientific_v3 import TASKS, evaluate
 from cloudflare_benchmark_client import catalog_models, benchmark_completion, GatewayError, SAFE_ERRORS
+from blablador_scientific_v3 import explicit_model_id
+from model_choice import parse_model_choice
 
 MODELS = ('GLM-5.2-AWQ-INT4', 'Kimi-K2.6', 'Ministral-3-14B-Instruct-2512',
           'Mistral-Medium-3.5-128B', 'Qwen3.8-27B', 'gemma-4-31B-it',
@@ -55,6 +57,13 @@ def model_ids(response):
     return {row['id'] for row in rows}
 
 def settings(env):
+    if env.get('BENCHMARK_MODEL'):
+        # Workflow dropdown: "hip / alla" runs the nine standard models, otherwise one catalog model.
+        provider, model = parse_model_choice(env['BENCHMARK_MODEL'], explicit_model_id)
+        repeats = env.get('BENCHMARK_REPEATS', '2')
+        if provider != 'hip' or repeats not in ('1', '2', '3'):
+            raise ValueError('Invalid model list or repetition count')
+        return (list(MODELS) if model is None else [model]), int(repeats)
     models = [m.strip() for m in env.get('BENCHMARK_MODELS', ','.join(MODELS)).split(',')]
     repeats = env.get('BENCHMARK_REPEATS', '2')
     if repeats not in ('1', '2', '3') or not models or len(models) != len(set(models)) or any(m not in MODELS for m in models):
@@ -106,7 +115,10 @@ def summary(models, results):
     return '\n'.join(lines) + '\n'
 
 def main():
-    models, repeats = settings(os.environ)
+    try:
+        models, repeats = settings(os.environ)
+    except ValueError as error:
+        raise SystemExit(str(error)) from None
     key = os.environ.get('ORCHESTRATOR_API_KEY', '')
     if len(key) < 24 or any(c.isspace() for c in key):
         raise SystemExit('Missing or invalid ORCHESTRATOR_API_KEY')

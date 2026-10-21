@@ -21,8 +21,9 @@ class ScientificValidatorTests(unittest.TestCase):
         )
         self.assertEqual(benchmark.TASKS, expected_tasks)
         answers = {q: expected for _task, q, expected in expected_tasks}
-        def stub(key, path, payload=None):
+        def stub(key, path, payload=None, provider="blablador"):
             self.assertEqual(key, "test-orchestrator-secret-value-12345")
+            self.assertEqual(provider, "blablador")
             if path == "/models":
                 return {"data": [{"id": "Qwen3.8-27B"}]}
             self.assertEqual(path, "/chat/completions")
@@ -54,6 +55,35 @@ class ScientificValidatorTests(unittest.TestCase):
         self.assertTrue(all(x["latency_seconds"] == 0.42 for x in report["results"]))
         self.assertEqual(report["transport"], "cloudflare-benchmark-v1")
         self.assertEqual(report["metadata_scope"], "catalog_ids_only")
+
+    def test_dropdown_choice_selects_provider_and_model(self):
+        seen = []
+        def stub(key, path, payload=None, provider="blablador"):
+            seen.append((path, provider, payload and payload["model"]))
+            if path == "/models":
+                return {"data": [{"id": "GLM-5.2-AWQ-INT4"}]}
+            return {"choices": [{"message": {"content": "FINAL_ANSWER: 0"}, "finish_reason": "stop"}],
+                    "usage": {}, "_completion_latency_seconds": 1.0}
+        previous = os.getcwd()
+        with tempfile.TemporaryDirectory() as directory:
+            try:
+                os.chdir(directory)
+                with patch.dict(os.environ, {"ORCHESTRATOR_API_KEY": "test-orchestrator-secret-value-12345",
+                                             "BENCHMARK_MODEL": "hip / GLM-5.2-AWQ-INT4",
+                                             "BENCHMARK_REPEATS": "1"}), patch.object(benchmark, "api", side_effect=stub), patch.object(benchmark.time, "sleep"):
+                    benchmark.main()
+                report = json.loads(Path("blablador-scientific-v3.json").read_text())
+            finally:
+                os.chdir(previous)
+        self.assertEqual(report["provider"], "hip")
+        self.assertEqual({p for _path, p, _m in seen}, {"hip"})
+        self.assertEqual({m for path, _p, m in seen if path != "/models"}, {"GLM-5.2-AWQ-INT4"})
+        for bad in ("REFRESH_MODEL_MENU_FIRST", "hip / alias-fast", "hip / alla", "openai / gpt-5"):
+            with self.subTest(bad=bad), patch.dict(os.environ, {"ORCHESTRATOR_API_KEY": "test-orchestrator-secret-value-12345",
+                                                               "BENCHMARK_MODEL": bad}), patch.object(benchmark, "api") as api:
+                with self.assertRaises(SystemExit):
+                    benchmark.main()
+                api.assert_not_called()
 
     def test_explicit_model_id_validation(self):
         self.assertTrue(benchmark.explicit_model_id("Qwen3.8-27B"))

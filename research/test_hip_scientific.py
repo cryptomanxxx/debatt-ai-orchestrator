@@ -27,6 +27,13 @@ class HipScientificTests(unittest.TestCase):
         self.assertEqual(repeats, 2)
         self.assertFalse(set(models) & set(EXCLUDED))
 
+    def test_dropdown_choice(self):
+        self.assertEqual(settings({'BENCHMARK_MODEL': 'hip / alla', 'BENCHMARK_REPEATS': '1'}), (list(MODELS), 1))
+        self.assertEqual(settings({'BENCHMARK_MODEL': 'hip / Qwen3.9-72B'}), (['Qwen3.9-72B'], 2))
+        for bad in ('blablador / Qwen3.8-27B', 'hip / alias-fast', 'REFRESH_MODEL_MENU_FIRST', 'hip / bge-reranker-v2-m3'):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                settings({'BENCHMARK_MODEL': bad})
+
     def test_reject_invalid_selection(self):
         for model in (*EXCLUDED, 'unknown', 'Kimi-K2.6,Kimi-K2.6', ''):
             with self.assertRaises(ValueError):
