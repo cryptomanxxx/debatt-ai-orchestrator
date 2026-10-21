@@ -20,7 +20,7 @@ export function withOptions(workflow,models){
  const first=workflow.indexOf(start),last=workflow.indexOf(end);
  if(first<0||last<=first||workflow.indexOf(start,first+1)>=0||workflow.indexOf(end,last+1)>=0)
    throw Error('generated_options_markers_not_unique');
- const replace=start+'\n        options:\n'+models.map(m=>'          - '+m).join('\n')+'\n        '+end.trim();
+ const replace=start+'\n        options:\n'+models.map(m=>'          - '+JSON.stringify(m)).join('\n')+'\n        '+end.trim();
  return workflow.slice(0,first)+replace+workflow.slice(last+end.length);
 }
 export async function updateMenu({catalog,repository,token,fetchImpl=fetch}){
