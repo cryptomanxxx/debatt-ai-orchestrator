@@ -227,3 +227,18 @@ test('reuses a verified catalog for a minute per provider and key, never a faile
  assert.equal((await researchBenchmark(input,rotated,counting,cache,62001)).status,200);
  assert.equal(catalogCalls,5);
 });
+test('a failed catalog lookup never evicts one a concurrent request cached',async()=>{
+ const cache=new Map();let release:()=>void=()=>{};
+ const gate=new Promise<void>(r=>{release=r;});
+ const slowFail=(async(url:string|URL|Request)=>{
+  if(String(url).endsWith('/models')){await gate;return new Response('busy',{status:503});}
+  throw Error('unreachable');
+ }) as typeof fetch;
+ const ok=(async(url:string|URL|Request,init?:RequestInit)=>String(url).endsWith('/models')?
+  Response.json({data:[{id:input.model}]}):transport(url,init)) as typeof fetch;
+ const failing=researchBenchmark(input,keys,slowFail,cache,1000);
+ assert.equal((await researchBenchmark(input,keys,ok,cache,1000)).status,200);
+ release();
+ assert.equal((await failing).status,502);
+ assert.equal(cache.get('hip')?.at,1000);
+});

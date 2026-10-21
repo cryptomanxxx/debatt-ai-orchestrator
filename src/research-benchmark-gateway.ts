@@ -42,8 +42,8 @@ async function catalogFor(provider:Provider,keys:ResearchKeys,transport:typeof f
   const hit=cache?.get(provider);
   if(hit&&hit.key===key&&now-hit.at>=0&&now-hit.at<CATALOG_TTL_MS)return hit.catalog;
   const catalog=await discoverResearchModels(provider,keys,transport);
+  // A failure never evicts: a concurrent request may have just cached a verified catalog.
   if(catalog.status===200)cache?.set(provider,{key,at:now,catalog});
-  else cache?.delete(provider);
   return catalog;
 }
 // The shared cache applies only to the production transport; tests pass their own cache.
