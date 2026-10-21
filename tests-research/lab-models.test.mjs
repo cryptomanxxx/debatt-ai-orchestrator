@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { researchChoices, loadResearchChoices, chosenResearchModel, unwrapJsonAnswer, MIN_DOMAIN_ATTEMPTS } from '../research/lab-models.mjs';
+import { researchChoices, loadResearchChoices, chosenResearchModel, unwrapJsonAnswer, MIN_DOMAIN_ATTEMPTS, MAX_CHOICES_CHARS } from '../research/lab-models.mjs';
 import { choosePlan, parsePlan, plannerPrompt } from '../research/catalog.mjs';
 import { DOMAIN_SUITE } from '../research/model-scores.mjs';
 
@@ -59,4 +59,18 @@ test('only Markdown fences and leading think blocks are removed from ranked-mode
   assert.equal(unwrapJsonAnswer('<think>hmm</think>\n{"a":1}'), '{"a":1}');
   assert.equal(unwrapJsonAnswer('Here: {"a":1}'), 'Here: {"a":1}');
   assert.equal(unwrapJsonAnswer(' {"a":1} '), '{"a":1}');
+});
+
+test('alias candidates carry their benchmarked root; candidates stay within the planning budget', () => {
+  const choices = researchChoices(runs, catalog, aliasRoots);
+  assert.equal(choices.causal.find(c => c.model === 'alias-fast').root, 'openai/gpt-oss-120b');
+  assert.equal(choices.causal.find(c => c.model === 'Qwen3.8-27B').root, null);
+  const longIds = Array.from({ length: 4 }, (_, i) => 'M'.repeat(190) + i);
+  const big = { '5': { provider: 'hip', suite: DOMAIN_SUITE, models: Object.fromEntries(longIds.map(id => [id, { correct: 0, attempts: 0, latencies: [],
+    domains: Object.fromEntries(['symbolic', 'probability', 'causal', 'statistics', 'discrete'].map(d => [d, tally(8, 8)])) }])) } };
+  const capped = researchChoices(big, { hip: longIds, blablador: [] });
+  const size = JSON.stringify(Object.values(capped).flat().map(c => [c.choice, c.correct, c.attempts])).length;
+  assert.ok(size <= MAX_CHOICES_CHARS, String(size));
+  assert.ok(Object.values(capped).flat().length >= 1);
+  assert.equal(researchChoices(runs, catalog, {}).causal.some(c => c.model === 'alias-fast'), false, 'rootless aliases are never offered');
 });

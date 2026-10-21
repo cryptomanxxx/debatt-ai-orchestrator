@@ -101,14 +101,15 @@ const planningPropose = proposer('default');
 
 // A benchmark-ranked HIP/Blablador model, called through the Worker's research gateway with the
 // lab's token budget. It shares the seven-call ceiling and locks its own identity like any mode.
-const researchProposer = ({ provider, model }) => lockModel(async messages => {
+// The request may include a catalog lookup (up to 25 s) before the 50-second lab completion.
+const researchProposer = ({ provider, model, root }) => lockModel(async messages => {
   if (++modelCalls > 7) throw new ResearchError('model_budget_exceeded');
   const payload = { provider, model, profile: 'lab', max_tokens: completionTokenLimit, messages: [{ role: 'user',
     content: JSON.stringify({ instruction: 'Följ denna konversation och svara endast med begärd JSON.', messages }) }] };
   let response;
   try {
     response = await fetch(API.replace(/\/v1\/query$/, '/v1/research/benchmark'), {
-      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(55000),
+      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(80000),
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   } catch { throw new ResearchError('model_transport_error'); }
   let data;
@@ -120,6 +121,8 @@ const researchProposer = ({ provider, model }) => lockModel(async messages => {
   }
   if (data?.status !== 'completed_unverified' || data.provider !== provider || data.model !== model || typeof data.answer !== 'string')
     throw new ResearchError('invalid_model_response');
+  // An alias must still run the backing model its ranking evidence came from.
+  if (root && data.resolved_model !== root) throw new ResearchError('model_identity_mismatch');
   if (data.finish_reason !== 'stop') throw new ResearchError('model_output_truncated');
   return { text: unwrapJsonAnswer(data.answer), provider: data.provider, model: data.model };
 });
@@ -154,7 +157,7 @@ try {
   const domain = CATALOG.find(e => e.id === plan.experimentId)?.domain;
   const ranked = chosenResearchModel(plan.modelMode, domain, researchChoices);
   // The evidence behind a ranked choice is committed with the plan, before any experiment call.
-  if (ranked) plan.modelChoice = { domain, provider: ranked.provider, model: ranked.model,
+  if (ranked) plan.modelChoice = { domain, provider: ranked.provider, model: ranked.model, ...(ranked.root ? { root: ranked.root } : {}),
     evidence: { suite: 'Scientific benchmark v4', correct: ranked.correct, attempts: ranked.attempts } };
   // A default-mode plan keeps the planning identity lock, exactly as before model choice existed.
   const propose = ranked ? researchProposer(ranked)
