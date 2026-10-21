@@ -14,9 +14,10 @@ from pathlib import Path
 from sympy import Rational
 from cloudflare_benchmark_client import catalog_models, benchmark_completion, GatewayError, SAFE_ERRORS
 
-MODELS = ("alias-kimi-k3-1m", "alias-glm-5.3-flash",
-          "alias-deepseek-v41-flash-booster", "alias-mimo-v2.6-pro",
-          "alias-qwen3.8-flash-next", "alias-fast")
+MODEL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,199}$")
+def explicit_model_id(model):
+    return bool(MODEL_ID.fullmatch(model)) and not model.lower().startswith("alias-")
+
 TASKS = (
     ("determinant", "Compute the determinant of [[2,4,6],[1,2,3],[0,1,1]].", "0"),
     ("bayes", "Disease prevalence is 1%, sensitivity 90%, specificity 95%. Give P(disease | positive) as a reduced fraction.", "2/13"),
@@ -83,10 +84,10 @@ def main():
     key = os.environ.get("ORCHESTRATOR_API_KEY", "")
     if not key:
         sys.exit("Missing ORCHESTRATOR_API_KEY research-inference environment secret.")
-    models = [m.strip() for m in os.getenv("BENCHMARK_MODELS", ",".join(MODELS)).split(",") if m.strip()]
+    models = [m.strip() for m in os.getenv("BENCHMARK_MODELS", "").split(",") if m.strip()]
     rep = os.getenv("BENCHMARK_REPEATS", "2")
-    if rep not in ("1", "2", "3") or not models or len(models) > 6 or len(models) != len(set(models)) or any(m not in MODELS for m in models):
-        sys.exit("Invalid model list or repetition count.")
+    if rep not in ("1", "2", "3") or not models or len(models) > 6 or len(models) != len(set(models)) or any(not explicit_model_id(m) for m in models):
+        sys.exit("Select 1-6 explicit non-alias model IDs from the current discovered catalog; repeats must be 1-3.")
     metadata = {}
     discovery_error = None
     try:
