@@ -75,7 +75,7 @@ def benchmark_completion(api_key, provider, payload, open_url=None):
         obj.get("model") != payload["model"] or obj.get("scientificallyVerified") is not False or
         obj.get("backendIdentityVerified") is not False or
         not isinstance(obj.get("answer"), str) or not obj["answer"].strip() or
-        obj.get("finish_reason") != "stop"):
+        obj.get("finish_reason") not in ("stop", "length")):
         raise GatewayError("gateway_completion_invalid")
     latency = obj.get("completion_latency_seconds")
     if not isinstance(latency, (int, float)) or isinstance(latency, bool) or not 0 <= latency <= 95:
@@ -89,5 +89,5 @@ def benchmark_completion(api_key, provider, payload, open_url=None):
     answer = obj["answer"]
     if len(answer) > 16000 or api_key in answer:
         raise GatewayError("gateway_completion_invalid")
-    return {"model": obj["model"], "choices": [{"message": {"content": answer}, "finish_reason": "stop"}],
+    return {"model": obj["model"], "choices": [{"message": {"content": answer}, "finish_reason": obj["finish_reason"]}],
             "usage": {k: usage[k] for k in fields}, "_completion_latency_seconds": latency}
