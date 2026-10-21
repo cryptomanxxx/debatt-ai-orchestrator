@@ -8,7 +8,7 @@ HIP and Blablador workflows offer **one dropdown** whose entries carry both prov
 
 1. reads `GET /v1/research/models` from the Cloudflare Worker with `ORCHESTRATOR_API_KEY`;
 2. keeps explicit chat model IDs only (`research/explicit-models.mjs`): no `alias-*`, embedding, reranker, audio or image models;
-3. rewrites only the lines between `# BEGIN/END GENERATED RESEARCH MODEL OPTIONS` in every workflow, and the snapshot `research/model-catalog.json`;
+3. rewrites only the lines between `# BEGIN/END GENERATED RESEARCH MODEL OPTIONS` in every workflow, the snapshot `research/model-catalog.json`, and the ranking files described below;
 4. commits to `main` with a dedicated GitHub App token if anything changed.
 
 If one provider's discovery fails, that provider keeps the models from the last snapshot, so an outage never empties a menu.
@@ -24,7 +24,13 @@ A workflow opts in with a marker block on a `type: choice` input:
         # END GENERATED RESEARCH MODEL OPTIONS
 ```
 
-`providers=` lists the providers to include. Appending ` all` adds a `<provider> / alla` entry. In *HIP scientific benchmark*, `hip / alla` runs the nine standard models. Runners parse the choice with `research/model_choice.py`.
+`providers=` lists the providers to include. Appending ` all` adds a `<provider> / alla` entry. In *HIP scientific benchmark*, `hip / alla` runs the nine standard models; in *Scientific benchmark v3* it runs every model of that provider in the snapshot (at most 12). Runners parse the choice with `research/model_choice.py`.
+
+## Which model to use: recommendations
+
+The refresh workflow also runs when *Scientific benchmark v3* or *HIP scientific benchmark* finishes on `main`. It downloads the result artifacts of the latest successful runs (artifacts live 30 days) and stores per-run tallies in `research/model-scores.json`, keyed by run ID so nothing is counted twice; the 40 newest runs are kept. `research/MODEL-RANKING.md` ranks every catalog model by correct answers / all attempts, so failed calls count against a model; ties go to more evidence, then lower median latency.
+
+The best model per provider with at least five answers appears **first** in each menu as `hip / <model> (rekommenderad 9/10)` and is preselected. The plain `hip / <model>` entry stays in the list, so API callers such as Oraklet can keep sending stable values; runners accept both. To compare everything once, run *HIP scientific benchmark* with `hip / alla` and *Scientific benchmark v3* with `blablador / alla`.
 
 Current menus: *Scientific benchmark v3 (HIP or Blablador)* and *HIP scientific benchmark*. Oraklet and other API callers must send an exact menu value; GitHub rejects anything else. They can read the valid IDs from `research/model-catalog.json`.
 

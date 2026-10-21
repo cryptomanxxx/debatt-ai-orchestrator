@@ -61,3 +61,14 @@ test('missing discovery file falls back to the snapshot for every provider',asyn
  await assert.rejects(readFreshCatalog('x',async()=>'{not json'),SyntaxError);
  await assert.rejects(readFreshCatalog('x',async()=>{throw Object.assign(Error('denied'),{code:'EACCES'});}),/denied/);
 });
+test('recommended entries come first, keep plain values, and become the default',()=>{
+ const rec={hip:{model:'Kimi-K2.6',correct:9,attempts:10},blablador:{model:'Gone',correct:5,attempts:5}};
+ assert.deepEqual(optionsFor(models,['hip','blablador'],true,rec),['hip / Kimi-K2.6 (rekommenderad 9/10)',
+  'hip / alla','hip / GLM-5.2-AWQ-INT4','hip / Kimi-K2.6','blablador / alla','blablador / Qwen3.8-27B']);
+ const {text}=rewriteWorkflow(template,models,rec);
+ assert.match(text,/          - "blablador \/ Qwen3.8-27B"\n        default: "hip \/ Kimi-K2.6 \(rekommenderad 9\/10\)"\n        # END/);
+ assert.equal(rewriteWorkflow(text,models,rec).text,text);
+ assert.ok(!rewriteWorkflow(text,models,{}).text.includes('default:'));
+ assert.deepEqual(parseChoice('hip / Kimi-K2.6 (rekommenderad 9/10)'),{provider:'hip',model:'Kimi-K2.6'});
+ assert.throws(()=>parseChoice('hip / Kimi-K2.6 (rekommenderad)'),/invalid_model_choice/);
+});
