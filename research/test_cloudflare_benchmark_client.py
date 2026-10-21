@@ -1,6 +1,8 @@
 import json
 import unittest
 from urllib.error import HTTPError
+from email.message import Message
+from io import BytesIO
 from cloudflare_benchmark_client import catalog_models, benchmark_completion, GatewayError, WORKER
 KEY="test-orchestrator-secret-value-12345"
 MODEL="alias-glm-5.3-flash"
@@ -37,6 +39,32 @@ class CloudflareAdapterTest(unittest.TestCase):
             with self.subTest(code=code), self.assertRaises(GatewayError) as error:
                 catalog_models(KEY,"blablador",rejected)
             self.assertEqual(str(error.exception),expected)
+
+    def test_only_known_bounded_worker_error_codes_are_exposed(self):
+        cases = [
+            (502, "application/json", b'{"error":"benchmark_upstream_failed"}', "benchmark_upstream_failed"),
+            (502, "application/json", b'{"error":"benchmark_invalid_response"}', "benchmark_invalid_response"),
+            (502, "application/json", b'{"error":"benchmark_catalog_unavailable"}', "benchmark_catalog_unavailable"),
+            (502, "application/json", b'{"error":"benchmark_transport_failed"}', "benchmark_transport_failed"),
+            (502, "application/json", b'{"error":"benchmark_token_budget_exceeded"}', "benchmark_token_budget_exceeded"),
+            (502, "application/json", b'{"error":"backend_secret_response"}', "gateway_http_5xx"),
+            (502, "application/json", b'{"error":"benchmark_invalid_response","detail":"sensitive"}', "gateway_http_5xx"),
+            (502, "text/html", b'{"error":"benchmark_upstream_failed"}', "gateway_http_5xx"),
+            (502, "application/json", b'not valid json sensitive body', "gateway_http_5xx"),
+            (502, "application/json", b'x' * 1025, "gateway_http_5xx"),
+            (503, "application/json", b'{"error":"benchmark_upstream_failed"}', "gateway_http_5xx"),
+        ]
+        for status, ctype, body, expected in cases:
+            with self.subTest(status=status, ctype=ctype, body=body[:40]):
+                def rejected(req, timeout):
+                    headers = Message()
+                    headers["Content-Type"] = ctype
+                    raise HTTPError(req.full_url, status, "untrusted secret reason", headers, BytesIO(body))
+                with self.assertRaises(GatewayError) as error:
+                    benchmark_completion(KEY, "blablador", PAYLOAD, open_url=rejected)
+                self.assertEqual(str(error.exception), expected)
+                self.assertNotIn("sensitive", str(error.exception))
+                self.assertNotIn("secret", str(error.exception))
 
     def test_truncated_completion_preserves_length(self):
         seen=[]
