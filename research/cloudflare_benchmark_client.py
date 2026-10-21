@@ -24,6 +24,11 @@ SAFE_ERRORS = frozenset({'missing_orchestrator_key','invalid_gateway_path','gate
 WORKER = "https://debatt-ai-orchestrator.xx8031126.workers.dev"
 MAX_BYTES = 262144
 RESOLVED_MODEL = re.compile(r"^[A-Za-z0-9_./:+-]{1,300}$")
+
+def _names_model(root):
+    """A backing-model root whose last path segment names a model (not just "/" or "..")."""
+    segments = [s for s in root.split("/") if s]
+    return bool(segments) and any(c.isascii() and c.isalnum() for c in segments[-1])
 MAX_ERROR_BYTES = 1024
 WORKER_ERROR_CODES = frozenset({
     "benchmark_catalog_unavailable", "benchmark_transport_failed",
@@ -114,7 +119,8 @@ def catalog_models(api_key, provider, open_url=None):
     aliases = p.get("aliases", {})
     if not isinstance(aliases, dict):
         raise GatewayError("gateway_catalog_invalid")
-    roots = {a: r for a, r in aliases.items() if a in models and isinstance(r, str) and RESOLVED_MODEL.fullmatch(r)}
+    roots = {a: r for a, r in aliases.items()
+             if a in models and isinstance(r, str) and RESOLVED_MODEL.fullmatch(r) and _names_model(r)}
     return {"data": [{"id": m, **({"root": roots[m]} if m in roots else {})} for m in models]}
 
 def benchmark_completion(api_key, provider, payload, open_url=None, allow_truncated=False):
@@ -146,7 +152,8 @@ def benchmark_completion(api_key, provider, payload, open_url=None, allow_trunca
     # Set only for an alias: its catalog root, which the Worker verified the reply against.
     resolved = obj.get("resolved_model")
     if resolved is not None and (not isinstance(resolved, str) or not RESOLVED_MODEL.fullmatch(resolved)
-                                 or not payload["model"].startswith("alias-")):
+                                 or not _names_model(resolved)
+                                 or not payload["model"].lower().startswith("alias-")):
         raise GatewayError("gateway_completion_invalid")
     return {"model": obj["model"], "_resolved_model": resolved,
             "choices": [{"message": {"content": answer}, "finish_reason": obj["finish_reason"]}],

@@ -70,12 +70,14 @@ test('exports alias roots but keeps display-name roots internal',async()=>{
     {id:'alias-default',root:'None'},
     {id:'alias-bad',root:'evil root'},
     {id:'alias-secret',root:keys.BLABLADOR_API_KEY},
+    {id:'alias-slash',root:'/'},{id:'alias-dots',root:'a/..'},
+    {id:'ALIAS-Upper',root:'org/upper-model'},
     {id:'__proto__',root:'polluted/root'},
     {id:'deepseek-v4.1-flash-at-hzdr',root:'None'}
   ]});
   const result:any=await discoverResearchModels('blablador',keys,(async()=>response) as typeof fetch);
   assert.equal(result.status,200);
-  assert.deepEqual(result.data.aliases,{'alias-fast':'openai/gpt-oss-120b'});
+  assert.deepEqual(result.data.aliases,{'alias-fast':'openai/gpt-oss-120b','ALIAS-Upper':'org/upper-model'});
   assert.equal(result.roots.get('01 - GPT-OSS-120b - an open model'),'openai/gpt-oss-120b');
   assert.equal(result.roots.get('__proto__'),'polluted/root');
   assert.equal(({} as any).polluted,undefined);

@@ -68,3 +68,16 @@ test('alias evidence is keyed by the model it ran and ignored after a remap',()=
  const remapped=rankings(runs,{blablador:['alias-fast']},{blablador:{'alias-fast':'Qwen/Qwen3.8-27B-FP8'}}).blablador;
  assert.deepEqual(remapped,[]);
 });
+test('pre-dispatch refusals are not attempts; synonyms of one root share evidence',()=>{
+ const report={provider:'blablador',model_metadata:{'alias-fast':{root:'openai/gpt-oss-120b'}},results:[
+  {...row('alias-fast','correct'),resolved_model:'openai/gpt-oss-120b'},
+  row('alias-fast','not_evaluated','gateway_benchmark_alias_unresolved',null),
+  row('alias-fast','not_evaluated','gateway_gateway_benchmark_non_chat_model',null),
+  row('alias-fast','not_evaluated','gateway_benchmark_model_not_listed',null)]};
+ const t=tallyReport('blablador-scientific-v3.json',report);
+ assert.equal(t.models['alias-fast@openai/gpt-oss-120b'].attempts,1);
+ const renamed=rankings({'1':t},{blablador:['alias-gpt-oss-120b']},{blablador:{'alias-gpt-oss-120b':'openai/gpt-oss-120b'}}).blablador;
+ assert.deepEqual(renamed.map(r=>[r.model,r.correct,r.attempts]),[['alias-gpt-oss-120b',1,1]]);
+ const slash={provider:'blablador',model_metadata:{'alias-x':{root:'/'}},results:[row('alias-x','correct')]};
+ assert.equal(tallyReport('blablador-scientific-v3.json',slash),null);
+});

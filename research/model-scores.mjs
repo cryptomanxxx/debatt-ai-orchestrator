@@ -9,6 +9,8 @@ const MIN_ATTEMPTS=5;
 // Rows that say nothing about the model itself: discovery outages, models missing from
 // the catalog, and quota or credential stops. Model-attributable failures still count.
 const NOT_MODEL_ATTEMPT=new Set(['discovery_failed','not_listed','not_started','rate_limited',
+ // Refused by the Worker before any provider call (alias lost its root, non-chat root, delisted).
+ 'gateway_benchmark_alias_unresolved','gateway_benchmark_non_chat_model','gateway_benchmark_model_not_listed',
  'http_401','http_403','http_429','gateway_http_401','gateway_http_403','gateway_http_429',
  'gateway_benchmark_upstream_auth_rejected','gateway_benchmark_upstream_quota_exhausted']);
 
@@ -36,7 +38,7 @@ export function tallyReport(fileName,report){
   let key=id;
   if(id.toLowerCase().startsWith('alias-')){
    const root=row.resolved_model??report.model_metadata?.[id]?.root;
-   if(typeof root!=='string'||!/^[A-Za-z0-9_./:+-]{1,300}$/.test(root))continue;
+   if(typeof root!=='string'||!/^[A-Za-z0-9_./:+-]{1,300}$/.test(root)||!/[A-Za-z0-9]/.test(root))continue;
    key=id+'@'+root;
   }
   const m=models[key]??={correct:0,attempts:0,latencies:[]};
@@ -63,24 +65,26 @@ export function mergeRuns(existing,fresh){
 export function rankings(runs,catalog,aliasRoots={}){
  const result={};
  for(const provider of PROVIDERS){
+  // Alias evidence ("alias@root") is pooled by backing model, so a new or renamed synonym for
+  // the same root keeps the record, while a remapped alias starts afresh with its new root.
   const totals={};
   for(const run of Object.values(runs??{})){
    if(run?.provider!==provider)continue;
-   for(const [id,m] of Object.entries(run.models??{})){
-    const t=totals[id]??={correct:0,attempts:0,latencies:[]};
+   for(const [key,m] of Object.entries(run.models??{})){
+    const root=key.split('@')[1];
+    const subject=root===undefined?'id:'+key:'root:'+root;
+    const t=totals[subject]??={correct:0,attempts:0,latencies:[]};
     t.correct+=m.correct;t.attempts+=m.attempts;
     if(Array.isArray(m.latencies))t.latencies.push(...m.latencies);
    }
   }
-  const listed=new Set(catalog?.[provider]??[]);
-  // Alias evidence only counts for the alias's current root; a remapped alias starts afresh.
-  const current=([key])=>{
-   const [id,root]=key.split('@');
-   return listed.has(id)&&(root??null)===(aliasRoots?.[provider]?.[id]??null);
-  };
-  result[provider]=Object.entries(totals).filter(current).map(([key,t])=>({model:key.split('@')[0],correct:t.correct,
-   attempts:t.attempts,rate:t.attempts?t.correct/t.attempts:0,medianLatency:median(t.latencies)}))
-   .sort((a,b)=>b.rate-a.rate||b.attempts-a.attempts||(a.medianLatency??1e9)-(b.medianLatency??1e9)||a.model.localeCompare(b.model,'en'));
+  const rows=[];
+  for(const model of catalog?.[provider]??[]){
+   const root=aliasRoots?.[provider]?.[model];
+   const t=totals[root===undefined?'id:'+model:'root:'+root];
+   if(t)rows.push({model,correct:t.correct,attempts:t.attempts,rate:t.attempts?t.correct/t.attempts:0,medianLatency:median(t.latencies)});
+  }
+  result[provider]=rows.sort((a,b)=>b.rate-a.rate||b.attempts-a.attempts||(a.medianLatency??1e9)-(b.medianLatency??1e9)||a.model.localeCompare(b.model,'en'));
  }
  return result;
 }

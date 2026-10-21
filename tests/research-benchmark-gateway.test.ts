@@ -190,3 +190,14 @@ test('rootless aliases and anonymizer roots are refused before any completion',a
   assert.deepEqual(r.data,{error:code},String(root));assert.equal(completions,0);
  }
 });
+test('alias prefixes are case-insensitive: an upper-case alias still needs its root',async()=>{
+ const t=(root?:string)=>(async(url:string|URL|Request)=>{
+  if(String(url).endsWith('/models'))return Response.json({data:[{id:'ALIAS-Fast',...(root?{root}:{})}]});
+  return Response.json({model:'ALIAS-Fast',choices:[{finish_reason:'stop',message:{content:'2'}}]});
+ }) as typeof fetch;
+ const input={...aliasInput,model:'ALIAS-Fast'};
+ assert.deepEqual((await researchBenchmark(input,keys,t()) as any).data,{error:'benchmark_alias_unresolved'});
+ assert.deepEqual((await researchBenchmark(input,keys,t('/')) as any).data,{error:'benchmark_alias_unresolved'});
+ const ok:any=await researchBenchmark(input,keys,t('openai/gpt-oss-120b'));
+ assert.equal(ok.status,200);assert.equal(ok.data.resolved_model,'openai/gpt-oss-120b');
+});

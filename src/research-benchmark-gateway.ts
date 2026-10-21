@@ -1,6 +1,6 @@
 // A separate, opt-in gateway for bounded scientific benchmarks.
 // Catalog presence is necessary but never proof of chat capability or scientific validity.
-import { discoverResearchModels } from './research-model-catalog.ts';
+import { discoverResearchModels, isAlias } from './research-model-catalog.ts';
 import type { ResearchKeys } from './research-inference.ts';
 const SOURCES = {
   hip: { url:'https://llm-service.ai.tu-darmstadt.de/v1/chat/completions', key:'HIP_API_KEY' },
@@ -59,10 +59,10 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
   if(!Array.isArray(models)||!models.includes(model))return error(400,'benchmark_model_not_listed');
   // An alias answers under its backing model's name. It is accepted only when the reply's
   // model is the alias's catalog root, or a catalog entry with that same root.
-  const aliasRoot=model.startsWith('alias-')?(catalog.data as {aliases?:Record<string,string>}).aliases?.[model]:undefined;
+  const aliasRoot=isAlias(model)?(catalog.data as {aliases?:Record<string,string>}).aliases?.[model]:undefined;
   const roots='roots' in catalog?catalog.roots:undefined;
   // An alias is only run while the live catalog names a usable root, so its reply is always verifiable.
-  if(model.startsWith('alias-') && aliasRoot===undefined)return error(400,'benchmark_alias_unresolved');
+  if(isAlias(model) && aliasRoot===undefined)return error(400,'benchmark_alias_unresolved');
   if(aliasRoot!==undefined && blockedId(aliasRoot))return error(400,'benchmark_non_chat_model');
   let response:Response;
   const started=performance.now();

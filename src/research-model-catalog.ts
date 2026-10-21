@@ -13,6 +13,10 @@ const ROOT=/^[a-zA-Z0-9_./:+-]{1,300}$/;
 // Display names such as "01 - GPT-OSS-120b - an open model…" may contain spaces; they are
 // only used internally to match a completion's model against an alias's root.
 const DISPLAY_ID=/^[\x20-\x7e]{1,300}$/;
+// A root must name a model: its last path segment needs a letter or digit ("/" or ".." do not).
+const namesModel=(root:string)=>/[a-zA-Z0-9]/.test(root.split('/').filter(Boolean).pop()??'');
+// Alias IDs are recognised case-insensitively everywhere (catalog, gateway, menus, runners).
+export const isAlias=(id:string)=>id.toLowerCase().startsWith('alias-');
 export async function discoverResearchModels(provider: string, keys: ResearchKeys, transport: typeof fetch=fetch) {
   if(!Object.hasOwn(SOURCES,provider)) return {status:400,data:{error:'invalid_provider'}};
   const p=SOURCES[provider as Provider];
@@ -67,10 +71,10 @@ export async function discoverResearchModels(provider: string, keys: ResearchKey
     for(const item of parsed.data){
       if(!item || typeof item!=='object' || Array.isArray(item)) continue;
       const {id,root}=item as {id?:unknown;root?:unknown};
-      if(typeof id!=='string' || typeof root!=='string' || !DISPLAY_ID.test(id) || !ROOT.test(root) ||
+      if(typeof id!=='string' || typeof root!=='string' || !DISPLAY_ID.test(id) || !ROOT.test(root) || !namesModel(root) ||
          root==='None' || id.includes(key) || root.includes(key)) continue;
       roots.set(id,root);
-      if(id.startsWith('alias-') && MODEL_ID.test(id)) aliases[id]=root;
+      if(isAlias(id) && MODEL_ID.test(id)) aliases[id]=root;
     }
     return {status:200,data:{status:'catalog_unverified',provider,models:ids,
       modelCount:ids.length,backendIdentityVerified:false,aliases:{...aliases}},roots};

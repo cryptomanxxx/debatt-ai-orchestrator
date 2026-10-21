@@ -113,7 +113,7 @@ class CloudflareAdapterTest(unittest.TestCase):
               "usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2},"resolved_model":"openai/gpt-oss-120b"}
         alias_payload={**PAYLOAD,"model":"alias-fast"}
         self.assertEqual(benchmark_completion(KEY,"blablador",alias_payload,fake(body,[]))["_resolved_model"],"openai/gpt-oss-120b")
-        for bad in ("evil root", 7, "x"*301):
+        for bad in ("evil root", 7, "x"*301, "/", "a/.."):
             with self.subTest(bad=bad), self.assertRaises(GatewayError):
                 benchmark_completion(KEY,"blablador",alias_payload,fake({**body,"resolved_model":bad},[]))
         explicit={**PAYLOAD,"model":"Qwen3.8-27B"}
@@ -123,7 +123,7 @@ class CloudflareAdapterTest(unittest.TestCase):
     def test_catalog_returns_validated_alias_roots(self):
         body={"status":"discovered_unverified","providers":{"blablador":{"status":"catalog_unverified","provider":"blablador",
               "backendIdentityVerified":False,"models":["alias-fast","Qwen3.8-27B"],
-              "aliases":{"alias-fast":"openai/gpt-oss-120b","alias-gone":"x/y","alias-bad":"evil root"}}}}
+              "aliases":{"alias-fast":"openai/gpt-oss-120b","alias-gone":"x/y","alias-bad":"evil root","Qwen3.8-27B":"/"}}}}
         self.assertEqual(catalog_models(KEY,"blablador",fake(body,[])),
                          {"data":[{"id":"alias-fast","root":"openai/gpt-oss-120b"},{"id":"Qwen3.8-27B"}]})
         body["providers"]["blablador"]["aliases"]=["alias-fast"]

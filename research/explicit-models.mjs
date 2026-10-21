@@ -23,7 +23,7 @@ export function aliasModels(map){
  for(const [alias,root] of Object.entries(map)){
   // The root must also yield a label the choice parsers accept (a root of only "/" does not).
   if(!isAliasId(alias)||typeof root!=='string'||!ROOT.test(root)||root==='None'||invalid.test(root)||
-     !/^[A-Za-z0-9_.:+-]+$/.test(rootLabel(root)))continue;
+     !/^[A-Za-z0-9_.:+-]+$/.test(rootLabel(root))||!/[A-Za-z0-9]/.test(rootLabel(root)))continue;
   const current=byRoot.get(root);
   if(!current||alias.length>current.length||(alias.length===current.length&&alias<current))byRoot.set(root,alias);
  }
