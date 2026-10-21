@@ -12,7 +12,7 @@ class Stub:
     def read(self,n): return self.data[:n]
 def fake(obj,seen):
     def call(req,timeout):
-        seen.append((req.full_url,req.get_method(),json.loads(req.data) if req.data else None))
+        seen.append((req.full_url,req.get_method(),json.loads(req.data) if req.data else None,req.get_header("User-agent")))
         return Stub(obj)
     return call
 class CloudflareAdapterTest(unittest.TestCase):
@@ -21,6 +21,7 @@ class CloudflareAdapterTest(unittest.TestCase):
         data=catalog_models(KEY,"blablador",fake({"status":"discovered_unverified","providers":{"blablador":{"status":"catalog_unverified","provider":"blablador","backendIdentityVerified":False,"models":[MODEL]}}},seen))
         self.assertEqual(data,{"data":[{"id":MODEL}]})
         self.assertEqual(seen[0][0],WORKER+"/v1/research/models")
+        self.assertEqual(seen[0][3],"DebattAI-Orchestrator-ResearchBenchmark/1.0")
     def test_completion_preserves_experiment(self):
         seen=[]
         data=benchmark_completion(KEY,"blablador",PAYLOAD,fake({"status":"completed_unverified","provider":"blablador","model":MODEL,"answer":"4","finish_reason":"stop","scientificallyVerified":False,"backendIdentityVerified":False,"completion_latency_seconds":1.2,"usage":{"prompt_tokens":5,"completion_tokens":1,"total_tokens":6}},seen))
@@ -28,6 +29,7 @@ class CloudflareAdapterTest(unittest.TestCase):
         self.assertEqual(data["_completion_latency_seconds"],1.2)
         self.assertEqual(seen[0][0],WORKER+"/v1/research/benchmark")
         self.assertEqual(seen[0][2]["messages"],PAYLOAD["messages"])
+        self.assertEqual(seen[0][3],"DebattAI-Orchestrator-ResearchBenchmark/1.0")
     def test_status_buckets_do_not_leak_response_bodies(self):
         for code, expected in [(401,"gateway_http_401"),(403,"gateway_http_403"),(404,"gateway_http_404"),(429,"gateway_http_429"),(503,"gateway_http_5xx")]:
             def rejected(req, timeout):
