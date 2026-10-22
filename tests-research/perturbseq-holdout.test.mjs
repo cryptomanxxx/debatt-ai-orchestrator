@@ -11,7 +11,7 @@ import { HOLDOUT_DATA_SHA256, HOLDOUT_PROTOCOL, CLASSES, classOf, makeHoldoutCas
   evaluateHoldout, callHoldout, validateHoldout, parseHoldoutProposal, holdoutMessages,
   runHoldoutExperiment, holdoutMarkdown } from '../research/perturbseq-holdout.mjs';
 import { parseCounts, SOURCE } from '../research/import-perturbseq-holdout.mjs';
-import { CONFIDENCE_RULE, MAX_CALIBRATED_CHARS } from '../research/calibration.mjs';
+import { CONFIDENCE_RULE, MAX_CALIBRATED_CHARS, calibrated } from '../research/calibration.mjs';
 
 const raw = await readFile(new URL('../research/data/perturbseq-holdout.json', import.meta.url));
 const data = JSON.parse(raw);
@@ -217,4 +217,17 @@ test('an unreadable answer gets one format correction, recorded on the case; a s
   let calls = 0;
   await assert.rejects(runHoldoutExperiment('20261022', async () => ({ provider: 'test', model: ++calls === 1 ? 'a' : 'b', text: '{}' }), callHoldout, async () => {}),
     { message: 'model_changed' });
+});
+
+test('a fenced answer that follows the calibration rule passes without a format correction', async () => {
+  const log = { calls: [], marks: [] };
+  let calls = 0;
+  const report = await runHoldoutExperiment('20261022', calibrated(async messages => {
+    calls++;
+    const predictions = Object.fromEntries(JSON.parse(messages[1].content).heldOutGenes.map(g => [g, classOf(data.holdout[g])]));
+    return { provider: 'test', model: 'same', text: '```json\n' + JSON.stringify({ predictions, reason: 'Facit.', confidence: 0.6 }) + '\n```' };
+  }, log), callHoldout, async () => {});
+  assert.equal(calls, 3);
+  assert.deepEqual(log.calls, [0.6, 0.6, 0.6]);
+  assert.ok(report.cases.every(c => c.initialPassed && !c.correctionAttempted && !c.formatCorrection));
 });

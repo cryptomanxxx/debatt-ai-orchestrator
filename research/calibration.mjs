@@ -4,10 +4,14 @@
 // outcome per case (Brier score). A missing or invalid confidence never fails an experiment.
 export const CONFIDENCE_RULE = 'Lägg också till fältet "confidence": din sannolikhet (tal 0-1) att just detta svar godkänns av experimentets oberoende verifiering.';
 
-// Removes a top-level "confidence" from a JSON object answer; any other text is returned unchanged.
+// Removes a top-level "confidence" from a JSON object answer, also inside a Markdown fence or after
+// a leading think block; any other text is returned unchanged.
 export function stripConfidence(text) {
   let value;
-  try { value = JSON.parse(text); } catch { return { text, confidence: null }; }
+  try { value = JSON.parse(text); } catch {
+    const fenced = String(text).trim().replace(/^<think>[\s\S]*?<\/think>\s*/, '').match(/^```(?:json)?\s*\n([\s\S]*?)\n?```$/);
+    try { value = JSON.parse(fenced?.[1]); } catch { return { text, confidence: null }; }
+  }
   if (!value || typeof value !== 'object' || Array.isArray(value) || !Object.hasOwn(value, 'confidence')) return { text, confidence: null };
   const { confidence, ...rest } = value;
   const valid = typeof confidence === 'number' && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1;

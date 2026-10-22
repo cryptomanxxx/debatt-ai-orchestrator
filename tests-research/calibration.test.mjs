@@ -10,6 +10,11 @@ test('confidence is stripped from JSON answers and validated; other text is unto
   assert.deepEqual(stripConfidence('{"a":1}'), { text: '{"a":1}', confidence: null });
   assert.deepEqual(stripConfidence('not json'), { text: 'not json', confidence: null });
   assert.deepEqual(stripConfidence('[1,2]'), { text: '[1,2]', confidence: null });
+  // A fenced answer (optionally after a think block) loses its confidence and its fence.
+  assert.deepEqual(stripConfidence('```json\n{"a":1,"confidence":0.4}\n```'), { text: '{"a":1}', confidence: 0.4 });
+  assert.deepEqual(stripConfidence('<think>x</think>\n```\n{"a":1,"confidence":0.4}\n```'), { text: '{"a":1}', confidence: 0.4 });
+  assert.deepEqual(stripConfidence('```json\n{"a":1}\n```'), { text: '```json\n{"a":1}\n```', confidence: null });
+  assert.deepEqual(stripConfidence('```json\nnot json\n```'), { text: '```json\nnot json\n```', confidence: null });
 });
 
 test('the wrapper asks for confidence only when the request fits and returns the stripped answer', async () => {
