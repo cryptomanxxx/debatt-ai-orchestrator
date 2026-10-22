@@ -11,7 +11,7 @@ import { HOLDOUT_DATA_SHA256, HOLDOUT_PROTOCOL, CLASSES, classOf, makeHoldoutCas
   evaluateHoldout, callHoldout, validateHoldout, parseHoldoutProposal, holdoutMessages,
   runHoldoutExperiment, holdoutMarkdown } from '../research/perturbseq-holdout.mjs';
 import { parseCounts, SOURCE } from '../research/import-perturbseq-holdout.mjs';
-import { CONFIDENCE_RULE, MAX_CALIBRATED_CHARS } from '../research/calibration.mjs';
+import { CONFIDENCE_RULE, MAX_CALIBRATED_CHARS, calibrated } from '../research/calibration.mjs';
 
 const raw = await readFile(new URL('../research/data/perturbseq-holdout.json', import.meta.url));
 const data = JSON.parse(raw);
@@ -177,4 +177,57 @@ globalThis.fetch=async(url,options={})=>{
     assert.match(markdown, /## Undanhållna genutslagningar/);
     assert.match(markdown, /\| Psmc5 \| strong \| strong \| strong \(624\) \|/);
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('common answer shapes are normalised; anything else gets a fixed problem code', async () => {
+  const { checkHoldoutProposal } = await import('../research/perturbseq-holdout.mjs');
+  const genes = ['Psmc5', 'Ank3'], want = { predictions: { Psmc5: 'strong', Ank3: 'weak' }, reason: 'Skäl.' };
+  for (const text of [
+    '```json\n{"predictions":{"Psmc5":"Strong","Ank3":" WEAK "},"reason":"Skäl."}\n```',
+    '{"predictions":[{"gene":"Ank3","class":"weak"},{"gene":"psmc5","prediction":"strong"}],"reason":"Skäl."}',
+    '{"predictions":{"Psmc5":{"class":"strong","confidence":0.7},"Ank3":{"class":"weak"}},"reason":"Skäl."}'])
+    assert.deepEqual(checkHoldoutProposal(text, genes), { proposal: want });
+  const problem = value => checkHoldoutProposal(JSON.stringify(value), genes).problem;
+  assert.equal(checkHoldoutProposal('Jag tror att...', genes).problem, 'not_json');
+  assert.equal(problem(['x']), 'not_object');
+  assert.equal(problem({ ...want, note: 1 }), 'extra_fields');
+  assert.equal(problem({ reason: 'x' }), 'missing_predictions');
+  assert.equal(problem({ predictions: { Psmc5: 'strong', Ank3: 'weak', Snap25: 'none' }, reason: 'x' }), 'unknown_gene');
+  assert.equal(problem({ predictions: [{ gene: 'Ank3', class: 'weak' }, { gene: 'ANK3', class: 'none' }], reason: 'x' }), 'duplicate_gene');
+  assert.equal(problem({ predictions: { Psmc5: 'huge', Ank3: 'weak' }, reason: 'x' }), 'invalid_class');
+  assert.equal(problem({ predictions: { Psmc5: 'strong' }, reason: 'x' }), 'missing_gene');
+  assert.equal(problem({ predictions: want.predictions, reason: 'x'.repeat(801) }), 'invalid_reason');
+});
+
+test('an unreadable answer gets one format correction, recorded on the case; a second failure names the case', async () => {
+  const answer = messages => Object.fromEntries(JSON.parse(messages[1].content).heldOutGenes.map(g => [g, classOf(data.holdout[g])]));
+  const sent = [];
+  const report = await runHoldoutExperiment('20261022', async messages => {
+    sent.push(messages);
+    return { provider: 'test', model: 'same', text: messages.length === 2 ? 'Här är min bedömning.'
+      : JSON.stringify({ predictions: answer(messages), reason: 'Facit.' }) };
+  }, callHoldout, async () => {});
+  assert.equal(sent.length, 6);
+  assert.match(sent[1].at(-1).content, /^Ditt svar kunde inte tolkas: svaret var inte giltig JSON\. Svara igen endast med JSON/);
+  assert.ok(!sent[1].at(-1).content.includes('Här är min bedömning'), 'the model text is never echoed');
+  assert.ok(report.cases.every(c => c.formatCorrection.problem === 'not_json' && c.correctionAttempted && !c.initialPassed && c.passed));
+  assert.equal(report.status, 'passed');
+  await assert.rejects(runHoldoutExperiment('20261022', async () => ({ provider: 'test', model: 'same', text: '{}' }), callHoldout, async () => {}),
+    e => e.message === 'invalid_model_proposal' && e.diagnostic.case === 1 && e.diagnostic.operation === 'correction');
+  let calls = 0;
+  await assert.rejects(runHoldoutExperiment('20261022', async () => ({ provider: 'test', model: ++calls === 1 ? 'a' : 'b', text: '{}' }), callHoldout, async () => {}),
+    { message: 'model_changed' });
+});
+
+test('a fenced answer that follows the calibration rule passes without a format correction', async () => {
+  const log = { calls: [], marks: [] };
+  let calls = 0;
+  const report = await runHoldoutExperiment('20261022', calibrated(async messages => {
+    calls++;
+    const predictions = Object.fromEntries(JSON.parse(messages[1].content).heldOutGenes.map(g => [g, classOf(data.holdout[g])]));
+    return { provider: 'test', model: 'same', text: '```json\n' + JSON.stringify({ predictions, reason: 'Facit.', confidence: 0.6 }) + '\n```' };
+  }, log), callHoldout, async () => {});
+  assert.equal(calls, 3);
+  assert.deepEqual(log.calls, [0.6, 0.6, 0.6]);
+  assert.ok(report.cases.every(c => c.initialPassed && !c.correctionAttempted && !c.formatCorrection));
 });

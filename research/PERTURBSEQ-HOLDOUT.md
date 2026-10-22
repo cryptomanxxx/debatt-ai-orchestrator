@@ -19,6 +19,8 @@ Classes: `none` (0 DEGs), `weak` (1–49), `strong` (at least 50). The held-out 
 
 1. **Commitment before predictions.** The seed orders each class by SHA-256 and draws three disjoint batches of 12 genes: 6 `none`, 4 `weak`, 2 `strong`. That is 36 genes per run. Their commitments are written before any model call.
 2. **What Oraklet sees per case:** the 12 gene symbols, the training class counts, the 30 strongest training knockouts and a seeded sample of 30 other training knockouts with their counts. It does not see expression profiles, held-out counts or the batch composition. It answers `predictions` (one class per gene) and `reason`. The lab's calibration rule adds `confidence`.
+
+   The parser accepts common shapes: a Markdown fence, capitalised classes, gene keys in another case, a list of `{gene, class}` rows, or per-gene objects. Any other answer gets one format correction per case. The request is repeated with a fixed description of the problem, never the model's own text. The case records `formatCorrection`, and its first proposal counts as not passed. A second unreadable answer stops the run with `invalid_model_proposal` and names the case.
 3. **Evidence.** The local tool returns the held-out counts and both baselines for the batch. The verifier recomputes everything on a separate code path (alternative class thresholds, prefix search and scoring) and rejects any difference.
 4. **Baselines.**
    - Always `none`. This scores exactly 0.5 by construction.
@@ -27,7 +29,7 @@ Classes: `none` (0 DEGs), `weak` (1–49), `strong` (at least 50). The held-out 
    The four-character threshold was fixed before any run. On all 272 held-out genes it scores 64% three-class accuracy versus 63% for always-`none`. On the stratified batches, across ten seeds, it averages 54%. This baseline sees the whole training table; Oraklet sees only the summary.
 5. **Pass rule per case:** Oraklet's three-class accuracy must be strictly above always-`none` and at least equal to the symbol family. Reports also give effect versus no-effect accuracy, the confusion matrix, per-gene tables and the run total over 36 genes.
 
-The run uses one planning call and three experiment calls (≤ 7), and three tool calls (≤ 6).
+The run uses one planning call and three experiment calls, at most six with format corrections (≤ 7 in total). It also uses three tool calls (≤ 6).
 
 ## Published reference points
 

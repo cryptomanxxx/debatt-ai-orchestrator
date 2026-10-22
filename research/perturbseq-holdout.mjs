@@ -138,21 +138,51 @@ export function validateHoldout(e, input) {
   return e.result;
 }
 
-export function parseHoldoutProposal(text, genes) {
+// The answer may arrive in a Markdown fence, with capitalised classes, gene keys in another case,
+// a list of {gene, class} rows or per-gene objects; it is normalised to one class per batch gene.
+// Anything else returns a fixed problem code, never the model text.
+export function checkHoldoutProposal(text, genes) {
+  let p;
   try {
-    const p = JSON.parse(text);
-    if (!p || Object.keys(p).sort().join(',') !== 'predictions,reason'
-        || !p.predictions || typeof p.predictions !== 'object' || Array.isArray(p.predictions)
-        || Object.keys(p.predictions).sort().join(',') !== [...genes].sort().join(',')
-        || !Object.values(p.predictions).every(v => CLASSES.includes(v))
-        || typeof p.reason !== 'string' || !p.reason.trim() || p.reason.length > 800) return null;
-    return { predictions: Object.fromEntries(genes.map(g => [g, p.predictions[g]])), reason: p.reason.trim() };
-  } catch { return null; }
+    const t = String(text).trim().replace(/^<think>[\s\S]*?<\/think>\s*/, '');
+    const fenced = t.match(/^```(?:json)?\s*\n([\s\S]*?)\n?```$/);
+    p = JSON.parse(fenced ? fenced[1] : t);
+  } catch { return { problem: 'not_json' }; }
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return { problem: 'not_object' };
+  if (Object.keys(p).some(k => !['predictions', 'reason'].includes(k))) return { problem: 'extra_fields' };
+  const rows = Array.isArray(p.predictions)
+    ? p.predictions.map(r => r && typeof r === 'object' ? [r.gene, r.class ?? r.prediction] : [undefined, undefined])
+    : p.predictions && typeof p.predictions === 'object' ? Object.entries(p.predictions) : null;
+  if (!rows) return { problem: 'missing_predictions' };
+  const predictions = {};
+  for (const [key, value] of rows) {
+    const gene = typeof key !== 'string' ? undefined
+      : genes.includes(key.trim()) ? key.trim() : genes.find(g => g.toLowerCase() === key.trim().toLowerCase());
+    if (!gene) return { problem: 'unknown_gene' };
+    if (Object.hasOwn(predictions, gene)) return { problem: 'duplicate_gene' };
+    const label = value && typeof value === 'object' && !Array.isArray(value) ? value.class ?? value.prediction : value;
+    const cls = typeof label === 'string' ? label.trim().toLowerCase() : null;
+    if (!CLASSES.includes(cls)) return { problem: 'invalid_class' };
+    predictions[gene] = cls;
+  }
+  if (genes.some(g => !Object.hasOwn(predictions, g))) return { problem: 'missing_gene' };
+  if (typeof p.reason !== 'string' || !p.reason.trim() || p.reason.length > 800) return { problem: 'invalid_reason' };
+  return { proposal: { predictions: Object.fromEntries(genes.map(g => [g, predictions[g]])), reason: p.reason.trim() } };
 }
+export const parseHoldoutProposal = (text, genes) => checkHoldoutProposal(text, genes).proposal ?? null;
+
+const PROBLEM_TEXT = Object.freeze({
+  not_json: 'svaret var inte giltig JSON', not_object: 'svaret var inte ett JSON-objekt',
+  extra_fields: 'svaret hade andra fält än predictions och reason', missing_predictions: 'fältet predictions saknades',
+  unknown_gene: 'predictions innehöll en gen som inte fanns i listan', duplicate_gene: 'en gen förekom två gånger',
+  invalid_class: 'en klass var inte "none", "weak" eller "strong"', missing_gene: 'någon av generna saknades',
+  invalid_reason: 'reason saknades eller var längre än 800 tecken',
+});
+const answerExample = genes => JSON.stringify({ predictions: Object.fromEntries(genes.slice(0, 2).map((g, i) => [g, CLASSES[i]])), reason: '...' });
 
 export function holdoutMessages(seed, genes) {
   return [
-    { role: 'system', content: 'Du är Professor Oraklet. Förutsäg effekten av CRISPR-utslagning av gener vars mätdata hållits utanför ett publicerat Perturb-seq-dataset från mushjärna (akut, gles utslagning i postmitotiska neuroner, P16 till P37–44). Facit är låst och dolt. Använd vad du vet om genernas funktion (proteinkomplex, paraloger, livsnödvändiga cellprocesser) och de visade träningsgenerna. Svara endast JSON: predictions: objekt med exakt de givna generna som nycklar och värdet "none" (0 DEG), "weak" (1–49 DEG) eller "strong" (minst 50 DEG); reason: kort svensk motivering. Urvalet av gener är inte ett slumpmässigt stickprov av screenen.' },
+    { role: 'system', content: 'Du är Professor Oraklet. Förutsäg effekten av CRISPR-utslagning av gener vars mätdata hållits utanför ett publicerat Perturb-seq-dataset från mushjärna (akut, gles utslagning i postmitotiska neuroner, P16 till P37–44). Facit är låst och dolt. Använd vad du vet om genernas funktion (proteinkomplex, paraloger, livsnödvändiga cellprocesser) och de visade träningsgenerna. Svara endast JSON: predictions: objekt med exakt de givna generna som nycklar och värdet "none" (0 DEG), "weak" (1–49 DEG) eller "strong" (minst 50 DEG); reason: kort svensk motivering. Format: ' + answerExample(['GenA', 'GenB']) + '. Urvalet av gener är inte ett slumpmässigt stickprov av screenen.' },
     { role: 'user', content: JSON.stringify({ protocol: { id: HOLDOUT_PROTOCOL.id, cellGroup: data.cellGroup,
       endpoint: 'Antal mätta gener med BH-justerat Wilcoxon p < 0.05 i celltypen (DEG) efter utslagning, jämfört med kontroller.' },
       training: { ...trainingContext(seed), note: 'strongest och sample är [gen, DEG-antal] för andra utslagningar i samma celltyp.' },
@@ -164,9 +194,18 @@ export async function runHoldoutExperiment(seed, propose, callTool, onCommit, op
   const fixtures = makeHoldoutCases(seed), cases = [];
   await onCommit(fixtures.map(f => ({ case: f.id, sha256: f.commitment, protocol: HOLDOUT_PROTOCOL })));
   for (const f of fixtures) {
-    const ai = await propose(holdoutMessages(seed, f.input.genes));
-    const proposal = parseHoldoutProposal(ai.text, f.input.genes);
-    if (!proposal) throw new ResearchError('invalid_model_proposal');
+    const messages = holdoutMessages(seed, f.input.genes);
+    let ai = await propose(messages), checked = checkHoldoutProposal(ai.text, f.input.genes), formatProblem = null;
+    // One format correction per case: the request is repeated with a fixed description of the problem.
+    if (checked.problem) {
+      formatProblem = checked.problem;
+      const first = ai;
+      ai = await propose([...messages, { role: 'user', content: `Ditt svar kunde inte tolkas: ${PROBLEM_TEXT[formatProblem]}. Svara igen endast med JSON i formatet ${answerExample(f.input.genes)}, med alla tolv gener.` }]);
+      if (ai.provider !== first.provider || ai.model !== first.model) throw new ResearchError('model_changed', { case: f.id });
+      checked = checkHoldoutProposal(ai.text, f.input.genes);
+      if (checked.problem) throw new ResearchError('invalid_model_proposal', { case: f.id, operation: 'correction' });
+    }
+    const proposal = checked.proposal;
     const evidence = await callTool(f.input), result = validateHoldout(evidence, f.input);
     const oraklet = score(proposal.predictions, result.truth);
     const { majority, family } = result.baselines;
@@ -176,7 +215,8 @@ export async function runHoldoutExperiment(seed, propose, callTool, onCommit, op
       hypothesisTest: { protocol: HOLDOUT_PROTOCOL, decision: passed ? 'beats_baselines' : 'does_not_beat_baselines',
         measured: { ...result, oraklet }, independentlyVerified: true,
         verificationScope: 'held-out-counts-snapshot-and-baselines', familyInference: null },
-      initialPassed: passed, passed, correctionAttempted: false, sameModel: true });
+      ...(formatProblem ? { formatCorrection: { problem: formatProblem } } : {}),
+      initialPassed: formatProblem ? false : passed, passed, correctionAttempted: Boolean(formatProblem), sameModel: true });
     await options.onProgress?.(structuredClone(cases));
   }
   return { schemaVersion: 2, promptVersion: HOLDOUT_PROTOCOL.id, researcher: 'Professor Oraklet',
