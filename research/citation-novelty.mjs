@@ -35,9 +35,10 @@ export function terms(...texts) {
 }
 // The scored terms: the candidate's terms that every seed title already contains name the shared
 // field (every citing work matches them), so they are left out; at most six, research question first.
+// The field is only inferred from two or more distinct titles: one title alone is the question's topic.
 export function scoringTerms(candidateTerms, seedTitles) {
-  const titles = seedTitles.filter(t => typeof t === 'string').map(stems);
-  const specific = candidateTerms.filter(t => !titles.length || !titles.every(s => s.has(stem(t))));
+  const titles = [...new Set(seedTitles.filter(t => typeof t === 'string').map(t => t.toLowerCase()))].map(stems);
+  const specific = candidateTerms.filter(t => titles.length < 2 || !titles.every(s => s.has(stem(t))));
   return (specific.length ? specific : candidateTerms).slice(0, 6);
 }
 // Share of the scored terms that a title contains.

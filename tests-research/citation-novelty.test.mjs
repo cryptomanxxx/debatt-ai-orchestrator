@@ -56,6 +56,8 @@ test('generic words are dropped, stems match, and the field shared by every seed
   assert.equal(relevance('Physics-informed neural networks for passive scalar emission and transport', scored), 0);
   assert.deepEqual(scoringTerms(['flow'], seeds), ['flow'], 'all terms shared: fall back to the candidate terms');
   assert.deepEqual(scoringTerms(q, []), q.slice(0, 6));
+  assert.deepEqual(scoringTerms(q, [seeds[0]]), q.slice(0, 6), 'one seed title does not define the field');
+  assert.deepEqual(scoringTerms(q, [seeds[0], seeds[0]]), q.slice(0, 6), 'nor does the same title twice');
 });
 
 test('seeds are the candidate evidence papers with an OpenAlex identity', () => {
