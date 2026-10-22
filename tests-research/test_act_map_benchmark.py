@@ -220,5 +220,23 @@ class ActMapBenchmarkTests(unittest.TestCase):
         self.assertEqual(act.evidence_gate(f, h, lacking_root)["reason"],
                          "insufficient_intervention_coverage")
 
+    def test_gate_tool_verifies_a_lab_case_and_runs_the_baseline(self):
+        f = act.make_fixture("42", 3, 1)
+        fixture = {"view": f["view"], "truth": f["truth"], "commitment": f["commitment"]}
+        h = act.hypothesis("full", tuple(f["truth"]["mapping"]), tuple(f["truth"]["action_to_target"]))
+        history = [{"action": a, "value": 1, "outcome": act.experiment(f, a, 1)} for a in range(3)]
+        result = act.gate_tool({"fixture": fixture, "proposed": h, "history": history})
+        self.assertEqual(result["gate"]["status"], "provisionally_supported")
+        self.assertTrue(result["baseline"]["scope_correct"])
+        forged = [dict(history[0], outcome=[9, 9, 9])] + history[1:]
+        self.assertEqual(act.gate_tool({"fixture": fixture, "proposed": h, "history": forged})["gate"]["reason"],
+                         "invalid_evidence_provenance")
+        self.assertEqual(act.gate_tool({"fixture": fixture, "proposed": None, "history": []})["gate"]["status"], "unresolved")
+        with self.assertRaises(ValueError):
+            act.gate_tool({"fixture": fixture, "proposed": h})
+        with self.assertRaises(ValueError):
+            act.gate_tool({"fixture": dict(fixture, view=dict(f["view"], level=1)), "proposed": h, "history": history})
+
+
 if __name__ == "__main__":
     unittest.main()

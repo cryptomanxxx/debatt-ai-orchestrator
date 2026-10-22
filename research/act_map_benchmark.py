@@ -14,6 +14,7 @@ import json
 import math
 from pathlib import Path
 import random
+import sys
 from typing import Any
 
 PROTOCOL = "act-map-latent-correspondence-v0.1"
@@ -397,12 +398,52 @@ def run_benchmark(seed: str = "20261016", cases_per_level: int = 6) -> dict:
             "summary": summary, "cases": records}
 
 
+GATE_ADAPTER = "act-map-gate-v1"
+
+
+def gate_tool(payload: Any) -> dict:
+    """Independent verifier for Oraklet's lab (research/act-map.mjs).
+
+    The Node lab builds the fixture, runs Oraklet's chosen interventions and
+    sends the fixture, Oraklet's proposal and the discovery record here. This
+    module rechecks the commitment, replays every intervention, applies the
+    evidence gate and runs the enumeration baseline on the same fixture.
+    """
+    if not isinstance(payload, dict) or set(payload) != {"fixture", "proposed", "history"}:
+        raise ValueError("invalid_gate_input")
+    fixture = payload["fixture"]
+    if not isinstance(fixture, dict) or set(fixture) != {"view", "truth", "commitment"}:
+        raise ValueError("invalid_gate_input")
+    view, truth = fixture["view"], fixture["truth"]
+    if (not isinstance(view, dict) or view.get("level") not in (2, 3, 4)
+            or view.get("max_experiments") != 3 or not isinstance(view.get("source"), dict)
+            or any(type(view["source"].get(k)) is not int for k in ("a", "b", "c"))
+            or not isinstance(truth, dict)
+            or set(truth) != {"mapping", "action_to_target", "scope", "target_coefficients"}):
+        raise ValueError("invalid_gate_input")
+    gate = evidence_gate(fixture, payload["proposed"], payload["history"])
+    baseline = evaluate(fixture, "active")
+    return {"gate": gate,
+            "baseline": {"strategy": "active", "decision": baseline["decision"],
+                         "accepted": baseline["gate"]["accepted"],
+                         "experiment_cost": baseline["experiment_cost"],
+                         "mapping_correct": baseline["evaluation"]["mapping_correct"],
+                         "scope_correct": baseline["evaluation"]["scope_correct"],
+                         "false_certification": baseline["evaluation"]["false_certification"]}}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="ACT-MAP / VEM-Sci synthetic CPU research pilot")
     parser.add_argument("--seed", default="20261016")
     parser.add_argument("--cases-per-level", type=int, default=6)
     parser.add_argument("--output", default="reports/act-map/report.json")
+    parser.add_argument("--gate", action="store_true", help="read one lab case as JSON on stdin and verify it")
     args = parser.parse_args()
+    if args.gate:
+        raw = sys.stdin.read(65536)
+        result = gate_tool(json.loads(raw))
+        print(canonical({"tool": "act-map", "adapterVersion": GATE_ADAPTER, "result": result}))
+        return
     report = run_benchmark(args.seed, args.cases_per_level)
     path = Path(args.output)
     path.parent.mkdir(parents=True, exist_ok=True)

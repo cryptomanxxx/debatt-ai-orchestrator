@@ -17,6 +17,7 @@ Välj experiment i Oraklets forskningslabb. `catalog-only` visar menyn utan mode
 | sympy-quadratic | sympy | Kan Oraklet ange exakt alla distinkta reella rötter och avvisa felaktiga rotmängder? |
 | sklearn-polynomial | scikit-learn | Vilken av två fasta regressionsmodeller väljs på separat valideringsdata och hur går det på testpunkterna? |
 | dowhy-backdoor | dowhy | Kan Oraklet skilja en justerad kausal effekt från ojusterad association under ett fast diagram? |
+| act-map-transfer | act-map | Hittar Oraklet med egna ingrepp en känd orsaksmekanism i ett okänt system? |
 | perturbseq-holdout | perturbseq-holdout | Förutsäger Oraklet effekten (ingen/svag/stark) av dolda genutslagningar bättre än två baslinjer? |
 | glucose-absorption | glucose-simulator | Hur påverkar absorptionstakten en syntetisk glukoskurva och 30–60-minutersprognoser? |
 | glucose-robustness | glucose-robustness-simulator | Kvarstår adaptiva prognosfördelar när måltidsuppgifter och antagen insulinkänslighet är felaktiga? |
@@ -98,6 +99,7 @@ Inventering av 49 paket vid commit `66b680ce742e654cfe86da4f072a69061fe182b1`. U
 | [insulin-warming-forecast](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/INSULIN-WARMING.md) | insulin-warming-forecast-v1 | Verifierad delintegration | Avlästa aspart-gruppkurvor; prefixprognoser, tids-/höjdkontroller och avläsningsstresstest; ingen patient- eller glukosprognos | github-actions-node |
 | [temperature-evidence](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/GLUCOSE-TEMPERATURE.md) | temperature-evidence-v1 | Verifierad delintegration | Publicerade gruppsammanfattningar; effektkvoter, alternativa temperaturkurvor och deskriptivt överföringstest; ingen patientkalibrering | github-actions-node |
 | [perturbseq-holdout](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/PERTURBSEQ-HOLDOUT.md) | perturbseq-holdout-v1 | Verifierad delintegration | Publicerade DEG-antal för 272 undanhållna utslagningar; stratifierade fall, alltid-none- och symbolfamiljebaslinje, låst facit med SHA-256 | github-actions-node |
+| [act-map](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/ACT-MAP-LAB.md) | act-map-oraklet-v1 | Verifierad delintegration | Syntetiska linjära orsaksmekanismer med slumpade namn; Oraklet väljer ingrepp, evidensgrind med dolda ingreppsstorlekar och uppräkningsbaslinje | github-actions-python |
 | [shallow-water-hybrid](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/SHALLOW-WATER.md) | shallow-water-hybrid-v1 | Verifierad delintegration | Reducerade linjära kanalvågor; diskret fysikinformerat nätverk, fast/adaptivt UKF, prefixprognoser och numerisk replay; ingen turbulens | github-actions-python |
 
 Nya integrationer kräver låst källversion och licens, begränsad adapter, angiven körmiljö, positiva och negativa kontroller samt verifiering av rapportkedjan. Först därefter läggs experimentet till i körmenyn och den automatiska planeringen.

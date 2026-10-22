@@ -45,7 +45,7 @@ The v0.9 spec requires ACCL to beat strong **passive and structural retrieval ba
 
 ## Next research integrations (not implemented yet)
 
-- Connect an actual Blablador/HIP model through the existing GitHub Scientific Model Router as a **bounded proposer** with immutable identity provenance limitations; the verifier and held-out truth remain server-side and inaccessible to the model.
+- ~~Connect an actual model as a bounded proposer.~~ Done: the lab experiment `act-map-transfer` lets Oraklet (the lab's locked model, including ranked HIP/Blablador models) choose interventions and propose the correspondence, with this module's `evidence_gate` as the verifier. See [ACT-MAP in Oraklet's lab](ACT-MAP-LAB.md).
 - Add learned graph and correspondence generation (not exhaustive `3!` permutations), observational baselines, variable cardinality differences, nonlinear/noisy interventional distributions, genuinely held-out motifs and compositional/partial mappings.
 - Reuse pinned **DoWhy/SymPy** adapters for separate implementation cross-checks; current oracle is a self-contained deterministic Python SCM simulation and **does not** claim DoWhy/SymPy verification.
 - Establish fair frontier LLM, structural, passive, target-only and oracle comparisons under matched probe/compute budgets, with predeclared metrics (CRS, ITA, FTCR, HIG, ACE, TA, NTA, SIG).

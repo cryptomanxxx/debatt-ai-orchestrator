@@ -3,6 +3,8 @@
 Efter varje slutförd körning av ett stött experiment svarar samma modell på samma fall som en rak fråga, utan labbets
 instruktioner, kalibrering eller korrigering. Båda svaren bedöms av experimentets verifierare. Se [labbet mot rak fråga](BARE-BASELINE.md).
 
+`act-map-transfer` låter Oraklet själv välja ingrepp i ett okänt syntetiskt system och avgöra om en känd orsaksmekanism finns där (full, partiell eller ingen överföring). Evidensgrinden från ACT-MAP-piloten prövar påståendet med dolda ingreppsstorlekar, och uppräkningsbaslinjen körs på samma fall. Automatiskt valbart. Varje svar i labbet sparas också som ett påstående i VEM-Sci-registret. Se [ACT-MAP i labbet](ACT-MAP-LAB.md).
+
 `perturbseq-holdout` låter Oraklet blint förutsäga effekten av genutslagningar som
 hållits utanför ett publicerat Perturb-seq-dataset och jämför mot låst facit och två
 fasta baslinjer. Automatiskt valbart. Se [källa, protokoll och begränsningar](PERTURBSEQ-HOLDOUT.md).

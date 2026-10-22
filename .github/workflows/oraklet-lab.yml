@@ -23,6 +23,7 @@ on:
           - sympy-quadratic
           - sklearn-polynomial
           - dowhy-backdoor
+          - act-map-transfer
           - perturbseq-holdout
           - glucose-absorption
           - glucose-robustness
@@ -132,6 +133,12 @@ jobs:
           ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node research/bare-baseline.mjs
+      - name: Uppdatera Oraklets VEM-Sci-register
+        if: always() && inputs.experiment != 'catalog-only'
+        timeout-minutes: 2
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node research/vem-sci.mjs
       - name: Rita kurvanpassning och prognoser även för sparade delresultat
         if: always() && (inputs.experiment == 'insulin-curve-shape' || steps.resolved.outputs.experiment == 'insulin-curve-shape' || inputs.experiment == 'insulin-external-curve' || steps.resolved.outputs.experiment == 'insulin-external-curve')
         run: python3 scripts/plot_insulin_curves.py reports/oraklet-lab/report.json
