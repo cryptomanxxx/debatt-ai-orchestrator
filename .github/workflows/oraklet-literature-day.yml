@@ -1,0 +1,84 @@
+name: Oraklets dagliga litteraturforskning
+on:
+  schedule:
+    - cron: '41 9 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+# Shares provider and catalog capacity with the collector and the manual pipeline; never cancels them.
+concurrency:
+  group: literature-benchmark-live
+  cancel-in-progress: false
+jobs:
+  literature-day:
+    runs-on: ubuntu-latest
+    # The pipeline has its own 45-minute bound; tree search, novelty check and registration are small.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.11'
+      - name: Läs, analysera, granska och rapportera
+        id: day
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          SEMANTIC_SCHOLAR_API_KEY: ${{ secrets.SEMANTIC_SCHOLAR_API_KEY }}
+          CORE_API_KEY: ${{ secrets.CORE_API_KEY }}
+        run: node research/literature-day.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: oraklet-literature-day-${{ github.run_id }}
+          path: |
+            reports/
+            ai-bus/
+          retention-days: 30
+          if-no-files-found: warn
+      # The model-menu app is a bypass actor on main's ruleset; its token exists only for this push.
+      - name: Skapa token för ai-bus
+        id: app
+        if: ${{ !cancelled() && hashFiles('ai-bus/senaste.md') != '' }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.MODEL_MENU_APP_CLIENT_ID }}
+          private-key: ${{ secrets.MODEL_MENU_APP_PRIVATE_KEY }}
+          permission-contents: write
+      - name: Spara dagens rapport i ai-bus på main
+        if: ${{ !cancelled() && hashFiles('ai-bus/senaste.md') != '' }}
+        env:
+          TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          day=$(date -u +%F)
+          mkdir -p "$RUNNER_TEMP/ai-bus" && cp ai-bus/*.md "$RUNNER_TEMP/ai-bus/"
+          git config user.name 'debatt-ai-model-menu[bot]'
+          git config user.email 'debatt-ai-model-menu[bot]@users.noreply.github.com'
+          git remote set-url origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          commit() {
+            git add ai-bus/
+            git diff --cached --quiet && exit 0
+            git commit -q -m "chore(ai-bus): Professor Oraklets dag ${day}"
+          }
+          commit
+          # If main moved since checkout, re-apply the report on the latest main once.
+          if ! git push origin HEAD:main; then
+            git fetch --depth=1 origin main
+            git reset -q --hard origin/main
+            mkdir -p ai-bus && cp "$RUNNER_TEMP"/ai-bus/*.md ai-bus/
+            commit
+            git push origin HEAD:main
+          fi
+          echo "Rapporten finns i ai-bus/${day}.md och ai-bus/senaste.md på main." >> "$GITHUB_STEP_SUMMARY"
+      - name: Markera körningen som misslyckad om ett steg fick driftfel
+        if: ${{ steps.day.outcome == 'failure' }}
+        run: |
+          echo "Minst ett steg fick driftfel; se ai-bus-rapporten och artefakten." >> "$GITHUB_STEP_SUMMARY"
+          exit 1

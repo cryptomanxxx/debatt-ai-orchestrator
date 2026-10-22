@@ -7,7 +7,7 @@ on:
         description: 'Research area'
         type: choice
         default: 'PINNs and turbulence'
-        options: ['PINNs and turbulence','Experiment design','Kalman state estimation','Causal inference','Model evaluation']
+        options: ['PINNs and turbulence','Experiment design','Kalman state estimation','Causal inference','Model evaluation','AI for scientific discovery']
       model_budget:
         description: 'Maximum model calls for the entire chain'
         type: choice
