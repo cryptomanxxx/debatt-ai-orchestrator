@@ -179,6 +179,7 @@ export async function main(env = process.env, { directory = 'reports/citation-no
   await writeFile(directory + '/report.md', markdown);
   if (env.GITHUB_STEP_SUMMARY) await appendFile(env.GITHUB_STEP_SUMMARY, markdown);
   console.log(JSON.stringify({ ok: true, candidate_id: result.candidate_id, status: result.novelty.status, leads: result.leads.length, requests: result.search.openalex_requests }));
+  return result;
 }
 
 if (process.argv[1]?.endsWith('/citation-novelty.mjs')) main().catch(error => { console.error(error.message); process.exitCode = 1; });

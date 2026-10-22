@@ -16,6 +16,7 @@ export const RESEARCH_AREAS = Object.freeze({
   'Kalman state estimation':DEFAULT_QUERIES[2],
   'Causal inference':DEFAULT_QUERIES[3],
   'Model evaluation':DEFAULT_QUERIES[4],
+  'AI for scientific discovery':'AI agents scientific discovery',
 });
 export function pipelineOptions(env) {
   const area=env.RESEARCH_AREA??'PINNs and turbulence';

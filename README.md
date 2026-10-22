@@ -74,6 +74,8 @@ The manual [evidence registry](research/LITERATURE-EVIDENCE-REGISTRY.md) stores 
 
 The manual [citation-graph novelty check](research/CITATION-NOVELTY.md) runs a bounded tree search over later work citing a candidate's evidence papers in OpenAlex and lists possible overlaps for review; finding none within the budget does not establish novelty.
 
+Every day at 09:41 UTC Oraklet also runs his literature research himself ([daily literature research](research/LITERATURE-DAY.md)). The run alternates between AI for scientific discovery and causal inference. It runs the research pipeline, the agentic tree-search review queue and the citation-graph novelty check, and registers literature-backed catalog problems in Problem Bank automatically. It then writes a Swedish report of what he read and found to [`ai-bus/`](ai-bus/README.md).
+
 The [one-start research pipeline](research/RESEARCH-PIPELINE.md) chains collection, initial analysis, candidate selection, follow-up search and final analysis. Choose a research area and a total budget of 5 or 10 model calls; internal IDs are carried automatically. Follow-up analysis requires both method and problem/solution title anchors and records insufficient relevant hits without spending inference calls when none qualify. The pipeline starts manually and executes no experiments.
 
 ## Research dashboard
