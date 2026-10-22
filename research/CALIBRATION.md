@@ -23,3 +23,5 @@ A researcher who knows when they are unsure is worth more than one who always so
 - reliability bins: for answers stated at 0.8–1, how many actually passed, and so on.
 
 Confidence is self-reported and is not verification. A model can be well calibrated and still often wrong. The summary measures whether its stated certainty can be trusted.
+
+The same workflow also pools the paired results of the lab against a bare question ([BARE-BASELINE.md](BARE-BASELINE.md)).

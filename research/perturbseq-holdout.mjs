@@ -190,6 +190,11 @@ export function holdoutMessages(seed, genes) {
   ];
 }
 
+// The pass rule: strictly above always-none and at least equal to the symbol family.
+export function holdoutPasses(predictions, result) {
+  const oraklet = score(predictions, result.truth), { majority, family } = result.baselines;
+  return { oraklet, passed: oraklet.accuracy > majority.accuracy && oraklet.accuracy >= family.accuracy };
+}
 export async function runHoldoutExperiment(seed, propose, callTool, onCommit, options = {}) {
   const fixtures = makeHoldoutCases(seed), cases = [];
   await onCommit(fixtures.map(f => ({ case: f.id, sha256: f.commitment, protocol: HOLDOUT_PROTOCOL })));
@@ -207,9 +212,7 @@ export async function runHoldoutExperiment(seed, propose, callTool, onCommit, op
     }
     const proposal = checked.proposal;
     const evidence = await callTool(f.input), result = validateHoldout(evidence, f.input);
-    const oraklet = score(proposal.predictions, result.truth);
-    const { majority, family } = result.baselines;
-    const passed = oraklet.accuracy > majority.accuracy && oraklet.accuracy >= family.accuracy;
+    const { oraklet, passed } = holdoutPasses(proposal.predictions, result);
     cases.push({ case: f.id, commitment: f.commitment, data: { ...f.input, dataSha256: HOLDOUT_DATA_SHA256 },
       proposal, provider: ai.provider, model: ai.model, evidence,
       hypothesisTest: { protocol: HOLDOUT_PROTOCOL, decision: passed ? 'beats_baselines' : 'does_not_beat_baselines',

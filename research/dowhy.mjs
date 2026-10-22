@@ -117,6 +117,8 @@ export function parseDowhyProposal(text) {
     return { ...p, reason: p.reason.trim() };
   } catch { return null; }
 }
+export const dowhyPasses = (proposal, measured) =>
+  fingerprint(proposal.adjustment) === fingerprint(measured.adjustmentVariables) && near(proposal.effect, measured.effect);
 export async function runDowhyExperiment(seed, propose, callTool, onCommit, options = {}) {
   const fixtures = makeDowhyCases(seed), cases = [];
   await onCommit(fixtures.map(f => ({ case: f.id, sha256: f.commitment, protocol: DOWHY_PROTOCOL })));
@@ -133,8 +135,7 @@ export async function runDowhyExperiment(seed, propose, callTool, onCommit, opti
       const controlEvidence = await callTool(f.control), control = validateDowhy(controlEvidence, f.control);
       if (!near(measured.effect, f.truth.effect) || !near(control.effect, f.truth.controlEffect)
           || measured.decision === control.decision || near(measured.naiveEffect, measured.effect)) invalid();
-      const passed = fingerprint(proposal.adjustment) === fingerprint(measured.adjustmentVariables)
-        && near(proposal.effect, measured.effect);
+      const passed = dowhyPasses(proposal, measured);
       cases.push({ case: f.id, commitment: f.commitment, data: f.input, controlData: f.control, truth: f.truth,
         proposal, provider: ai.provider, model: ai.model, evidence, controlEvidence,
         hypothesisTest: { protocol: DOWHY_PROTOCOL, decision: measured.decision, measured,

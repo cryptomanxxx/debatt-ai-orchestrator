@@ -1,5 +1,8 @@
 # Oraklets dagliga forskningslabb
 
+Efter varje slutförd körning av ett stött experiment svarar samma modell på samma fall som en rak fråga, utan labbets
+instruktioner, kalibrering eller korrigering. Båda svaren bedöms av experimentets verifierare. Se [labbet mot rak fråga](BARE-BASELINE.md).
+
 `perturbseq-holdout` låter Oraklet blint förutsäga effekten av genutslagningar som
 hållits utanför ett publicerat Perturb-seq-dataset och jämför mot låst facit och två
 fasta baslinjer. Automatiskt valbart. Se [källa, protokoll och begränsningar](PERTURBSEQ-HOLDOUT.md).
