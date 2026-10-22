@@ -19,10 +19,11 @@ const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'are'
 
 // Light stemming for title matching. English plurals are made singular first (processes/process,
 // studies/study, boxes/box, signals/signal; -ss, -us and -is words are left alone), then one common
-// suffix is removed when at least four letters remain. So estimator/estimation, physics/physical and
+// suffix is removed when at least four letters remain. So estimator/estimation and
 // reconstruct/reconstruction match, while words that only share a beginning (classical/classification)
 // stay apart.
-const SUFFIXES = ['ation', 'ator', 'ing', 'ion', 'er', 'ed', 'al'];
+// -al and -er are not removed: they mostly collide unrelated words (signal/sign, general/generation).
+const SUFFIXES = ['ation', 'ator', 'ing', 'ion', 'ed'];
 export function singular(word) {
   if (/(ss|us|is)$/.test(word) || !word.endsWith('s')) return word;
   if (word.length > 4 && word.endsWith('ies')) return word.slice(0, -3) + 'y';
@@ -34,12 +35,14 @@ export function stem(word) {
   const suffix = SUFFIXES.find(x => base.endsWith(x) && base.length - x.length >= 4);
   return suffix ? base.slice(0, -suffix.length) : base;
 }
+// Inflected stop words (studies, methods, improved) are stop words too.
+const STOP_STEMS = new Set([...STOP].map(stem));
 const stems = text => new Set((typeof text === 'string' ? text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [] : []).map(stem));
 
 export function terms(...texts) {
   const words = texts.filter(t => typeof t === 'string').join(' ').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
   const seen = new Set();
-  return words.filter(w => w.length > 2 && !STOP.has(w) && !seen.has(stem(w)) && seen.add(stem(w))).slice(0, 16);
+  return words.filter(w => w.length > 2 && !STOP.has(w) && !STOP_STEMS.has(stem(w)) && !seen.has(stem(w)) && seen.add(stem(w))).slice(0, 16);
 }
 // The scored terms: the candidate's terms that every seed title already contains name the shared
 // field (every citing work matches them), so they are left out; at most six, research question first.

@@ -42,19 +42,20 @@ test('generic words are dropped, stems match, and the field shared by every seed
   const q = terms('Does a physics-informed estimator improve held-out state estimation under changing flow conditions?');
   assert.deepEqual(q, ['physics', 'informed', 'estimator', 'state', 'changing', 'flow', 'conditions']);
   assert.equal(stem('estimation'), stem('estimator'));
-  assert.equal(stem('physics'), stem('physical'));
   assert.equal(stem('states'), stem('state'));
   assert.equal(stem('reconstruction'), stem('reconstruct'));
   assert.notEqual(stem('classification'), stem('classical'), 'a shared beginning is not a match');
   assert.notEqual(stem('statistics'), stem('state'));
   assert.equal(stem('water'), 'water');
-  for (const [a, b] of [['signal', 'signals'], ['physical', 'physicals'], ['estimator', 'estimators'], ['estimation', 'estimations'], ['reconstruction', 'reconstructions']])
+  for (const [a, b] of [['signal', 'signals'], ['estimator', 'estimators'], ['estimation', 'estimations'], ['reconstruction', 'reconstructions']])
     assert.equal(stem(a), stem(b), `${a}/${b}: a plural on top of a suffix still matches`);
   for (const [a, b] of [['process', 'processes'], ['class', 'classes'], ['box', 'boxes'], ['study', 'studies'], ['branch', 'branches'],
     ['flow', 'flows'], ['sensor', 'sensors'], ['analysis', 'analysis'], ['state', 'states']])
     assert.equal(stem(a), stem(b), `${a}/${b}: English plurals become singular`);
   assert.equal(stem('gas'), 'gas');
-  assert.equal(stem('physics'), stem('physical'));
+  for (const [a, b] of [['signal', 'sign'], ['general', 'generation'], ['classical', 'classification']])
+    assert.notEqual(stem(a), stem(b), `${a}/${b} stay apart`);
+  assert.deepEqual(terms('Do studies improve existing methods?'), [], 'inflected stop words are stop words');
   const seeds = ['Turbulence model augmented physics-informed neural networks for mean-flow reconstruction',
     'Mean flow reconstruction of unsteady flows using physics-informed neural networks'];
   const scored = scoringTerms(q, seeds);
