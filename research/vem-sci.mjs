@@ -61,9 +61,10 @@ export function vemRegisterSummary(rows) {
     for (const claim of row.vem.claims) {
       if (!VEM_STATUSES.includes(claim?.status)) continue;
       const id = typeof claim.experimentId === 'string' ? claim.experimentId : row.experimentId ?? 'okänt';
-      const e = experiments.get(id) ?? { experimentId: id, provisionally_supported: 0, rejected: 0, unresolved: 0, abstentions: 0, latest: null };
+      const e = experiments.get(id) ?? { experimentId: id, provisionally_supported: 0, rejected: 0, unresolved: 0, abstentions: 0, noAnswers: 0, latest: null };
       e[claim.status]++;
       if (claim.kind === 'abstention') e.abstentions++;
+      if (claim.kind === 'no_answer') e.noAnswers++;
       if (!e.latest || String(row.skapad) > e.latest) e.latest = String(row.skapad ?? '');
       experiments.set(id, e);
     }
@@ -81,9 +82,35 @@ export function vemRegisterMarkdown(summary, { limit } = {}) {
     + `Påståenden: ${t.provisionally_supported} preliminärt stödda, ${t.rejected} avvisade, ${t.unresolved} olösta. `
     + 'Bara experimentets egen oberoende verifiering flyttar ett påstående; "preliminärt stött" gäller bara det testade fallet.\n\n'
     + (summary.experiments.length
-      ? '| Experiment | Preliminärt stödda | Avvisade | Olösta (varav avstått) | Senast |\n| --- | --- | --- | --- | --- |\n'
-        + summary.experiments.map(e => `| ${e.experimentId} | ${e.provisionally_supported} | ${e.rejected} | ${e.unresolved} (${e.abstentions}) | ${e.latest?.slice(0, 10) ?? ''} |`).join('\n') + '\n'
+      ? '| Experiment | Preliminärt stödda | Avvisade | Olösta (avstått / utan svar) | Senast |\n| --- | --- | --- | --- | --- |\n'
+        + summary.experiments.map(e => `| ${e.experimentId} | ${e.provisionally_supported} | ${e.rejected} | ${e.unresolved} (${e.abstentions} / ${e.noAnswers ?? 0}) | ${e.latest?.slice(0, 10) ?? ''} |`).join('\n') + '\n'
       : 'Inga körningar med register ännu.\n');
+}
+
+// What the planner learns from the register. Each experiment's claims are [provisionally
+// supported, rejected, unresolved]. Its learning priority is the smoothed share of claims that did
+// not hold, (rejected + unresolved + 1) / (claims + 2): an experiment without claims scores 0.5,
+// repeated failures score higher and repeated support lower. The lab computes it, not the model.
+export const learningPriority = ([s, r, u] = [0, 0, 0]) => (r + u + 1) / (s + r + u + 2);
+const claimsOf = e => [e.provisionally_supported, e.rejected, e.unresolved];
+// {experimentId: [s, r, u]} for the given experiments that have claims, highest priority first.
+export function vemKnowledge(summary, experimentIds) {
+  const byId = new Map((summary?.experiments ?? []).map(e => [e.experimentId, claimsOf(e)]));
+  return Object.fromEntries(experimentIds.filter(id => byId.has(id)).map(id => [id, byId.get(id)])
+    .sort(([a, x], [b, y]) => learningPriority(y) - learningPriority(x) || (a < b ? -1 : 1)));
+}
+// How the planner's choice relates to the register: its claims, its learning priority and its
+// rank among the offered experiments (1 = nothing had a higher priority).
+export function knowledgeChoice(knowledge, experimentIds, chosen) {
+  const priority = learningPriority(knowledge[chosen]);
+  return { claims: knowledge[chosen] ?? null, priority: Math.round(priority * 1e4) / 1e4,
+    rank: 1 + experimentIds.filter(id => learningPriority(knowledge[id]) > priority).length, of: experimentIds.length };
+}
+export function knowledgeLine(k) {
+  if (!k) return '';
+  if (k.unavailable) return '\nKunskapsminne: VEM-Sci-registret kunde inte läsas; planeringen valde utan det.\n';
+  const claims = k.claims ? `${k.claims[0]}/${k.claims[1]}/${k.claims[2]} (stödda/avvisade/olösta)` : 'inga tidigare påståenden';
+  return `\nKunskapsminne: planeringen såg registret från ${k.runs} körningar. Valt experiment: ${claims}; lärprioritet ${k.priority}, plats ${k.rank} av ${k.of}.\n`;
 }
 
 export const REGISTER_LIMIT = 200;

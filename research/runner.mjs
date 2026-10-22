@@ -31,7 +31,7 @@ import { runExternalCurveExperiment, callExternalCurve, externalSummary, externa
 
 import { runHoldoutExperiment, callHoldout, holdoutSummary, holdoutMarkdown } from './perturbseq-holdout.mjs';
 import { runActMapExperiment, callActMap, actMapSummary, actMapMarkdown, ACT_MAP_PROTOCOL } from './act-map.mjs';
-import { vemState, vemLine } from './vem-sci.mjs';
+import { vemState, vemLine, readVemRegister, vemRegisterSummary, vemKnowledge, knowledgeChoice, knowledgeLine, VEM_SCHEMA } from './vem-sci.mjs';
 
 // Catalog viewing needs no model or database credentials.
 if (process.env.EXPERIMENT === 'catalog-only') {
@@ -95,7 +95,19 @@ try {
   const modelModes = selection === 'auto' ? await plannerModelModes() : ['default'];
   const researchChoices = selection === 'auto' ? await loadResearchChoices() : {};
   if (selection === 'auto') openProblems = await loadOpenProblems(process.env, CATALOG);
-  plan = await choosePlan(selection, seed, history, planningPropose, modelModes, researchChoices, openProblems.open.map(o => o.summary));
+  // Oraklet's memory: the planner sees the VEM-Sci register of earlier verified claims. A register
+  // outage never stops the run; the plan then records that it chose without it.
+  const offered = CATALOG.filter(e => e.automatic !== false).map(e => e.id);
+  let register = null, knowledge = {};
+  if (selection === 'auto') {
+    try { register = vemRegisterSummary(await readVemRegister(serviceKey)); knowledge = vemKnowledge(register, offered); }
+    catch { register = null; }
+  }
+  plan = await choosePlan(selection, seed, history, planningPropose, modelModes, researchChoices, openProblems.open.map(o => o.summary), knowledge);
+  // How the choice relates to the register is committed with the plan, before any experiment call.
+  if (selection === 'auto') plan.knowledge = register
+    ? { source: VEM_SCHEMA, runs: register.runs, ...knowledgeChoice(knowledge, offered, plan.experimentId) }
+    : { source: VEM_SCHEMA, unavailable: true };
   // An approved Problem Bank problem the plan works on is committed with the plan, with its literature support.
   linkedProblem = plan.problemBankId ? openProblems.open.find(o => o.summary.problemBankId === plan.problemBankId) ?? null : null;
   if (linkedProblem) plan.problemBank = { id: linkedProblem.problem.id, version: linkedProblem.problem.version,
@@ -203,8 +215,9 @@ const preregistrationMarkdown = report.preregistration ? `\n\n## Förregistrerin
 const bankMarkdown = report.problemBank ? `\nProblem Bank: ${report.problemBank.id} (v${report.problemBank.version})` +
   (plan?.problemBank?.literature ? ` med stöd i litteraturkandidaten "${plan.problemBank.literature.researchQuestion}" (${plan.problemBank.literature.articles} artiklar)` : '') +
   (report.problemBank.recorded ? `; utfallet sparades som ${statusLabel[report.problemBank.researchStatus] ?? report.problemBank.researchStatus}.\n` : '; körningen kunde inte sparas i Problem Bank.\n') : '';
-await writeFile(`${directory}/report.md`, markdown + calibrationMarkdown + vemLine(report.vem) + preregistrationMarkdown + bankMarkdown);
-if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown + calibrationMarkdown + vemLine(report.vem) + preregistrationMarkdown + bankMarkdown);
+const memoryMarkdown = vemLine(report.vem) + knowledgeLine(plan?.knowledge);
+await writeFile(`${directory}/report.md`, markdown + calibrationMarkdown + memoryMarkdown + preregistrationMarkdown + bankMarkdown);
+if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown + calibrationMarkdown + memoryMarkdown + preregistrationMarkdown + bankMarkdown);
 const saved = await fetch(DB, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
   body: JSON.stringify({ id: reportId, titel: report.title, status: report.status, rapport: report, skapad: report.createdAt }),
   redirect: 'error', signal: AbortSignal.timeout(10000) });

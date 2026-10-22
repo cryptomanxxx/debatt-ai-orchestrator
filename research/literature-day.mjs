@@ -12,6 +12,7 @@ import { readRecentLiteratureReports } from './run-oraklet-proposals.mjs';
 import { literatureProblemProposals } from './literature-problem-proposals.mjs';
 import { makeCatalogProblem, createOrVerifyCatalogProblem } from './problem-bank-create-catalog.mjs';
 import { createProblemBankClient } from './problem-bank.mjs';
+import { readVemRegister, vemRegisterSummary, learningPriority, REGISTER_LIMIT } from './vem-sci.mjs';
 
 // The fields Oraklet reads, one per day in turn.
 export const LITERATURE_FIELDS = Object.freeze(['AI for scientific discovery', 'Causal inference']);
@@ -78,7 +79,7 @@ const fail = error => ({ status: 'error', code: /^[a-z_]{3,60}$/.test(error?.mes
 // Each stage has a deadline inside the 60-minute job, so the report is always written even when a
 // provider or database stalls. The CLI exits after writing, so a stage still pending cannot hold the job.
 export const STAGE_DEADLINES_MS = Object.freeze({ pipeline: 35 * 60_000, tree: 3 * 60_000, novelty: 3 * 60_000,
-  problem_bank: 3 * 60_000, lab: 2 * 60_000 });
+  problem_bank: 3 * 60_000, lab: 2 * 60_000, memory: 2 * 60_000 });
 const within = (name, promise, deadlines) => {
   let timer;
   return Promise.race([promise, new Promise((_, reject) => {
@@ -87,7 +88,7 @@ const within = (name, promise, deadlines) => {
 };
 const stage = (p, name) => p?.stages?.find(s => s.name === name) ?? null;
 
-export async function runLiteratureDay(env, { date, now = new Date().toISOString(), pipeline, tree, novelty, register, labReports, deadlines = STAGE_DEADLINES_MS }) {
+export async function runLiteratureDay(env, { date, now = new Date().toISOString(), pipeline, tree, novelty, register, labReports, memory, deadlines = STAGE_DEADLINES_MS }) {
   const field = fieldForDate(date);
   const day = { schema_version: 'oraklet-literature-day-1', date, field, model_budget: DAILY_MODEL_BUDGET };
   try {
@@ -107,7 +108,11 @@ export async function runLiteratureDay(env, { date, now = new Date().toISOString
   try { day.problem_bank = await within('problem_bank', register(env), deadlines); } catch (error) { day.problem_bank = fail(error); }
   try { day.lab = await within('lab', labReports(env, new Date(Date.parse(now) - 86_400_000).toISOString()), deadlines); }
   catch (error) { day.lab = fail(error); }
-  day.errors = ['pipeline', 'tree', 'novelty', 'problem_bank', 'lab'].filter(k => day[k]?.status === 'error');
+  // Oraklet's memory: the VEM-Sci register of verified claims, which the daily lab plans with.
+  if (memory) {
+    try { day.memory = await within('memory', memory(env), deadlines); } catch (error) { day.memory = fail(error); }
+  }
+  day.errors = ['pipeline', 'tree', 'novelty', 'problem_bank', 'lab', 'memory'].filter(k => day[k]?.status === 'error');
   return day;
 }
 
@@ -207,6 +212,21 @@ export function renderAiBus(day) {
     L.push('');
   }
 
+  if (day.memory) {
+    L.push('## Kunskapsminne (VEM-Sci)', '');
+    const exps = Array.isArray(day.memory.experiments) ? day.memory.experiments : [];
+    if (day.memory.status === 'error') L.push(`Registret kunde inte läsas (${md(day.memory.code, 60)}).`, '');
+    else if (!exps.length) L.push('Registret har inga påståenden ännu.', '');
+    else {
+      const t = day.memory.totals ?? {};
+      L.push(`Från de senaste ${num(day.memory.runs)} körningarna med register (högst ${REGISTER_LIMIT}): ${num(t.provisionally_supported)} preliminärt stödda, ${num(t.rejected)} avvisade och ${num(t.unresolved)} olösta påståenden. Labbets planering ser samma register och prioriterar där påståenden inte höll eller belägg saknas.`, '',
+        '| Experiment | Stödda | Avvisade | Olösta (avstått / utan svar) | Lärprioritet |', '| --- | --- | --- | --- | --- |');
+      for (const e of [...exps].sort((a, b) => learningPriority([b.provisionally_supported, b.rejected, b.unresolved]) - learningPriority([a.provisionally_supported, a.rejected, a.unresolved])))
+        L.push(`| ${md(e.experimentId, 60)} | ${num(e.provisionally_supported)} | ${num(e.rejected)} | ${num(e.unresolved)} (${num(e.abstentions)} / ${num(e.noAnswers)}) | ${learningPriority([num(e.provisionally_supported), num(e.rejected), num(e.unresolved)]).toFixed(2)} |`);
+      L.push('', '"Preliminärt stött" gäller bara det testade fallet och dess verifierare, aldrig etablerad vetenskap.', '');
+    }
+  }
+
   L.push('## Begränsningar', '',
     '- Oraklet läser bara sammanfattningar, inte hela artiklar, och högst tio per dag i den nuvarande budgeten.',
     '- Fynd är modellens tolkning med ordagranna citat; citaten kontrolleras, men tolkningen är inte granskad av en människa.',
@@ -226,7 +246,8 @@ export async function main(env = process.env, { now = new Date().toISOString(), 
     createProblemBankClient({ url: e.SUPABASE_URL, secretKey: e.SUPABASE_SECRET_KEY, fetchImpl: bounded }),
     await readRecentLiteratureReports({ url: e.SUPABASE_URL, secretKey: e.SUPABASE_SECRET_KEY })));
   const labReports = deps.labReports ?? ((e, since) => readRecentLabReports(e.SUPABASE_SERVICE_ROLE_KEY, since));
-  const day = await runLiteratureDay(env, { date, now, pipeline, register, labReports,
+  const memory = deps.memory ?? (async e => vemRegisterSummary(await readVemRegister(e.SUPABASE_SERVICE_ROLE_KEY || '')));
+  const day = await runLiteratureDay(env, { date, now, pipeline, register, labReports, memory,
     tree: deps.tree ?? treeMain, novelty: deps.novelty ?? (e => noveltyMain(e)) });
   const markdown = renderAiBus(day);
   await mkdir('reports/literature-day', { recursive: true });

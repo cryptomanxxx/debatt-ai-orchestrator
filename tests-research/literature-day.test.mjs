@@ -118,11 +118,16 @@ test('main writes the dated and latest ai-bus files and the day record', async (
   try {
     const day = await main({}, { now: '2026-10-24T09:41:00.000Z', deps: { pipeline: async () => pipelineReport({ candidate_id: null, candidate: null }),
       tree: async () => ({ status: 'insufficient_evidence', review_queue: [] }), novelty: () => assert.fail(),
-      register: async () => [], labReports: async () => ({ runs: [], truncated: false }) } });
+      register: async () => [], labReports: async () => ({ runs: [], truncated: false }),
+      memory: async () => ({ runs: 3, totals: { provisionally_supported: 4, rejected: 1, unresolved: 1 },
+        experiments: [{ experimentId: 'act-map-transfer', provisionally_supported: 4, rejected: 1, unresolved: 1, abstentions: 0, noAnswers: 1 },
+          { experimentId: 'sympy-quadratic', provisionally_supported: 0, rejected: 2, unresolved: 0, abstentions: 0, noAnswers: 0 }] }) } });
     assert.deepEqual(day.errors, []);
     const dated = await readFile(join(dir, 'ai-bus/2026-10-24.md'), 'utf8');
     assert.equal(await readFile(join(dir, 'ai-bus/senaste.md'), 'utf8'), dated);
     assert.match(dated, /Ingen kandidat med tillräckligt underlag i dag\./);
+    assert.match(dated, /## Kunskapsminne \(VEM-Sci\)[\s\S]*4 preliminärt stödda, 1 avvisade och 1 olösta/);
+    assert.ok(dated.indexOf('| sympy-quadratic | 0 | 2 | 0 (0 / 0) | 0.75 |') < dated.indexOf('| act-map-transfer | 4 | 1 | 1 (0 / 1) | 0.38 |'), 'highest priority first');
     assert.equal(JSON.parse(await readFile(join(dir, 'reports/literature-day/day.json'), 'utf8')).date, '2026-10-24');
   } finally { process.chdir(cwd); await rm(dir, { recursive: true, force: true }); }
 });
@@ -141,4 +146,13 @@ test('a stalled stage misses its deadline, is recorded, and the rest of the day 
   assert.doesNotMatch(md, /0 nya problem|0 körningar/);
   assert.match(renderAiBus({ date: '2026-10-24', field: 'Causal inference', model_budget: 10, errors: ['pipeline'],
     pipeline: pipelineReport({ status: 'error' }), lab: { runs: [], truncated: false } }), /\(pipelinen avbröts; siffrorna gäller det som hann sparas\) 40 träffar/);
+});
+
+test('an unreadable register is recorded as a failed memory stage and the report says so', async () => {
+  const { runLiteratureDay: run, renderAiBus: render } = await import('../research/literature-day.mjs');
+  const day = await run({}, { date: '2026-10-24', pipeline: async () => ({ status: 'error' }), tree: () => assert.fail(), novelty: () => assert.fail(),
+    register: async () => [], labReports: async () => ({ runs: [], truncated: false }), memory: async () => { throw Error('vem_register_unavailable'); } });
+  assert.deepEqual(day.memory, { status: 'error', code: 'vem_register_unavailable' });
+  assert.ok(day.errors.includes('memory'));
+  assert.match(render({ ...day, model_budget: 10 }), /## Kunskapsminne \(VEM-Sci\)\n\nRegistret kunde inte läsas \(vem\\_register\\_unavailable\)\./);
 });
