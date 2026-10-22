@@ -23,6 +23,7 @@ on:
           - sympy-quadratic
           - sklearn-polynomial
           - dowhy-backdoor
+          - perturbseq-holdout
           - glucose-absorption
           - glucose-robustness
           - glucose-temperature-evidence

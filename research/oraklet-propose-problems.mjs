@@ -6,6 +6,7 @@ export const CATALOG_DOMAINS=Object.freeze({
   'sympy-quadratic':'symbolic-mathematics',
   'sklearn-polynomial':'machine-learning',
   'dowhy-backdoor':'causal-inference',
+  'perturbseq-holdout':'functional-genomics',
   'insulin-external-curve':'physiological-evidence-reanalysis',
   'insulin-curve-shape':'physiological-evidence-reanalysis',
   'insulin-warming-forecast':'physiological-evidence-reanalysis',
