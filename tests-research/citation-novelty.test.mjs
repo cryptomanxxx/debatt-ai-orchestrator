@@ -50,6 +50,11 @@ test('generic words are dropped, stems match, and the field shared by every seed
   assert.equal(stem('water'), 'water');
   for (const [a, b] of [['signal', 'signals'], ['physical', 'physicals'], ['estimator', 'estimators'], ['estimation', 'estimations'], ['reconstruction', 'reconstructions']])
     assert.equal(stem(a), stem(b), `${a}/${b}: a plural on top of a suffix still matches`);
+  for (const [a, b] of [['process', 'processes'], ['class', 'classes'], ['box', 'boxes'], ['study', 'studies'], ['branch', 'branches'],
+    ['flow', 'flows'], ['sensor', 'sensors'], ['analysis', 'analysis'], ['state', 'states']])
+    assert.equal(stem(a), stem(b), `${a}/${b}: English plurals become singular`);
+  assert.equal(stem('gas'), 'gas');
+  assert.equal(stem('physics'), stem('physical'));
   const seeds = ['Turbulence model augmented physics-informed neural networks for mean-flow reconstruction',
     'Mean flow reconstruction of unsteady flows using physics-informed neural networks'];
   const scored = scoringTerms(q, seeds);

@@ -17,16 +17,22 @@ const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'are'
   'enough', 'whether', 'existing', 'current', 'better', 'more', 'less', 'than', 'such', 'also', 'other', 'these', 'those', 'over',
   'still', 'only', 'remain', 'remains', 'given', 'well']);
 
-// Light stemming for title matching: a plural s is removed first, then one common suffix, each only
-// when at least four letters remain. So signal/signals, estimator/estimation, physics/physical and
+// Light stemming for title matching. English plurals are made singular first (processes/process,
+// studies/study, boxes/box, signals/signal; -ss, -us and -is words are left alone), then one common
+// suffix is removed when at least four letters remain. So estimator/estimation, physics/physical and
 // reconstruct/reconstruction match, while words that only share a beginning (classical/classification)
 // stay apart.
 const SUFFIXES = ['ation', 'ator', 'ing', 'ion', 'er', 'ed', 'al'];
+export function singular(word) {
+  if (/(ss|us|is)$/.test(word) || !word.endsWith('s')) return word;
+  if (word.length > 4 && word.endsWith('ies')) return word.slice(0, -3) + 'y';
+  if (word.length > 4 && /(sses|xes|zes|ches|shes)$/.test(word)) return word.slice(0, -2);
+  return word.length - 1 >= 3 ? word.slice(0, -1) : word;
+}
 export function stem(word) {
-  if (word.endsWith('ss')) return word;
-  const singular = word.endsWith('s') && word.length - 1 >= 4 ? word.slice(0, -1) : word;
-  const suffix = SUFFIXES.find(x => singular.endsWith(x) && singular.length - x.length >= 4);
-  return suffix ? singular.slice(0, -suffix.length) : singular;
+  const base = singular(word);
+  const suffix = SUFFIXES.find(x => base.endsWith(x) && base.length - x.length >= 4);
+  return suffix ? base.slice(0, -suffix.length) : base;
 }
 const stems = text => new Set((typeof text === 'string' ? text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [] : []).map(stem));
 
