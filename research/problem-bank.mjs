@@ -127,6 +127,25 @@ export function createProblemBankClient({url,secretKey,fetchImpl=fetch}) {
       if (!Array.isArray(rows)||rows.length!==1) throw new Error('research_run_finish_invalid_response');
       return deepFreeze(canonical(rows[0]));
     },
+    // Active problems only, each re-validated like getProblem; at most 100 rows.
+    async listActiveProblems({limit=100}={}) {
+      if (!Number.isInteger(limit)||limit<1||limit>100) throw new Error('invalid_problem_list_limit');
+      const endpoint=new URL('/rest/v1/research_problem',url);
+      endpoint.searchParams.set('status','eq.active');
+      endpoint.searchParams.set('select','id,kind,domain,question,source,verifier_ids,difficulty,status,version,fingerprint');
+      endpoint.searchParams.set('order','id.asc,version.desc');
+      endpoint.searchParams.set('limit',String(limit));
+      const response=await fetchImpl(endpoint,{headers});
+      if (!response.ok) throw new Error('problem_bank_read_failed:'+response.status);
+      const rows=await response.json();
+      if (!Array.isArray(rows)) throw new Error('problem_bank_read_invalid_response');
+      return rows.map(row=>{
+        const view=runnerView(row);
+        if (view.kind==='benchmark_hidden_solution') validateBenchmarkSource(view.source);
+        if (problemFingerprint(view)!==view.fingerprint) throw new Error('problem_fingerprint_mismatch');
+        return view;
+      });
+    },
     async getProblem(id,version=1) {
       if (!Number.isInteger(version)||version<1) throw new Error('invalid_problem_version');
       const endpoint=new URL('/rest/v1/research_problem',url);

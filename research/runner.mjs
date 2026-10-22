@@ -4,6 +4,9 @@ import { mkdir, writeFile, appendFile } from 'node:fs/promises';
 import { randomUUID, createHash } from 'node:crypto';
 import { CATALOG, choosePlan, lockModel } from './catalog.mjs';
 import { loadResearchChoices, chosenResearchModel, unwrapJsonAnswer } from './lab-models.mjs';
+import { loadOpenProblems } from './open-problems.mjs';
+import { startBankResearchRun, finishBankResearchRun } from './problem-bank-research-loop.mjs';
+import { researchStateFromOrakletReport } from './oraklet-problem-bank.mjs';
 import { runExperiment } from './ratfit.mjs';
 import { runRankExperiment, callRankscreen } from './rankscreen.mjs';
 import { runScienceExperiment } from './science.mjs';
@@ -158,10 +161,16 @@ const metadata = { createdAt: new Date().toISOString(), inferenceSettings: { com
     ? `https://github.com/cryptomanxxx/debatt-ai-orchestrator/actions/runs/${process.env.GITHUB_RUN_ID}` : null };
 let completedCases = [];
 let plan, planCommitment, report, executionFailed = false, stage = 'planning';
+let openProblems = { client: null, open: [] }, linkedProblem = null, bankSession = null, bankOutcome = null;
 try {
   const modelModes = selection === 'auto' ? await plannerModelModes() : ['default'];
   const researchChoices = selection === 'auto' ? await loadResearchChoices() : {};
-  plan = await choosePlan(selection, seed, history, planningPropose, modelModes, researchChoices);
+  if (selection === 'auto') openProblems = await loadOpenProblems(process.env, CATALOG);
+  plan = await choosePlan(selection, seed, history, planningPropose, modelModes, researchChoices, openProblems.open.map(o => o.summary));
+  // An approved Problem Bank problem the plan works on is committed with the plan, with its literature support.
+  linkedProblem = plan.problemBankId ? openProblems.open.find(o => o.summary.problemBankId === plan.problemBankId) ?? null : null;
+  if (linkedProblem) plan.problemBank = { id: linkedProblem.problem.id, version: linkedProblem.problem.version,
+    fingerprint: linkedProblem.problem.fingerprint, literature: linkedProblem.summary.literature };
   const domain = CATALOG.find(e => e.id === plan.experimentId)?.domain;
   const ranked = chosenResearchModel(plan.modelMode, domain, researchChoices);
   // The evidence behind a ranked choice is committed with the plan, before any experiment call.
@@ -174,6 +183,11 @@ try {
   planCommitment = createHash('sha256').update(JSON.stringify(plan)).digest('hex');
   await writeFile(`${directory}/plan.json`, JSON.stringify({ plan, planCommitment, ...metadata }, null, 2));
   console.log('Experimentplanens SHA-256 före körning:', planCommitment);
+  // A Problem Bank outage never stops the experiment; the report says the run was not recorded there.
+  if (linkedProblem) {
+    try { bankSession = await startBankResearchRun(openProblems.client, linkedProblem.problem, { maxAttempts: 1 }); }
+    catch { bankOutcome = { recorded: false, reason: 'start_failed' }; }
+  }
   stage = 'experiment';
   const entry = CATALOG.find(e => e.id === plan.experimentId);
   const runners = { 'shallow-water-hybrid': runWaterExperiment, 'insulin-external-curve': runExternalCurveExperiment, 'insulin-curve-shape': runCurveShapeExperiment, 'insulin-warming-forecast': runWarmingExperiment, 'temperature-evidence': runTemperatureExperiment, 'glucose-robustness-simulator': runGlucoseRobustnessExperiment, 'glucose-simulator': runGlucoseExperiment, ratfit: runExperiment, rankscreen: runRankExperiment,
@@ -208,6 +222,22 @@ try {
 }
 Object.assign(report, metadata, { reportId, modelCalls, toolCalls,
   executionStatus: executionFailed ? 'error' : 'completed' });
+// The verdict goes back to the Problem Bank problem: verified/falsified by the experiment's own
+// verifier when the run completed consistently, otherwise undecided (see oraklet-problem-bank.mjs).
+if (bankSession) {
+  const entry = CATALOG.find(e => e.id === plan.experimentId);
+  try {
+    const research = researchStateFromOrakletReport(bankSession.research, entry, report);
+    const run = await finishBankResearchRun(openProblems.client, bankSession,
+      { status: report.executionStatus === 'completed' ? 'completed' : 'failed', research });
+    bankOutcome = { recorded: true, runId: run.id, researchStatus: research.status };
+  } catch {
+    bankOutcome = { recorded: false, reason: 'finish_failed' };
+    try { await finishBankResearchRun(openProblems.client, bankSession, { status: 'failed', research: bankSession.research }); }
+    catch { /* The open run stays visible in Problem Bank. */ }
+  }
+}
+if (linkedProblem) report.problemBank = { id: linkedProblem.problem.id, version: linkedProblem.problem.version, ...bankOutcome };
 await writeFile(`${directory}/report.json`, JSON.stringify(report, null, 2));
 const hypothesisRows = report.cases.filter(c => c.hypothesisTest);
 const decisionLabel = value => ({ supports_h1: 'Stöd för H1', supports_h0: 'Stöd för H0', inconclusive: 'Otillräcklig evidens',
@@ -224,8 +254,12 @@ const markdown = `# ${report.title}\n\n${report.question}\n\nExperiment: ${repor
   (report.cases.length ? '| Fall | Första förslag | Korrigering | Slutligt förslag | Samma modell |\n| --- | --- | --- | --- | --- |\n' +
     report.cases.map(c => `| ${c.case} | ${c.initialPassed ? 'Godkänt' : 'Underkänt'} | ${c.correctionAttempted ? 'Ja' : 'Nej'} | ${c.passed ? 'Godkänt' : 'Underkänt'} | ${c.sameModel ? 'Ja' : 'Nej'} |`).join('\n') : report.method) +
   hypothesisMarkdown + waterMarkdown(report.cases) + glucoseRobustnessMarkdown(report.cases) + temperatureMarkdown(report.cases) + warmingMarkdown(report.cases) + curveMarkdown(report.cases) + externalMarkdown(report.cases) + `\n\n${executionFailed ? 'Driftfel: ' + JSON.stringify(report.failure) + '. Slutförda fall är delresultat; experimentet är avbrutet.\n\n' : ''}${report.limitations}\n\nModellanrop: ${modelCalls}/7. Verktygsanrop: ${toolCalls}/6. Fullständig plan och rapport finns i artefakten.\n`;
-await writeFile(`${directory}/report.md`, markdown);
-if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown);
+const statusLabel = { verified: 'verifierat', falsified: 'falsifierat', inconclusive: 'ofullständigt', needs_external_verification: 'kräver extern verifiering' };
+const bankMarkdown = report.problemBank ? `\nProblem Bank: ${report.problemBank.id} (v${report.problemBank.version})` +
+  (plan?.problemBank?.literature ? ` med stöd i litteraturkandidaten "${plan.problemBank.literature.researchQuestion}" (${plan.problemBank.literature.articles} artiklar)` : '') +
+  (report.problemBank.recorded ? `; utfallet sparades som ${statusLabel[report.problemBank.researchStatus] ?? report.problemBank.researchStatus}.\n` : '; körningen kunde inte sparas i Problem Bank.\n') : '';
+await writeFile(`${directory}/report.md`, markdown + bankMarkdown);
+if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown + bankMarkdown);
 const saved = await fetch(DB, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
   body: JSON.stringify({ id: reportId, titel: report.title, status: report.status, rapport: report, skapad: report.createdAt }),
   redirect: 'error', signal: AbortSignal.timeout(10000) });

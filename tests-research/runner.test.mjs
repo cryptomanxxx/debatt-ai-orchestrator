@@ -167,3 +167,77 @@ globalThis.fetch = async (url, options = {}) => {
     assert.ok(saved.rapport.modelCalls >= 4);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+for (const variant of ['recorded', 'bank_down']) test(`daily lab works on an approved, literature-linked Problem Bank problem (${variant})`, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'oraklet-runner-bank-'));
+  try {
+    const bankModule = new URL('../research/problem-bank.mjs', import.meta.url).href;
+    const catalogModule = new URL('../research/catalog.mjs', import.meta.url).href;
+    const mock = `
+import { writeFile } from 'node:fs/promises';
+import { makeCases, UPSTREAM } from ${JSON.stringify(core)};
+import { createProblem } from ${JSON.stringify(bankModule)};
+import { CATALOG } from ${JSON.stringify(catalogModule)};
+const cases = makeCases('123'); let planned = false; const runs = [];
+const problem = createProblem({ id: 'oraklet-ratfit-feedback-001', kind: 'open', domain: 'symbolic-regression',
+  question: CATALOG.find(e => e.id === 'ratfit-feedback').question, source: { experiment_id: 'ratfit-feedback' }, verifier_ids: ['ratfit'], difficulty: 2 });
+const literature = [{ report: { id: '11111111-1111-4111-8111-111111111111', planner: { proposals: [{ id: 'arp-symbolic-regression',
+  research_question: 'Hur få punkter räcker för rationell rekonstruktion?', evidence: [{ id: 'W1' }], gap_candidates: [] }] } } }];
+globalThis.fetch = async (url, options = {}) => {
+  const u = String(url);
+  if (u.includes('/rest/v1/research_problem')) return Response.json([problem]);
+  if (u.includes('/rest/v1/literature_planner_run')) return Response.json(literature);
+  if (u.includes('/rest/v1/research_run')) {
+    if (${JSON.stringify(variant)} === 'bank_down') return new Response('down', { status: 503 });
+    const body = JSON.parse(options.body);
+    if (options.method === 'POST') { const row = { id: 'run-7', ...body }; runs.push(row); return Response.json([row]); }
+    await writeFile('bank-finish.json', options.body);
+    return Response.json([{ ...runs[0], ...body }]);
+  }
+  if (u.includes('supabase.co')) {
+    if (options.method === 'POST') { await writeFile('saved.json', options.body); return new Response('', { status: 201 }); }
+    return Response.json([]);
+  }
+  if (u.endsWith('/v1/model-profile')) return Response.json({ reasoningAvailable: false });
+  const body = JSON.parse(options.body);
+  if (body.tool) {
+    const fixture = cases.find(c => JSON.stringify(c.input.banked) === JSON.stringify(body.input.banked));
+    const accepted = JSON.stringify(fixture.input.holdout) === JSON.stringify(body.input.holdout);
+    return Response.json({ provider: 'bootloops', mock: false,
+      toolResult: { tool: 'bootloops_ratfit', upstreamCommit: UPSTREAM, accepted, depth: 3, checked: 3, failed: accepted ? 0 : 1 },
+      verification: { status: accepted ? 'passed' : 'failed', scope: 'exact_rational_holdout', factualityChecked: false } }, { status: accepted ? 200 : 422 });
+  }
+  const messages = JSON.parse(body.message).messages;
+  let answer;
+  if (!planned) {
+    const prompt = JSON.parse(messages[1].content);
+    if (prompt.openProblems?.[0]?.problemBankId !== 'oraklet-ratfit-feedback-001' || !prompt.openProblems[0].literature)
+      throw new Error('Open problems missing from prompt');
+    planned = true;
+    answer = { experimentId: 'ratfit-feedback', seed: '123', reason: 'Litteraturstött problem.', problemBankId: 'oraklet-ratfit-feedback-001' };
+  } else {
+    const banked = JSON.parse(messages[1].content).banked;
+    answer = { method: 'bootloops_ratfit', coefficients: cases.find(c => JSON.stringify(c.input.banked) === JSON.stringify(banked)).truth, reason: 'Förslag.' };
+  }
+  return Response.json({ answer: JSON.stringify(answer), provider: 'groq', model: 'same', mock: false, inference: { completionTokenLimit: 4096 } });
+};`;
+    const preload = join(dir, 'mock.mjs'); await writeFile(preload, mock);
+    await run(process.execPath, ['--import', pathToFileURL(preload).href, runner], {
+      cwd: dir, env: { ...process.env, ORCHESTRATOR_API_KEY: 'test'.repeat(8), SUPABASE_SERVICE_ROLE_KEY: 'test',
+        SUPABASE_URL: 'https://example.supabase.co', SUPABASE_SECRET_KEY: 'secret', EXPERIMENT: 'auto', EXPERIMENT_SEED: '123' }, timeout: 15000 });
+    const saved = JSON.parse(await readFile(join(dir, 'saved.json'), 'utf8'));
+    assert.equal(saved.rapport.executionStatus, 'completed', 'a Problem Bank outage never stops the experiment');
+    assert.equal(saved.rapport.plan.problemBank.id, 'oraklet-ratfit-feedback-001');
+    assert.equal(saved.rapport.plan.problemBank.literature.articles, 1);
+    if (variant === 'bank_down') {
+      assert.deepEqual(saved.rapport.problemBank, { id: 'oraklet-ratfit-feedback-001', version: 1, recorded: false, reason: 'start_failed' });
+      return;
+    }
+    assert.deepEqual(saved.rapport.problemBank, { id: 'oraklet-ratfit-feedback-001', version: 1, recorded: true, runId: 'run-7', researchStatus: 'verified' });
+    const finish = JSON.parse(await readFile(join(dir, 'bank-finish.json'), 'utf8'));
+    assert.equal(finish.status, 'completed');
+    assert.equal(finish.state.research.results[0].status, 'verified');
+    assert.equal(finish.state.research.attempts[0].evidence.report_id, saved.rapport.reportId);
+    assert.match(await readFile(join(dir, 'reports/oraklet-lab/report.md'), 'utf8'), /Problem Bank: oraklet-ratfit-feedback-001.*sparades som verifierat/);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
