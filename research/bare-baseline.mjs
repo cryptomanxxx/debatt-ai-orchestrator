@@ -56,18 +56,33 @@ const tally = cases => ({ pairs: cases.length,
   bareOnly: cases.filter(c => !c.labPassed && c.barePassed).length,
   bareFormatFailures: cases.filter(c => c.formatProblem).length });
 
+// Provider rate limits and outages are transient: the bare step runs straight after the lab's own
+// calls, so it spaces its calls and retries one failed request per case after a pause. A retry
+// repeats the same request; it is not a second answer.
+export const BARE_SPACING_MS = 15000, BARE_RETRY_DELAY_MS = 45000;
+const TRANSIENT = new Set(['model_upstream_http_error', 'model_transport_error']);
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 // One bare answer per lab case, with one shared locked identity that must match the lab's.
-export async function runBareBaseline(report, propose) {
+export async function runBareBaseline(report, propose, { sleep = pause, spacingMs = 0, retryDelayMs = 0 } = {}) {
   const base = { protocol: BARE_PROTOCOL, experimentId: report?.experimentId ?? null };
   if (report?.executionStatus !== 'completed' || !Array.isArray(report.cases) || !report.cases.length)
     return { ...base, status: 'skipped', reason: 'lab_run_not_completed' };
   const arm = BARE_ARMS[report.experimentId];
   if (!arm) return { ...base, status: 'unsupported' };
   const lab = report.cases[0], cases = [];
+  let retries = 0;
   try {
     for (const c of report.cases) {
       const measured = arm.verify(c);
-      const ai = await propose(arm.messages(c, report));
+      await sleep(spacingMs);
+      let ai;
+      try { ai = await propose(arm.messages(c, report)); } catch (error) {
+        if (!(error instanceof ResearchError) || !TRANSIENT.has(error.message)) throw error;
+        retries++;
+        await sleep(retryDelayMs);
+        ai = await propose(arm.messages(c, report));
+      }
       if (ai.provider !== lab.provider || ai.model !== lab.model)
         return { ...base, status: 'model_mismatch', lab: { provider: lab.provider, model: lab.model }, cases };
       const { proposal, problem } = arm.parse(ai.text, c);
@@ -76,9 +91,9 @@ export async function runBareBaseline(report, propose) {
     }
   } catch (error) {
     return { ...base, status: 'error', failure: diagnostic(error, { case: cases.length + 1 }), provider: lab.provider, model: lab.model,
-      cases, summary: tally(cases) };
+      retries, cases, summary: tally(cases) };
   }
-  return { ...base, status: 'completed', provider: lab.provider, model: lab.model, cases, summary: tally(cases) };
+  return { ...base, status: 'completed', provider: lab.provider, model: lab.model, retries, cases, summary: tally(cases) };
 }
 
 // Exact two-sided McNemar test: binomial(b + c, 1/2) on the discordant pairs.
@@ -152,7 +167,9 @@ if (process.argv[1]?.endsWith('/bare-baseline.mjs')) {
   const choice = report.plan?.modelChoice;
   const propose = choice ? client.researchProposer({ provider: choice.provider, model: choice.model, root: choice.root })
     : client.proposer(report.modelMode ?? 'default');
-  const baseline = await runBareBaseline(report, propose);
+  const delay = (name, fallback) => /^\d+$/.test(process.env[name] ?? '') ? Number(process.env[name]) : fallback;
+  const baseline = await runBareBaseline(report, propose, { spacingMs: delay('BARE_SPACING_MS', BARE_SPACING_MS),
+    retryDelayMs: delay('BARE_RETRY_DELAY_MS', BARE_RETRY_DELAY_MS) });
   await writeFile('reports/oraklet-lab/baseline.json', JSON.stringify({ ...baseline, modelCalls: client.modelCalls() }, null, 2));
   const markdown = bareRunMarkdown(baseline);
   if (process.env.GITHUB_STEP_SUMMARY && markdown) await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown);

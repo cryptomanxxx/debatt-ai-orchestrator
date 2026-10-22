@@ -110,7 +110,7 @@ globalThis.fetch=async(url,options={})=>{
  return Response.json({mock:false,provider:'test',model:'same',inference:{completionTokenLimit:4096},
   answer:JSON.stringify({predictions:Object.fromEntries(genes.map(g=>[g,'none'])),reason:'Test.'})});
 };`);
-    const env = { ...process.env, EXPERIMENT: 'perturbseq-holdout', EXPERIMENT_SEED: '20261022', ORCHESTRATOR_API_KEY: 'test'.repeat(8), SUPABASE_SERVICE_ROLE_KEY: 'test' };
+    const env = { ...process.env, EXPERIMENT: 'perturbseq-holdout', EXPERIMENT_SEED: '20261022', ORCHESTRATOR_API_KEY: 'test'.repeat(8), SUPABASE_SERVICE_ROLE_KEY: 'test', BARE_SPACING_MS: '0', BARE_RETRY_DELAY_MS: '0' };
     const node = script => promisify(execFile)(process.execPath, ['--import', pathToFileURL(preload).href, fileURLToPath(new URL('../research/' + script, import.meta.url))], { cwd: dir, env, timeout: 20000 });
     await node('runner.mjs');
     const { stdout } = await node('bare-baseline.mjs');
@@ -125,4 +125,28 @@ globalThis.fetch=async(url,options={})=>{
     const file = JSON.parse(await readFile(join(dir, 'reports/oraklet-lab/baseline.json'), 'utf8'));
     assert.equal(file.modelCalls, 3);
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('a transient provider error is retried once after a pause; a second failure stops with the case named', async () => {
+  const { ResearchError } = await import('../research/errors.mjs');
+  const report = await labReport(), pauses = [];
+  let calls = 0;
+  const answer = messages => ({ provider: 'test', model: 'same', text: JSON.stringify({ predictions: truthFor(JSON.parse(messages[1].content).genes), reason: 'Facit.' }) });
+  const bare = await runBareBaseline(report, async messages => {
+    if (++calls === 3) throw new ResearchError('model_upstream_http_error', { httpStatus: 429 });
+    return answer(messages);
+  }, { sleep: async ms => { pauses.push(ms); }, spacingMs: 15, retryDelayMs: 45 });
+  assert.equal(bare.status, 'completed'); assert.equal(bare.retries, 1); assert.equal(calls, 4);
+  assert.deepEqual(pauses, [15, 15, 15, 45], 'spacing before each case, then one pause before the retry of case 3');
+  assert.ok(bare.cases.every(c => c.barePassed));
+  calls = 0;
+  const failed = await runBareBaseline(report, async messages => {
+    if (++calls >= 2) throw new ResearchError('model_upstream_http_error', { httpStatus: 429 });
+    return answer(messages);
+  }, { sleep: async () => {} });
+  assert.equal(failed.status, 'error'); assert.equal(failed.retries, 1); assert.equal(failed.cases.length, 1);
+  assert.deepEqual(failed.failure, { code: 'model_upstream_http_error', httpStatus: 429, case: 2 });
+  calls = 0;
+  const final = await runBareBaseline(report, async () => { calls++; throw new ResearchError('model_budget_exceeded'); }, { sleep: async () => {} });
+  assert.deepEqual([final.status, final.retries, calls], ['error', 0, 1], 'no retry for a non-transient error');
 });
