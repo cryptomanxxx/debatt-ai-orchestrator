@@ -24,11 +24,12 @@ The day's field alternates by UTC date:
 3. **Citation-graph novelty check** (`citation-novelty.mjs`), a bounded agentic tree search over later OpenAlex works that cite the candidate's sources. It lists possible overlaps. It makes no model calls.
 4. **Automatic Problem Bank registration.** Literature proposals that point to an automatic catalog experiment are registered with the same fingerprinted problem identity as the manual `problem-bank-create` workflow. The daily lab is then offered them as open problems. A retired version is reported as retired, never as registered. Proposals for manual-only experiments are listed in ai-bus as waiting for approval. Every Problem Bank request times out after 15 seconds.
 5. **The lab's last 24 hours.** Up to 20 saved lab reports from `oraklet_experiment` (pass counts and the bare-baseline comparison) are read for the report. When more runs were saved, the report says it lists the latest 20.
-6. **ai-bus report.**
+6. **Oraklet's memory.** The VEM-Sci register of verified claims from the latest saved lab runs, with each experiment's learning priority. It is the same register the daily lab plans with; see [ACT-MAP-LAB.md](ACT-MAP-LAB.md#vem-sci-register).
+7. **ai-bus report.**
    - `ai-bus/ÅÅÅÅ-MM-DD.md` and `ai-bus/senaste.md` are committed to `main`, using the model-menu app that is already allowed to push there. Only a run of `main` publishes, and the commit contains only the report on top of the latest `main`.
    - `reports/literature-day/day.json` and all tool reports go to the run artifact.
 
-A stage that fails or misses its deadline (pipeline 35 minutes, each other stage 2–3 minutes) is recorded in the day's report and the remaining stages still run. A summary figure whose stage failed is shown as unknown, never as zero. The publish step commits only the two files this run generated. The run is then marked failed after the report has been committed.
+A stage that fails or misses its deadline (pipeline 35 minutes, each other stage 2–3 minutes, including the memory read) is recorded in the day's report and the remaining stages still run. A summary figure whose stage failed is shown as unknown, never as zero. The publish step commits only the two files this run generated. The run is then marked failed after the report has been committed.
 
 ## What the report claims
 

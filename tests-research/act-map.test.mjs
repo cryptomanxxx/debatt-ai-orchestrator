@@ -85,14 +85,15 @@ test('a design that misses the mediator cannot certify a correct mapping; abstai
   assert.deepEqual(abstain.cases.map(c => c.passed), abstain.cases.map(c => c.hypothesisTest.measured.truth.scope === 'none'));
 });
 
-test('unreadable answers fail the case with a fixed code, make no claim and never reach the gate as a claim', async () => {
+test('unreadable answers fail the case with a fixed code and are remembered as unresolved, never as a claim', async () => {
   const { propose, calls } = scripted('3', truthfulAnswer, { design: () => 'Jag tror att...' });
   const report = await runActMapExperiment('3', propose, callActMap, async () => {});
   assert.equal(calls.length, 3, 'no inference call after an unreadable design');
-  assert.ok(report.cases.every(c => c.formatProblem === 'design:not_json' && !c.passed && c.vem === null));
+  const noAnswer = (c, reason) => c.vem.kind === 'no_answer' && c.vem.status === 'unresolved' && c.vem.reason === reason && !c.vem.statement;
+  assert.ok(report.cases.every(c => c.formatProblem === 'design:not_json' && !c.passed && noAnswer(c, 'design:not_json')));
   assert.ok(report.cases.every(c => c.hypothesisTest.measured.gate.status === 'unresolved'));
   const bad = await runActMapExperiment('3', scripted('3', () => ({ decision: 'maybe', reason: 'x' })).propose, callActMap, async () => {});
-  assert.ok(bad.cases.every(c => c.formatProblem === 'inference:invalid_decision' && c.vem === null));
+  assert.ok(bad.cases.every(c => c.formatProblem === 'inference:invalid_decision' && c.vem.kind === 'no_answer' && c.vem.reason === 'inference:invalid_decision'));
 });
 
 test('an answer cut off at the token limit fails its case without a claim and the run goes on', async () => {
@@ -102,7 +103,8 @@ test('an answer cut off at the token limit fails its case without a claim and th
   const cut = async messages => { if (++n === 2 || n === 3) throw new ResearchError('model_output_truncated'); return propose(messages); };
   const report = await runActMapExperiment('8', cut, callActMap, async () => {});
   assert.deepEqual(report.cases.map(c => c.formatProblem ?? null), ['inference:truncated', 'design:truncated', null]);
-  assert.ok(report.cases.slice(0, 2).every(c => !c.passed && c.vem === null));
+  assert.deepEqual(report.cases.slice(0, 2).map(c => [c.passed, c.vem.kind, c.vem.status, c.vem.reason]),
+    [[false, 'no_answer', 'unresolved', 'inference:truncated'], [false, 'no_answer', 'unresolved', 'design:truncated']]);
   assert.equal(report.cases[1].provider, null, 'no answer, no identity');
   assert.equal(report.cases[2].passed, true);
   assert.equal(calls.length, 3, 'five calls; the two cut-off ones never reached the model script');
@@ -201,7 +203,7 @@ test('the register aggregates saved runs per experiment and never fails the lab 
   assert.deepEqual(summary.totals, { provisionally_supported: 1, rejected: 1, unresolved: 1 });
   assert.deepEqual(summary.experiments.map(e => [e.experimentId, e.abstentions, e.latest.slice(0, 10)]),
     [['act-map-transfer', 1, '2026-10-22'], ['sympy-quadratic', 0, '2026-10-21']]);
-  assert.match(vemRegisterMarkdown(summary), /\| act-map-transfer \| 1 \| 0 \| 1 \(1\) \| 2026-10-22 \|/);
+  assert.match(vemRegisterMarkdown(summary), /\| act-map-transfer \| 1 \| 0 \| 1 \(1 \/ 0\) \| 2026-10-22 \|/);
   const dir = await mkdtemp(join(tmpdir(), 'vem-')), cwd = process.cwd();
   try {
     process.chdir(dir);

@@ -254,9 +254,11 @@ export function actMapPasses(claim, fixture, gate) {
 }
 
 // The case's VEM-Sci record: a proposal is "proposed", goes "under_test" and only the evidence
-// gate moves it on. Abstention ("none") and unreadable answers are never accepted claims.
-function vemRecord(fixture, claim, history, gate) {
-  if (!claim) return null;
+// gate moves it on. Abstention ("none") is never an accepted claim. A case without a readable
+// answer is remembered too, as unresolved with the reason, so the planner sees where Oraklet fails.
+function vemRecord(fixture, claim, history, gate, formatProblem) {
+  if (!claim) return { claimId: digest({ protocol: ACT_MAP_PROTOCOL.id, fixture: fixture.commitment, noAnswer: formatProblem }),
+    kind: 'no_answer', transitions: ['unanswered'], status: 'unresolved', reason: formatProblem, evidenceSha256: digest(history) };
   const statement = { decision: claim.decision, ...namedClaim(fixture, claim.proposed) };
   return { claimId: digest({ protocol: ACT_MAP_PROTOCOL.id, fixture: fixture.commitment, statement }),
     kind: claim.decision === 'none' ? 'abstention' : 'transfer', statement,
@@ -306,7 +308,7 @@ export async function runActMapExperiment(seed, propose, callTool, onCommit, opt
           baselinePassed: result.baseline.scope_correct && (fixture.truth.scope === 'none' || result.baseline.mapping_correct && result.baseline.accepted),
           falseCertification: result.gate.accepted && !passed, experimentsUsed: history.length },
         independentlyVerified: true, verificationScope: 'python-evidence-gate-and-node-replay', familyInference: null },
-      vem: vemRecord(fixture, claim, history, result.gate),
+      vem: vemRecord(fixture, claim, history, result.gate, formatProblem),
       ...(formatProblem ? { formatProblem } : {}),
       initialPassed: passed, passed, correctionAttempted: false, sameModel: true });
     await options.onProgress?.(structuredClone(cases));
