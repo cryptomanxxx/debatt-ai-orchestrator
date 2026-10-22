@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { main as pipelineMain } from './research-pipeline.mjs';
 import { main as treeMain } from './research-tree-planner.mjs';
 import { main as noveltyMain } from './citation-novelty.mjs';
-import { readRecentLiteratureReports, findExistingCandidateIds } from './run-oraklet-proposals.mjs';
+import { readRecentLiteratureReports } from './run-oraklet-proposals.mjs';
 import { literatureProblemProposals } from './literature-problem-proposals.mjs';
 import { makeCatalogProblem, createOrVerifyCatalogProblem } from './problem-bank-create-catalog.mjs';
 import { createProblemBankClient } from './problem-bank.mjs';
@@ -25,19 +25,26 @@ export function fieldForDate(date) {
 }
 
 // Literature-backed proposals for an automatic catalog experiment are registered; others wait for a person.
+// Registration goes through createOrVerifyCatalogProblem, so a retired version is reported, never counted.
 export async function registerLiteratureProblems(client, reports) {
-  const candidates = literatureProblemProposals(reports, { limit: 20 });
-  const registered = await findExistingCandidateIds(client, candidates);
   const results = [];
-  for (const p of literatureProblemProposals(reports, { existingProblemIds: registered, limit: 20 })) {
+  for (const p of literatureProblemProposals(reports, { limit: 20 })) {
     const row = { id: p.id, experiment_id: p.experiment_id, research_question: p.literature.research_question,
       evidence_articles: p.literature.evidence_article_ids.length };
-    if (p.registered) results.push({ ...row, action: 'already_registered' });
-    else if (!p.automatic) results.push({ ...row, action: 'requires_human_approval' });
-    else {
-      const expected = makeCatalogProblem({ id: p.id, experimentId: p.experiment_id, domain: p.domain, difficulty: 2 });
+    const expected = makeCatalogProblem({ id: p.id, experimentId: p.experiment_id, domain: p.domain, difficulty: 2 });
+    if (!p.automatic) {
+      let existing = null;
+      try { existing = await client.getProblem(p.id, expected.version); }
+      catch (error) { if (error?.message !== 'problem_not_found') throw error; }
+      results.push({ ...row, action: existing?.status === 'active' ? 'already_registered' : 'requires_human_approval' });
+      continue;
+    }
+    try {
       const { created } = await createOrVerifyCatalogProblem(client, expected);
       results.push({ ...row, action: created ? 'registered' : 'already_registered' });
+    } catch (error) {
+      if (error?.message !== 'existing_problem_retired_create_new_version') throw error;
+      results.push({ ...row, action: 'retired' });
     }
   }
   return results;
@@ -45,8 +52,10 @@ export async function registerLiteratureProblems(client, reports) {
 
 const LAB_DB = 'https://fmwxftnistkoqazfwnuj.supabase.co/rest/v1/oraklet_experiment';
 // The lab's saved reports from the 24 hours before the given time (bounded).
+export const LAB_REPORT_LIMIT = 20;
 export async function readRecentLabReports(serviceKey, since, fetchImpl = fetch) {
-  const url = `${LAB_DB}?select=rapport,skapad&skapad=gte.${encodeURIComponent(since)}&order=skapad.desc&limit=10`;
+  // One row more than shown reveals whether the day had more runs than the report lists.
+  const url = `${LAB_DB}?select=rapport,skapad&skapad=gte.${encodeURIComponent(since)}&order=skapad.desc&limit=${LAB_REPORT_LIMIT + 1}`;
   const response = await fetchImpl(url, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
     redirect: 'error', signal: AbortSignal.timeout(20000) });
   if (!response.ok) { await response.body?.cancel(); throw Error('lab_reports_unavailable'); }
@@ -54,7 +63,7 @@ export async function readRecentLabReports(serviceKey, since, fetchImpl = fetch)
   if (text.length > 20_000_000) throw Error('lab_reports_too_large');
   const rows = JSON.parse(text);
   if (!Array.isArray(rows)) throw Error('lab_reports_invalid');
-  return rows.map(r => r?.rapport).filter(Boolean).map(r => ({
+  const runs = rows.slice(0, LAB_REPORT_LIMIT).map(r => r?.rapport).filter(Boolean).map(r => ({
     title: r.title ?? null, experimentId: r.experimentId ?? null, seed: r.seed ?? null, status: r.status ?? null,
     executionStatus: r.executionStatus ?? null, createdAt: r.createdAt ?? null,
     cases: Array.isArray(r.cases) ? r.cases.length : 0,
@@ -62,6 +71,7 @@ export async function readRecentLabReports(serviceKey, since, fetchImpl = fetch)
     problemBank: r.problemBank?.id ?? null,
     baseline: r.baseline?.status === 'completed' ? r.baseline.summary : r.baseline ? { status: r.baseline.status } : null,
   }));
+  return { runs, truncated: rows.length > LAB_REPORT_LIMIT };
 }
 
 const fail = error => ({ status: 'error', code: /^[a-z_]{3,60}$/.test(error?.message ?? '') ? error.message : 'stage_failed' });
@@ -108,7 +118,8 @@ export function renderAiBus(day) {
   const findings = papers.reduce((n, x) => n + (x.findings?.length ?? 0), 0);
   const queue = Array.isArray(day.tree?.review_queue) ? day.tree.review_queue : [];
   const bank = Array.isArray(day.problem_bank) ? day.problem_bank : [];
-  const lab = Array.isArray(day.lab) ? day.lab : [];
+  const lab = Array.isArray(day.lab?.runs) ? day.lab.runs : [];
+  const labScope = day.lab?.truncated ? `de ${LAB_REPORT_LIMIT} senaste körningarna (fler kördes)` : 'senaste dygnet';
   const L = [`# Professor Oraklets dag – ${day.date}`, '',
     '*Skriven automatiskt av Oraklets dagliga litteraturforskning. Siffrorna kommer från sparade rapporter, inte från en modells egen sammanfattning. Kandidater och hypoteser är overifierade; inget här påstår en ny vetenskaplig upptäckt.*', '',
     '## Sammanfattning', '',
@@ -116,7 +127,7 @@ export function renderAiBus(day) {
     `- **Litteratur:** ${num(collection?.metadata?.returned_records)} träffar hittade, ${num(collection?.abstracts?.available)} sammanfattningar arkiverade, ${analyzed} sammanfattningar analyserade, ${findings} citerade fynd. Modellanrop: ${num(p.budget?.known_model_calls)} av ${day.model_budget}.`,
     `- **Ny hypoteskandidat:** ${p.candidate ? '1' : 'ingen'}${queue.length ? `; granskningskö med ${queue.length} förslag till studier` : ''}`,
     `- **Problem Bank:** ${bank.filter(b => b.action === 'registered').length} nya problem registrerade automatiskt, ${bank.filter(b => b.action === 'requires_human_approval').length} väntar på ditt godkännande`,
-    `- **Experiment senaste dygnet:** ${lab.length} körningar, ${lab.reduce((n, r) => n + r.passed, 0)} av ${lab.reduce((n, r) => n + r.cases, 0)} fall godkända`,
+    `- **Experiment ${labScope}:** ${lab.length} körningar, ${lab.reduce((n, r) => n + r.passed, 0)} av ${lab.reduce((n, r) => n + r.cases, 0)} fall godkända`,
     ...(day.errors?.length ? [`- **Driftfel:** ${day.errors.map(e => md(e, 30)).join(', ')} (se nedan)`] : []), ''];
 
   L.push('## Litteratur', '', `Pipelinen: ${status(p.status)}.`, '');
@@ -163,12 +174,13 @@ export function renderAiBus(day) {
   if (day.problem_bank?.status === 'error') L.push(`Registreringen misslyckades (${md(day.problem_bank.code, 60)}).`, '');
   else if (!bank.length) L.push('Inga litteraturkandidater låg i samma område som ett katalogexperiment.', '');
   else {
-    const label = { registered: 'registrerad i dag', already_registered: 'redan registrerad', requires_human_approval: 'väntar på godkännande (manuellt experiment)' };
+    const label = { registered: 'registrerad i dag', already_registered: 'redan registrerad', requires_human_approval: 'väntar på godkännande (manuellt experiment)',
+      retired: 'pensionerad version; kräver en ny version innan labbet kan använda den' };
     for (const b of bank) L.push(`- \`${md(b.id, 80)}\` → \`${md(b.experiment_id, 60)}\`: ${label[b.action]}. Litteratur: ${md(b.research_question, 200)} (${num(b.evidence_articles)} artiklar)`);
     L.push('', 'Registrerade problem erbjuds den dagliga labbkörningen, som kan välja att arbeta på dem.', '');
   }
 
-  L.push('## Experiment senaste dygnet', '');
+  L.push(`## Experiment ${labScope}`, '');
   if (day.lab?.status === 'error') L.push(`Labbrapporterna kunde inte läsas (${md(day.lab.code, 60)}).`, '');
   else if (!lab.length) L.push('Inga experiment kördes.', '');
   else {
@@ -194,8 +206,10 @@ export async function main(env = process.env, { now = new Date().toISOString(), 
     // The pipeline writes its report before it throws on a failed stage; that report is the record.
     try { return await pipelineMain(e); } catch { return JSON.parse(await readFile('reports/research-pipeline/pipeline.json', 'utf8')); }
   });
+  // Every Problem Bank request fails within a bounded interval, as in open-problems.mjs.
+  const bounded = (url, options = {}) => fetch(url, { ...options, signal: options.signal ?? AbortSignal.timeout(15000) });
   const register = deps.register ?? (async e => registerLiteratureProblems(
-    createProblemBankClient({ url: e.SUPABASE_URL, secretKey: e.SUPABASE_SECRET_KEY }),
+    createProblemBankClient({ url: e.SUPABASE_URL, secretKey: e.SUPABASE_SECRET_KEY, fetchImpl: bounded }),
     await readRecentLiteratureReports({ url: e.SUPABASE_URL, secretKey: e.SUPABASE_SECRET_KEY })));
   const labReports = deps.labReports ?? ((e, since) => readRecentLabReports(e.SUPABASE_SERVICE_ROLE_KEY, since));
   const day = await runLiteratureDay(env, { date, now, pipeline, register, labReports,

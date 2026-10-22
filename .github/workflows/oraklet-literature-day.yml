@@ -5,9 +5,10 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-# Shares provider and catalog capacity with the collector and the manual pipeline; never cancels them.
+# Its own group: GitHub keeps only one pending run per group, so sharing the collector's group could
+# replace a pending manual pipeline run. Provider pacing and retries cover an occasional overlap.
 concurrency:
-  group: literature-benchmark-live
+  group: oraklet-literature-day
   cancel-in-progress: false
 jobs:
   literature-day:
@@ -44,16 +45,17 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
       # The model-menu app is a bypass actor on main's ruleset; its token exists only for this push.
+      # Only a run of main publishes; the report commit is made on the latest main, never on the checkout.
       - name: Skapa token för ai-bus
         id: app
-        if: ${{ !cancelled() && hashFiles('ai-bus/senaste.md') != '' }}
+        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && hashFiles('ai-bus/senaste.md') != '' }}
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ secrets.MODEL_MENU_APP_CLIENT_ID }}
           private-key: ${{ secrets.MODEL_MENU_APP_PRIVATE_KEY }}
           permission-contents: write
       - name: Spara dagens rapport i ai-bus på main
-        if: ${{ !cancelled() && hashFiles('ai-bus/senaste.md') != '' }}
+        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && hashFiles('ai-bus/senaste.md') != '' }}
         env:
           TOKEN: ${{ steps.app.outputs.token }}
         run: |
@@ -62,20 +64,18 @@ jobs:
           git config user.name 'debatt-ai-model-menu[bot]'
           git config user.email 'debatt-ai-model-menu[bot]@users.noreply.github.com'
           git remote set-url origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          commit() {
-            git add ai-bus/
-            git diff --cached --quiet && exit 0
-            git commit -q -m "chore(ai-bus): Professor Oraklets dag ${day}"
-          }
-          commit
-          # If main moved since checkout, re-apply the report on the latest main once.
-          if ! git push origin HEAD:main; then
+          # The commit holds only the report, on top of the latest main.
+          publish() {
             git fetch --depth=1 origin main
             git reset -q --hard origin/main
             mkdir -p ai-bus && cp "$RUNNER_TEMP"/ai-bus/*.md ai-bus/
-            commit
+            git add ai-bus/
+            git diff --cached --quiet && exit 0
+            git commit -q -m "chore(ai-bus): Professor Oraklets dag ${day}"
             git push origin HEAD:main
-          fi
+          }
+          # If main moved between fetch and push, try once more.
+          publish || publish
           echo "Rapporten finns i ai-bus/${day}.md och ai-bus/senaste.md på main." >> "$GITHUB_STEP_SUMMARY"
       - name: Markera körningen som misslyckad om ett steg fick driftfel
         if: ${{ steps.day.outcome == 'failure' }}

@@ -64,13 +64,17 @@ test('literature-backed catalog proposals are registered automatically; manual e
   };
   const { makeCatalogProblem } = await import('../research/problem-bank-create-catalog.mjs');
   stored.set('oraklet-ratfit-baseline-001', makeCatalogProblem({ id: 'oraklet-ratfit-baseline-001', experimentId: 'ratfit-baseline', domain: 'symbolic-regression', difficulty: 2 }));
+  // A retired version is reported as retired, never counted as registered (the lab only sees active problems).
+  stored.set('oraklet-ratfit-feedback-001', { ...makeCatalogProblem({ id: 'oraklet-ratfit-feedback-001', experimentId: 'ratfit-feedback', domain: 'symbolic-regression', difficulty: 2 }), status: 'retired' });
   const results = await registerLiteratureProblems(client, [report('00000000-0000-4000-8000-000000000001', ['causal-inference', 'symbolic-regression', 'fluid-state-estimation'])]);
   const by = Object.fromEntries(results.map(r => [r.experiment_id, r.action]));
   assert.equal(by['dowhy-backdoor'], 'registered');
   assert.equal(by['ratfit-baseline'], 'already_registered');
-  assert.equal(by['ratfit-feedback'], 'registered');
+  assert.equal(by['ratfit-feedback'], 'retired');
   assert.equal(by['shallow-water-hybrid'], 'requires_human_approval');
-  assert.deepEqual(writes.sort(), ['oraklet-dowhy-backdoor-001', 'oraklet-ratfit-feedback-001']);
+  assert.deepEqual(writes, ['oraklet-dowhy-backdoor-001']);
+  await assert.rejects(registerLiteratureProblems({ getProblem: async () => { throw Error('timeout'); } },
+    [report('00000000-0000-4000-8000-000000000001', ['causal-inference'])]), /timeout/);
 });
 
 test('lab reports of the last day are read bounded and summarised without evidence', async () => {
@@ -78,8 +82,11 @@ test('lab reports of the last day are read bounded and summarised without eviden
   const rows = [{ rapport: { experimentId: 'perturbseq-holdout', seed: '1', status: 'failed', executionStatus: 'completed',
     cases: [{ passed: true, evidence: { big: 1 } }, { passed: false }], baseline: { status: 'completed', summary: { pairs: 2, labPassed: 1, barePassed: 0 } } } }];
   const lab = await readRecentLabReports('key', '2026-10-23T09:41:00.000Z', async u => { url = u; return new Response(JSON.stringify(rows)); });
-  assert.match(url, /skapad=gte\.2026-10-23T09%3A41%3A00\.000Z&order=skapad\.desc&limit=10$/);
-  assert.deepEqual(lab[0], { title: null, experimentId: 'perturbseq-holdout', seed: '1', status: 'failed', executionStatus: 'completed',
+  assert.match(url, /skapad=gte\.2026-10-23T09%3A41%3A00\.000Z&order=skapad\.desc&limit=21$/);
+  assert.equal(lab.truncated, false);
+  const many = await readRecentLabReports('key', 'x', async () => new Response(JSON.stringify(Array(21).fill(rows[0]))));
+  assert.deepEqual([many.runs.length, many.truncated], [20, true]);
+  assert.deepEqual(lab.runs[0], { title: null, experimentId: 'perturbseq-holdout', seed: '1', status: 'failed', executionStatus: 'completed',
     createdAt: null, cases: 2, passed: 1, problemBank: null, baseline: { pairs: 2, labPassed: 1, barePassed: 0 } });
   await assert.rejects(readRecentLabReports('key', 'x', async () => new Response('', { status: 401 })), /lab_reports_unavailable/);
 });
@@ -89,7 +96,7 @@ test('the ai-bus report counts what was saved and keeps literature and model tex
     tree: { status: 'review_required', review_queue: [{ rank: 1, branch_kind: 'replication', hypothesis: 'Replicate <img src=x>' }] },
     novelty: { status: 'error', code: 'no_openalex_seed' },
     problem_bank: [{ id: 'oraklet-dowhy-backdoor-001', experiment_id: 'dowhy-backdoor', research_question: 'Q', evidence_articles: 3, action: 'registered' }],
-    lab: [{ experimentId: 'perturbseq-holdout', seed: '1', status: 'failed', executionStatus: 'completed', cases: 3, passed: 0, baseline: { pairs: 3, labPassed: 0, barePassed: 0 } }] });
+    lab: { truncated: false, runs: [{ experimentId: 'perturbseq-holdout', seed: '1', status: 'failed', executionStatus: 'completed', cases: 3, passed: 0, baseline: { pairs: 3, labPassed: 0, barePassed: 0 } }] } });
   assert.match(md, /^# Professor Oraklets dag – 2026-10-24/);
   assert.match(md, /\*\*Fält i dag:\*\* Kausal inferens/);
   assert.match(md, /40 träffar hittade, 10 sammanfattningar arkiverade, 7 sammanfattningar analyserade, 1 citerade fynd\. Modellanrop: 7 av 10\./);
@@ -99,6 +106,9 @@ test('the ai-bus report counts what was saved and keeps literature and model tex
   assert.match(md, /Adjusted &lt;b&gt;estimates&lt;\/b&gt; \\\| differ/);
   assert.match(md, /Small samples limit \\`power\\` \\\| x/);
   assert.doesNotMatch(md, /<img|<b>/);
+  assert.match(md, /\*\*Experiment senaste dygnet:\*\* 1 körningar/);
+  assert.match(renderAiBus({ date: '2026-10-24', field: 'Causal inference', model_budget: 10, pipeline: {}, errors: [],
+    lab: { truncated: true, runs: [] } }), /## Experiment de 20 senaste körningarna \(fler kördes\)/);
   assert.match(md, /inget här påstår en ny vetenskaplig upptäckt/);
 });
 
@@ -108,7 +118,7 @@ test('main writes the dated and latest ai-bus files and the day record', async (
   try {
     const day = await main({}, { now: '2026-10-24T09:41:00.000Z', deps: { pipeline: async () => pipelineReport({ candidate_id: null, candidate: null }),
       tree: async () => ({ status: 'insufficient_evidence', review_queue: [] }), novelty: () => assert.fail(),
-      register: async () => [], labReports: async () => [] } });
+      register: async () => [], labReports: async () => ({ runs: [], truncated: false }) } });
     assert.deepEqual(day.errors, []);
     const dated = await readFile(join(dir, 'ai-bus/2026-10-24.md'), 'utf8');
     assert.equal(await readFile(join(dir, 'ai-bus/senaste.md'), 'utf8'), dated);
