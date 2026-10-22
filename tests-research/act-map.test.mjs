@@ -95,6 +95,21 @@ test('unreadable answers fail the case with a fixed code, make no claim and neve
   assert.ok(bad.cases.every(c => c.formatProblem === 'inference:invalid_decision' && c.vem === null));
 });
 
+test('an answer cut off at the token limit fails its case without a claim and the run goes on', async () => {
+  const { ResearchError } = await import('../research/errors.mjs');
+  const { propose, calls } = scripted('8', truthfulAnswer);
+  let n = 0;
+  const cut = async messages => { if (++n === 2 || n === 3) throw new ResearchError('model_output_truncated'); return propose(messages); };
+  const report = await runActMapExperiment('8', cut, callActMap, async () => {});
+  assert.deepEqual(report.cases.map(c => c.formatProblem ?? null), ['inference:truncated', 'design:truncated', null]);
+  assert.ok(report.cases.slice(0, 2).every(c => !c.passed && c.vem === null));
+  assert.equal(report.cases[1].provider, null, 'no answer, no identity');
+  assert.equal(report.cases[2].passed, true);
+  assert.equal(calls.length, 3, 'five calls; the two cut-off ones never reached the model script');
+  await assert.rejects(runActMapExperiment('8', async () => { throw new ResearchError('model_upstream_http_error'); }, callActMap, async () => {}),
+    /model_upstream_http_error/, 'other model errors still stop the run');
+});
+
 test('answer parsing tolerates fences and think blocks and rejects malformed shapes', () => {
   const [l2, l3, l4] = makeActMapCases('5');
   const acts = l3.view.target_interventions;

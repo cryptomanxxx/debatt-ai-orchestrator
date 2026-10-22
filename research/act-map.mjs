@@ -233,7 +233,7 @@ const PROBLEM_TEXT = Object.freeze({
   not_json: 'svaret var inte giltig JSON', extra_fields: 'svaret hade fält som inte efterfrågades',
   invalid_experiments: 'experiments var inte 1–3 ingrepp med kända namn och tillåtna värden', duplicate_experiment: 'samma ingrepp och värde förekom två gånger',
   invalid_decision: 'decision var inte ett tillåtet beslut', invalid_mapping: 'mapping angav inte tre olika målvariabler för s_0, s_1 och s_2',
-  invalid_interventions: 'interventions angav inte en egen målvariabel för vart och ett av de tre ingreppen', invalid_reason: 'reason saknades eller var längre än 800 tecken',
+  truncated: 'svaret klipptes vid labbets tokengräns', invalid_interventions: 'interventions angav inte en egen målvariabel för vart och ett av de tre ingreppen', invalid_reason: 'reason saknades eller var längre än 800 tecken',
 });
 export const problemText = code => PROBLEM_TEXT[code] ?? code;
 
@@ -264,21 +264,33 @@ function vemRecord(fixture, claim, history, gate) {
     evidenceSha256: digest(history), verifier: 'act-map-evidence-gate', ...(gate.reason ? { reason: gate.reason } : {}) };
 }
 
+// An answer cut off at the lab's token limit never arrived: like an unreadable answer it fails
+// the case and makes no claim, and the run goes on. Repeating it would only repeat the long answer.
+async function answer(send, messages) {
+  try { return { ai: await send(messages) }; } catch (error) {
+    if (error instanceof ResearchError && error.message === 'model_output_truncated') return { problem: 'truncated' };
+    throw error;
+  }
+}
+
 export async function runActMapExperiment(seed, propose, callTool, onCommit, options = {}) {
   const fixtures = makeActMapCases(seed), cases = [];
   // The design call carries no confidence: calibration scores the claim, which the inference call makes.
   const designPropose = options.designPropose ?? propose;
   await onCommit(fixtures.map((f, i) => ({ case: i + 1, level: f.view.level, sha256: f.commitment, protocol: ACT_MAP_PROTOCOL })));
   for (const [i, fixture] of fixtures.entries()) {
-    const design = await designPropose(designMessages(fixture));
-    const checkedDesign = checkDesign(design.text, fixture);
-    let history = [], claim = null, formatProblem = null, ai = design;
+    const design = await answer(designPropose, designMessages(fixture));
+    const checkedDesign = design.ai ? checkDesign(design.ai.text, fixture) : design;
+    let history = [], claim = null, formatProblem = null, ai = design.ai ?? { provider: null, model: null };
     if (checkedDesign.problem) formatProblem = `design:${checkedDesign.problem}`;
     else {
       history = checkedDesign.design.experiments.map(e => ({ ...e, outcome: intervene(fixture, e.action, e.value) }));
-      ai = await propose(inferenceMessages(fixture, named(fixture, history)));
-      if (ai.provider !== design.provider || ai.model !== design.model) throw new ResearchError('model_changed', { case: i + 1 });
-      const checked = checkInference(ai.text, fixture);
+      const inference = await answer(propose, inferenceMessages(fixture, named(fixture, history)));
+      if (inference.ai) {
+        ai = inference.ai;
+        if (ai.provider !== design.ai.provider || ai.model !== design.ai.model) throw new ResearchError('model_changed', { case: i + 1 });
+      }
+      const checked = inference.ai ? checkInference(ai.text, fixture) : inference;
       if (checked.problem) formatProblem = `inference:${checked.problem}`;
       else claim = checked.claim;
     }

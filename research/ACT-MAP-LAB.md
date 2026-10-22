@@ -19,7 +19,7 @@ Each case takes two model calls:
 1. **Design.** Oraklet chooses 1–3 interventions, each with the value 1, −1 or 2.
 2. **Inference.** The lab runs the interventions with its private oracle and shows the outcomes. Oraklet then states a decision. For `full` or `partial` he also names which target variable is `s_0`, `s_1` and `s_2`, and which variable each intervention sets.
 
-Three cases use six calls. With the planning call that is the lab's budget of seven. An unreadable answer fails its case with a fixed code; no format correction is attempted. Only the inference call states a confidence, so calibration scores the claim, not the design.
+Three cases use six calls. With the planning call that is the lab's budget of seven. An unreadable answer fails its case with a fixed code; no format correction is attempted. An answer cut off at the lab's token limit (`model_output_truncated`) counts the same way, as `design:truncated` or `inference:truncated`: no answer arrived within the budget, so the case fails without a claim and the run goes on. Only the inference call states a confidence, so calibration scores the claim, not the design.
 
 ## Verification
 
