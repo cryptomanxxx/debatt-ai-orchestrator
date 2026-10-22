@@ -1,0 +1,43 @@
+name: Citation graph novelty check (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      planner_report_id:
+        description: 'Saved evidence planner report UUID'
+        type: string
+        required: true
+      candidate_id:
+        description: 'Exact candidate ID from that report (for example arp-fluid-state-estimation)'
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: citation-novelty
+  cancel-in-progress: false
+jobs:
+  novelty:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - name: Test novelty-check contracts
+        run: node --test tests-research/citation-novelty.test.mjs
+      - name: Search later citing work in the OpenAlex citation graph
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          PLANNER_REPORT_ID: ${{ inputs.planner_report_id }}
+          RESEARCH_CANDIDATE_ID: ${{ inputs.candidate_id }}
+        run: node research/citation-novelty.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: citation-novelty-${{ github.run_id }}
+          path: reports/citation-novelty/
+          retention-days: 30
+          if-no-files-found: warn
