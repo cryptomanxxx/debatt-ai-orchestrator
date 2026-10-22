@@ -22,8 +22,34 @@ export async function readJson(response, max = 65536) {
   } finally { reader.releaseLock(); }
 }
 
-export function createLabClient({ key, api = LAB_API, completionTokenLimit = 4096, maxModelCalls = 7 }) {
-  let modelCalls = 0;
+// Free HIP/Blablador models rate-limit bursts of calls (HTTP 429), and a provider can drop a
+// connection. The lab therefore spaces its model calls and repeats a request that failed in one of
+// these ways once, after a pause. A repeat is the same request, not a second answer: it does not
+// count against the call budget, and the run reports how many there were (modelRetries).
+export const TRANSIENT_MODEL_ERRORS = Object.freeze(['model_upstream_http_error', 'model_transport_error']);
+// A rejected key or an exhausted quota will not pass on a repeat: those stop the run at once.
+const TERMINAL_UPSTREAM_STATUSES = Object.freeze([401, 402, 403]);
+// The research gateway names its failures; only these are worth repeating.
+const RETRYABLE_GATEWAY_ERRORS = Object.freeze(['benchmark_upstream_rate_limited', 'benchmark_upstream_failed',
+  'benchmark_catalog_unavailable', 'benchmark_transport_failed']);
+const retryable = error => error instanceof ResearchError && TRANSIENT_MODEL_ERRORS.includes(error.message)
+  && error.retryable !== false && !TERMINAL_UPSTREAM_STATUSES.includes(error.diagnostic.upstreamStatus);
+export const MAX_MODEL_RETRIES = 3;
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+export function createLabClient({ key, api = LAB_API, completionTokenLimit = 4096, maxModelCalls = 7,
+  spacingMs = 0, retryDelayMs = 0, maxRetries = MAX_MODEL_RETRIES, sleep = pause }) {
+  let modelCalls = 0, modelRetries = 0;
+  async function modelCall(send) {
+    if (++modelCalls > maxModelCalls) throw new ResearchError('model_budget_exceeded');
+    if (modelCalls > 1 && spacingMs > 0) await sleep(spacingMs);
+    try { return await send(); } catch (error) {
+      if (!retryable(error) || modelRetries >= maxRetries) throw error;
+      modelRetries++;
+      await sleep(retryDelayMs);
+      return send();
+    }
+  }
   async function query(body) {
     const kind = body.tool ? 'tool' : 'model';
     try {
@@ -51,13 +77,12 @@ export function createLabClient({ key, api = LAB_API, completionTokenLimit = 409
     }
   }
   // Every mode shares the call ceiling. Each proposer locks its own provider/model identity.
-  const proposer = mode => lockModel(async messages => {
-    if (++modelCalls > maxModelCalls) throw new ResearchError('model_budget_exceeded');
+  const proposer = mode => lockModel(messages => modelCall(async () => {
     const result = await query({ message: JSON.stringify({ instruction: 'Följ denna konversation och svara endast med begärd JSON.', messages }), mode, completionTokenLimit });
     if (result.status !== 200 || result.data.mock !== false) throw new ResearchError('invalid_model_response');
     if (result.data.inference?.completionTokenLimit !== completionTokenLimit) throw new ResearchError('model_budget_not_applied');
     return { text: result.data.answer, provider: result.data.provider, model: result.data.model };
-  });
+  }));
 
   // A benchmark-ranked HIP/Blablador model, called through the Worker's research gateway with the
   // lab's token budget. It shares the call ceiling and locks its own identity like any mode.
@@ -73,8 +98,7 @@ export function createLabClient({ key, api = LAB_API, completionTokenLimit = 409
     benchmark_model_identity_mismatch: 'model_identity_mismatch',
   });
   // The request may include a catalog lookup (up to 25 s) before the 50-second lab completion.
-  const researchProposer = ({ provider, model, root }) => lockModel(async messages => {
-    if (++modelCalls > maxModelCalls) throw new ResearchError('model_budget_exceeded');
+  const researchProposer = ({ provider, model, root }) => lockModel(messages => modelCall(async () => {
     const payload = { provider, model, profile: 'lab', max_tokens: completionTokenLimit, messages: [{ role: 'user',
       content: JSON.stringify({ instruction: 'Följ denna konversation och svara endast med begärd JSON.', messages }) }] };
     let response;
@@ -85,14 +109,17 @@ export function createLabClient({ key, api = LAB_API, completionTokenLimit = 409
     } catch { throw new ResearchError('model_transport_error'); }
     let data;
     try { data = await readJson(response); } catch { throw new ResearchError('model_invalid_response', { httpStatus: response.status }); }
-    if (response.status !== 200)
-      throw new ResearchError(GATEWAY_ERRORS[data?.error] ?? 'model_upstream_http_error', { httpStatus: response.status });
+    if (response.status !== 200) {
+      const error = new ResearchError(GATEWAY_ERRORS[data?.error] ?? 'model_upstream_http_error', { httpStatus: response.status });
+      error.retryable = RETRYABLE_GATEWAY_ERRORS.includes(data?.error);
+      throw error;
+    }
     if (data?.status !== 'completed_unverified' || data.provider !== provider || data.model !== model || typeof data.answer !== 'string')
       throw new ResearchError('invalid_model_response');
     // An alias must still run the backing model its ranking evidence came from.
     if (root && data.resolved_model !== root) throw new ResearchError('model_identity_mismatch');
     if (data.finish_reason !== 'stop') throw new ResearchError('model_output_truncated');
     return { text: unwrapJsonAnswer(data.answer), provider: data.provider, model: data.model };
-  });
-  return { query, proposer, researchProposer, modelCalls: () => modelCalls };
+  }));
+  return { query, proposer, researchProposer, modelCalls: () => modelCalls, modelRetries: () => modelRetries };
 }

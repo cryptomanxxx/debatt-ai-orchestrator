@@ -95,6 +95,21 @@ test('unreadable answers fail the case with a fixed code, make no claim and neve
   assert.ok(bad.cases.every(c => c.formatProblem === 'inference:invalid_decision' && c.vem === null));
 });
 
+test('an answer cut off at the token limit fails its case without a claim and the run goes on', async () => {
+  const { ResearchError } = await import('../research/errors.mjs');
+  const { propose, calls } = scripted('8', truthfulAnswer);
+  let n = 0;
+  const cut = async messages => { if (++n === 2 || n === 3) throw new ResearchError('model_output_truncated'); return propose(messages); };
+  const report = await runActMapExperiment('8', cut, callActMap, async () => {});
+  assert.deepEqual(report.cases.map(c => c.formatProblem ?? null), ['inference:truncated', 'design:truncated', null]);
+  assert.ok(report.cases.slice(0, 2).every(c => !c.passed && c.vem === null));
+  assert.equal(report.cases[1].provider, null, 'no answer, no identity');
+  assert.equal(report.cases[2].passed, true);
+  assert.equal(calls.length, 3, 'five calls; the two cut-off ones never reached the model script');
+  await assert.rejects(runActMapExperiment('8', async () => { throw new ResearchError('model_upstream_http_error'); }, callActMap, async () => {}),
+    /model_upstream_http_error/, 'other model errors still stop the run');
+});
+
 test('answer parsing tolerates fences and think blocks and rejects malformed shapes', () => {
   const [l2, l3, l4] = makeActMapCases('5');
   const acts = l3.view.target_interventions;
@@ -209,6 +224,7 @@ test('the lab runner runs ACT-MAP end to end and saves the VEM-Sci register with
     const preload = join(dir, 'mock.mjs');
     await writeFile(preload, `
 import {writeFile,appendFile} from 'node:fs/promises';
+let limited=false;
 globalThis.fetch=async(url,options={})=>{
  const u=String(url);
  if(u.includes('supabase.co')){
@@ -216,6 +232,8 @@ globalThis.fetch=async(url,options={})=>{
   return Response.json([]);
  }
  const messages=JSON.parse(JSON.parse(options.body).message).messages, content=JSON.parse(messages[1].content);
+ // The provider rate-limits the third request once; the lab repeats it after a pause.
+ if(content.results&&!limited){limited=true;return Response.json({error:'model_upstream_http_error',upstreamStatus:429},{status:502});}
  await appendFile('calls.txt',(content.results?'inference':'design')+(messages.some(m=>m.content.includes('confidence'))?'+confidence':'')+'\\n');
  const answer=content.results?{decision:'none',mapping:null,interventions:null,reason:'Test.',confidence:0.9}
   :{experiments:content.targetInterventions.map(i=>({intervention:i,value:1})),reason:'Test.'};
@@ -228,6 +246,7 @@ globalThis.fetch=async(url,options={})=>{
     const saved = JSON.parse(await readFile(join(dir, 'saved.json'), 'utf8')).rapport;
     assert.equal(saved.experimentId, 'act-map-transfer');
     assert.equal(saved.modelCalls, 6);
+    assert.equal(saved.modelRetries, 1, 'the rate-limited request was repeated, not counted as another answer');
     assert.equal(saved.vem.claims.length, 3);
     assert.ok(saved.vem.claims.every(c => c.kind === 'abstention' && c.status === 'unresolved'));
     assert.deepEqual((await readFile(join(dir, 'calls.txt'), 'utf8')).trim().split('\n'),
@@ -235,6 +254,7 @@ globalThis.fetch=async(url,options={})=>{
     assert.equal(saved.calibration.scoredCases, 3);
     const markdown = await readFile(join(dir, 'reports/oraklet-lab/report.md'), 'utf8');
     assert.match(markdown, /## ACT-MAP: Oraklet mot uppräkningsbaslinjen/);
+    assert.match(markdown, /Modellanrop: 6\/7 \(1 upprepade efter tillfälligt fel\)/);
     assert.match(markdown, /VEM-Sci: 3 påståenden i registret: 0 preliminärt stödda, 0 avvisade, 3 olösta/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });

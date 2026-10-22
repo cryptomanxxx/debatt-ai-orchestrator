@@ -57,7 +57,10 @@ if (!historyResponse.ok) { await historyResponse.body?.cancel(); throw new Error
 const history = await readJson(historyResponse);
 if (!Array.isArray(history) || history.length > 10) throw new Error('Ogiltig historik');
 
-const lab = createLabClient({ key, api: API, completionTokenLimit });
+// The workflow sets the spacing between model calls and the pause before repeating a request
+// that failed transiently (lab-client.mjs); both default to 0 for local runs and tests.
+const millis = name => /^\d{1,6}$/.test(process.env[name] || '') ? Number(process.env[name]) : 0;
+const lab = createLabClient({ key, api: API, completionTokenLimit, spacingMs: millis('LAB_SPACING_MS'), retryDelayMs: millis('LAB_RETRY_DELAY_MS') });
 const { query, proposer, researchProposer } = lab;
 let toolCalls = 0;
 // Every mode shares the seven-call ceiling. Each proposer locks its own provider/model identity.
@@ -152,7 +155,7 @@ try {
     toolId: plan ? CATALOG.find(e => e.id === plan.experimentId)?.toolId : null,
     seed: plan?.seed || seed, plan: plan || null, planCommitment: planCommitment || null, failedStage: stage, failure, cases: completedCases };
 }
-Object.assign(report, metadata, { reportId, modelCalls: lab.modelCalls(), toolCalls,
+Object.assign(report, metadata, { reportId, modelCalls: lab.modelCalls(), modelRetries: lab.modelRetries(), toolCalls,
   executionStatus: executionFailed ? 'error' : 'completed' });
 if (calibrationLog.calls.length) report.calibration = calibrationReport(calibrationLog, report.cases);
 // Oraklet's claims enter the VEM-Sci register only through the verified cases (vem-sci.mjs).
@@ -189,7 +192,7 @@ const hypothesisMarkdown = hypothesisRows.length ? protocolMarkdown + '\n\n## Hy
 const markdown = `# ${report.title}\n\n${report.question}\n\nExperiment: ${report.experimentId || 'planering'}. Seed: ${report.seed}.\n\n` +
   (report.cases.length ? '| Fall | Första förslag | Korrigering | Slutligt förslag | Samma modell |\n| --- | --- | --- | --- | --- |\n' +
     report.cases.map(c => `| ${c.case} | ${c.initialPassed ? 'Godkänt' : 'Underkänt'} | ${c.correctionAttempted ? 'Ja' : 'Nej'} | ${c.passed ? 'Godkänt' : 'Underkänt'} | ${c.sameModel ? 'Ja' : 'Nej'} |`).join('\n') : report.method) +
-  hypothesisMarkdown + actMapMarkdown(report.cases) + holdoutMarkdown(report.cases) + waterMarkdown(report.cases) + glucoseRobustnessMarkdown(report.cases) + temperatureMarkdown(report.cases) + warmingMarkdown(report.cases) + curveMarkdown(report.cases) + externalMarkdown(report.cases) + `\n\n${executionFailed ? 'Driftfel: ' + JSON.stringify(report.failure) + '. Slutförda fall är delresultat; experimentet är avbrutet.\n\n' : ''}${report.limitations}\n\nModellanrop: ${lab.modelCalls()}/7. Verktygsanrop: ${toolCalls}/6. Fullständig plan och rapport finns i artefakten.\n`;
+  hypothesisMarkdown + actMapMarkdown(report.cases) + holdoutMarkdown(report.cases) + waterMarkdown(report.cases) + glucoseRobustnessMarkdown(report.cases) + temperatureMarkdown(report.cases) + warmingMarkdown(report.cases) + curveMarkdown(report.cases) + externalMarkdown(report.cases) + `\n\n${executionFailed ? 'Driftfel: ' + JSON.stringify(report.failure) + '. Slutförda fall är delresultat; experimentet är avbrutet.\n\n' : ''}${report.limitations}\n\nModellanrop: ${lab.modelCalls()}/7${lab.modelRetries() ? ` (${lab.modelRetries()} upprepade efter tillfälligt fel)` : ''}. Verktygsanrop: ${toolCalls}/6. Fullständig plan och rapport finns i artefakten.\n`;
 const statusLabel = { verified: 'verifierat', falsified: 'falsifierat', inconclusive: 'ofullständigt', needs_external_verification: 'kräver extern verifiering' };
 const calibrationMarkdown = report.calibration?.scoredCases ? `\nKalibrering: angiven säkerhet i snitt ${report.calibration.meanConfidence} mot andel godkända första förslag ${report.calibration.passRate} (Brier ${report.calibration.brierScore}, ${report.calibration.scoredCases} fall).\n` : '';
 // Model text is rendered as one code span: no Markdown, HTML, autolinks or line breaks reach the report.

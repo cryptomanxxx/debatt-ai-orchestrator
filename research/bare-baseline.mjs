@@ -163,7 +163,8 @@ if (process.argv[1]?.endsWith('/bare-baseline.mjs')) {
   const path = 'reports/oraklet-lab/report.json';
   const report = JSON.parse(await readFile(path, 'utf8'));
   // The bare arm has its own seven-call budget and calls the lab run's model the same way.
-  const client = createLabClient({ key });
+  // The bare arm has its own spacing and retry policy (above), so the client does not retry.
+  const client = createLabClient({ key, maxRetries: 0 });
   const choice = report.plan?.modelChoice;
   const propose = choice ? client.researchProposer({ provider: choice.provider, model: choice.model, root: choice.root })
     : client.proposer(report.modelMode ?? 'default');
