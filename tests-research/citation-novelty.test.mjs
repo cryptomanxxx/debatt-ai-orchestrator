@@ -74,6 +74,17 @@ test('no relevant later work means no overlap within budget, never proven novelt
   await assert.rejects(noveltyCheck(report, 'arp-fluid-state-estimation', fakeGraph({}, {})), /no_openalex_seed/);
 });
 
+test('merged seeds are searched once, titleless seeds stay, and an undated seed disables the year cutoff', async () => {
+  // Both evidence IDs resolve to the same canonical work, which has no OpenAlex title.
+  const canonical = { openalex_id: 'https://openalex.org/W100', title: null, year: null, cited_by_count: 0 };
+  const graph = fakeGraph({ 'https://openalex.org/W100': [W(701, 'Physics informed networks reconstruct shallow water', 2005)] },
+    { 'https://openalex.org/W100': canonical, 'https://openalex.org/W200': canonical });
+  const r = await noveltyCheck(report, 'arp-fluid-state-estimation', graph);
+  assert.deepEqual(r.seeds.map(s => [s.openalex_id, s.title]), [['https://openalex.org/W100', 'PINN state estimation for shallow water']]);
+  assert.deepEqual(r.leads.map(l => l.openalex_id), ['https://openalex.org/W701'], 'an old work citing an undated seed is kept');
+  assert.match(r.limitations[1], /2 citation steps from the seeds/);
+});
+
 test('an undated citing work stays a review lead', async () => {
   const works = { 'https://openalex.org/W100': W(100, 'PINN', 2022), 'https://openalex.org/W200': W(200, 'Kalman', 2021) };
   const undated = W(601, 'Physics informed networks reconstruct shallow water', null);
