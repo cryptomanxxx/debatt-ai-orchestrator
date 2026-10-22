@@ -55,6 +55,7 @@ globalThis.fetch = async (url, options = {}) => {
     assert.equal(saved.modelCalls, 1, 'one design call; no planning call in a manual run');
     assert.equal(saved.toolCalls, 4, 'three design points plus the null control');
     assert.deepEqual(saved.preregistration.designs, design.designs);
+    assert.equal(saved.calibration, undefined, 'one design call carries no per-case confidence');
     const md = await readFile(join(dir, 'reports/oraklet-lab/report.md'), 'utf8');
     assert.match(md, /## Förregistrering/);
     assert.match(md, /phi=0\.6, n=128: förutsagt Förkasta H0/);

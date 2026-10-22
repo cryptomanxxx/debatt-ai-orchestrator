@@ -181,8 +181,11 @@ try {
     evidence: { suite: 'Scientific benchmark v4', correct: ranked.correct, attempts: ranked.attempts } };
   // A default-mode plan keeps the planning identity lock, exactly as before model choice existed.
   // Every experiment answer also states its confidence of passing verification (calibration.mjs).
-  const propose = calibrated(ranked ? researchProposer(ranked)
-    : (plan.modelMode ?? 'default') === 'default' ? planningPropose : proposer(plan.modelMode), calibrationLog);
+  // A design experiment answers all its predictions in one call, so a single confidence has no
+  // per-case outcome to score; its preregistered criterion is the self-assessment instead.
+  const experimentPropose = ranked ? researchProposer(ranked)
+    : (plan.modelMode ?? 'default') === 'default' ? planningPropose : proposer(plan.modelMode);
+  const propose = CATALOG.find(e => e.id === plan.experimentId)?.design ? experimentPropose : calibrated(experimentPropose, calibrationLog);
   if (plan.seedAdjustment) console.log('Seed ändrad före datagenerering:', JSON.stringify(plan.seedAdjustment), '→', plan.seed);
   planCommitment = createHash('sha256').update(JSON.stringify(plan)).digest('hex');
   await writeFile(`${directory}/plan.json`, JSON.stringify({ plan, planCommitment, ...metadata }, null, 2));
