@@ -21,6 +21,22 @@ Each case takes two model calls:
 
 Three cases use six calls. With the planning call that is the lab's budget of seven. An unreadable answer fails its case with a fixed code; no format correction is attempted. An answer cut off at the lab's token limit (`model_output_truncated`) counts the same way, as `design:truncated` or `inference:truncated`: no answer arrived within the budget, so the case fails without a claim and the run goes on. Only the inference call states a confidence, so calibration scores the claim, not the design.
 
+## Tree-search method (`act-map-tree`)
+
+`act-map-tree` (protocol `act-map-tree-v1`) is the same task with [agentic tree search](DEEP-REASONING-BENCHMARK.md) as the reasoning method. It was added because Oraklet failed the direct protocol at level 4. There the right answer was often "no transfer", and the long single answer was twice cut off at the token limit.
+
+1. **Design.** Oraklet chooses up to three interventions, exactly as in the direct protocol.
+2. **Hypotheses.** Oraklet states 1–3 competing hypotheses without deciding.
+3. **Search.** The bounded tree search (`agentic-tree-search.mjs`: one level, at most three nodes) checks each hypothesis against the observations Oraklet has already seen. It never uses the hidden intervention sizes. A node's score is the share of predicted observations that match. The search stops at the first hypothesis that fits all of them. A "none" hypothesis predicts nothing and is never confirmed by observations alone.
+4. **Claim.** Oraklet makes the final claim with the evaluation in front of him: which hypotheses fit, and the first contradiction for each that does not. Only this call states a confidence.
+
+The case is verified, scored and recorded in VEM-Sci exactly as in the direct protocol.
+
+- **Cases.** Levels 3 and 4 only. Three calls per case means two cases fit the lab's budget. Level 2 is already solved reliably.
+- **Paired comparison.** The fixtures are the same as the direct protocol's levels 3 and 4 on the same seed, so the two methods compare case by case.
+- **What the report adds.** How many hypotheses Oraklet stated, whether one fitted the observations, and whether the correct one was among them. The last shows whether the method fails at generating hypotheses or at choosing among them.
+- **Fairness.** The tree method spends more calls and gets feedback from the observations. The comparison is therefore not made at equal compute, and it is not presented as such.
+
 ## Verification
 
 The fixture (the shown task plus the hidden truth) is hashed before any model call. The lab sends the fixture, Oraklet's claim and the discovery record to `research/act_map_benchmark.py --gate`, which does the following:
@@ -73,4 +89,5 @@ After each lab run, the step **Uppdatera Oraklets VEM-Sci-register** (`node rese
 
 - Harder fixtures: more variables, noise, nonlinear and partial motifs that are really held out, and observational data the model must use.
 - Let the register say why a claim failed, for example which ACT-MAP level or which kind of mistake, so that the planner can target the weakness itself and not only the experiment.
+- Several runs of `act-map-transfer` and `act-map-tree` on the same seeds, to tell whether the tree method helps at level 4.
 - A bare-question arm for ACT-MAP, comparable to the [bare baseline](BARE-BASELINE.md).

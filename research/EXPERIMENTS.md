@@ -18,6 +18,7 @@ Välj experiment i Oraklets forskningslabb. `catalog-only` visar menyn utan mode
 | sklearn-polynomial | scikit-learn | Vilken av två fasta regressionsmodeller väljs på separat valideringsdata och hur går det på testpunkterna? |
 | dowhy-backdoor | dowhy | Kan Oraklet skilja en justerad kausal effekt från ojusterad association under ett fast diagram? |
 | act-map-transfer | act-map | Hittar Oraklet med egna ingrepp en känd orsaksmekanism i ett okänt system? |
+| act-map-tree | act-map | Hjälper egna konkurrerande hypoteser, prövade mot observationerna, Oraklet i ACT-MAP? |
 | perturbseq-holdout | perturbseq-holdout | Förutsäger Oraklet effekten (ingen/svag/stark) av dolda genutslagningar bättre än två baslinjer? |
 | glucose-absorption | glucose-simulator | Hur påverkar absorptionstakten en syntetisk glukoskurva och 30–60-minutersprognoser? |
 | glucose-robustness | glucose-robustness-simulator | Kvarstår adaptiva prognosfördelar när måltidsuppgifter och antagen insulinkänslighet är felaktiga? |
