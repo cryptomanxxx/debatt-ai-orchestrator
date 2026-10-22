@@ -54,8 +54,9 @@ function rng(label) {
   return () => { const b = hashBytes(`${label}:${index++}`); return (b.readUInt32BE(0) + 0.5) / 4294967296; };
 }
 // Same generator as the catalog AR(1) experiment, parameterised by the locked design point.
-export function designSeries(seed, index, { phi, n }) {
-  const random = rng(`ar1-design-v1:${seed}:${index}:${phi}:${n}`);
+// The (phi, n) pair is unique within a design, so the series never depends on its list position.
+export function designSeries(seed, { phi, n }) {
+  const random = rng(`ar1-design-v1:${seed}:${phi}:${n}`);
   let value = 0; const values = [];
   for (let i = 0; i < 64 + n + 16; i++) {
     const noise = Math.sqrt(-2 * Math.log(random())) * Math.cos(2 * Math.PI * random());
@@ -85,7 +86,7 @@ export async function runAr1DesignExperiment(seed, propose, callTool, onCommit, 
   const locked = { preregistrationSha256, protocol: DESIGN_PROTOCOL };
   await onCommit([locked]);
   const fixtures = design.designs.map((point, i) => {
-    const input = designSeries(seed, i, point);
+    const input = designSeries(seed, point);
     return { id: i + 1, point, input, commitment: fingerprint({ input, point, preregistrationSha256, protocol: DESIGN_PROTOCOL }) };
   });
   await onCommit([locked, ...fixtures.map(f => ({ case: f.id, sha256: f.commitment, protocol: DESIGN_PROTOCOL }))]);

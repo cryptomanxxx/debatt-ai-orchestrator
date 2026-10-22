@@ -34,11 +34,11 @@ test('the preregistered falsification criterion decides the outcome', () => {
 });
 
 test('series are deterministic per seed and design point and sized by n', () => {
-  const a = designSeries('7', 0, { phi: 0.2, n: 96 });
-  assert.deepEqual(a, designSeries('7', 0, { phi: 0.2, n: 96 }));
+  const a = designSeries('7', { phi: 0.2, n: 96 });
+  assert.deepEqual(a, designSeries('7', { phi: 0.2, n: 96 }));
   assert.equal(a.train.length, 96); assert.equal(a.holdout.length, 16);
-  assert.notDeepEqual(a.train, designSeries('7', 0, { phi: 0.3, n: 96 }).train);
-  assert.notDeepEqual(a.train, designSeries('8', 0, { phi: 0.2, n: 96 }).train);
+  assert.notDeepEqual(a.train, designSeries('7', { phi: 0.3, n: 96 }).train);
+  assert.notDeepEqual(a.train, designSeries('8', { phi: 0.2, n: 96 }).train);
 });
 
 test('the preregistration is committed before any tool call; invalid designs never reach a tool', async () => {

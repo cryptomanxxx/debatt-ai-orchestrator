@@ -35,7 +35,7 @@ test('the lab runs ar1-power-design end to end and reports the preregistration',
   const runner = fileURLToPath(new URL('../research/runner.mjs', import.meta.url));
   const dir = await mkdtemp(join(tmpdir(), 'oraklet-ar1-design-'));
   try {
-    const design = { method: 'ar1-design', hypothesis: 'Stark autokorrelation förkastas.\n\n## Utfall: hypotesen höll | [länk](x)', falsification: 'any_mismatch', comparison: 'phi=0 mot phi=0.6.',
+    const design = { method: 'ar1-design', hypothesis: 'Stark autokorrelation förkastas.\n\n## Utfall: hypotesen höll | [länk](x) https://example.com `kod`', falsification: 'any_mismatch', comparison: 'phi=0 mot phi=0.6.',
       designs: [{ phi: 0, n: 128, prediction: 'do_not_reject_h0' }, { phi: 0.6, n: 128, prediction: 'reject_h0' }, { phi: 0.4, n: 96, prediction: 'reject_h0' }] };
     await writeFile(join(dir, 'mock.mjs'), `
 import { writeFile } from 'node:fs/promises';
@@ -63,7 +63,8 @@ globalThis.fetch = async (url, options = {}) => {
     assert.equal(commitments.length, 4);
     assert.match(stdout, /Förregistreringens SHA-256 före data/);
     assert.doesNotMatch(stdout, /före modellförslagen/);
-    assert.match(md, /Hypotes: Stark autokorrelation förkastas\. ## Utfall: hypotesen höll \\\| \\\[länk\\\]\(x\)\n/);
+    assert.ok(md.includes("Hypotes: `Stark autokorrelation förkastas. ## Utfall: hypotesen höll | [länk](x) https://example.com 'kod'`\n"));
+    assert.match(md, /Utfall: de förregistrerade förutsägelserna (höll|motbevisades)/);
     assert.doesNotMatch(md, /^## Utfall/m);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
