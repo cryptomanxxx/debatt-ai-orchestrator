@@ -50,7 +50,7 @@ test('a second failure stops the run with the original code; other errors are ne
 });
 
 test('repeats are capped per run, apply to ranked research models and can be switched off', async () => {
-  const failing = Array(2 * (MAX_MODEL_RETRIES + 1)).fill(() => Response.json({ error: 'x' }, { status: 429 }));
+  const failing = Array(2 * (MAX_MODEL_RETRIES + 1)).fill(() => Response.json({ error: 'benchmark_upstream_rate_limited' }, { status: 429 }));
   let s = script([...failing]);
   try {
     const lab = createLabClient({ key: 'k', maxModelCalls: 7 });
@@ -72,5 +72,30 @@ test('repeats are capped per run, apply to ranked research models and can be swi
     const lab = createLabClient({ key: 'k', maxRetries: 0 });
     await assert.rejects(lab.proposer('default')([]), /model_upstream_http_error/);
     assert.equal(s.calls.length, 1);
+  } finally { s.restore(); }
+});
+
+test('a rejected key, an exhausted quota or a gateway rejection stops at once without a repeat', async () => {
+  for (const [error, status] of [['benchmark_upstream_auth_rejected', 502], ['benchmark_upstream_quota_exhausted', 502],
+    ['benchmark_model_not_listed', 400], [undefined, 500]]) {
+    const s = script([() => Response.json({ error }, { status })]), pauses = [];
+    try {
+      const lab = createLabClient({ key: 'k', retryDelayMs: 45, sleep: async ms => { pauses.push(ms); } });
+      await assert.rejects(lab.researchProposer({ provider: 'hip', model: 'm' })([]), /model_upstream_http_error/);
+      assert.equal(s.calls.length, 1, String(error)); assert.deepEqual(pauses, []); assert.equal(lab.modelRetries(), 0);
+    } finally { s.restore(); }
+  }
+  for (const upstreamStatus of [401, 402, 403]) {
+    const s = script([() => Response.json({ error: 'model_upstream_http_error', upstreamStatus }, { status: 502 })]);
+    try {
+      const lab = createLabClient({ key: 'k' });
+      await assert.rejects(lab.proposer('default')([]), /model_upstream_http_error/);
+      assert.equal(s.calls.length, 1, String(upstreamStatus));
+    } finally { s.restore(); }
+  }
+  const s = script([() => Response.json({ error: 'benchmark_upstream_failed' }, { status: 502 }), gatewayOk]);
+  try {
+    const lab = createLabClient({ key: 'k' });
+    assert.equal((await lab.researchProposer({ provider: 'hip', model: 'm' })([])).model, 'm', 'a failed upstream request is repeated');
   } finally { s.restore(); }
 });

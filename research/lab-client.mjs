@@ -27,6 +27,13 @@ export async function readJson(response, max = 65536) {
 // these ways once, after a pause. A repeat is the same request, not a second answer: it does not
 // count against the call budget, and the run reports how many there were (modelRetries).
 export const TRANSIENT_MODEL_ERRORS = Object.freeze(['model_upstream_http_error', 'model_transport_error']);
+// A rejected key or an exhausted quota will not pass on a repeat: those stop the run at once.
+const TERMINAL_UPSTREAM_STATUSES = Object.freeze([401, 402, 403]);
+// The research gateway names its failures; only these are worth repeating.
+const RETRYABLE_GATEWAY_ERRORS = Object.freeze(['benchmark_upstream_rate_limited', 'benchmark_upstream_failed',
+  'benchmark_catalog_unavailable', 'benchmark_transport_failed']);
+const retryable = error => error instanceof ResearchError && TRANSIENT_MODEL_ERRORS.includes(error.message)
+  && error.retryable !== false && !TERMINAL_UPSTREAM_STATUSES.includes(error.diagnostic.upstreamStatus);
 export const MAX_MODEL_RETRIES = 3;
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -37,7 +44,7 @@ export function createLabClient({ key, api = LAB_API, completionTokenLimit = 409
     if (++modelCalls > maxModelCalls) throw new ResearchError('model_budget_exceeded');
     if (modelCalls > 1 && spacingMs > 0) await sleep(spacingMs);
     try { return await send(); } catch (error) {
-      if (!(error instanceof ResearchError) || !TRANSIENT_MODEL_ERRORS.includes(error.message) || modelRetries >= maxRetries) throw error;
+      if (!retryable(error) || modelRetries >= maxRetries) throw error;
       modelRetries++;
       await sleep(retryDelayMs);
       return send();
@@ -102,8 +109,11 @@ export function createLabClient({ key, api = LAB_API, completionTokenLimit = 409
     } catch { throw new ResearchError('model_transport_error'); }
     let data;
     try { data = await readJson(response); } catch { throw new ResearchError('model_invalid_response', { httpStatus: response.status }); }
-    if (response.status !== 200)
-      throw new ResearchError(GATEWAY_ERRORS[data?.error] ?? 'model_upstream_http_error', { httpStatus: response.status });
+    if (response.status !== 200) {
+      const error = new ResearchError(GATEWAY_ERRORS[data?.error] ?? 'model_upstream_http_error', { httpStatus: response.status });
+      error.retryable = RETRYABLE_GATEWAY_ERRORS.includes(data?.error);
+      throw error;
+    }
     if (data?.status !== 'completed_unverified' || data.provider !== provider || data.model !== model || typeof data.answer !== 'string')
       throw new ResearchError('invalid_model_response');
     // An alias must still run the backing model its ranking evidence came from.
