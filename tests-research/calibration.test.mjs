@@ -13,6 +13,8 @@ test('confidence is stripped from JSON answers and validated; other text is unto
   // A fenced answer (optionally after a think block) loses its confidence and its fence.
   assert.deepEqual(stripConfidence('```json\n{"a":1,"confidence":0.4}\n```'), { text: '{"a":1}', confidence: 0.4 });
   assert.deepEqual(stripConfidence('<think>x</think>\n```\n{"a":1,"confidence":0.4}\n```'), { text: '{"a":1}', confidence: 0.4 });
+  assert.deepEqual(stripConfidence('<think>x</think>\n{"a":1,"confidence":0.4}'), { text: '{"a":1}', confidence: 0.4 });
+  assert.deepEqual(stripConfidence('<think>x</think>{"a":1}'), { text: '<think>x</think>{"a":1}', confidence: null });
   assert.deepEqual(stripConfidence('```json\n{"a":1}\n```'), { text: '```json\n{"a":1}\n```', confidence: null });
   assert.deepEqual(stripConfidence('```json\nnot json\n```'), { text: '```json\nnot json\n```', confidence: null });
 });

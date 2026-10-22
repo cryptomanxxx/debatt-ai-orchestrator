@@ -9,8 +9,9 @@ export const CONFIDENCE_RULE = 'Lägg också till fältet "confidence": din sann
 export function stripConfidence(text) {
   let value;
   try { value = JSON.parse(text); } catch {
-    const fenced = String(text).trim().replace(/^<think>[\s\S]*?<\/think>\s*/, '').match(/^```(?:json)?\s*\n([\s\S]*?)\n?```$/);
-    try { value = JSON.parse(fenced?.[1]); } catch { return { text, confidence: null }; }
+    const body = String(text).trim().replace(/^<think>[\s\S]*?<\/think>\s*/, '');
+    const fenced = body.match(/^```(?:json)?\s*\n([\s\S]*?)\n?```$/);
+    try { value = JSON.parse(fenced ? fenced[1] : body); } catch { return { text, confidence: null }; }
   }
   if (!value || typeof value !== 'object' || Array.isArray(value) || !Object.hasOwn(value, 'confidence')) return { text, confidence: null };
   const { confidence, ...rest } = value;
