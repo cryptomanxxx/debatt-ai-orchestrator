@@ -22,7 +22,7 @@ A completed measurement can contain an incorrect model proposal. Reports disting
 
 ### Current experiment coverage
 
-The catalog contains **twenty-one runnable experiments**. Fourteen are available to automatic planning: thirteen synthetic method tests, one of them an [Oraklet-designed, preregistered experiment](research/EXPERIMENT-DESIGN.md), and one [blind prediction of held-out Perturb-seq knockouts](research/PERTURBSEQ-HOLDOUT.md); seven are selected manually because they use fixed published data, are exploratory follow-ups or are separate pilots. `node research/show-catalog.mjs` prints the current catalog.
+The catalog contains **twenty-two runnable experiments**. Fifteen are available to automatic planning: fourteen synthetic method tests, among them an [Oraklet-designed, preregistered experiment](research/EXPERIMENT-DESIGN.md) and [ACT-MAP causal-mechanism transfer, where Oraklet chooses his own interventions](research/ACT-MAP-LAB.md), and one [blind prediction of held-out Perturb-seq knockouts](research/PERTURBSEQ-HOLDOUT.md); seven are selected manually because they use fixed published data, are exploratory follow-ups or are separate pilots. `node research/show-catalog.mjs` prints the current catalog.
 
 | Experiment area | Implemented methods and tools | Selection |
 | --- | --- | --- |
@@ -36,6 +36,7 @@ The catalog contains **twenty-one runnable experiments**. Fourteen are available
 | Symbolic mathematics | SymPy exact quadratic equations | Automatic |
 | Machine learning | Scikit-learn linear/quadratic regression with separate training, validation and test data | Automatic |
 | Causal inference | DoWhy backdoor adjustment under a given causal diagram | Automatic |
+| Causal-mechanism transfer | ACT-MAP: Oraklet chooses interventions in an unknown system, proposes which variables and interventions match a known mechanism or abstains; evidence gate and enumeration baseline | Automatic |
 | Functional genomics | Blind prediction of published held-out Perturb-seq knockout effects against always-none and gene-family baselines | Automatic |
 | Synthetic glucose forecasting | Insulin absorption simulator and robustness to incorrect meal/sensitivity inputs | Automatic |
 | Published insulin data | Temperature evidence audit, warming forecasts, curve-shape follow-up and separate-publication check | Manual |
@@ -43,6 +44,8 @@ The catalog contains **twenty-one runnable experiments**. Fourteen are available
 | Bayesian follow-up | PyMC analysis of historical GDP data | Manual |
 
 These are bounded scientific methods with predefined assumptions, controls and acceptance criteria. The synthetic experiments test methods and model performance against known references; a successful run does not by itself establish a new scientific discovery. The GDP, insulin curve-shape and shallow-water analyses are exploratory. Each library is integrated through a specific adapter, rather than exposed in its entirety.
+
+Every lab answer is also a claim in Oraklet's [VEM-Sci register](research/ACT-MAP-LAB.md#vem-sci-register): only the experiment's independent verifier moves it from proposed to provisionally supported, rejected or unresolved, and the register is kept with the saved reports.
 
 See the [experiment catalog](research/EXPERIMENTS.md), [hypothesis protocols](research/HYPOTHESES.md) and [research operations guide](research/README.md) for the exact contracts.
 
