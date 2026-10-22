@@ -17,11 +17,14 @@ const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'are'
   'enough', 'whether', 'existing', 'current', 'better', 'more', 'less', 'than', 'such', 'also', 'other', 'these', 'those', 'over',
   'still', 'only', 'remain', 'remains', 'given', 'well']);
 
-// Light stemming for title matching: a plural s is dropped and long words compare on six letters,
-// so estimator/estimation and physics/physical match while short words stay exact.
+// Light stemming for title matching: one common suffix is removed when at least four letters remain,
+// so estimator/estimation, physics/physical and reconstruct/reconstruction match, while words that
+// only share a beginning (classical/classification) stay apart.
+const SUFFIXES = ['ations', 'ation', 'ators', 'ator', 'ings', 'ing', 'ions', 'ion', 'ers', 'er', 'ed', 'al', 's'];
 export function stem(word) {
-  const w = word.length > 4 && word.endsWith('s') && !word.endsWith('ss') ? word.slice(0, -1) : word;
-  return w.length > 6 ? w.slice(0, 6) : w;
+  if (word.endsWith('ss')) return word;
+  const suffix = SUFFIXES.find(x => word.endsWith(x) && word.length - x.length >= 4);
+  return suffix ? word.slice(0, -suffix.length) : word;
 }
 const stems = text => new Set((typeof text === 'string' ? text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [] : []).map(stem));
 

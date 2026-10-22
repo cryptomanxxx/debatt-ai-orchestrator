@@ -44,6 +44,10 @@ test('generic words are dropped, stems match, and the field shared by every seed
   assert.equal(stem('estimation'), stem('estimator'));
   assert.equal(stem('physics'), stem('physical'));
   assert.equal(stem('states'), stem('state'));
+  assert.equal(stem('reconstruction'), stem('reconstruct'));
+  assert.notEqual(stem('classification'), stem('classical'), 'a shared beginning is not a match');
+  assert.notEqual(stem('statistics'), stem('state'));
+  assert.equal(stem('water'), 'water');
   const seeds = ['Turbulence model augmented physics-informed neural networks for mean-flow reconstruction',
     'Mean flow reconstruction of unsteady flows using physics-informed neural networks'];
   const scored = scoringTerms(q, seeds);
