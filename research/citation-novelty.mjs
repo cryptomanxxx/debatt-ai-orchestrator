@@ -7,6 +7,7 @@ import { mkdir, writeFile, appendFile } from 'node:fs/promises';
 import { agenticTreeSearch } from './agentic-tree-search.mjs';
 import { createFollowUpClient } from './literature-follow-up.mjs';
 import { boundedJson } from './literature-evidence.mjs';
+import { porter2 } from './english-stemmer.mjs';
 
 export const LIMITS = Object.freeze({ maxNodes: 12, maxDepth: 3, maxChildren: 4, seeds: 4, seedCandidates: 8, citingPerWork: 100 });
 export const OVERLAP_THRESHOLD = 0.5;
@@ -17,24 +18,13 @@ const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'are'
   'enough', 'whether', 'existing', 'current', 'better', 'more', 'less', 'than', 'such', 'also', 'other', 'these', 'those', 'over',
   'still', 'only', 'remain', 'remains', 'given', 'well']);
 
-// Light stemming for title matching. English plurals are made singular first (processes/process,
-// studies/study, boxes/box, signals/signal; -ss, -us and -is words are left alone), then one common
-// suffix is removed when at least four letters remain. So estimator/estimation and
-// reconstruct/reconstruction match, while words that only share a beginning (classical/classification)
-// stay apart.
-// -al and -er are not removed: they mostly collide unrelated words (signal/sign, general/generation).
-const SUFFIXES = ['ation', 'ator', 'ing', 'ion', 'ed'];
-export function singular(word) {
-  if (/(ss|us|is)$/.test(word) || !word.endsWith('s')) return word;
-  if (word.length > 4 && word.endsWith('ies')) return word.slice(0, -3) + 'y';
-  if (word.length > 4 && /(sses|xes|zes|ches|shes)$/.test(word)) return word.slice(0, -2);
-  return word.length - 1 >= 3 ? word.slice(0, -1) : word;
-}
-export function stem(word) {
-  const base = singular(word);
-  const suffix = SUFFIXES.find(x => base.endsWith(x) && base.length - x.length >= 4);
-  return suffix ? base.slice(0, -suffix.length) : base;
-}
+// Title matching compares Porter2 stems (english-stemmer.mjs), after Greek and Latin plurals that
+// the stemmer cannot see (analyses, hypotheses, criteria) are made singular.
+const IRREGULAR = new Map(Object.entries({ analyses: 'analysis', hypotheses: 'hypothesis', syntheses: 'synthesis',
+  theses: 'thesis', diagnoses: 'diagnosis', prognoses: 'prognosis', crises: 'crisis', matrices: 'matrix', indices: 'index',
+  vertices: 'vertex', criteria: 'criterion', phenomena: 'phenomenon', spectra: 'spectrum', maxima: 'maximum',
+  minima: 'minimum', optima: 'optimum' }));
+export const stem = word => porter2(IRREGULAR.get(word) ?? word);
 // Inflected stop words (studies, methods, improved) are stop words too.
 const STOP_STEMS = new Set([...STOP].map(stem));
 const stems = text => new Set((typeof text === 'string' ? text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [] : []).map(stem));

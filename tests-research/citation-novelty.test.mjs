@@ -56,6 +56,9 @@ test('generic words are dropped, stems match, and the field shared by every seed
   for (const [a, b] of [['signal', 'sign'], ['general', 'generation'], ['classical', 'classification']])
     assert.notEqual(stem(a), stem(b), `${a}/${b} stay apart`);
   assert.deepEqual(terms('Do studies improve existing methods?'), [], 'inflected stop words are stop words');
+  for (const [a, b] of [['change', 'changing'], ['estimate', 'estimating'], ['control', 'controlled'], ['analysis', 'analyses'],
+    ['bias', 'biases'], ['hypothesis', 'hypotheses'], ['criterion', 'criteria'], ['physics', 'physical']])
+    assert.equal(stem(a), stem(b), `${a}/${b}: Porter2 and the irregular plurals share a stem`);
   const seeds = ['Turbulence model augmented physics-informed neural networks for mean-flow reconstruction',
     'Mean flow reconstruction of unsteady flows using physics-informed neural networks'];
   const scored = scoringTerms(q, seeds);
