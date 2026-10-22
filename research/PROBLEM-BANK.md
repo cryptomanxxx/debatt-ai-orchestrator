@@ -35,3 +35,22 @@ Runtime configuration:
 ## Literature-linked proposals
 
 The manual workflow **Oraklet proposes research problems** also reads the ten newest saved literature evidence reports (`literature_planner_run`). A research candidate whose theme matches a catalog experiment's research area (for example `arp-symbolic-regression` and the Ratfit experiments) becomes a review-only proposal for that experiment's canonical Problem Bank entry, with the supporting article IDs, the report and candidate IDs, and whether the entry is already registered. The workflow only reads; register a proposal with **problem-bank-create** after review. The catalog experiment is a bounded method test in the same area; it does not test the reported limitation or research gap.
+
+## Daily lab on approved problems
+
+The daily **Oraklets forskningslabb** run (`auto`) closes the loop from literature to experiment:
+
+1. **Approved problems are offered.** The runner lists the active Problem Bank problems (`listActiveProblems`). Those that ask exactly the question of an automatic catalog experiment are offered to the planner as `openProblems`, up to eight. Problems backed by a saved literature candidate come first and carry its research question, article count and number of reported limitations.
+2. **The plan names `problemBankId`.** It is either `null` or one of the offered problems whose experiment is the planned experiment; anything else is an invalid plan. The linked problem (id, version, fingerprint, literature support) is part of the plan commitment.
+3. **The run is recorded on the problem.** Before the experiment, the runner starts a Research Loop run on that problem. After it, the outcome is written back:
+   - **`verified`:** the run completed, the report passed and every case passed.
+   - **`falsified`:** the run completed, the report failed and at least one case failed.
+   - Both verdicts are decided by the experiment's own independent verifier (exact tool checks, never the model) and are scoped to that run and seed.
+   - **`needs_external_verification`:** the report status and the cases disagree.
+   - **`inconclusive`:** an execution error.
+
+   The manual Problem Bank runner uses the same verdict rule.
+4. **Outages never stop the experiment.** If Problem Bank is unreachable, the experiment still runs and its report says `recorded: false`. If the literature reports are unreachable, the problems are still offered, without literature context.
+
+Registration stays a manual, reviewed step (**problem-bank-create**). The lab works only on problems a person has registered, and the catalog experiment remains a bounded method test in the problem's research area; it does not test the reported limitation or gap itself.
+

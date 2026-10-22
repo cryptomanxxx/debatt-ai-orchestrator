@@ -30,15 +30,31 @@ export function researchStateFromOrakletReport(started,entry,report) {
       execution_status:report?.executionStatus??null,report_status:report?.status??null,passed_cases:passed,total_cases:total},
     verification:null
   });
-  return recordResult(research,{
+  return recordResult(research,researchVerdict(entry,report,passed,total));
+}
+// A completed run whose report status agrees with every case is decided by the experiment's own
+// independent verifier (exact tool checks, never the model): verified when every proposal passed,
+// falsified when the report failed. The claim covers this run and seed only. Anything else (an
+// execution error, or a report whose status and cases disagree) stays undecided as before.
+export function researchVerdict(entry,report,passed,total) {
+  const significance={experiment_id:entry.id,report_id:report?.reportId??null,seed:report?.seed??null};
+  const completed=report?.executionStatus==='completed' && total>0;
+  const consistent=completed && ((report.status==='passed' && passed===total) || (report.status==='failed' && passed<total));
+  if (!consistent) return {
     id:'oraklet-result',
     claim:report?.executionStatus==='completed'
       ? 'The locked Oraklet catalog experiment completed; its report is recorded as evidence for this Problem Bank run.'
       : 'The Oraklet catalog experiment did not complete successfully.',
     status:report?.executionStatus==='completed'?'needs_external_verification':'inconclusive',
-    significance:{experiment_id:entry.id,report_id:report?.reportId??null},
-    verification:null
-  });
+    significance,verification:null
+  };
+  const verification={tool:report.toolId||entry.toolId,independent:true,
+    result:{valid:true,scope:'catalog_method_test_single_run',report_status:report.status,passed_cases:passed,total_cases:total}};
+  return report.status==='passed'
+    ? {id:'oraklet-result',status:'verified',significance,verification,
+      claim:`In this run (seed ${report.seed}), Oraklet's proposals met the experiment's independent verification criteria in all ${total} cases.`}
+    : {id:'oraklet-result',status:'falsified',significance,verification,
+      claim:`In this run (seed ${report.seed}), Oraklet's proposals failed the experiment's independent verification in ${total-passed} of ${total} cases.`};
 }
 export async function runProblemBankOraklet({client,problem,catalog,execute}) {
   if (!client || typeof client.getProblem!=='function') throw new Error('invalid_problem_bank_client');
