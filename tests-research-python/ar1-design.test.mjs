@@ -48,7 +48,7 @@ globalThis.fetch = async (url, options = {}) => {
   calls++;
   return Response.json({ answer: ${JSON.stringify(JSON.stringify(design))}, provider: 'groq', model: 'same', mock: false, inference: { completionTokenLimit: 4096 } });
 };`);
-    await promisify(execFile)(process.execPath, ['--import', pathToFileURL(join(dir, 'mock.mjs')).href, runner], { cwd: dir,
+    const { stdout } = await promisify(execFile)(process.execPath, ['--import', pathToFileURL(join(dir, 'mock.mjs')).href, runner], { cwd: dir,
       env: { ...process.env, ORCHESTRATOR_API_KEY: 'test'.repeat(8), SUPABASE_SERVICE_ROLE_KEY: 'test', EXPERIMENT: 'ar1-power-design', EXPERIMENT_SEED: '42' }, timeout: 60000 });
     const saved = JSON.parse(await readFile(join(dir, 'saved.json'), 'utf8')).rapport;
     assert.equal(saved.executionStatus, 'completed');
@@ -61,6 +61,8 @@ globalThis.fetch = async (url, options = {}) => {
     const commitments = JSON.parse(await readFile(join(dir, 'reports/oraklet-lab/commitments.json'), 'utf8'));
     assert.equal(commitments[0].preregistrationSha256, saved.preregistration.sha256);
     assert.equal(commitments.length, 4);
+    assert.match(stdout, /Förregistreringens SHA-256 före data/);
+    assert.doesNotMatch(stdout, /före modellförslagen/);
     assert.match(md, /Hypotes: Stark autokorrelation förkastas\. ## Utfall: hypotesen höll \\\| \\\[länk\\\]\(x\)\n/);
     assert.doesNotMatch(md, /^## Utfall/m);
   } finally { await rm(dir, { recursive: true, force: true }); }
