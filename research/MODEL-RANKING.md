@@ -36,7 +36,19 @@ Generated tasks with exactly computed answers in five research domains (*Scienti
 
 ### hip
 
-No domain benchmark results yet.
+| Model | symbolic | probability | causal | statistics | discrete |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `gemma-4-31B-it` | 7/8 ★ | 8/8 | 7/8 | 6/8 | 8/8 |
+| `GLM-5.2-AWQ-INT4` | 6/8 | 7/8 | 8/8 | 5/8 | 6/8 |
+| `Kimi-K2.6` | 4/8 | 6/8 | 2/8 | 1/8 | 6/8 |
+| `leo-hessianai-13b-chat` | 0/8 | 0/8 | 0/8 | 0/8 | 0/8 |
+| `Ministral-3-14B-Instruct-2512` | 4/8 | 3/8 | 6/8 | 4/8 | 4/8 |
+| `Mistral-Medium-3.5-128B` | 6/8 | 7/8 | 6/8 | 4/8 | 8/8 |
+| `occiglot-7b-eu5-instruct` | 0/8 | 0/8 | 0/8 | 0/8 | 0/8 |
+| `qwen3-vl-30b-a3b-instruct-awq` | 6/8 | 8/8 ★ | 3/8 | 2/8 | 8/8 ★ |
+| `Qwen3.8-27B` | 6/8 | 8/8 | 8/8 ★ | 6/8 ★ | 8/8 |
+
+★ = best model in that domain.
 
 ### blablador
 
