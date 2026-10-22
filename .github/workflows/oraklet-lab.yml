@@ -52,8 +52,9 @@ concurrency:
 jobs:
   experiment:
     runs-on: ubuntu-latest
-    # Seven ranked-model calls may each take up to 80 s through the research gateway, plus the bare arm.
-    timeout-minutes: 20
+    # Seven ranked-model calls may each take up to 80 s through the research gateway (about 9 min),
+    # plus the bare arm's own step limit and dependency installation.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -125,6 +126,8 @@ jobs:
           fi
       - name: Samma modell utan labbet (rak fråga)
         if: success() && inputs.problem_bank_id == '' && (inputs.experiment != 'catalog-only')
+        # Worst case: three 80 s calls and three 80 s retries plus 3 x 15 s spacing and 3 x 45 s pauses = 11 min.
+        timeout-minutes: 13
         env:
           ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

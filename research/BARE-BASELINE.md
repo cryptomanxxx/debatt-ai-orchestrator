@@ -30,7 +30,7 @@ The first version covers three experiments; others follow when their bare prompt
 - writes `baseline.json` to the run artifact;
 - adds a table to the step summary.
 
-The job timeout is 20 minutes to make room for the extra calls.
+The bare step runs straight after the lab's own calls, so provider rate limits are likely. It waits 15 seconds before each bare call. A request that fails with a provider HTTP or transport error is retried once after 45 seconds; this is the same request again, not a second answer. The number of retries is stored as `retries`. A second failure stops the step and names the case. The step has its own 13-minute limit: the worst case is three 80-second calls, three 80-second retries, 3 × 15 seconds of spacing and 3 × 45 seconds of pauses, about 11 minutes. The job limit is 30 minutes, which covers a maximal lab run (about 9 minutes of model calls), dependency installation and this step.
 
 ## Analysis plan (frozen)
 
