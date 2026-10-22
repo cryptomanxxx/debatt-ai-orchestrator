@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { terms, relevance, candidateSeeds, noveltyCheck, renderNovelty, createOpenAlexGraph, main, LIMITS, OVERLAP_THRESHOLD } from '../research/citation-novelty.mjs';
+import { terms, relevance, stem, scoringTerms, candidateSeeds, noveltyCheck, renderNovelty, createOpenAlexGraph, main, LIMITS, OVERLAP_THRESHOLD } from '../research/citation-novelty.mjs';
 
 const REPORT_ID = '6f14d7f6-de91-4c84-8dc7-169798dccd69';
 const report = {
@@ -37,6 +37,40 @@ test('terms and relevance are deterministic title overlaps', () => {
   assert.equal(relevance('a1 a2 a3 b1 b2 b3', many), 0.5);
 });
 
+test('generic words are dropped, stems match, and the field shared by every seed title is not scored', () => {
+  // The live run's question: generic words used to fill the scored terms, so every PINN title tied at 0.333.
+  const q = terms('Does a physics-informed estimator improve held-out state estimation under changing flow conditions?');
+  assert.deepEqual(q, ['physics', 'informed', 'estimator', 'state', 'changing', 'flow', 'conditions']);
+  assert.equal(stem('estimation'), stem('estimator'));
+  assert.equal(stem('states'), stem('state'));
+  assert.equal(stem('reconstruction'), stem('reconstruct'));
+  assert.notEqual(stem('classification'), stem('classical'), 'a shared beginning is not a match');
+  assert.notEqual(stem('statistics'), stem('state'));
+  assert.equal(stem('water'), 'water');
+  for (const [a, b] of [['signal', 'signals'], ['estimator', 'estimators'], ['estimation', 'estimations'], ['reconstruction', 'reconstructions']])
+    assert.equal(stem(a), stem(b), `${a}/${b}: a plural on top of a suffix still matches`);
+  for (const [a, b] of [['process', 'processes'], ['class', 'classes'], ['box', 'boxes'], ['study', 'studies'], ['branch', 'branches'],
+    ['flow', 'flows'], ['sensor', 'sensors'], ['analysis', 'analysis'], ['state', 'states']])
+    assert.equal(stem(a), stem(b), `${a}/${b}: English plurals become singular`);
+  assert.equal(stem('gas'), 'gas');
+  for (const [a, b] of [['signal', 'sign'], ['general', 'generation'], ['classical', 'classification']])
+    assert.notEqual(stem(a), stem(b), `${a}/${b} stay apart`);
+  assert.deepEqual(terms('Do studies improve existing methods?'), [], 'inflected stop words are stop words');
+  for (const [a, b] of [['change', 'changing'], ['estimate', 'estimating'], ['control', 'controlled'], ['analysis', 'analyses'],
+    ['bias', 'biases'], ['hypothesis', 'hypotheses'], ['criterion', 'criteria'], ['physics', 'physical']])
+    assert.equal(stem(a), stem(b), `${a}/${b}: Porter2 and the irregular plurals share a stem`);
+  const seeds = ['Turbulence model augmented physics-informed neural networks for mean-flow reconstruction',
+    'Mean flow reconstruction of unsteady flows using physics-informed neural networks'];
+  const scored = scoringTerms(q, seeds);
+  assert.deepEqual(scored, ['estimator', 'state', 'changing', 'conditions'], 'physics, informed and flow name the shared field');
+  assert.equal(relevance('A Joint Physics-Informed Neural Network and Adaptive Kalman Filter for State-of-Charge Estimation', scored), 0.5);
+  assert.equal(relevance('Physics-informed neural networks for passive scalar emission and transport', scored), 0);
+  assert.deepEqual(scoringTerms(['flow'], seeds), ['flow'], 'all terms shared: fall back to the candidate terms');
+  assert.deepEqual(scoringTerms(q, []), q.slice(0, 6));
+  assert.deepEqual(scoringTerms(q, [seeds[0]]), q.slice(0, 6), 'one seed title does not define the field');
+  assert.deepEqual(scoringTerms(q, [seeds[0], seeds[0]]), q.slice(0, 6), 'nor does the same title twice');
+});
+
 test('seeds are the candidate evidence papers with an OpenAlex identity', () => {
   const { seeds, terms: t } = candidateSeeds(report, 'arp-fluid-state-estimation');
   assert.deepEqual(seeds.map(s => s.openalex_id), ['https://openalex.org/W100', 'https://openalex.org/W200']);
@@ -54,8 +88,8 @@ test('the search follows the most relevant citing works and flags a possible ove
   const r = await noveltyCheck(report, 'arp-fluid-state-estimation', graph);
   assert.equal(r.schema_version, 'citation-novelty-1');
   assert.equal(r.novelty.status, 'possible_overlap_found');
-  assert.deepEqual(r.leads.slice(0, 2).map(l => [l.openalex_id, l.relevance]), [['https://openalex.org/W302', 0.667], ['https://openalex.org/W501', 0.333]],
-    'only the six scored terms count, so the closer title leads');
+  assert.deepEqual(r.leads.slice(0, 2).map(l => [l.openalex_id, l.relevance]), [['https://openalex.org/W302', 0.667], ['https://openalex.org/W501', 0.5]],
+    'only the six scored terms count, so the closer title leads; reconstruction matches reconstruct');
   assert.equal(r.novelty.strongest.openalex_id, 'https://openalex.org/W302');
   assert.ok(r.novelty.strongest.relevance >= OVERLAP_THRESHOLD);
   assert.ok(r.leads.some(l => l.openalex_id === 'https://openalex.org/W501' && l.depth === 3), 'second citation step is explored');
@@ -114,7 +148,7 @@ test('the OpenAlex client builds bounded citation requests', async () => {
   } });
   assert.deepEqual(await graph.work('https://openalex.org/W1'), { openalex_id: 'https://openalex.org/W1', title: 'Seed', year: 2020, cited_by_count: 0 });
   assert.deepEqual((await graph.citing('https://openalex.org/W1')).map(w => w.openalex_id), ['https://openalex.org/W5']);
-  assert.match(urls[1], /filter=cites%3AW1%2Cis_retracted%3Afalse&sort=publication_date%3Adesc&per-page=25/);
+  assert.match(urls[1], /filter=cites%3AW1%2Cis_retracted%3Afalse&sort=publication_date%3Adesc&per-page=100/);
   for (let i = 0; i < 1 + LIMITS.seedCandidates + LIMITS.maxNodes - 2; i++) await graph.work('https://openalex.org/W1');
   await assert.rejects(graph.work('https://openalex.org/W1'), /openalex_request_budget_exceeded/);
   // A merged work redirects to its canonical OpenAlex record; a redirect off the API is refused.

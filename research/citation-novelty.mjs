@@ -1,29 +1,53 @@
 // Citation-graph novelty check for one research candidate of a saved evidence report.
 // Bounded best-first tree search (agentic-tree-search.mjs) over OpenAlex: each node is a work,
-// its children are the newest works citing it, ranked by how many of the candidate's terms their
+// its children are the works citing it, ranked by how many of the candidate's specific terms their
 // titles share. No model calls, no database writes. It looks for later work that may already
 // address the candidate's question; finding none within the budget does not establish novelty.
 import { mkdir, writeFile, appendFile } from 'node:fs/promises';
 import { agenticTreeSearch } from './agentic-tree-search.mjs';
 import { createFollowUpClient } from './literature-follow-up.mjs';
 import { boundedJson } from './literature-evidence.mjs';
+import { porter2 } from './english-stemmer.mjs';
 
-export const LIMITS = Object.freeze({ maxNodes: 12, maxDepth: 3, maxChildren: 4, seeds: 4, seedCandidates: 8, citingPerWork: 25 });
+export const LIMITS = Object.freeze({ maxNodes: 12, maxDepth: 3, maxChildren: 4, seeds: 4, seedCandidates: 8, citingPerWork: 100 });
 export const OVERLAP_THRESHOLD = 0.5;
 const WORK = /^https:\/\/openalex\.org\/(W\d{1,15})$/;
 const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'are', 'can', 'does', 'how', 'which', 'under', 'into',
-  'using', 'based', 'its', 'their', 'when', 'what', 'between', 'via', 'new', 'study', 'approach', 'method', 'methods', 'model', 'models']);
+  'using', 'based', 'its', 'their', 'when', 'what', 'between', 'via', 'new', 'study', 'approach', 'approaches', 'method', 'methods',
+  'model', 'models', 'improve', 'improves', 'improved', 'improving', 'held', 'out', 'earlier', 'require', 'requires', 'required',
+  'enough', 'whether', 'existing', 'current', 'better', 'more', 'less', 'than', 'such', 'also', 'other', 'these', 'those', 'over',
+  'still', 'only', 'remain', 'remains', 'given', 'well']);
+
+// Title matching compares Porter2 stems (english-stemmer.mjs), after Greek and Latin plurals that
+// the stemmer cannot see (analyses, hypotheses, criteria) are made singular.
+const IRREGULAR = new Map(Object.entries({ analyses: 'analysis', hypotheses: 'hypothesis', syntheses: 'synthesis',
+  theses: 'thesis', diagnoses: 'diagnosis', prognoses: 'prognosis', crises: 'crisis', matrices: 'matrix', indices: 'index',
+  vertices: 'vertex', criteria: 'criterion', phenomena: 'phenomenon', spectra: 'spectrum', maxima: 'maximum',
+  minima: 'minimum', optima: 'optimum' }));
+export const stem = word => porter2(IRREGULAR.get(word) ?? word);
+// Inflected stop words (studies, methods, improved) are stop words too.
+const STOP_STEMS = new Set([...STOP].map(stem));
+const stems = text => new Set((typeof text === 'string' ? text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [] : []).map(stem));
 
 export function terms(...texts) {
   const words = texts.filter(t => typeof t === 'string').join(' ').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
-  return [...new Set(words.filter(w => w.length > 2 && !STOP.has(w)))].slice(0, 16);
+  const seen = new Set();
+  return words.filter(w => w.length > 2 && !STOP.has(w) && !STOP_STEMS.has(stem(w)) && !seen.has(stem(w)) && seen.add(stem(w))).slice(0, 16);
 }
-// Share of the candidate's first six terms (the research question comes first) that a title contains.
-export function relevance(title, candidateTerms) {
-  const scored = candidateTerms.slice(0, 6);
+// The scored terms: the candidate's terms that every seed title already contains name the shared
+// field (every citing work matches them), so they are left out; at most six, research question first.
+// The field is only inferred from two or more distinct titles: one title alone is the question's topic.
+export function scoringTerms(candidateTerms, seedTitles) {
+  const titles = [...new Set(seedTitles.filter(t => typeof t === 'string').map(t => t.toLowerCase()))].map(stems);
+  const specific = candidateTerms.filter(t => titles.length < 2 || !titles.every(s => s.has(stem(t))));
+  return (specific.length ? specific : candidateTerms).slice(0, 6);
+}
+// Share of the scored terms that a title contains.
+export function relevance(title, scoredTerms) {
+  const scored = scoredTerms.slice(0, 6);
   if (typeof title !== 'string' || !scored.length) return 0;
-  const words = new Set(title.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []);
-  return Math.round(scored.filter(t => words.has(t)).length / scored.length * 1000) / 1000;
+  const words = stems(title);
+  return Math.round(scored.filter(t => words.has(stem(t))).length / scored.length * 1000) / 1000;
 }
 
 // Seeds: the candidate's evidence papers with a resolvable OpenAlex identity.
@@ -95,13 +119,14 @@ export async function noveltyCheck(report, candidateId, graph) {
     seedWorks.push({ ...w, article_id: seed.article_id }); works.set(actionId(w), { ...w, seed: true });
   }
   if (!seedWorks.length) throw Error('no_openalex_seed');
+  const scored = scoringTerms(candidateTerms, seedWorks.map(w => w.title));
   const seen = new Set(seedWorks.map(w => w.openalex_id));
   const search = await agenticTreeSearch({ ...LIMITS,
     expand: async node => {
       if (node.depth === 0) return seedWorks.slice(0, LIMITS.maxChildren).map(w => ({ id: actionId(w), label: (w.title ?? w.openalex_id).slice(0, 120) }));
       const parent = works.get(node.actionId);
       const citing = (await graph.citing(parent.openalex_id)).filter(w => !seen.has(w.openalex_id))
-        .map(w => ({ ...w, relevance: relevance(w.title, candidateTerms) }))
+        .map(w => ({ ...w, relevance: relevance(w.title, scored) }))
         .sort((a, b) => b.relevance - a.relevance || (b.year ?? 0) - (a.year ?? 0) || b.cited_by_count - a.cited_by_count)
         .slice(0, LIMITS.maxChildren);
       for (const w of citing) { seen.add(w.openalex_id); works.set(actionId(w), w); }
@@ -110,7 +135,7 @@ export async function noveltyCheck(report, candidateId, graph) {
     // The score only orders the search; a title match is never treated as verification.
     evaluate: async node => {
       const w = works.get(node.actionId);
-      return { score: relevance(w.title, candidateTerms), verified: false, result: { openalex_id: w.openalex_id, year: w.year } };
+      return { score: relevance(w.title, scored), verified: false, result: { openalex_id: w.openalex_id, year: w.year } };
     } });
   // With an undated seed no work can be shown to predate every seed, so the cutoff is then off.
   const earliestSeedYear = seedWorks.some(w => w.year === null) ? -Infinity : Math.min(...seedWorks.map(w => w.year));
@@ -121,7 +146,7 @@ export async function noveltyCheck(report, candidateId, graph) {
     .map(({ seed, ...w }) => w);
   const strongest = leads[0] ?? null;
   return { schema_version: 'citation-novelty-1', parent_report_id: report.id, candidate_id: candidateId,
-    research_question: candidate.research_question.slice(0, 2000), terms: candidateTerms, seeds: seedWorks,
+    research_question: candidate.research_question.slice(0, 2000), terms: candidateTerms, scored_terms: scored, seeds: seedWorks,
     search: { algorithm: search.algorithm, limits: search.limits, evaluated_nodes: search.evaluatedNodes, exhausted: search.exhausted,
       openalex_requests: graph.requests, trace: search.trace.map(n => ({ id: n.id, depth: n.depth, score: n.score, openalex_id: n.result?.openalex_id ?? null })) },
     leads,
@@ -136,7 +161,7 @@ const md = v => String(v ?? '').replace(/[\\`*_[\]<>|]/g, '\\$&').replace(/\s+/g
 export function renderNovelty(r) {
   const status = r.novelty.status === 'possible_overlap_found' ? 'Möjlig överlappning hittad – granska ledtrådarna nedan.' : 'Ingen överlappning hittad inom sökbudgeten. Detta bevisar inte att frågan är ny.';
   return ['# Nyhetskontroll via citeringsgraf', '', `**Kandidat:** \`${r.candidate_id}\` (rapport \`${r.parent_report_id}\`)  `, `**Fråga:** ${md(r.research_question)}  `,
-    `**Status:** ${status}  `, `**Sökning:** ${r.search.evaluated_nodes} verk, ${r.search.openalex_requests} OpenAlex-anrop, termer: ${md(r.terms.join(', '))}`, '',
+    `**Status:** ${status}  `, `**Sökning:** ${r.search.evaluated_nodes} verk, ${r.search.openalex_requests} OpenAlex-anrop, räknade termer: ${md(r.scored_terms.join(', '))} (av ${md(r.terms.join(', '))})`, '',
     '## Utgångsartiklar', '', ...r.seeds.map(s => `- ${md(s.title ?? s.openalex_id)} (${s.year ?? '?'}, ${s.openalex_id})`), '',
     '## Senare verk att granska', '', '| Relevans | År | Titel | Citeringar | Steg |', '| ---: | ---: | --- | ---: | ---: |',
     ...(r.leads.length ? r.leads.map(l => `| ${l.relevance} | ${l.year ?? '?'} | [${md(l.title ?? l.openalex_id)}](${l.openalex_id}) | ${l.cited_by_count} | ${l.depth} |`) : ['| – | – | Inga citerande verk hittades | – | – |']),
