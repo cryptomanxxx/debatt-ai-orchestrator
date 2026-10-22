@@ -12,6 +12,7 @@ Välj experiment i Oraklets forskningslabb. `catalog-only` visar menyn utan mode
 | rankscreen-rank-deficit | rankscreen | Kan modellen hitta rangbrist och motsägelser bland beroende ekvationer? |
 | annihilator-recurrence | annihilator | Kan en rekursion rekonstruerad från träningsdata förklara undanhållna termer? |
 | mixalot-model-comparison | mixalot | Vilken av två specificerade modeller stöds av exakt bayesiansk evidens? |
+| ar1-power-design | statsmodels | Kan Oraklet utforma ett AR(1)-test inom fasta ramar och i förväg korrekt förutsäga när testet förkastar H0? |
 | statsmodels-ar1 | statsmodels | Finns lagg-1-beroende i en syntetisk tidsserie under det låsta AR(1)-protokollet? |
 | sympy-quadratic | sympy | Kan Oraklet ange exakt alla distinkta reella rötter och avvisa felaktiga rotmängder? |
 | sklearn-polynomial | scikit-learn | Vilken av två fasta regressionsmodeller väljs på separat valideringsdata och hur går det på testpunkterna? |

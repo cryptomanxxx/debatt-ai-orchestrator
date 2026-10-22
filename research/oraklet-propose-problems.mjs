@@ -13,6 +13,7 @@ export const CATALOG_DOMAINS=Object.freeze({
   'glucose-robustness':'synthetic-physiological-dynamics',
   'glucose-absorption':'synthetic-physiological-dynamics',
   'statsmodels-ar1':'time-series',
+  'ar1-power-design':'time-series',
   'pymc-gdp-ar1':'bayesian-inference',
   'ratfit-baseline':'symbolic-regression',
   'ratfit-feedback':'symbolic-regression',
