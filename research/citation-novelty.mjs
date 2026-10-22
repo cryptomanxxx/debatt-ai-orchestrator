@@ -18,12 +18,12 @@ export function terms(...texts) {
   const words = texts.filter(t => typeof t === 'string').join(' ').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
   return [...new Set(words.filter(w => w.length > 2 && !STOP.has(w)))].slice(0, 16);
 }
-// Share of the candidate's terms (at most six counted) that a title contains.
+// Share of the candidate's first six terms (the research question comes first) that a title contains.
 export function relevance(title, candidateTerms) {
-  if (typeof title !== 'string' || !candidateTerms.length) return 0;
+  const scored = candidateTerms.slice(0, 6);
+  if (typeof title !== 'string' || !scored.length) return 0;
   const words = new Set(title.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []);
-  const hits = candidateTerms.filter(t => words.has(t)).length;
-  return Math.min(1, Math.round(hits / Math.min(6, candidateTerms.length) * 1000) / 1000);
+  return Math.round(scored.filter(t => words.has(t)).length / scored.length * 1000) / 1000;
 }
 
 // Seeds: the candidate's evidence papers with a resolvable OpenAlex identity.
@@ -64,7 +64,8 @@ export function createOpenAlexGraph({ fetchImpl = fetch, apiKey = '', pause = ()
     },
     async citing(id) {
       const url = new URL('https://api.openalex.org/works');
-      url.searchParams.set('filter', 'cites:' + id.match(WORK)[1]);
+      // Retracted works never become leads.
+      url.searchParams.set('filter', `cites:${id.match(WORK)[1]},is_retracted:false`);
       url.searchParams.set('sort', 'publication_date:desc');
       url.searchParams.set('per-page', String(LIMITS.citingPerWork));
       url.searchParams.set('select', 'id,display_name,publication_year,cited_by_count');

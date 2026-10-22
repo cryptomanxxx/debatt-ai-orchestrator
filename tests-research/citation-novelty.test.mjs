@@ -31,6 +31,10 @@ test('terms and relevance are deterministic title overlaps', () => {
   assert.equal(relevance('Physics-informed networks for velocity', t), 0.667);
   assert.equal(relevance('Unrelated biology', t), 0);
   assert.equal(relevance(null, t), 0);
+  // Only the six scored terms count: terms beyond them can neither reach the threshold nor saturate it.
+  const many = ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'b1', 'b2', 'b3'];
+  assert.equal(relevance('b1 b2 b3', many), 0);
+  assert.equal(relevance('a1 a2 a3 b1 b2 b3', many), 0.5);
 });
 
 test('seeds are the candidate evidence papers with an OpenAlex identity', () => {
@@ -50,9 +54,9 @@ test('the search follows the most relevant citing works and flags a possible ove
   const r = await noveltyCheck(report, 'arp-fluid-state-estimation', graph);
   assert.equal(r.schema_version, 'citation-novelty-1');
   assert.equal(r.novelty.status, 'possible_overlap_found');
-  assert.deepEqual(r.leads.slice(0, 2).map(l => l.openalex_id), ['https://openalex.org/W501', 'https://openalex.org/W302'],
-    'equally relevant leads: newest first');
-  assert.equal(r.novelty.strongest.openalex_id, 'https://openalex.org/W501');
+  assert.deepEqual(r.leads.slice(0, 2).map(l => [l.openalex_id, l.relevance]), [['https://openalex.org/W302', 0.667], ['https://openalex.org/W501', 0.333]],
+    'only the six scored terms count, so the closer title leads');
+  assert.equal(r.novelty.strongest.openalex_id, 'https://openalex.org/W302');
   assert.ok(r.novelty.strongest.relevance >= OVERLAP_THRESHOLD);
   assert.ok(r.leads.some(l => l.openalex_id === 'https://openalex.org/W501' && l.depth === 3), 'second citation step is explored');
   assert.ok(!r.leads.some(l => l.openalex_id === 'https://openalex.org/W100'), 'seeds and loops are not leads');
@@ -80,7 +84,7 @@ test('the OpenAlex client builds bounded citation requests', async () => {
   } });
   assert.deepEqual(await graph.work('https://openalex.org/W1'), { openalex_id: 'https://openalex.org/W1', title: 'Seed', year: 2020, cited_by_count: 0 });
   assert.deepEqual((await graph.citing('https://openalex.org/W1')).map(w => w.openalex_id), ['https://openalex.org/W5']);
-  assert.match(urls[1], /filter=cites%3AW1&sort=publication_date%3Adesc&per-page=25/);
+  assert.match(urls[1], /filter=cites%3AW1%2Cis_retracted%3Afalse&sort=publication_date%3Adesc&per-page=25/);
   for (let i = 0; i < 1 + LIMITS.seeds + LIMITS.maxNodes - 2; i++) await graph.work('https://openalex.org/W1');
   await assert.rejects(graph.work('https://openalex.org/W1'), /openalex_request_budget_exceeded/);
   const failing = createOpenAlexGraph({ pause: async () => {}, fetchImpl: async () => new Response('x', { status: 429 }) });
