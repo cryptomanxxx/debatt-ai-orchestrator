@@ -74,6 +74,15 @@ test('no relevant later work means no overlap within budget, never proven novelt
   await assert.rejects(noveltyCheck(report, 'arp-fluid-state-estimation', fakeGraph({}, {})), /no_openalex_seed/);
 });
 
+test('an undated citing work stays a review lead', async () => {
+  const works = { 'https://openalex.org/W100': W(100, 'PINN', 2022), 'https://openalex.org/W200': W(200, 'Kalman', 2021) };
+  const undated = W(601, 'Physics informed networks reconstruct shallow water', null);
+  const r = await noveltyCheck(report, 'arp-fluid-state-estimation', fakeGraph({ 'https://openalex.org/W100': [undated, W(602, 'Physics informed networks', 2010)] }, works));
+  assert.deepEqual(r.leads.map(l => [l.openalex_id, l.year]), [['https://openalex.org/W601', null]], 'undated kept; older than every seed dropped');
+  assert.equal(r.novelty.status, 'possible_overlap_found');
+  assert.match(renderNovelty(r), /\| \? \|/);
+});
+
 test('the OpenAlex client builds bounded citation requests', async () => {
   const urls = [];
   const graph = createOpenAlexGraph({ pause: async () => {}, apiKey: 'k', fetchImpl: async (url, options) => {
@@ -87,6 +96,15 @@ test('the OpenAlex client builds bounded citation requests', async () => {
   assert.match(urls[1], /filter=cites%3AW1%2Cis_retracted%3Afalse&sort=publication_date%3Adesc&per-page=25/);
   for (let i = 0; i < 1 + LIMITS.seeds + LIMITS.maxNodes - 2; i++) await graph.work('https://openalex.org/W1');
   await assert.rejects(graph.work('https://openalex.org/W1'), /openalex_request_budget_exceeded/);
+  // A merged work redirects to its canonical OpenAlex record; a redirect off the API is refused.
+  const redirected = (url, body) => Object.defineProperty(Response.json(body), 'url', { value: url });
+  const merged = createOpenAlexGraph({ pause: async () => {}, fetchImpl: async (url, options) => {
+    assert.equal(options.redirect, 'follow');
+    return redirected('https://api.openalex.org/works/W9', { id: 'https://openalex.org/W9', display_name: 'Canonical', publication_year: 2021 });
+  } });
+  assert.equal((await merged.work('https://openalex.org/W1')).openalex_id, 'https://openalex.org/W9');
+  const offsite = createOpenAlexGraph({ pause: async () => {}, fetchImpl: async () => redirected('https://example.com/x', {}) });
+  await assert.rejects(offsite.work('https://openalex.org/W1'), /openalex_redirect_offsite/);
   const failing = createOpenAlexGraph({ pause: async () => {}, fetchImpl: async () => new Response('x', { status: 429 }) });
   await assert.rejects(failing.citing('https://openalex.org/W1'), /openalex_http_429/);
 });

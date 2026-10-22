@@ -48,7 +48,9 @@ export function createOpenAlexGraph({ fetchImpl = fetch, apiKey = '', pause = ()
   async function get(url) {
     if (++requests > 1 + LIMITS.seeds + LIMITS.maxNodes) throw Error('openalex_request_budget_exceeded');
     await pause();
-    const response = await fetchImpl(url, { redirect: 'error', signal: AbortSignal.timeout(20000), headers: apiKey ? { Authorization: 'Bearer ' + apiKey } : {} });
+    // A merged OpenAlex work redirects to its canonical record; only redirects within the API are followed.
+    const response = await fetchImpl(url, { redirect: 'follow', signal: AbortSignal.timeout(20000), headers: apiKey ? { Authorization: 'Bearer ' + apiKey } : {} });
+    if (response.url && new URL(response.url).origin !== 'https://api.openalex.org') { await response.body?.cancel(); throw Error('openalex_redirect_offsite'); }
     if (!response.ok) { await response.body?.cancel(); throw Error('openalex_http_' + response.status); }
     return boundedJson(response, 2_000_000);
   }
@@ -105,7 +107,8 @@ export async function noveltyCheck(report, candidateId, graph) {
     } });
   const earliestSeedYear = Math.min(...seedWorks.map(w => w.year ?? Infinity));
   const leads = search.trace.map(n => ({ ...works.get(n.actionId), depth: n.depth, relevance: n.score }))
-    .filter(w => !w.seed && (w.year ?? 0) >= (Number.isFinite(earliestSeedYear) ? earliestSeedYear : 0))
+    // Undated works stay as review leads; a dated work older than every seed cannot be later work.
+    .filter(w => !w.seed && (w.year === null || !Number.isFinite(earliestSeedYear) || w.year >= earliestSeedYear))
     .sort((a, b) => b.relevance - a.relevance || (b.year ?? 0) - (a.year ?? 0)).slice(0, 10)
     .map(({ seed, ...w }) => w);
   const strongest = leads[0] ?? null;
