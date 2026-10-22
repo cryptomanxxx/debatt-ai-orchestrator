@@ -18,6 +18,7 @@ on:
           - rankscreen-rank-deficit
           - annihilator-recurrence
           - mixalot-model-comparison
+          - ar1-power-design
           - statsmodels-ar1
           - sympy-quadratic
           - sklearn-polynomial
