@@ -59,8 +59,9 @@ jobs:
         env:
           TOKEN: ${{ steps.app.outputs.token }}
         run: |
-          day=$(date -u +%F)
-          mkdir -p "$RUNNER_TEMP/ai-bus" && cp ai-bus/*.md "$RUNNER_TEMP/ai-bus/"
+          # Only the two files this run generated are kept; other ai-bus files are never touched.
+          day=$(node -p "require('./reports/literature-day/day.json').date")
+          mkdir -p "$RUNNER_TEMP/ai-bus" && cp "ai-bus/${day}.md" ai-bus/senaste.md "$RUNNER_TEMP/ai-bus/"
           git config user.name 'debatt-ai-model-menu[bot]'
           git config user.email 'debatt-ai-model-menu[bot]@users.noreply.github.com'
           git remote set-url origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
@@ -68,8 +69,8 @@ jobs:
           publish() {
             git fetch --depth=1 origin main
             git reset -q --hard origin/main
-            mkdir -p ai-bus && cp "$RUNNER_TEMP"/ai-bus/*.md ai-bus/
-            git add ai-bus/
+            mkdir -p ai-bus && cp "$RUNNER_TEMP/ai-bus/${day}.md" "$RUNNER_TEMP/ai-bus/senaste.md" ai-bus/
+            git add "ai-bus/${day}.md" ai-bus/senaste.md
             git diff --cached --quiet && exit 0
             git commit -q -m "chore(ai-bus): Professor Oraklets dag ${day}"
             git push origin HEAD:main

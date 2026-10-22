@@ -28,7 +28,7 @@ The day's field alternates by UTC date:
    - `ai-bus/ÅÅÅÅ-MM-DD.md` and `ai-bus/senaste.md` are committed to `main`, using the model-menu app that is already allowed to push there. Only a run of `main` publishes, and the commit contains only the report on top of the latest `main`.
    - `reports/literature-day/day.json` and all tool reports go to the run artifact.
 
-A stage that fails is recorded in the day's report and the remaining stages still run. The run is then marked failed after the report has been committed.
+A stage that fails or misses its deadline (pipeline 35 minutes, each other stage 2–3 minutes) is recorded in the day's report and the remaining stages still run. A summary figure whose stage failed is shown as unknown, never as zero. The publish step commits only the two files this run generated. The run is then marked failed after the report has been committed.
 
 ## What the report claims
 

@@ -126,3 +126,19 @@ test('main writes the dated and latest ai-bus files and the day record', async (
     assert.equal(JSON.parse(await readFile(join(dir, 'reports/literature-day/day.json'), 'utf8')).date, '2026-10-24');
   } finally { process.chdir(cwd); await rm(dir, { recursive: true, force: true }); }
 });
+
+test('a stalled stage misses its deadline, is recorded, and the rest of the day still runs', async () => {
+  const day = await runLiteratureDay({}, { date: '2026-10-24', deadlines: { pipeline: 20, tree: 20, novelty: 20, problem_bank: 20, lab: 20 },
+    pipeline: () => new Promise(() => {}), tree: () => assert.fail(), novelty: () => assert.fail(),
+    register: () => new Promise(() => {}), labReports: async () => ({ runs: [], truncated: false }) });
+  assert.deepEqual(day.pipeline, { status: 'error', code: 'pipeline_deadline_exceeded' });
+  assert.deepEqual(day.problem_bank, { status: 'error', code: 'problem_bank_deadline_exceeded' });
+  assert.deepEqual(day.errors, ['pipeline', 'problem_bank']);
+  const md = renderAiBus({ ...day, model_budget: 10, lab: { status: 'error', code: 'lab_reports_unavailable' } });
+  assert.match(md, /- \*\*Litteratur:\*\* okänt; pipelinen misslyckades innan något sparades\./);
+  assert.match(md, /- \*\*Problem Bank:\*\* okänt; registreringen misslyckades\./);
+  assert.match(md, /- \*\*Experiment senaste dygnet:\*\* okänt; labbrapporterna kunde inte läsas\./);
+  assert.doesNotMatch(md, /0 nya problem|0 körningar/);
+  assert.match(renderAiBus({ date: '2026-10-24', field: 'Causal inference', model_budget: 10, errors: ['pipeline'],
+    pipeline: pipelineReport({ status: 'error' }), lab: { runs: [], truncated: false } }), /\(pipelinen avbröts; siffrorna gäller det som hann sparas\) 40 träffar/);
+});

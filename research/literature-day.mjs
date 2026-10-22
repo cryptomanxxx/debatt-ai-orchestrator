@@ -75,27 +75,38 @@ export async function readRecentLabReports(serviceKey, since, fetchImpl = fetch)
 }
 
 const fail = error => ({ status: 'error', code: /^[a-z_]{3,60}$/.test(error?.message ?? '') ? error.message : 'stage_failed' });
+// Each stage has a deadline inside the 60-minute job, so the report is always written even when a
+// provider or database stalls. The CLI exits after writing, so a stage still pending cannot hold the job.
+export const STAGE_DEADLINES_MS = Object.freeze({ pipeline: 35 * 60_000, tree: 3 * 60_000, novelty: 3 * 60_000,
+  problem_bank: 3 * 60_000, lab: 2 * 60_000 });
+const within = (name, promise, deadlines) => {
+  let timer;
+  return Promise.race([promise, new Promise((_, reject) => {
+    timer = setTimeout(() => reject(Error(name + '_deadline_exceeded')), deadlines[name]);
+  })]).finally(() => clearTimeout(timer));
+};
 const stage = (p, name) => p?.stages?.find(s => s.name === name) ?? null;
 
-export async function runLiteratureDay(env, { date, now = new Date().toISOString(), pipeline, tree, novelty, register, labReports }) {
+export async function runLiteratureDay(env, { date, now = new Date().toISOString(), pipeline, tree, novelty, register, labReports, deadlines = STAGE_DEADLINES_MS }) {
   const field = fieldForDate(date);
   const day = { schema_version: 'oraklet-literature-day-1', date, field, model_budget: DAILY_MODEL_BUDGET };
   try {
-    day.pipeline = await pipeline({ ...env, RESEARCH_AREA: field, PIPELINE_MODEL_BUDGET: String(DAILY_MODEL_BUDGET),
-      PIPELINE_REQUEST_ID: '', RESEARCH_DASHBOARD_ENABLED: 'false' });
+    day.pipeline = await within('pipeline', pipeline({ ...env, RESEARCH_AREA: field, PIPELINE_MODEL_BUDGET: String(DAILY_MODEL_BUDGET),
+      PIPELINE_REQUEST_ID: '', RESEARCH_DASHBOARD_ENABLED: 'false' }), deadlines);
   } catch (error) { day.pipeline = fail(error); }
   const initialId = stage(day.pipeline, 'initial_evidence')?.report_id ?? null;
   const candidateId = day.pipeline?.candidate_id ?? null;
   if (initialId) {
-    try { day.tree = await tree({ ...env, RESEARCH_TREE_REPORT_ID: initialId, RESEARCH_TREE_INPUT_FILE: '' }); }
+    try { day.tree = await within('tree', tree({ ...env, RESEARCH_TREE_REPORT_ID: initialId, RESEARCH_TREE_INPUT_FILE: '' }), deadlines); }
     catch (error) { day.tree = fail(error); }
   }
   if (initialId && candidateId) {
-    try { day.novelty = await novelty({ ...env, PLANNER_REPORT_ID: initialId, RESEARCH_CANDIDATE_ID: candidateId }); }
+    try { day.novelty = await within('novelty', novelty({ ...env, PLANNER_REPORT_ID: initialId, RESEARCH_CANDIDATE_ID: candidateId }), deadlines); }
     catch (error) { day.novelty = fail(error); }
   }
-  try { day.problem_bank = await register(env); } catch (error) { day.problem_bank = fail(error); }
-  try { day.lab = await labReports(env, new Date(Date.parse(now) - 86_400_000).toISOString()); } catch (error) { day.lab = fail(error); }
+  try { day.problem_bank = await within('problem_bank', register(env), deadlines); } catch (error) { day.problem_bank = fail(error); }
+  try { day.lab = await within('lab', labReports(env, new Date(Date.parse(now) - 86_400_000).toISOString()), deadlines); }
+  catch (error) { day.lab = fail(error); }
   day.errors = ['pipeline', 'tree', 'novelty', 'problem_bank', 'lab'].filter(k => day[k]?.status === 'error');
   return day;
 }
@@ -124,9 +135,12 @@ export function renderAiBus(day) {
     '*Skriven automatiskt av Oraklets dagliga litteraturforskning. Siffrorna kommer från sparade rapporter, inte från en modells egen sammanfattning. Kandidater och hypoteser är overifierade; inget här påstår en ny vetenskaplig upptäckt.*', '',
     '## Sammanfattning', '',
     `- **Fält i dag:** ${FIELD_NAMES[day.field] ?? md(day.field)}${p.query ? ` (sökfråga: ${md(p.query, 120)})` : ''}`,
-    `- **Litteratur:** ${num(collection?.metadata?.returned_records)} träffar hittade, ${num(collection?.abstracts?.available)} sammanfattningar arkiverade, ${analyzed} sammanfattningar analyserade, ${findings} citerade fynd. Modellanrop: ${num(p.budget?.known_model_calls)} av ${day.model_budget}.`,
+    !Array.isArray(p.stages) ? '- **Litteratur:** okänt; pipelinen misslyckades innan något sparades.' :
+    `- **Litteratur:**${p.status === 'error' ? ' (pipelinen avbröts; siffrorna gäller det som hann sparas)' : ''} ${num(collection?.metadata?.returned_records)} träffar hittade, ${num(collection?.abstracts?.available)} sammanfattningar arkiverade, ${analyzed} sammanfattningar analyserade, ${findings} citerade fynd. Modellanrop: ${num(p.budget?.known_model_calls)} av ${day.model_budget}.`,
     `- **Ny hypoteskandidat:** ${p.candidate ? '1' : 'ingen'}${queue.length ? `; granskningskö med ${queue.length} förslag till studier` : ''}`,
+    day.problem_bank?.status === 'error' ? '- **Problem Bank:** okänt; registreringen misslyckades.' :
     `- **Problem Bank:** ${bank.filter(b => b.action === 'registered').length} nya problem registrerade automatiskt, ${bank.filter(b => b.action === 'requires_human_approval').length} väntar på ditt godkännande`,
+    day.lab?.status === 'error' ? '- **Experiment senaste dygnet:** okänt; labbrapporterna kunde inte läsas.' :
     `- **Experiment ${labScope}:** ${lab.length} körningar, ${lab.reduce((n, r) => n + r.passed, 0)} av ${lab.reduce((n, r) => n + r.cases, 0)} fall godkända`,
     ...(day.errors?.length ? [`- **Driftfel:** ${day.errors.map(e => md(e, 30)).join(', ')} (se nedan)`] : []), ''];
 
@@ -226,6 +240,7 @@ export async function main(env = process.env, { now = new Date().toISOString(), 
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().then(day => { if (day.errors.length) process.exitCode = 2; })
-    .catch(() => { console.error('Literature day failed before its report was written.'); process.exitCode = 1; });
+  // Exit explicitly: a stage that missed its deadline may still hold open requests.
+  main().then(day => process.exit(day.errors.length ? 2 : 0))
+    .catch(() => { console.error('Literature day failed before its report was written.'); process.exit(1); });
 }
