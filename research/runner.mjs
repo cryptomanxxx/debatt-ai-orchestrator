@@ -105,8 +105,11 @@ try {
   }
   plan = await choosePlan(selection, seed, history, planningPropose, modelModes, researchChoices, openProblems.open.map(o => o.summary), knowledge);
   // How the choice relates to the register is committed with the plan, before any experiment call.
+  const { knowledgeShown, ...chosen } = plan;
+  plan = chosen;
   if (selection === 'auto') plan.knowledge = register
-    ? { source: VEM_SCHEMA, runs: register.runs, ...knowledgeChoice(knowledge, offered, plan.experimentId) }
+    ? { source: VEM_SCHEMA, runs: register.runs, ...knowledgeChoice(knowledge, offered, plan.experimentId),
+      shown: knowledgeShown ?? { entries: 0, omitted: 0, chosenShown: false } }
     : { source: VEM_SCHEMA, unavailable: true };
   // An approved Problem Bank problem the plan works on is committed with the plan, with its literature support.
   linkedProblem = plan.problemBankId ? openProblems.open.find(o => o.summary.problemBankId === plan.problemBankId) ?? null : null;

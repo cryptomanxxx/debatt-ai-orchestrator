@@ -51,7 +51,7 @@ Oraklet plans with his memory. Before the daily lab (`EXPERIMENT=auto`) chooses 
 
 - **Priority.** The lab, not the model, orders the entries by learning priority `(rejected + unresolved + 1) / (claims + 2)`. An experiment without claims scores 0.5. Claims that did not hold raise the score, and repeated support lowers it.
 - **Instruction.** The planner is asked to prefer experiments whose claims were rejected or are unresolved, or where evidence is missing, and to say in `reason` what it wants to learn.
-- **Fit.** If the request would exceed the planner limit, entries beyond the five highest priorities are dropped before open problems and ranked models.
+- **Fit.** If the request would exceed the planner limit, entries beyond the five highest priorities are dropped before open problems and ranked models. The planner is then told how many entries were left out (`knowledgeOmitted`), so a missing entry is never read as "no claims". `plan.knowledge.shown` records how many entries the planner saw and whether the chosen experiment's entry was among them.
 - **Recorded choice.** The choice is committed with the plan as `plan.knowledge`, before any experiment call. It holds the chosen experiment's claims, its learning priority and its rank among the offered experiments; rank 1 means nothing had a higher priority. The report shows the same line ("Kunskapsminne: …"), so it can be measured whether Oraklet steers by what he has learned.
 - **Outage.** If the register cannot be read, the planner chooses without it, and the plan records `unavailable`.
 

@@ -49,11 +49,20 @@ test('register entries shrink from the lowest priority, after literature and bef
   const knowledge = Object.fromEntries(offered.map((id, i) => [id, [i, 1, 1]]));
   const open = Array.from({ length: 3 }, (_, i) => ({ problemBankId: 'p-' + i, version: 1, experimentId: 'glucose-robustness',
     literature: { researchQuestion: 'q'.repeat(300), articles: 20, reportedLimitations: 5 } }));
-  const fitted = fitPlannerContext(history, '123456789', ['default'], {}, open, MAX_PLANNER_CHARS, knowledge);
-  assert.ok(JSON.stringify(plannerPrompt(history, '123456789', ['default'], fitted.researchChoices, fitted.openProblems, fitted.knowledge)).length <= MAX_PLANNER_CHARS);
+  const choices = Object.fromEntries(['symbolic', 'probability', 'causal', 'statistics', 'discrete'].map(d =>
+    [d, [0, 1, 2].map(i => ({ choice: 'hip / Model-' + d + i, provider: 'hip', model: 'Model-' + d + i, correct: 8, attempts: 8 }))]));
+  const fitted = fitPlannerContext(history, '123456789', ['default'], choices, open, MAX_PLANNER_CHARS, knowledge);
+  assert.ok(JSON.stringify(plannerPrompt(history, '123456789', ['default'], fitted.researchChoices, fitted.openProblems, fitted.knowledge, fitted.knowledgeOmitted)).length <= MAX_PLANNER_CHARS);
   assert.deepEqual(Object.keys(fitted.knowledge), Object.keys(knowledge).slice(0, Object.keys(fitted.knowledge).length), 'the first (highest-priority) entries are kept');
   assert.ok(Object.keys(fitted.knowledge).length >= 5 || fitted.openProblems.length === 0, 'five entries are kept before problems are dropped');
-  assert.deepEqual(fitPlannerContext([], '1', ['default'], {}, [], MAX_PLANNER_CHARS, knowledge).knowledge, knowledge, 'nothing is cut when it fits');
+  assert.equal(fitted.knowledgeOmitted, offered.length - Object.keys(fitted.knowledge).length);
+  assert.ok(fitted.knowledgeOmitted > 0, 'the worst case cuts register entries');
+  const sentPrompt = plannerPrompt(history, '123456789', ['default'], fitted.researchChoices, fitted.openProblems, fitted.knowledge, fitted.knowledgeOmitted);
+  assert.equal(JSON.parse(sentPrompt[1].content).knowledgeOmitted, fitted.knowledgeOmitted, 'absence is not presented as "no claims"');
+  assert.match(sentPrompt[0].content, /utom de knowledgeOmitted lägre prioriterade som utelämnats/);
+  const whole = fitPlannerContext([], '1', ['default'], {}, [], MAX_PLANNER_CHARS, knowledge);
+  assert.deepEqual([whole.knowledge, whole.knowledgeOmitted], [knowledge, 0], 'nothing is cut when it fits');
+  assert.ok(!JSON.stringify(plannerPrompt([], '1', ['default'], {}, [], knowledge, 0)).includes('knowledgeOmitted'));
   // A realistic day: the full register for every automatic experiment, ranked models and two problems fit.
   const realistic = fitPlannerContext(Array.from({ length: 10 }, (_, i) => ({ titel: 'Oraklets experiment ' + i, status: 'passed', seed: String(i), experimentId: offered[i] })),
     '20261023', ['default'], { causal: [{ choice: 'hip / M', provider: 'hip', model: 'M', correct: 5, attempts: 6 }] }, open.slice(0, 2), MAX_PLANNER_CHARS, knowledge);
@@ -67,6 +76,11 @@ test('choosePlan passes the fitted register to the model; manual runs never read
     ['default'], {}, [], { 'sympy-quadratic': [0, 2, 0] });
   assert.deepEqual(JSON.parse(sent[1].content).knowledge, { 'sympy-quadratic': [0, 2, 0] });
   assert.equal((await choosePlan('sympy-quadratic', '5', [], () => assert.fail(), ['default'], {}, [], { x: [1, 1, 1] })).experimentId, 'sympy-quadratic');
+  const plan = await choosePlan('auto', '5', [], async () => ({ text: JSON.stringify({ experimentId: 'sympy-quadratic', seed: '5', reason: 'R.' }) }),
+    ['default'], {}, [], { 'sympy-quadratic': [0, 2, 0] });
+  assert.deepEqual(plan.knowledgeShown, { entries: 1, omitted: 0, chosenShown: true });
+  const line = knowledgeLine({ runs: 9, claims: [5, 0, 0], priority: 0.1429, rank: 20, of: 20, shown: { entries: 6, omitted: 10, chosenShown: false } });
+  assert.match(line, /Planeringen såg 6 poster \(10 utelämnade för utrymmet\); det valda experimentets post var bland de utelämnade\./);
 });
 
 test('the daily lab plans with the register, commits the choice with the plan and reports it', async () => {
@@ -98,7 +112,9 @@ globalThis.fetch=async(url,options={})=>{
     const planner = JSON.parse(await readFile(join(dir, 'planner.json'), 'utf8'));
     assert.deepEqual(JSON.parse(planner[1].content).knowledge, { 'sympy-quadratic': [0, 2, 0] });
     const saved = JSON.parse(await readFile(join(dir, 'saved.json'), 'utf8')).rapport;
-    assert.deepEqual(saved.plan.knowledge, { source: VEM_SCHEMA, runs: 1, claims: null, priority: 0.5, rank: 2, of: offered.length });
+    assert.deepEqual(saved.plan.knowledge, { source: VEM_SCHEMA, runs: 1, claims: null, priority: 0.5, rank: 2, of: offered.length,
+      shown: { entries: 1, omitted: 0, chosenShown: false } });
+    assert.equal(saved.plan.knowledgeShown, undefined, 'folded into plan.knowledge');
     const plan = JSON.parse(await readFile(join(dir, 'reports/oraklet-lab/plan.json'), 'utf8'));
     assert.deepEqual(plan.plan.knowledge, saved.plan.knowledge, 'committed with the plan before the experiment');
     assert.match(await readFile(join(dir, 'reports/oraklet-lab/report.md'), 'utf8'), /Kunskapsminne: planeringen såg registret från 1 körningar\. Valt experiment: inga tidigare påståenden; lärprioritet 0.5, plats 2 av/);

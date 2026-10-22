@@ -110,7 +110,8 @@ export function knowledgeLine(k) {
   if (!k) return '';
   if (k.unavailable) return '\nKunskapsminne: VEM-Sci-registret kunde inte läsas; planeringen valde utan det.\n';
   const claims = k.claims ? `${k.claims[0]}/${k.claims[1]}/${k.claims[2]} (stödda/avvisade/olösta)` : 'inga tidigare påståenden';
-  return `\nKunskapsminne: planeringen såg registret från ${k.runs} körningar. Valt experiment: ${claims}; lärprioritet ${k.priority}, plats ${k.rank} av ${k.of}.\n`;
+  const shown = k.shown?.omitted ? ` Planeringen såg ${k.shown.entries} poster (${k.shown.omitted} utelämnade för utrymmet)${k.claims && !k.shown.chosenShown ? '; det valda experimentets post var bland de utelämnade' : ''}.` : '';
+  return `\nKunskapsminne: planeringen såg registret från ${k.runs} körningar. Valt experiment: ${claims}; lärprioritet ${k.priority}, plats ${k.rank} av ${k.of}.${shown}\n`;
 }
 
 export const REGISTER_LIMIT = 200;
