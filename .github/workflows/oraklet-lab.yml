@@ -52,8 +52,8 @@ concurrency:
 jobs:
   experiment:
     runs-on: ubuntu-latest
-    # Seven ranked-model calls may each take up to 80 s through the research gateway.
-    timeout-minutes: 15
+    # Seven ranked-model calls may each take up to 80 s through the research gateway, plus the bare arm.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -123,6 +123,12 @@ jobs:
           else
             node research/runner.mjs
           fi
+      - name: Samma modell utan labbet (rak fråga)
+        if: success() && inputs.problem_bank_id == '' && (inputs.experiment != 'catalog-only')
+        env:
+          ORCHESTRATOR_API_KEY: ${{ secrets.ORCHESTRATOR_API_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node research/bare-baseline.mjs
       - name: Rita kurvanpassning och prognoser även för sparade delresultat
         if: always() && (inputs.experiment == 'insulin-curve-shape' || steps.resolved.outputs.experiment == 'insulin-curve-shape' || inputs.experiment == 'insulin-external-curve' || steps.resolved.outputs.experiment == 'insulin-external-curve')
         run: python3 scripts/plot_insulin_curves.py reports/oraklet-lab/report.json

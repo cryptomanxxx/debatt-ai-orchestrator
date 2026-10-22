@@ -104,3 +104,23 @@ globalThis.fetch=async(url,options={})=>{
     }
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test('bare arm: same DoWhy cases with diagram and data but no lab prompt, scored against the lab evidence', async () => {
+  const { runBareBaseline } = await import('../research/bare-baseline.mjs');
+  let index = 0;
+  const lab = await runDowhyExperiment(seed, async () => ({ text: JSON.stringify(answer(fixtures[index++])), provider: 'test', model: 'same' }), callDowhy, () => {});
+  const report = { ...lab, experimentId: 'dowhy-backdoor', executionStatus: 'completed' }, sent = [];
+  index = 0;
+  const bare = await runBareBaseline(report, async messages => {
+    sent.push(messages); const f = fixtures[index++];
+    return { provider: 'test', model: 'same', text: index === 3 ? 'not json' : JSON.stringify(index === 2 ? { ...answer(f), adjustment: [] } : answer(f)) };
+  });
+  assert.equal(bare.status, 'completed');
+  assert.deepEqual(bare.cases.map(c => [c.labPassed, c.barePassed, c.formatProblem]), [[true, true, null], [true, false, null], [true, false, 'invalid_answer']]);
+  for (const [i, m] of sent.entries()) {
+    const visible = JSON.parse(m[1].content);
+    assert.deepEqual(Object.keys(visible).sort(), ['columns', 'graph', 'rows']);
+    assert.deepEqual(visible.rows, fixtures[i].input.rows);
+    assert.doesNotMatch(m[0].content, /Oraklet/);
+  }
+});

@@ -65,3 +65,16 @@ globalThis.fetch=async(url,options={})=>{
     assert.ok((await readFile(join(dir,'reports/oraklet-lab/report.md'),'utf8')).includes('Rötter:'));
   }finally{await rm(dir,{recursive:true,force:true});}
 });
+
+test('bare arm: same SymPy cases without the lab prompt, scored against the lab evidence',async()=>{
+  const { runBareBaseline }=await import('../research/bare-baseline.mjs');
+  let index=0;
+  const lab=await runSympyExperiment(seed,async()=>({text:JSON.stringify(answer(fixtures[index++])),provider:'test',model:'same'}),callSympy,()=>{});
+  const report={...lab,experimentId:'sympy-quadratic',executionStatus:'completed'},sent=[];
+  index=0;
+  const bare=await runBareBaseline(report,async messages=>{sent.push(messages);const f=fixtures[index++];
+    return {provider:'test',model:'same',text:JSON.stringify(index===2?{...answer(f),roots:[]}:answer(f))};});
+  assert.equal(bare.status,'completed');
+  assert.deepEqual(bare.cases.map(c=>[c.labPassed,c.barePassed]),[[true,true],[true,false],[true,true]]);
+  for(const [i,m] of sent.entries()){assert.deepEqual(JSON.parse(m[1].content),{coefficients:fixtures[i].input.coefficients});assert.doesNotMatch(m[0].content,/Oraklet/);}
+});

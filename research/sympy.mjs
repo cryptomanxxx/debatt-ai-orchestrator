@@ -52,6 +52,7 @@ export function makeSympyCases(seed){
 }
 export function parseSympyProposal(text){try{const p=JSON.parse(text);if(!p||Object.keys(p).sort().join(',')!=='method,reason,roots'||p.method!=='sympy'
   ||typeof p.reason!=='string'||!p.reason.trim()||p.reason.length>800)return null;return {...p,roots:canonicalRoots(p.roots),reason:p.reason.trim()};}catch{return null;}}
+export const sympyPasses=(proposal,measured)=>JSON.stringify(proposal.roots)===JSON.stringify(measured.roots);
 export async function runSympyExperiment(seed,propose,callTool,onCommit,options={}){
   const fixtures=makeSympyCases(seed),cases=[];
   await onCommit(fixtures.map(f=>({case:f.id,sha256:f.commitment,protocol:SYMPY_PROTOCOL})));
@@ -62,7 +63,7 @@ export async function runSympyExperiment(seed,propose,callTool,onCommit,options=
     operation='positive_control';const evidence=await callTool(f.input),measured=validateSympy(evidence,f.input);
     operation='negative_control';const controlEvidence=await callTool(f.control),control=validateSympy(controlEvidence,f.control);
     if(!measured.accepted||control.accepted)invalid();
-    const passed=JSON.stringify(proposal.roots)===JSON.stringify(measured.roots);
+    const passed=sympyPasses(proposal,measured);
     cases.push({case:f.id,commitment:f.commitment,data:f.input,controlData:f.control,truth:f.truth,proposal,provider:ai.provider,model:ai.model,evidence,controlEvidence,
       hypothesisTest:{protocol:SYMPY_PROTOCOL,decision:measured.decision,measured,independentlyVerified:true,familyInference:null},
       initialPassed:passed,passed,correctionAttempted:false,sameModel:true});
