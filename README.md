@@ -68,6 +68,8 @@ The [daily literature collector](research/LITERATURE-COLLECTION.md) refreshes th
 
 The manual [evidence registry](research/LITERATURE-EVIDENCE-REGISTRY.md) stores version-bound, quote-checked abstract interpretations and reuses identical analyses without another model call. Research candidates include explicit gap-review tasks, structured experiment drafts and evidence requirements for six portfolio dimensions. The separate [bounded follow-up workflow](research/LITERATURE-FOLLOW-UP.md) searches for related-work metadata and persists traceable review leads for one selected candidate. Novelty and portfolio scores remain unknown; experiment execution remains disabled.
 
+The manual [citation-graph novelty check](research/CITATION-NOVELTY.md) runs a bounded tree search over later work citing a candidate's evidence papers in OpenAlex and lists possible overlaps for review; finding none within the budget does not establish novelty.
+
 The [one-start research pipeline](research/RESEARCH-PIPELINE.md) chains collection, initial analysis, candidate selection, follow-up search and final analysis. Choose a research area and a total budget of 5 or 10 model calls; internal IDs are carried automatically. Follow-up analysis requires both method and problem/solution title anchors and records insufficient relevant hits without spending inference calls when none qualify. The pipeline starts manually and executes no experiments.
 
 ## Research dashboard
