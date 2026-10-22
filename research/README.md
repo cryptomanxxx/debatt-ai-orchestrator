@@ -1,5 +1,7 @@
 # Oraklets dagliga forskningslabb
 
+Gratismodellerna (HIP/Blablador) begränsar täta anrop (HTTP 429). Labbet väntar därför 10 sekunder mellan modellanropen. En fråga som misslyckas tillfälligt, genom 429, ett annat fel hos leverantören eller en bruten anslutning, ställs en gång till efter 45 sekunder, högst tre gånger per körning. Upprepningen är samma fråga och inte ett nytt svar. Den räknas inte mot budgeten på sju modellanrop, men rapporten anger hur många upprepningar körningen gjorde (`modelRetries`). Se `lab-client.mjs`.
+
 Efter varje slutförd körning av ett stött experiment svarar samma modell på samma fall som en rak fråga, utan labbets
 instruktioner, kalibrering eller korrigering. Båda svaren bedöms av experimentets verifierare. Se [labbet mot rak fråga](BARE-BASELINE.md).
 

@@ -54,8 +54,9 @@ jobs:
   experiment:
     runs-on: ubuntu-latest
     # Seven ranked-model calls may each take up to 80 s through the research gateway (about 9 min),
-    # plus the bare arm's own step limit and dependency installation.
-    timeout-minutes: 30
+    # plus 10 s spacing and up to three repeated calls after 45 s pauses (about 7 min), the bare
+    # arm's own step limit and dependency installation.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -119,6 +120,10 @@ jobs:
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           PROBLEM_BANK_ID: ${{ inputs.problem_bank_id }}
           PROBLEM_BANK_VERSION: ${{ inputs.problem_bank_version || '1' }}
+          # Free models rate-limit bursts: 10 s between model calls, 45 s before repeating a
+          # request that failed transiently (at most three per run; see research/lab-client.mjs).
+          LAB_SPACING_MS: '10000'
+          LAB_RETRY_DELAY_MS: '45000'
         run: |
           if [ -n "$PROBLEM_BANK_ID" ]; then
             node research/run-problem-bank-oraklet.mjs

@@ -209,6 +209,7 @@ test('the lab runner runs ACT-MAP end to end and saves the VEM-Sci register with
     const preload = join(dir, 'mock.mjs');
     await writeFile(preload, `
 import {writeFile,appendFile} from 'node:fs/promises';
+let limited=false;
 globalThis.fetch=async(url,options={})=>{
  const u=String(url);
  if(u.includes('supabase.co')){
@@ -216,6 +217,8 @@ globalThis.fetch=async(url,options={})=>{
   return Response.json([]);
  }
  const messages=JSON.parse(JSON.parse(options.body).message).messages, content=JSON.parse(messages[1].content);
+ // The provider rate-limits the third request once; the lab repeats it after a pause.
+ if(content.results&&!limited){limited=true;return Response.json({error:'model_upstream_http_error',upstreamStatus:429},{status:502});}
  await appendFile('calls.txt',(content.results?'inference':'design')+(messages.some(m=>m.content.includes('confidence'))?'+confidence':'')+'\\n');
  const answer=content.results?{decision:'none',mapping:null,interventions:null,reason:'Test.',confidence:0.9}
   :{experiments:content.targetInterventions.map(i=>({intervention:i,value:1})),reason:'Test.'};
@@ -228,6 +231,7 @@ globalThis.fetch=async(url,options={})=>{
     const saved = JSON.parse(await readFile(join(dir, 'saved.json'), 'utf8')).rapport;
     assert.equal(saved.experimentId, 'act-map-transfer');
     assert.equal(saved.modelCalls, 6);
+    assert.equal(saved.modelRetries, 1, 'the rate-limited request was repeated, not counted as another answer');
     assert.equal(saved.vem.claims.length, 3);
     assert.ok(saved.vem.claims.every(c => c.kind === 'abstention' && c.status === 'unresolved'));
     assert.deepEqual((await readFile(join(dir, 'calls.txt'), 'utf8')).trim().split('\n'),
@@ -235,6 +239,7 @@ globalThis.fetch=async(url,options={})=>{
     assert.equal(saved.calibration.scoredCases, 3);
     const markdown = await readFile(join(dir, 'reports/oraklet-lab/report.md'), 'utf8');
     assert.match(markdown, /## ACT-MAP: Oraklet mot uppräkningsbaslinjen/);
+    assert.match(markdown, /Modellanrop: 6\/7 \(1 upprepade efter tillfälligt fel\)/);
     assert.match(markdown, /VEM-Sci: 3 påståenden i registret: 0 preliminärt stödda, 0 avvisade, 3 olösta/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
