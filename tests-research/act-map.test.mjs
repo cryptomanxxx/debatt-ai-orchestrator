@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ACT_MAP_PROTOCOL, makeActMapCases, publicTask, intervene, gateDecision, callActMap, validateActMap,
-  checkDesign, checkInference, designMessages, inferenceMessages, runActMapExperiment, actMapMarkdown, digest } from '../research/act-map.mjs';
+  checkDesign, checkInference, designMessages, inferenceMessages, runActMapExperiment, actMapMarkdown, digest, pythonEnv } from '../research/act-map.mjs';
 import { vemClaims, vemState, vemLine, vemRegisterSummary, vemRegisterMarkdown, main as vemMain, VEM_SCHEMA } from '../research/vem-sci.mjs';
 import { CATALOG } from '../research/catalog.mjs';
 import { MAX_CALIBRATED_CHARS } from '../research/calibration.mjs';
@@ -237,4 +237,21 @@ globalThis.fetch=async(url,options={})=>{
     assert.match(markdown, /## ACT-MAP: Oraklet mot uppräkningsbaslinjen/);
     assert.match(markdown, /VEM-Sci: 3 påståenden i registret: 0 preliminärt stödda, 0 avvisade, 3 olösta/);
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('the gate finds Python behind a version-manager shim and never receives credentials', async () => {
+  const { writeFile, chmod } = await import('node:fs/promises');
+  const { execFileSync } = await import('node:child_process');
+  assert.deepEqual(pythonEnv({ PATH: '/p', HOME: '/h', ASDF_DIR: '/a', PYENV_VERSION: '3', ORCHESTRATOR_API_KEY: 'x', SUPABASE_SERVICE_ROLE_KEY: 'y' }),
+    { PATH: '/p', HOME: '/h', ASDF_DIR: '/a', PYENV_VERSION: '3' });
+  // Like the asdf shim in the Cloudflare build image: without HOME it cannot start Python.
+  const dir = await mkdtemp(join(tmpdir(), 'shim-')), real = execFileSync('sh', ['-c', 'command -v python3'], { encoding: 'utf8' }).trim();
+  const path = process.env.PATH;
+  try {
+    await writeFile(join(dir, 'python3'), `#!/bin/sh\n[ -n "$HOME" ] || exit 1\nexec ${real} "$@"\n`);
+    await chmod(join(dir, 'python3'), 0o755);
+    process.env.PATH = `${dir}:${path}`;
+    const f = makeActMapCases('1')[0];
+    assert.equal((await callActMap({ fixture: f, proposed: null, history: [] })).result.gate.status, 'unresolved');
+  } finally { process.env.PATH = path; await rm(dir, { recursive: true, force: true }); }
 });

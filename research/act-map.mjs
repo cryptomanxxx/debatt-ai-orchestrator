@@ -115,12 +115,16 @@ export function gateDecision(fixture, proposed, history) {
 }
 
 const gateScript = fileURLToPath(new URL('./act_map_benchmark.py', import.meta.url));
+// The gate gets no credentials, only what is needed to find the interpreter. Version-manager
+// shims (asdf in the Cloudflare build image, pyenv) need HOME and their own variables besides PATH.
+export const pythonEnv = (env = process.env) =>
+  Object.fromEntries(Object.entries(env).filter(([k]) => /^(PATH|HOME|ASDF_\w+|PYENV_\w+)$/.test(k)));
 export function callActMap(input) {
   const raw = JSON.stringify(input);
   if (Buffer.byteLength(raw) > 16384) return Promise.reject(new ResearchError('invalid_tool_evidence'));
   return new Promise((resolve, reject) => {
     const child = execFile(process.env.RESEARCH_PYTHON || 'python3', ['-I', gateScript, '--gate'],
-      { timeout: 20000, maxBuffer: 65536, env: { PATH: process.env.PATH } }, (error, stdout) => {
+      { timeout: 20000, maxBuffer: 65536, env: pythonEnv() }, (error, stdout) => {
         if (error) return reject(new ResearchError('tool_transport_error'));
         try { resolve({ ...JSON.parse(stdout), inputSha256: digest(input) }); }
         catch { reject(new ResearchError('invalid_tool_evidence')); }
