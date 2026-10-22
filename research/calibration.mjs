@@ -61,7 +61,9 @@ export function calibrationSummary(reports) {
     if (!Array.isArray(rows)) continue;
     const identity = report.cases?.find(c => typeof c?.provider === 'string' && typeof c?.model === 'string');
     if (!identity) continue;
-    const key = `${identity.provider} / ${identity.model}`;
+    // An alias is scored per backing model it resolved to, so one alias never mixes two models.
+    const root = report.plan?.modelChoice?.root;
+    const key = `${identity.provider} / ${identity.model}` + (typeof root === 'string' && root ? ` (${root})` : '');
     const m = models.get(key) ?? { model: key, runs: 0, cases: [] };
     m.runs++;
     for (const r of rows) if (typeof r?.confidence === 'number' && r.confidence >= 0 && r.confidence <= 1 && typeof r.passed === 'boolean') m.cases.push(r);

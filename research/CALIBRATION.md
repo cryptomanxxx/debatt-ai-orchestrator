@@ -16,7 +16,7 @@ A researcher who knows when they are unsure is worth more than one who always so
 
 ## Across runs
 
-**Actions → Oraklets kalibrering** (manual) reads the 200 newest saved lab reports and writes a summary per provider/model, to the step summary and the `oraklet-calibration-<run>` artifact. The summary has:
+**Actions → Oraklets kalibrering** (manual) reads the 200 newest saved lab reports and writes a summary per provider/model (an alias per backing model it resolved to), to the step summary and the `oraklet-calibration-<run>` artifact. The summary has:
 - the number of runs and cases;
 - mean confidence against the pass rate;
 - the Brier score: lower is better, and 0.25 is what always answering 50 % gives;

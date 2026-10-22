@@ -48,6 +48,9 @@ test('calibration across reports is summarised per model with reliability bins',
     report('Kimi', [{ confidence: 0.9, passed: false }, { confidence: 0.95, passed: false }]),
     { cases: [], calibration: { cases: [{ confidence: 0.5, passed: true }] } }, { cases: [{ provider: 'x', model: 'y' }] }, null]);
   assert.deepEqual(summary.map(m => [m.model, m.runs, m.cases]), [['hip / GLM', 2, 4], ['hip / Kimi', 1, 2]]);
+  const alias = (root, confidence) => ({ ...report('alias-fast', [{ confidence, passed: true }]), plan: { modelChoice: { root } } });
+  assert.deepEqual(calibrationSummary([alias('Qwen-A', 0.9), alias('Qwen-B', 0.2), alias('Qwen-A', 0.8)]).map(m => [m.model, m.runs]),
+    [['hip / alias-fast (Qwen-A)', 2], ['hip / alias-fast (Qwen-B)', 1]], 'an alias is split by its backing model');
   const glm = summary[0];
   assert.equal(glm.passRate, 0.5);
   assert.equal(glm.brierScore, 0.13);
