@@ -6,11 +6,11 @@ Literature candidates have so far recorded novelty as *unknown*. **Citation grap
 
 `research/citation-novelty.mjs` reads a saved evidence planner report and one candidate. It then runs a bounded best-first **tree search** (`agentic-tree-search.mjs`) over the **OpenAlex citation graph**:
 
-1. **Seeds.** The candidate's evidence papers with a resolvable OpenAlex work (`resolved_openalex_id` or the stored OpenAlex record), at most four.
+1. **Seeds.** The candidate's evidence papers with a resolvable OpenAlex work (`resolved_openalex_id` or the stored OpenAlex record), at most four distinct works. Up to eight are resolved, so evidence records that OpenAlex has merged into one work free their slot for the next paper.
 2. **Expansion.** For a work, the 25 newest non-retracted works citing it are fetched. Those whose titles share the most terms with the candidate become its children, at most four.
    - The terms come from the research question and up to two reported limitations of the evidence papers.
    - Works already seen, including the seeds, are skipped.
-3. **Best-first order.** The score is the share of the candidate's first six terms (the research question comes first) that a title contains. It decides which branch is followed next, so search effort goes to the most relevant lines of later work. The search covers at most 12 works and 2 citation steps (seed → citing → citing), using at most 17 OpenAlex requests with 200 ms between them.
+3. **Best-first order.** The score is the share of the candidate's first six terms (the research question comes first) that a title contains. It decides which branch is followed next, so search effort goes to the most relevant lines of later work. The search covers at most 12 works and 2 citation steps (seed → citing → citing), using at most 21 OpenAlex requests with 200 ms between them.
 4. **Result.**
    - The report lists up to ten later works, ranked by relevance and then recency.
    - Status `possible_overlap_found` means a later work's title shares at least half of the counted terms.

@@ -8,7 +8,7 @@ import { agenticTreeSearch } from './agentic-tree-search.mjs';
 import { createFollowUpClient } from './literature-follow-up.mjs';
 import { boundedJson } from './literature-evidence.mjs';
 
-export const LIMITS = Object.freeze({ maxNodes: 12, maxDepth: 3, maxChildren: 4, seeds: 4, citingPerWork: 25 });
+export const LIMITS = Object.freeze({ maxNodes: 12, maxDepth: 3, maxChildren: 4, seeds: 4, seedCandidates: 8, citingPerWork: 25 });
 export const OVERLAP_THRESHOLD = 0.5;
 const WORK = /^https:\/\/openalex\.org\/(W\d{1,15})$/;
 const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'are', 'can', 'does', 'how', 'which', 'under', 'into',
@@ -33,7 +33,8 @@ export function candidateSeeds(report, candidateId) {
   const ids = new Set(candidate.evidence.map(e => e?.id));
   const seeds = [];
   for (const paper of report.papers ?? []) {
-    if (!ids.has(paper?.article_id) || seeds.length >= LIMITS.seeds) continue;
+    // More candidates than seeds: merged OpenAlex records can collapse several into one work.
+    if (!ids.has(paper?.article_id) || seeds.length >= LIMITS.seedCandidates) continue;
     const id = [paper.content?.resolved_openalex_id, paper.lookup_identifiers?.openalex_records?.[0]?.source_id].find(v => WORK.test(v ?? ''));
     if (id) seeds.push({ article_id: paper.article_id, openalex_id: id, title: typeof paper.title === 'string' ? paper.title.slice(0, 300) : null });
   }
@@ -46,7 +47,7 @@ export function candidateSeeds(report, candidateId) {
 export function createOpenAlexGraph({ fetchImpl = fetch, apiKey = '', pause = () => new Promise(r => setTimeout(r, 200)) } = {}) {
   let requests = 0;
   async function get(url) {
-    if (++requests > 1 + LIMITS.seeds + LIMITS.maxNodes) throw Error('openalex_request_budget_exceeded');
+    if (++requests > 1 + LIMITS.seedCandidates + LIMITS.maxNodes) throw Error('openalex_request_budget_exceeded');
     await pause();
     // A merged OpenAlex work redirects to its canonical record; only redirects within the API are followed.
     const response = await fetchImpl(url, { redirect: 'follow', signal: AbortSignal.timeout(20000), headers: apiKey ? { Authorization: 'Bearer ' + apiKey } : {} });
@@ -85,6 +86,7 @@ export async function noveltyCheck(report, candidateId, graph) {
   const actionId = w => w.openalex_id.match(WORK)[1].toLowerCase();
   const seedWorks = [];
   for (const seed of seeds) {
+    if (seedWorks.length >= LIMITS.seeds) break;
     const resolved = await graph.work(seed.openalex_id);
     // Merged records redirect to one canonical work; each canonical seed is searched once.
     if (!resolved || works.has(actionId(resolved))) continue;

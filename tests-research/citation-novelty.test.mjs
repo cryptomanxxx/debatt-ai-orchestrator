@@ -85,6 +85,16 @@ test('merged seeds are searched once, titleless seeds stay, and an undated seed 
   assert.match(r.limitations[1], /2 citation steps from the seeds/);
 });
 
+test('merged seeds free their slot for the next distinct evidence paper', async () => {
+  const ids = [1, 2, 3, 4, 5, 6];
+  const many = { id: REPORT_ID, papers: ids.map(i => ({ article_id: 'p' + i, title: 'Paper ' + i, content: { resolved_openalex_id: 'https://openalex.org/W' + (800 + i) } })),
+    planner: { proposals: [{ id: 'arp-many', research_question: 'Can sparse sensors reconstruct velocity?', evidence: ids.map(i => ({ id: 'p' + i })) }] } };
+  // W801 and W802 are both merged into W801.
+  const works = Object.fromEntries(ids.map(i => ['https://openalex.org/W' + (800 + i), W(i === 2 ? 801 : 800 + i, 'Seed ' + i, 2020)]));
+  const r = await noveltyCheck(many, 'arp-many', fakeGraph({}, works));
+  assert.deepEqual(r.seeds.map(s => s.openalex_id), [801, 803, 804, 805].map(n => 'https://openalex.org/W' + n));
+});
+
 test('an undated citing work stays a review lead', async () => {
   const works = { 'https://openalex.org/W100': W(100, 'PINN', 2022), 'https://openalex.org/W200': W(200, 'Kalman', 2021) };
   const undated = W(601, 'Physics informed networks reconstruct shallow water', null);
@@ -105,7 +115,7 @@ test('the OpenAlex client builds bounded citation requests', async () => {
   assert.deepEqual(await graph.work('https://openalex.org/W1'), { openalex_id: 'https://openalex.org/W1', title: 'Seed', year: 2020, cited_by_count: 0 });
   assert.deepEqual((await graph.citing('https://openalex.org/W1')).map(w => w.openalex_id), ['https://openalex.org/W5']);
   assert.match(urls[1], /filter=cites%3AW1%2Cis_retracted%3Afalse&sort=publication_date%3Adesc&per-page=25/);
-  for (let i = 0; i < 1 + LIMITS.seeds + LIMITS.maxNodes - 2; i++) await graph.work('https://openalex.org/W1');
+  for (let i = 0; i < 1 + LIMITS.seedCandidates + LIMITS.maxNodes - 2; i++) await graph.work('https://openalex.org/W1');
   await assert.rejects(graph.work('https://openalex.org/W1'), /openalex_request_budget_exceeded/);
   // A merged work redirects to its canonical OpenAlex record; a redirect off the API is refused.
   const redirected = (url, body) => Object.defineProperty(Response.json(body), 'url', { value: url });
