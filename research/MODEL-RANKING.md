@@ -52,4 +52,16 @@ Generated tasks with exactly computed answers in five research domains (*Scienti
 
 ### blablador
 
-No domain benchmark results yet.
+| Model | symbolic | probability | causal | statistics | discrete |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `deepseek-v4.1-flash-at-hzdr` | 6/8 ★ | 8/8 ★ | 8/8 ★ | 8/8 ★ | 8/8 ★ |
+| `Swift-Qwen3.8-27b` | 0/8 | 0/8 | 0/8 | 0/8 | 0/8 |
+| `trustllm-v2-8b-sft` | 0/8 | 0/7 | 0/7 | 0/6 | 0/7 |
+| `trustllm-v2-8b-sft-8k` | 0/8 | 0/6 | 0/6 | 0/8 | 0/6 |
+| `trustllm-v2-8b-sft-mixb2-exp` | 0/8 | 0/6 | 0/6 | 0/8 | 0/7 |
+| `alias-eve` = `EVE-Instruct` | 3/8 | 8/8 | 5/8 | 2/8 | 5/8 |
+| `alias-fast` = `gpt-oss-120b` | 6/8 | 8/8 | 7/8 | 2/8 | 7/8 |
+| `alias-qwen3.8-flash-next` = `Qwen3.8-Flash-Next-NVFP4` | 6/8 | 6/6 | 7/8 | 4/6 | 6/6 |
+| `alias-qwen38-27b` = `Qwen3.8-27B-FP8` | 6/8 | 8/8 | 6/8 | 5/8 | 8/8 |
+
+★ = best model in that domain.
