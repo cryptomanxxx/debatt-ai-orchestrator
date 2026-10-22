@@ -16,7 +16,7 @@ export const DESIGN_PROTOCOL = Object.freeze({
   id: 'ar1-design-v1',
   h0: 'phi=0 i y[t]=0.2+phi*y[t-1]+epsilon[t], epsilon~N(0,1).',
   rule: 'Oraklet väljer tre olika designpunkter (phi, n) ur det fasta designrummet, varav minst en nollkontroll med phi=0, förutsäger för varje punkt det tvåsidiga testets beslut vid alpha=0.05 och väljer i förväg ett falsifieringskriterium. Designen och förregistreringen låses och hashas innan data genereras. Varje serie genereras deterministiskt från seed och designpunkt med 64 inbränningssteg och 16 holdoutobservationer.',
-  assumptions: 'AR(1) med iid normala innovationer; nominal villkorlig OLS/t-inferens via Statsmodels AutoReg, oberoende kontrollerad med exakt OLS och Student-t.',
+  assumptions: 'AR(1) med iid normala innovationer; nominal villkorlig OLS/t-inferens via Statsmodels AutoReg, oberoende kontrollerad med en separat OLS-beräkning i flyttal och Student-t.',
   limitations: 'En realisering per designpunkt: utfallet för en enskild punkt är slumpmässigt och styrkan (power) bestäms inte av en körning. Förregistreringen prövar Oraklets förväntningar om testets beteende, inte en ny vetenskaplig hypotes. Syntetiska data; ingen slutsats om verkliga tidsserier.',
 });
 const invalid = () => { throw new ResearchError('invalid_model_proposal'); };
@@ -82,12 +82,13 @@ export async function runAr1DesignExperiment(seed, propose, callTool, onCommit, 
   // The design and preregistration are committed before any data is generated or tested.
   const preregistration = { protocol: DESIGN_PROTOCOL, design, provider: ai.provider, model: ai.model };
   const preregistrationSha256 = fingerprint(preregistration);
+  const locked = { preregistrationSha256, protocol: DESIGN_PROTOCOL };
+  await onCommit([locked]);
   const fixtures = design.designs.map((point, i) => {
     const input = designSeries(seed, i, point);
     return { id: i + 1, point, input, commitment: fingerprint({ input, point, preregistrationSha256, protocol: DESIGN_PROTOCOL }) };
   });
-  await onCommit([{ preregistrationSha256, protocol: DESIGN_PROTOCOL },
-    ...fixtures.map(f => ({ case: f.id, sha256: f.commitment, protocol: DESIGN_PROTOCOL }))]);
+  await onCommit([locked, ...fixtures.map(f => ({ case: f.id, sha256: f.commitment, protocol: DESIGN_PROTOCOL }))]);
   const cases = [];
   try {
     operation = 'negative_control';
@@ -111,7 +112,7 @@ export async function runAr1DesignExperiment(seed, propose, callTool, onCommit, 
   return { schemaVersion: 2, promptVersion: 'ar1-design-v1', researcher: 'Professor Oraklet',
     title: 'Oraklet utformar ett AR(1)-test: när förkastas H0?',
     question: 'Kan Oraklet utforma ett AR(1)-test inom fasta ramar och i förväg korrekt förutsäga när testet förkastar H0?',
-    method: 'Oraklet valde tre designpunkter (effektstorlek phi och stickprov n) och förregistrerade förutsägelser, jämförelse och falsifieringskriterium. Förregistreringen hashades innan data genererades. Statsmodels testade varje serie; exakt OLS och Student-t samt en numerisk nollkontroll verifierade resultaten. passed/failed avser om förregistreringen höll enligt Oraklets eget kriterium.',
+    method: 'Oraklet valde tre designpunkter (effektstorlek phi och stickprov n) och förregistrerade förutsägelser, jämförelse och falsifieringskriterium. Förregistreringen hashades innan data genererades. Statsmodels testade varje serie; en oberoende OLS-beräkning i flyttal med Student-t samt en numerisk nollkontroll verifierade resultaten. passed/failed avser om förregistreringen höll enligt Oraklets eget kriterium.',
     seed, status: outcome.outcome === 'confirmed' ? 'passed' : 'failed', protocol: DESIGN_PROTOCOL,
     preregistration: { ...design, sha256: preregistrationSha256 }, preregistrationOutcome: outcome,
     limitations: DESIGN_PROTOCOL.limitations, cases };
