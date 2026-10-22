@@ -161,6 +161,15 @@ test('VEM-Sci claims come only from verified cases; every lab report carries its
     { case: 4 }] });
   assert.deepEqual(generic.map(c => c.status), ['provisionally_supported', 'rejected', 'unresolved']);
   assert.equal(generic[1].verifier, 'sympy');
+  // Verifier results stored outside `evidence` (Ratfit, Rankscreen) still bind each claim.
+  const stored = vemClaims({ experimentId: 'ratfit-baseline', seed: '1', cases: [
+    { case: 1, passed: true, proposal: { c: 1 }, ratfit: { ok: 1 } }, { case: 2, passed: true, proposal: { c: 1 }, ratfit: { ok: 2 } }] });
+  assert.notEqual(stored[0].evidenceSha256, stored[1].evidenceSha256);
+  // A corrected answer registers both verified attempts.
+  const corrected = vemClaims({ experimentId: 'ratfit-feedback', seed: '1', cases: [{ case: 1, passed: true, initialPassed: false,
+    correctionAttempted: true, proposal: { c: 2 }, attempts: [{ proposal: { c: 1 } }, { proposal: { c: 2 } }] }] });
+  assert.deepEqual(corrected.map(c => [c.attempt, c.status]), [['initial', 'rejected'], ['final', 'provisionally_supported']]);
+  assert.notEqual(corrected[0].claimId, corrected[1].claimId);
   assert.equal(vemLine(vemState({ cases: [] })), '');
 });
 

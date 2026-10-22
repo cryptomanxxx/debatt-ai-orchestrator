@@ -22,10 +22,20 @@ export function vemClaims(report) {
     }
     if (typeof c?.passed !== 'boolean') continue;
     const verified = c.hypothesisTest ? c.hypothesisTest.independentlyVerified !== false : true;
-    const status = !verified ? 'unresolved' : c.passed ? 'provisionally_supported' : 'rejected';
-    claims.push({ ...base, claimId: digest({ ...base, proposal: c.proposal ?? c.design ?? null }), kind: 'answer',
-      transitions: ['proposed', 'under_test', status], status, evidenceSha256: digest(c.evidence ?? null),
-      verifier: c.hypothesisTest?.verificationScope ?? report.toolId ?? null });
+    const statusOf = passed => !verified ? 'unresolved' : passed ? 'provisionally_supported' : 'rejected';
+    // The verifier's results live in different fields per experiment (evidence, ratfit, rankscreen,
+    // ...), so the claim is bound to the whole verified case except the model's own answer.
+    const verifiedCase = Object.fromEntries(Object.entries(c).filter(([k]) => !['proposal', 'provider', 'model', 'attempts'].includes(k)));
+    const claim = (proposal, passed, attempt) => {
+      const status = statusOf(passed);
+      return { ...base, ...(attempt ? { attempt } : {}), claimId: digest({ ...base, attempt: attempt ?? null, proposal: proposal ?? null }), kind: 'answer',
+        transitions: ['proposed', 'under_test', status], status, evidenceSha256: digest(verifiedCase),
+        verifier: c.hypothesisTest?.verificationScope ?? report.toolId ?? null };
+    };
+    // A verified first answer that was then corrected is its own claim (Ratfit feedback).
+    if (Array.isArray(c.attempts) && c.attempts.length > 1 && typeof c.initialPassed === 'boolean') {
+      claims.push(claim(c.attempts[0]?.proposal, c.initialPassed, 'initial'), claim(c.proposal ?? c.design, c.passed, 'final'));
+    } else claims.push(claim(c.proposal ?? c.design, c.passed));
   }
   return claims;
 }

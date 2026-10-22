@@ -43,7 +43,7 @@ The report shows Oraklet against the baseline per case, and counts falsely certi
 Every answer Oraklet gives in the lab, in every experiment, is a claim with the transitions `proposed → under_test → provisionally_supported | rejected | unresolved`. The runner derives the records from the verified cases and saves them in the report (`rapport.vem` in `oraklet_experiment`). A model answer never sets its own status.
 
 - **ACT-MAP:** the gate decides the status. Abstaining (`none`) is recorded as an unresolved abstention, never as accepted knowledge. An unreadable answer makes no claim.
-- **Other experiments:** a case that passed its independent verifier is provisionally supported, and a case that failed it is rejected. A case without independent verification is unresolved.
+- **Other experiments:** a case that passed its independent verifier is provisionally supported, and a case that failed it is rejected. A case without independent verification is unresolved. A verified first answer that was then corrected (Ratfit feedback) is a claim of its own. Each claim is bound to a hash of the whole verified case, so the verifier's results count, whichever field they are stored in.
 
 After each lab run, the step **Uppdatera Oraklets VEM-Sci-register** (`node research/vem-sci.mjs`) reads the register from the latest 200 saved runs that carry one. It counts the claims per experiment and status and writes the result to the step summary and the artifact. A read failure is reported and never fails the run. Runs saved before this change have no register entry.
 

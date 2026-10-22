@@ -134,7 +134,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node research/bare-baseline.mjs
       - name: Uppdatera Oraklets VEM-Sci-register
-        if: always() && inputs.experiment != 'catalog-only'
+        if: always() && (inputs.experiment != 'catalog-only' || inputs.problem_bank_id != '')
         timeout-minutes: 2
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
