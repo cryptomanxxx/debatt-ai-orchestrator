@@ -7,6 +7,7 @@ import { loadResearchChoices, chosenResearchModel, unwrapJsonAnswer } from './la
 import { loadOpenProblems } from './open-problems.mjs';
 import { startBankResearchRun, finishBankResearchRun } from './problem-bank-research-loop.mjs';
 import { researchStateFromOrakletReport } from './oraklet-problem-bank.mjs';
+import { calibrated, markProgress, calibrationReport } from './calibration.mjs';
 import { runExperiment } from './ratfit.mjs';
 import { runRankExperiment, callRankscreen } from './rankscreen.mjs';
 import { runScienceExperiment } from './science.mjs';
@@ -163,6 +164,7 @@ const metadata = { createdAt: new Date().toISOString(), inferenceSettings: { com
 let completedCases = [];
 let plan, planCommitment, report, executionFailed = false, stage = 'planning';
 let openProblems = { client: null, open: [] }, linkedProblem = null, bankSession = null, bankOutcome = null;
+const calibrationLog = { calls: [], marks: [] };
 try {
   const modelModes = selection === 'auto' ? await plannerModelModes() : ['default'];
   const researchChoices = selection === 'auto' ? await loadResearchChoices() : {};
@@ -178,8 +180,12 @@ try {
   if (ranked) plan.modelChoice = { domain, provider: ranked.provider, model: ranked.model, ...(ranked.root ? { root: ranked.root } : {}),
     evidence: { suite: 'Scientific benchmark v4', correct: ranked.correct, attempts: ranked.attempts } };
   // A default-mode plan keeps the planning identity lock, exactly as before model choice existed.
-  const propose = ranked ? researchProposer(ranked)
+  // Every experiment answer also states its confidence of passing verification (calibration.mjs).
+  // A design experiment answers all its predictions in one call, so a single confidence has no
+  // per-case outcome to score; its preregistered criterion is the self-assessment instead.
+  const experimentPropose = ranked ? researchProposer(ranked)
     : (plan.modelMode ?? 'default') === 'default' ? planningPropose : proposer(plan.modelMode);
+  const propose = CATALOG.find(e => e.id === plan.experimentId)?.design ? experimentPropose : calibrated(experimentPropose, calibrationLog);
   if (plan.seedAdjustment) console.log('Seed ändrad före datagenerering:', JSON.stringify(plan.seedAdjustment), '→', plan.seed);
   planCommitment = createHash('sha256').update(JSON.stringify(plan)).digest('hex');
   await writeFile(`${directory}/plan.json`, JSON.stringify({ plan, planCommitment, ...metadata }, null, 2));
@@ -204,6 +210,7 @@ try {
     await writeFile(`${directory}/commitments.json`, JSON.stringify(commitments, null, 2));
     console.log(entry.design ? 'Förregistreringens SHA-256 före data (sedan datans):' : 'Datans SHA-256 före modellförslagen:', JSON.stringify(commitments));
   }, { experimentId: entry.id, toolId: entry.toolId, feedback: entry.feedback, staged: entry.staged, onProgress: async cases => {
+    markProgress(calibrationLog, cases.length);
     completedCases = cases;
     await writeFile(`${directory}/progress.json`, JSON.stringify({ cases, ...metadata }, null, 2));
   } });
@@ -224,6 +231,7 @@ try {
 }
 Object.assign(report, metadata, { reportId, modelCalls, toolCalls,
   executionStatus: executionFailed ? 'error' : 'completed' });
+if (calibrationLog.calls.length) report.calibration = calibrationReport(calibrationLog, report.cases);
 // The verdict goes back to the Problem Bank problem: verified/falsified by the experiment's own
 // verifier when the run completed consistently, otherwise undecided (see oraklet-problem-bank.mjs).
 if (bankSession) {
@@ -258,6 +266,7 @@ const markdown = `# ${report.title}\n\n${report.question}\n\nExperiment: ${repor
     report.cases.map(c => `| ${c.case} | ${c.initialPassed ? 'Godkänt' : 'Underkänt'} | ${c.correctionAttempted ? 'Ja' : 'Nej'} | ${c.passed ? 'Godkänt' : 'Underkänt'} | ${c.sameModel ? 'Ja' : 'Nej'} |`).join('\n') : report.method) +
   hypothesisMarkdown + waterMarkdown(report.cases) + glucoseRobustnessMarkdown(report.cases) + temperatureMarkdown(report.cases) + warmingMarkdown(report.cases) + curveMarkdown(report.cases) + externalMarkdown(report.cases) + `\n\n${executionFailed ? 'Driftfel: ' + JSON.stringify(report.failure) + '. Slutförda fall är delresultat; experimentet är avbrutet.\n\n' : ''}${report.limitations}\n\nModellanrop: ${modelCalls}/7. Verktygsanrop: ${toolCalls}/6. Fullständig plan och rapport finns i artefakten.\n`;
 const statusLabel = { verified: 'verifierat', falsified: 'falsifierat', inconclusive: 'ofullständigt', needs_external_verification: 'kräver extern verifiering' };
+const calibrationMarkdown = report.calibration?.scoredCases ? `\nKalibrering: angiven säkerhet i snitt ${report.calibration.meanConfidence} mot andel godkända första förslag ${report.calibration.passRate} (Brier ${report.calibration.brierScore}, ${report.calibration.scoredCases} fall).\n` : '';
 // Model text is rendered as one code span: no Markdown, HTML, autolinks or line breaks reach the report.
 const inertText = v => '`' + String(v ?? '').replace(/`/g, "'").replace(/\s+/g, ' ').trim() + '`';
 const preregistrationMarkdown = report.preregistration ? `\n\n## Förregistrering\n\nHypotes: ${inertText(report.preregistration.hypothesis)}\n\nJämförelse: ${inertText(report.preregistration.comparison)}\n\n` +
@@ -266,8 +275,8 @@ const preregistrationMarkdown = report.preregistration ? `\n\n## Förregistrerin
 const bankMarkdown = report.problemBank ? `\nProblem Bank: ${report.problemBank.id} (v${report.problemBank.version})` +
   (plan?.problemBank?.literature ? ` med stöd i litteraturkandidaten "${plan.problemBank.literature.researchQuestion}" (${plan.problemBank.literature.articles} artiklar)` : '') +
   (report.problemBank.recorded ? `; utfallet sparades som ${statusLabel[report.problemBank.researchStatus] ?? report.problemBank.researchStatus}.\n` : '; körningen kunde inte sparas i Problem Bank.\n') : '';
-await writeFile(`${directory}/report.md`, markdown + preregistrationMarkdown + bankMarkdown);
-if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown + preregistrationMarkdown + bankMarkdown);
+await writeFile(`${directory}/report.md`, markdown + calibrationMarkdown + preregistrationMarkdown + bankMarkdown);
+if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown + calibrationMarkdown + preregistrationMarkdown + bankMarkdown);
 const saved = await fetch(DB, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
   body: JSON.stringify({ id: reportId, titel: report.title, status: report.status, rapport: report, skapad: report.createdAt }),
   redirect: 'error', signal: AbortSignal.timeout(10000) });
