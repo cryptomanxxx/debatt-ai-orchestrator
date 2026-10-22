@@ -7,6 +7,7 @@ import { loadResearchChoices, chosenResearchModel, unwrapJsonAnswer } from './la
 import { loadOpenProblems } from './open-problems.mjs';
 import { startBankResearchRun, finishBankResearchRun } from './problem-bank-research-loop.mjs';
 import { researchStateFromOrakletReport } from './oraklet-problem-bank.mjs';
+import { calibrated, markProgress, calibrationReport } from './calibration.mjs';
 import { runExperiment } from './ratfit.mjs';
 import { runRankExperiment, callRankscreen } from './rankscreen.mjs';
 import { runScienceExperiment } from './science.mjs';
@@ -15,6 +16,7 @@ import { runPymcExperiment, callPymc } from './pymc.mjs';
 import { runSympyExperiment, callSympy } from './sympy.mjs';
 import { runSklearnExperiment, callSklearn } from './sklearn.mjs';
 import { runDowhyExperiment, callDowhy } from './dowhy.mjs';
+import { runAr1DesignExperiment } from './ar1-design.mjs';
 
 import { runGlucoseExperiment, callGlucose } from './glucose.mjs';
 import { runGlucoseRobustnessExperiment, callGlucoseRobustness, glucoseRobustnessMarkdown } from './glucose-robustness.mjs';
@@ -162,6 +164,7 @@ const metadata = { createdAt: new Date().toISOString(), inferenceSettings: { com
 let completedCases = [];
 let plan, planCommitment, report, executionFailed = false, stage = 'planning';
 let openProblems = { client: null, open: [] }, linkedProblem = null, bankSession = null, bankOutcome = null;
+const calibrationLog = { calls: [], marks: [] };
 try {
   const modelModes = selection === 'auto' ? await plannerModelModes() : ['default'];
   const researchChoices = selection === 'auto' ? await loadResearchChoices() : {};
@@ -177,8 +180,12 @@ try {
   if (ranked) plan.modelChoice = { domain, provider: ranked.provider, model: ranked.model, ...(ranked.root ? { root: ranked.root } : {}),
     evidence: { suite: 'Scientific benchmark v4', correct: ranked.correct, attempts: ranked.attempts } };
   // A default-mode plan keeps the planning identity lock, exactly as before model choice existed.
-  const propose = ranked ? researchProposer(ranked)
+  // Every experiment answer also states its confidence of passing verification (calibration.mjs).
+  // A design experiment answers all its predictions in one call, so a single confidence has no
+  // per-case outcome to score; its preregistered criterion is the self-assessment instead.
+  const experimentPropose = ranked ? researchProposer(ranked)
     : (plan.modelMode ?? 'default') === 'default' ? planningPropose : proposer(plan.modelMode);
+  const propose = CATALOG.find(e => e.id === plan.experimentId)?.design ? experimentPropose : calibrated(experimentPropose, calibrationLog);
   if (plan.seedAdjustment) console.log('Seed ändrad före datagenerering:', JSON.stringify(plan.seedAdjustment), '→', plan.seed);
   planCommitment = createHash('sha256').update(JSON.stringify(plan)).digest('hex');
   await writeFile(`${directory}/plan.json`, JSON.stringify({ plan, planCommitment, ...metadata }, null, 2));
@@ -192,7 +199,8 @@ try {
   const entry = CATALOG.find(e => e.id === plan.experimentId);
   const runners = { 'shallow-water-hybrid': runWaterExperiment, 'insulin-external-curve': runExternalCurveExperiment, 'insulin-curve-shape': runCurveShapeExperiment, 'insulin-warming-forecast': runWarmingExperiment, 'temperature-evidence': runTemperatureExperiment, 'glucose-robustness-simulator': runGlucoseRobustnessExperiment, 'glucose-simulator': runGlucoseExperiment, ratfit: runExperiment, rankscreen: runRankExperiment,
     annihilator: runScienceExperiment, mixalot: runScienceExperiment, statsmodels: runScienceExperiment, pymc: runPymcExperiment, sympy: runSympyExperiment, 'scikit-learn': runSklearnExperiment, dowhy: runDowhyExperiment };
-  const execute = runners[entry.toolId];
+  // Design experiments let Oraklet choose bounded parameters and preregister before data exist.
+  const execute = entry.design === 'ar1' ? runAr1DesignExperiment : runners[entry.toolId];
   if (!execute) throw new ResearchError('invalid_plan');
   const tool = entry.toolId === 'ratfit' ? callTool : async input => {
     if (++toolCalls > 6) throw new ResearchError('tool_budget_exceeded');
@@ -200,8 +208,9 @@ try {
   };
   report = await execute(plan.seed, propose, tool, async commitments => {
     await writeFile(`${directory}/commitments.json`, JSON.stringify(commitments, null, 2));
-    console.log('Datans SHA-256 före modellförslagen:', JSON.stringify(commitments));
+    console.log(entry.design ? 'Förregistreringens SHA-256 före data (sedan datans):' : 'Datans SHA-256 före modellförslagen:', JSON.stringify(commitments));
   }, { experimentId: entry.id, toolId: entry.toolId, feedback: entry.feedback, staged: entry.staged, onProgress: async cases => {
+    markProgress(calibrationLog, cases.length);
     completedCases = cases;
     await writeFile(`${directory}/progress.json`, JSON.stringify({ cases, ...metadata }, null, 2));
   } });
@@ -222,6 +231,7 @@ try {
 }
 Object.assign(report, metadata, { reportId, modelCalls, toolCalls,
   executionStatus: executionFailed ? 'error' : 'completed' });
+if (calibrationLog.calls.length) report.calibration = calibrationReport(calibrationLog, report.cases);
 // The verdict goes back to the Problem Bank problem: verified/falsified by the experiment's own
 // verifier when the run completed consistently, otherwise undecided (see oraklet-problem-bank.mjs).
 if (bankSession) {
@@ -247,7 +257,8 @@ const protocol = report.protocol || hypothesisRows[0]?.hypothesisTest.protocol;
 const protocolMarkdown = protocol ? `\n\nProtokoll: ${protocol.hypothesis || protocol.h0} ${protocol.h1 || protocol.alternative || ''}\n\nBeslutskriterium: ${protocol.rule}\n${protocol.assumptions ? `\nAntaganden: ${protocol.assumptions}\n` : ''}` : '';
 const hypothesisMarkdown = hypothesisRows.length ? protocolMarkdown + '\n\n## Hypotesresultat\n\nModellförslagets träffsäkerhet ovan är separat från den uppmätta evidensen nedan.\n\n| Fall | Uppmätt beslut | Evidens | Familjebeslut |\n| --- | --- | --- | --- |\n' + hypothesisRows.map(c => {
   const h = c.hypothesisTest, m = h.measured;
-  const evidence = h.protocol?.id === 'shallow-water-hybrid-v1' ? waterSummary(m) : h.protocol?.id === 'insulin-external-curve-v1' ? externalSummary(m) : h.protocol?.id === 'insulin-curve-shape-v1' ? curveSummary(m) : m.endpoint === 'baseline-subtracted-plasma-insulin' ? warmingSummary(m) : m.studyId && m.temperatureKind ? temperatureSummary(m) : m.conditions ? `Fördel i ${m.improvedConditions}/${m.stressConditions} felaktiga kombinationer; korrekt kontroll: ${m.cleanDecision}; robusthet: ${m.robustness}. Alla kombinationer redovisas nedan.` : m.horizonMetrics ? m.horizonMetrics.map(v => `${v.horizon} min: fast MSE=${v.fixedMse.toPrecision(5)}, adaptiv MSE=${v.adaptiveMse.toPrecision(5)}`).join('; ') : m.adjustmentVariables ? `Justerat för ${m.adjustmentVariables.join(', ')}: effekt=${m.effect.toPrecision(5)}; ojusterad association=${m.naiveEffect.toPrecision(5)}; residual-MSE=${m.residualMse.toPrecision(5)}` : Array.isArray(m.models) ? `Validerings-MSE: grad 1=${m.models[0].validationMse.toPrecision(5)}, grad 2=${m.models[1].validationMse.toPrecision(5)}; vald grad=${m.selectedDegree}; separat test-MSE=${m.selectedTestMse.toPrecision(5)}` : Array.isArray(m.roots) ? `Rötter: ${m.roots.length ? m.roots.join(', ') : 'tom mängd'}, diskriminant=${m.discriminant}, exakt verifierat` : m.probabilityPositive !== undefined ? `P(phi>0)=${m.probabilityPositive.toPrecision(5)}, 95% posteriorintervall=[${m.phiInterval95.map(v=>v.toPrecision(4)).join(', ')}], Rhat=${m.mcmc.maximumRhat.toPrecision(4)}, ESS=${m.mcmc.minimumEssBulk.toFixed(0)}` : m.bayesFactor10 ? `BF10=${m.bayesFactor10}` : m.pvalue !== undefined ? `p=${m.pvalue.toPrecision(4)}, Holm=${h.holmAdjustedPvalue?.toPrecision(4) || 'ej klar'}` : `${m.checked} holdouttermer, ${m.failed} avvikelser`;
+  const evidence = h.protocol?.id === 'ar1-design-v1' ? `phi=${c.design.phi}, n=${c.design.n}: förutsagt ${decisionLabel(c.design.prediction)}, p=${m.pvalue.toPrecision(4)}`
+    : h.protocol?.id === 'shallow-water-hybrid-v1' ? waterSummary(m) : h.protocol?.id === 'insulin-external-curve-v1' ? externalSummary(m) : h.protocol?.id === 'insulin-curve-shape-v1' ? curveSummary(m) : m.endpoint === 'baseline-subtracted-plasma-insulin' ? warmingSummary(m) : m.studyId && m.temperatureKind ? temperatureSummary(m) : m.conditions ? `Fördel i ${m.improvedConditions}/${m.stressConditions} felaktiga kombinationer; korrekt kontroll: ${m.cleanDecision}; robusthet: ${m.robustness}. Alla kombinationer redovisas nedan.` : m.horizonMetrics ? m.horizonMetrics.map(v => `${v.horizon} min: fast MSE=${v.fixedMse.toPrecision(5)}, adaptiv MSE=${v.adaptiveMse.toPrecision(5)}`).join('; ') : m.adjustmentVariables ? `Justerat för ${m.adjustmentVariables.join(', ')}: effekt=${m.effect.toPrecision(5)}; ojusterad association=${m.naiveEffect.toPrecision(5)}; residual-MSE=${m.residualMse.toPrecision(5)}` : Array.isArray(m.models) ? `Validerings-MSE: grad 1=${m.models[0].validationMse.toPrecision(5)}, grad 2=${m.models[1].validationMse.toPrecision(5)}; vald grad=${m.selectedDegree}; separat test-MSE=${m.selectedTestMse.toPrecision(5)}` : Array.isArray(m.roots) ? `Rötter: ${m.roots.length ? m.roots.join(', ') : 'tom mängd'}, diskriminant=${m.discriminant}, exakt verifierat` : m.probabilityPositive !== undefined ? `P(phi>0)=${m.probabilityPositive.toPrecision(5)}, 95% posteriorintervall=[${m.phiInterval95.map(v=>v.toPrecision(4)).join(', ')}], Rhat=${m.mcmc.maximumRhat.toPrecision(4)}, ESS=${m.mcmc.minimumEssBulk.toFixed(0)}` : m.bayesFactor10 ? `BF10=${m.bayesFactor10}` : m.pvalue !== undefined ? `p=${m.pvalue.toPrecision(4)}, Holm=${h.holmAdjustedPvalue?.toPrecision(4) || 'ej klar'}` : `${m.checked} holdouttermer, ${m.failed} avvikelser`;
   return `| ${c.case} | ${decisionLabel(h.decision)} | ${evidence} | ${decisionLabel(h.familyDecision || h.familyInference || 'Ej tillämpligt')} |`;
 }).join('\n') : '';
 const markdown = `# ${report.title}\n\n${report.question}\n\nExperiment: ${report.experimentId || 'planering'}. Seed: ${report.seed}.\n\n` +
@@ -255,11 +266,17 @@ const markdown = `# ${report.title}\n\n${report.question}\n\nExperiment: ${repor
     report.cases.map(c => `| ${c.case} | ${c.initialPassed ? 'Godkänt' : 'Underkänt'} | ${c.correctionAttempted ? 'Ja' : 'Nej'} | ${c.passed ? 'Godkänt' : 'Underkänt'} | ${c.sameModel ? 'Ja' : 'Nej'} |`).join('\n') : report.method) +
   hypothesisMarkdown + waterMarkdown(report.cases) + glucoseRobustnessMarkdown(report.cases) + temperatureMarkdown(report.cases) + warmingMarkdown(report.cases) + curveMarkdown(report.cases) + externalMarkdown(report.cases) + `\n\n${executionFailed ? 'Driftfel: ' + JSON.stringify(report.failure) + '. Slutförda fall är delresultat; experimentet är avbrutet.\n\n' : ''}${report.limitations}\n\nModellanrop: ${modelCalls}/7. Verktygsanrop: ${toolCalls}/6. Fullständig plan och rapport finns i artefakten.\n`;
 const statusLabel = { verified: 'verifierat', falsified: 'falsifierat', inconclusive: 'ofullständigt', needs_external_verification: 'kräver extern verifiering' };
+const calibrationMarkdown = report.calibration?.scoredCases ? `\nKalibrering: angiven säkerhet i snitt ${report.calibration.meanConfidence} mot andel godkända första förslag ${report.calibration.passRate} (Brier ${report.calibration.brierScore}, ${report.calibration.scoredCases} fall).\n` : '';
+// Model text is rendered as one code span: no Markdown, HTML, autolinks or line breaks reach the report.
+const inertText = v => '`' + String(v ?? '').replace(/`/g, "'").replace(/\s+/g, ' ').trim() + '`';
+const preregistrationMarkdown = report.preregistration ? `\n\n## Förregistrering\n\nHypotes: ${inertText(report.preregistration.hypothesis)}\n\nJämförelse: ${inertText(report.preregistration.comparison)}\n\n` +
+  `Falsifieringskriterium: ${report.preregistration.falsification === 'any_mismatch' ? 'en felaktig förutsägelse' : 'två eller fler felaktiga förutsägelser'} motbevisar förutsägelserna. SHA-256 före data: \`${report.preregistration.sha256}\`.\n\n` +
+  (report.preregistrationOutcome ? `Utfall: ${report.preregistrationOutcome.outcome === 'confirmed' ? 'de förregistrerade förutsägelserna höll' : 'de förregistrerade förutsägelserna motbevisades'} (${report.preregistrationOutcome.mismatches} av ${report.preregistration.designs.length} förutsägelser fel).\n` : '') : '';
 const bankMarkdown = report.problemBank ? `\nProblem Bank: ${report.problemBank.id} (v${report.problemBank.version})` +
   (plan?.problemBank?.literature ? ` med stöd i litteraturkandidaten "${plan.problemBank.literature.researchQuestion}" (${plan.problemBank.literature.articles} artiklar)` : '') +
   (report.problemBank.recorded ? `; utfallet sparades som ${statusLabel[report.problemBank.researchStatus] ?? report.problemBank.researchStatus}.\n` : '; körningen kunde inte sparas i Problem Bank.\n') : '';
-await writeFile(`${directory}/report.md`, markdown + bankMarkdown);
-if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown + bankMarkdown);
+await writeFile(`${directory}/report.md`, markdown + calibrationMarkdown + preregistrationMarkdown + bankMarkdown);
+if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown + calibrationMarkdown + preregistrationMarkdown + bankMarkdown);
 const saved = await fetch(DB, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
   body: JSON.stringify({ id: reportId, titel: report.title, status: report.status, rapport: report, skapad: report.createdAt }),
   redirect: 'error', signal: AbortSignal.timeout(10000) });

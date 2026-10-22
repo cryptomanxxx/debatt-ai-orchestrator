@@ -133,8 +133,10 @@ globalThis.fetch = async (url, options = {}) => {
     if (body.profile !== 'lab' || body.max_tokens !== 4096 || body.provider !== ${JSON.stringify(provider)} || body.model !== ${JSON.stringify(model)})
       throw new Error('Unexpected lab request ' + JSON.stringify({ ...body, messages: undefined }));
     if (${JSON.stringify(variant)} === 'gateway_error') return Response.json({ error: 'benchmark_response_too_large' }, { status: 502 });
-    const banked = JSON.parse(JSON.parse(body.messages[0].content).messages[1].content).banked;
-    const answer = { method: 'bootloops_ratfit', coefficients: cases.find(c => JSON.stringify(c.input.banked) === JSON.stringify(banked)).truth, reason: 'Förslag.' };
+    const wrapped = JSON.parse(body.messages[0].content).messages;
+    if (!wrapped.at(-1).content.includes('confidence')) throw new Error('Calibration rule missing');
+    const banked = JSON.parse(wrapped[1].content).banked;
+    const answer = { method: 'bootloops_ratfit', coefficients: cases.find(c => JSON.stringify(c.input.banked) === JSON.stringify(banked)).truth, reason: 'Förslag.', confidence: 0.75 };
     return Response.json({ status: 'completed_unverified', provider: ${JSON.stringify(provider)}, model: ${JSON.stringify(model)}, finish_reason: 'stop',
       ...(${alias} ? { resolved_model: ${JSON.stringify(variant === 'alias_remapped' ? 'Qwen/Qwen3.8-27B-FP8' : 'openai/gpt-oss-120b')} } : {}),
       answer: '\`\`\`json\\n' + JSON.stringify(answer) + '\\n\`\`\`', scientificallyVerified: false, backendIdentityVerified: false });
@@ -163,6 +165,8 @@ globalThis.fetch = async (url, options = {}) => {
     }
     assert.equal(saved.rapport.executionStatus, 'completed');
     assert.equal(saved.rapport.modelMode, choice);
+    assert.deepEqual([saved.rapport.calibration.scoredCases, saved.rapport.calibration.meanConfidence, saved.rapport.calibration.passRate],
+      [3, 0.75, 1], 'confidence is recorded per case and stripped before the strict Ratfit parser');
     assert.equal(saved.rapport.cases.length, 3);
     assert.ok(saved.rapport.modelCalls >= 4);
   } finally { await rm(dir, { recursive: true, force: true }); }

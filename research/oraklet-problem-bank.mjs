@@ -39,7 +39,11 @@ export function researchStateFromOrakletReport(started,entry,report) {
 export function researchVerdict(entry,report,passed,total) {
   const significance={experiment_id:entry.id,report_id:report?.reportId??null,seed:report?.seed??null};
   const completed=report?.executionStatus==='completed' && total>0;
-  const consistent=completed && ((report.status==='passed' && passed===total) || (report.status==='failed' && passed<total));
+  // A preregistered design decides by its own locked criterion, which may tolerate one mismatch.
+  const prereg=report?.preregistrationOutcome;
+  const consistent=completed && (prereg
+    ? (report.status==='passed')===(prereg.outcome==='confirmed') && prereg.mismatches===total-passed
+    : (report.status==='passed' && passed===total) || (report.status==='failed' && passed<total));
   if (!consistent) return {
     id:'oraklet-result',
     claim:report?.executionStatus==='completed'
@@ -50,6 +54,8 @@ export function researchVerdict(entry,report,passed,total) {
   };
   const verification={tool:report.toolId||entry.toolId,independent:true,
     result:{valid:true,scope:'catalog_method_test_single_run',report_status:report.status,passed_cases:passed,total_cases:total}};
+  if (prereg) return {id:'oraklet-result',status:report.status==='passed'?'verified':'falsified',significance,verification,
+    claim:`In this run (seed ${report.seed}), Oraklet's preregistered design ${report.status==='passed'?'held':'was refuted'} under its own locked criterion (${total-passed} of ${total} predictions wrong).`};
   return report.status==='passed'
     ? {id:'oraklet-result',status:'verified',significance,verification,
       claim:`In this run (seed ${report.seed}), Oraklet's proposals met the experiment's independent verification criteria in all ${total} cases.`}

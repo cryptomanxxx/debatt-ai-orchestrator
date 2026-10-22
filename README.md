@@ -22,7 +22,7 @@ A completed measurement can contain an incorrect model proposal. Reports disting
 
 ### Current experiment coverage
 
-The catalog contains **nineteen runnable experiments**. Twelve synthetic method tests are available to automatic planning; seven are selected manually because they use fixed published data, are exploratory follow-ups or are separate pilots. `node research/show-catalog.mjs` prints the current catalog.
+The catalog contains **twenty runnable experiments**. Thirteen synthetic method tests are available to automatic planning, one of them an [Oraklet-designed, preregistered experiment](research/EXPERIMENT-DESIGN.md); seven are selected manually because they use fixed published data, are exploratory follow-ups or are separate pilots. `node research/show-catalog.mjs` prints the current catalog.
 
 | Experiment area | Implemented methods and tools | Selection |
 | --- | --- | --- |
@@ -32,6 +32,7 @@ The catalog contains **nineteen runnable experiments**. Twelve synthetic method 
 | Sequence reconstruction | Annihilator recurrence recovery and held-out terms | Automatic |
 | Bayesian model comparison | Mixalot with fixed categorical models | Automatic |
 | Time-series analysis | Statsmodels with a fixed AR(1) protocol | Automatic |
+| Experiment design | AR(1) test where Oraklet chooses effect and sample sizes and preregisters predictions | Automatic |
 | Symbolic mathematics | SymPy exact quadratic equations | Automatic |
 | Machine learning | Scikit-learn linear/quadratic regression with separate training, validation and test data | Automatic |
 | Causal inference | DoWhy backdoor adjustment under a given causal diagram | Automatic |
@@ -55,11 +56,11 @@ See the [experiment catalog](research/EXPERIMENTS.md), [hypothesis protocols](re
 | Research task | Select an existing catalog experiment and seed using recent report summaries | Select and formulate a wider range of research questions |
 | AI model | Choose the configured default or reasoning model, or one of the HIP/Blablador models ranked best in the experiment's research domain by [Scientific benchmark v4](research/SCIENTIFIC-V4.md), with a recorded rationale and the ranking evidence; identity stays fixed during a run | Learn from the lab's own results which models suit which research tasks |
 | Scientific tools | Use the fixed adapter associated with the selected experiment | Let Oraklet choose and combine suitable scientific tools |
-| Experiment design | Follow predefined protocols, assumptions and verification criteria | Develop and revise research plans within explicit budgets and verification requirements |
+| Experiment design | Follow predefined protocols; in [design experiments](research/EXPERIMENT-DESIGN.md) choose bounded parameters and preregister predictions and a falsification criterion before data exist | Develop and revise research plans within explicit budgets and verification requirements |
 
 **The project's goal is greater research autonomy:** Professor Oraklet should be able to decide which AI models to run and which tools to use for a research question, execute the investigation and evaluate the evidence. Choosing between operator-configured models and benchmark-ranked HIP/Blablador models per research domain is implemented in the daily workflow; general tool composition remains a development goal.
 
-The repository also contains a persistent Problem Bank and Research Loop integration for tracking catalog-backed problems, hypotheses, attempts and results. A separate proposal workflow produces deterministic catalog-based research suggestions for review, and links saved literature research candidates to catalog experiments in the same research area (for example symbolic regression or fluid state estimation) as Problem Bank proposals that a person must approve and register. The daily run now prioritises approved, literature-linked Problem Bank problems and writes each run's verified or falsified outcome back to the problem ([Problem Bank](research/PROBLEM-BANK.md#daily-lab-on-approved-problems)). These provide a foundation for broader autonomy; they do not yet generate unrestricted new experiments. See [Problem Bank](research/PROBLEM-BANK.md) and [Research Loop](research/RESEARCH-LOOP.md).
+The repository also contains a persistent Problem Bank and Research Loop integration for tracking catalog-backed problems, hypotheses, attempts and results. A separate proposal workflow produces deterministic catalog-based research suggestions for review, and links saved literature research candidates to catalog experiments in the same research area (for example symbolic regression or fluid state estimation) as Problem Bank proposals that a person must approve and register. Every experiment answer also states Oraklet's confidence that it will pass verification, and the lab measures calibration per run and per model ([calibration](research/CALIBRATION.md)). The daily run now prioritises approved, literature-linked Problem Bank problems and writes each run's verified or falsified outcome back to the problem ([Problem Bank](research/PROBLEM-BANK.md#daily-lab-on-approved-problems)). These provide a foundation for broader autonomy; they do not yet generate unrestricted new experiments. See [Problem Bank](research/PROBLEM-BANK.md) and [Research Loop](research/RESEARCH-LOOP.md).
 
 The [literature evidence planner](research/LITERATURE-EVIDENCE.md) connects saved literature searches to persistent, deduplicated abstracts and abstract-level model summaries with source quotations and traceable, review-only hypothesis/experiment templates. Explicit reported limitations become research-gap candidates requiring further review. Portfolio merit scores remain unknown; this is a bounded planning baseline, not validated gap discovery or autonomous experiment execution.
 
