@@ -37,6 +37,12 @@ The case is verified, scored and recorded in VEM-Sci exactly as in the direct pr
 - **What the report adds.** How many hypotheses Oraklet stated, whether one fitted the observations, and whether the correct one was among them. The last shows whether the method fails at generating hypotheses or at choosing among them.
 - **Fairness.** The tree method spends more calls and gets feedback from the observations. The comparison is therefore not made at equal compute, and it is not presented as such.
 
+## Budget method (`act-map-budget`)
+
+`act-map-budget` (protocol `act-map-budget-v1`) is the direct protocol with at most **two** interventions. The fixtures are the same three as on the same seed. The gate needs the root and the mediator covered and two different interventions. With two allowed, Oraklet can no longer simply try all three. He has to plan which two are informative.
+
+Measured so far, Oraklet always chose all three interventions with value 1, so this tests planning. For comparison, the report shows whether the enumeration baseline managed with at most two (`baselineWithinBudget`).
+
 ## Verification
 
 The fixture (the shown task plus the hidden truth) is hashed before any model call. The lab sends the fixture, Oraklet's claim and the discovery record to `research/act_map_benchmark.py --gate`, which does the following:
@@ -76,6 +82,20 @@ The daily literature report in [`ai-bus/`](../ai-bus/README.md) shows the regist
 After each lab run, the step **Uppdatera Oraklets VEM-Sci-register** (`node research/vem-sci.mjs`) reads the register from the latest 200 saved runs that carry one. It counts the claims per experiment and status and writes the result to the step summary and the artifact. A read failure is reported and never fails the run. Runs saved before this change have no register entry.
 
 "Provisionally supported" means: within this tested case and its verifier. It is never established science.
+
+## DeepRAP scoreboard
+
+`research/deeprap.mjs` measures Deep Reasoning, Abstraction and Planning from the saved runs that carry a VEM-Sci register. It reads the register, each run's calibration and its plan's register choice; no model is involved.
+
+| Capability | Measure |
+| --- | --- |
+| Reasoning | Share of decided claims that held at verification. Unresolved claims, split into abstentions and missing answers. Stated confidence against the share correct (Brier score). |
+| Abstraction | ACT-MAP correct decisions per protocol (direct, tree search, two interventions) and per level. Falsely certified transfers. |
+| Planning | Interventions per correct case, Oraklet against the enumeration baseline. How often the daily planner chose the experiment with the highest learning priority, its mean relative rank, and how often it chose an untested experiment. |
+
+ACT-MAP claims carry their verified outcome for this: protocol, level, pass, interventions used, the baseline's interventions and its result. Every figure is shown with the number of cases behind it, and few cases mean large uncertainty.
+
+The lab step **DeepRAP-mått** writes the scoreboard to the step summary and the artifact after each run, and ai-bus shows it daily below the memory section. A read failure never fails a run.
 
 ## Limitations
 

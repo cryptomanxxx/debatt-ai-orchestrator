@@ -1,7 +1,7 @@
 import { ResearchError } from './errors.mjs';
 import { agenticTreeSearch } from './agentic-tree-search.mjs';
 import { ACT_MAP_SYSTEM, makeActMapFixture, publicTask, intervene, predict, named, namedClaim, designMessages, inferenceMessages,
-  checkDesign, checkInference, parseJson, answer, validateActMap, actMapPasses, vemRecord } from './act-map.mjs';
+  checkDesign, checkInference, parseJson, answer, validateActMap, actMapPasses, vemRecord, actMapOutcome } from './act-map.mjs';
 
 // ACT-MAP with agentic tree search (research/ACT-MAP-LAB.md). The direct protocol asks for one
 // answer after the experiments. Here Oraklet first states up to three competing hypotheses; the
@@ -139,18 +139,18 @@ export async function runActMapTreeExperiment(seed, propose, callTool, onCommit,
     const passed = actMapPasses(claim, fixture, result.gate);
     const truth = { scope: fixture.truth.scope, ...namedClaim(fixture, { mapping: fixture.truth.mapping, action_to_target: fixture.truth.action_to_target }) };
     const correctAmong = tree ? tree.hypotheses.some(h => actMapPasses(h, fixture, { accepted: true })) : false;
+    const measured = { level: fixture.view.level, truth, gate: result.gate, baseline: result.baseline,
+      baselinePassed: result.baseline.scope_correct && (fixture.truth.scope === 'none' || result.baseline.mapping_correct && result.baseline.accepted),
+      falseCertification: result.gate.accepted && !passed, experimentsUsed: history.length,
+      hypotheses: tree?.hypotheses.length ?? 0, consistentHypothesisFound: Boolean(tree?.search.verifiedNodeId),
+      correctHypothesisAmongCandidates: correctAmong };
     cases.push({ case: i + 1, level: fixture.view.level, commitment: fixture.commitment, data: publicTask(fixture),
       proposal: { design: checkedDesign.design ?? null, decision: claim?.decision ?? null, ...namedClaim(fixture, claim?.proposed ?? null), reason: claim?.reason ?? null },
       provider: ai.provider, model: ai.model, experiments: named(fixture, history), evidence,
       tree: tree && { search: tree.search, evaluated: tree.evaluated, notEvaluated: tree.notEvaluated },
-      hypothesisTest: { protocol: ACT_MAP_TREE_PROTOCOL, decision: passed ? 'correct_transfer_decision' : 'incorrect_transfer_decision',
-        measured: { level: fixture.view.level, truth, gate: result.gate, baseline: result.baseline,
-          baselinePassed: result.baseline.scope_correct && (fixture.truth.scope === 'none' || result.baseline.mapping_correct && result.baseline.accepted),
-          falseCertification: result.gate.accepted && !passed, experimentsUsed: history.length,
-          hypotheses: tree?.hypotheses.length ?? 0, consistentHypothesisFound: Boolean(tree?.search.verifiedNodeId),
-          correctHypothesisAmongCandidates: correctAmong },
+      hypothesisTest: { protocol: ACT_MAP_TREE_PROTOCOL, decision: passed ? 'correct_transfer_decision' : 'incorrect_transfer_decision', measured,
         independentlyVerified: true, verificationScope: 'python-evidence-gate-and-node-replay', familyInference: null },
-      vem: vemRecord(fixture, claim, history, result.gate, formatProblem, ACT_MAP_TREE_PROTOCOL.id),
+      vem: vemRecord(fixture, claim, history, result.gate, formatProblem, ACT_MAP_TREE_PROTOCOL.id, actMapOutcome(ACT_MAP_TREE_PROTOCOL.id, measured, passed)),
       ...(formatProblem ? { formatProblem } : {}),
       initialPassed: passed, passed, correctionAttempted: false, sameModel: true });
     await options.onProgress?.(structuredClone(cases));

@@ -68,6 +68,8 @@ export const CATALOG = Object.freeze([
     question: 'Kan Oraklet skilja en justerad kausal effekt från ojusterad association under ett fast diagram?' },
   { id: 'act-map-transfer', domain: 'causal', name: 'ACT-MAP', toolId: 'act-map',
     question: 'Hittar Oraklet med egna ingrepp en känd orsaksmekanism i ett okänt system?' },
+  { id: 'act-map-budget', domain: 'causal', name: 'ACT-MAP med två ingrepp', toolId: 'act-map', method: 'budget',
+    question: 'Kan Oraklet planera två informativa ingrepp och ändå avgöra ACT-MAP rätt?' },
   { id: 'act-map-tree', domain: 'causal', name: 'ACT-MAP med trädsökning', toolId: 'act-map', method: 'tree',
     question: 'Hjälper egna konkurrerande hypoteser, prövade mot observationerna, Oraklet i ACT-MAP?' },
   { id: 'perturbseq-holdout', domain: 'statistics', name: 'Perturb-seq: dolda gener', toolId: 'perturbseq-holdout',
