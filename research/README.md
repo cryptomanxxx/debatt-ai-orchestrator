@@ -1,5 +1,9 @@
 # Oraklets dagliga forskningslabb
 
+`perturbseq-holdout` låter Oraklet blint förutsäga effekten av genutslagningar som
+hållits utanför ett publicerat Perturb-seq-dataset och jämför mot låst facit och två
+fasta baslinjer. Automatiskt valbart. Se [källa, protokoll och begränsningar](PERTURBSEQ-HOLDOUT.md).
+
 `insulin-external-curve` prövar samma fasta kurvmodeller på en separat publicerad aspartfigur och redovisar fel per grupp och horisont. Samma forskargrupp; deltagaröverlapp ej klarlagt. Se [låst protokoll](INSULIN-EXTERNAL-CURVE.md).
 
 `insulin-curve-shape` är en manuell, utforskande uppföljning på samma redan
