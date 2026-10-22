@@ -64,7 +64,8 @@ export function createOpenAlexGraph({ fetchImpl = fetch, apiKey = '', pause = ()
     async work(id) {
       const url = new URL('https://api.openalex.org/works/' + id.match(WORK)[1]);
       url.searchParams.set('select', 'id,display_name,publication_year,cited_by_count');
-      return work(await get(url));
+      // A deleted or merged-away ID answers 404: that seed is unavailable, the others are still searched.
+      try { return work(await get(url)); } catch (error) { if (error.message === 'openalex_http_404') return null; throw error; }
     },
     async citing(id) {
       const url = new URL('https://api.openalex.org/works');

@@ -128,6 +128,9 @@ test('the OpenAlex client builds bounded citation requests', async () => {
   await assert.rejects(offsite.work('https://openalex.org/W1'), /openalex_redirect_offsite/);
   const failing = createOpenAlexGraph({ pause: async () => {}, fetchImpl: async () => new Response('x', { status: 429 }) });
   await assert.rejects(failing.citing('https://openalex.org/W1'), /openalex_http_429/);
+  await assert.rejects(failing.work('https://openalex.org/W1'), /openalex_http_429/, 'rate limits still fail the run');
+  const gone = createOpenAlexGraph({ pause: async () => {}, fetchImpl: async () => new Response('', { status: 404 }) });
+  assert.equal(await gone.work('https://openalex.org/W1'), null, 'a vanished seed is skipped');
 });
 
 test('main reads the saved report, searches and writes the artifact', async () => {
