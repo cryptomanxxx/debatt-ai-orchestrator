@@ -52,5 +52,5 @@ The daily **Oraklets forskningslabb** run (`auto`) closes the loop from literatu
    The manual Problem Bank runner uses the same verdict rule.
 4. **Outages never stop the experiment.** If Problem Bank is unreachable, the experiment still runs and its report says `recorded: false`. If the literature reports are unreachable, the problems are still offered, without literature context.
 
-Registration stays a manual, reviewed step (**problem-bank-create**). The lab works only on problems a person has registered, and the catalog experiment remains a bounded method test in the problem's research area; it does not test the reported limitation or gap itself.
+The [daily literature research](LITERATURE-DAY.md) registers literature-backed proposals for automatic catalog experiments itself. Proposals for manual-only experiments still need the reviewed **problem-bank-create** step. The lab works only on registered problems: automatic catalog problems may be registered by the daily job without human review, and manual-only ones by a person. The catalog experiment remains a bounded method test in the problem's research area; it does not test the reported limitation or gap itself.
 

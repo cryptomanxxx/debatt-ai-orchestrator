@@ -15,6 +15,7 @@ const METHODS = [
   {pattern:/\bbayesian optim(?:ization|isation)\b/i,short:'bayesian optimization',expanded:'bayesian optimization',aliases:['bayesian optimization','bayesian optimisation']},
   {pattern:/\b(?:experiment|experimental) design\b/i,short:'experiment design',expanded:'experimental design',aliases:['experiment design','experimental design']},
   {pattern:/\bcausal (?:inference|discovery|estimation)\b/i,short:'causal inference',expanded:'causal inference',aliases:['causal inference','causal discovery','causal estimation']},
+  {pattern:/\b(?:ai|llm) (?:agents?|scientists?)\b|\bautonomous (?:research|scientific discovery)\b/i,short:'ai agents',expanded:'ai agents scientific discovery',aliases:['ai agent','ai agents','llm agent','llm agents','ai scientist','autonomous research']},
   {pattern:/\bmixture of experts\b|\bmoe\b/i,short:'moe',expanded:'mixture of experts',aliases:['moe','mixture of experts']},
 ];
 

@@ -4,7 +4,8 @@ export const RESEARCH_CHOICES = [
   'Experiment design',
   'Kalman state estimation',
   'Causal inference',
-  'Model evaluation'
+  'Model evaluation',
+  'AI for scientific discovery'
 ];
 export const PIPELINE_STAGES = [
   'preflight',
