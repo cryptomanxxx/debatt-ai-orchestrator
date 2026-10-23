@@ -37,6 +37,18 @@ The case is verified, scored and recorded in VEM-Sci exactly as in the direct pr
 - **What the report adds.** How many hypotheses Oraklet stated, whether one fitted the observations, and whether the correct one was among them. The last shows whether the method fails at generating hypotheses or at choosing among them.
 - **Fairness.** The tree method spends more calls and gets feedback from the observations. The comparison is therefore not made at equal compute, and it is not presented as such.
 
+## Budget method (`act-map-budget`)
+
+`act-map-budget` (protocol `act-map-budget-v1`) is the direct protocol with at most **two** interventions, chosen **one at a time**. The gate needs the root and the mediator covered and two different interventions. With two allowed, Oraklet can no longer simply try all three. Measured so far, he always chose all three interventions with value 1.
+
+1. **First intervention.** Oraklet chooses one. Nothing public tells the roles apart before an intervention, so this choice is a guess.
+2. **Second intervention.** Oraklet sees the first outcome and chooses a different intervention. At level 2 the task shows which variable each intervention sets, and the outcome shows which variables respond, so the first outcome determines which second intervention completes the coverage. This is where planning shows.
+3. **Claim.** As in the direct protocol; only this call states a confidence.
+
+- **Cases.** Two level-2 fixtures: three calls per case means two cases fit the lab's budget. The first has the direct protocol's level-2 truth on the same seed; the second is a fresh level-2 fixture. Levels 3 and 4 are not used: there the intervention targets are hidden, the two unused interventions look alike after the first outcome, and the second choice would be a coin toss.
+- **Binding.** The fixture's view carries the protocol and the limit of two, so the commitment binds them. The Python gate and the Node replay reject a third intervention, and the enumeration baseline gets the same budget.
+- **What is measured.** Judged against the hidden roles: whether the first intervention left coverage reachable (`completable`, false when it set `s_2`), and whether the second then completed it (`secondCompletes`). A case whose first intervention set `s_2` is bad luck, not poor planning. The report and the DeepRAP scoreboard count the second choice only where it could succeed.
+
 ## Verification
 
 The fixture (the shown task plus the hidden truth) is hashed before any model call. The lab sends the fixture, Oraklet's claim and the discovery record to `research/act_map_benchmark.py --gate`, which does the following:
@@ -76,6 +88,20 @@ The daily literature report in [`ai-bus/`](../ai-bus/README.md) shows the regist
 After each lab run, the step **Uppdatera Oraklets VEM-Sci-register** (`node research/vem-sci.mjs`) reads the register from the latest 200 saved runs that carry one. It counts the claims per experiment and status and writes the result to the step summary and the artifact. A read failure is reported and never fails the run. Runs saved before this change have no register entry.
 
 "Provisionally supported" means: within this tested case and its verifier. It is never established science.
+
+## DeepRAP scoreboard
+
+`research/deeprap.mjs` measures Deep Reasoning, Abstraction and Planning from the saved runs that carry a VEM-Sci register. It reads the register, each run's calibration and its plan's register choice; no model is involved.
+
+| Capability | Measure |
+| --- | --- |
+| Reasoning | Share of decided claims that held at verification. Unresolved claims, split into abstentions and missing answers. Stated confidence against the share correct (Brier score). |
+| Abstraction | ACT-MAP correct decisions per protocol (direct, tree search, two interventions) and per level. Falsely certified transfers. |
+| Planning | Interventions per correct case, Oraklet against the enumeration baseline. With two interventions, how often the second completed the coverage where the first left it possible. How often the daily planner chose the experiment with the highest learning priority, its mean relative rank, and how often it chose an untested experiment. |
+
+ACT-MAP claims carry their verified outcome for this: protocol, level, pass, interventions used, the baseline's interventions and its result. Every figure is shown with the number of cases behind it, and few cases mean large uncertainty.
+
+The lab step **DeepRAP-mått** writes the scoreboard to the step summary and the artifact after each run, and ai-bus shows it daily below the memory section. A read failure never fails a run.
 
 ## Limitations
 

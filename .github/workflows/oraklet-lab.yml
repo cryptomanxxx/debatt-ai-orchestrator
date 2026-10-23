@@ -24,6 +24,7 @@ on:
           - sklearn-polynomial
           - dowhy-backdoor
           - act-map-transfer
+          - act-map-budget
           - act-map-tree
           - perturbseq-holdout
           - glucose-absorption
@@ -145,6 +146,12 @@ jobs:
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node research/vem-sci.mjs
+      - name: DeepRAP-mått (resonemang, abstraktion, planering)
+        if: always() && (inputs.experiment != 'catalog-only' || inputs.problem_bank_id != '')
+        timeout-minutes: 2
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node research/deeprap.mjs
       - name: Rita kurvanpassning och prognoser även för sparade delresultat
         if: always() && (inputs.experiment == 'insulin-curve-shape' || steps.resolved.outputs.experiment == 'insulin-curve-shape' || inputs.experiment == 'insulin-external-curve' || steps.resolved.outputs.experiment == 'insulin-external-curve')
         run: python3 scripts/plot_insulin_curves.py reports/oraklet-lab/report.json

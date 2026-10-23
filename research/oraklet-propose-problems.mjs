@@ -8,6 +8,7 @@ export const CATALOG_DOMAINS=Object.freeze({
   'dowhy-backdoor':'causal-inference',
   'act-map-transfer':'causal-mechanism-transfer',
   'act-map-tree':'causal-mechanism-transfer',
+  'act-map-budget':'causal-mechanism-transfer',
   'perturbseq-holdout':'functional-genomics',
   'insulin-external-curve':'physiological-evidence-reanalysis',
   'insulin-curve-shape':'physiological-evidence-reanalysis',

@@ -12,7 +12,8 @@ import { readRecentLiteratureReports } from './run-oraklet-proposals.mjs';
 import { literatureProblemProposals } from './literature-problem-proposals.mjs';
 import { makeCatalogProblem, createOrVerifyCatalogProblem } from './problem-bank-create-catalog.mjs';
 import { createProblemBankClient } from './problem-bank.mjs';
-import { readVemRegister, vemRegisterSummary, learningPriority, REGISTER_LIMIT } from './vem-sci.mjs';
+import { vemRegisterSummary, learningPriority, REGISTER_LIMIT } from './vem-sci.mjs';
+import { readDeepRapRows, deepRapScoreboard, deepRapMarkdown } from './deeprap.mjs';
 
 // The fields Oraklet reads, one per day in turn.
 export const LITERATURE_FIELDS = Object.freeze(['AI for scientific discovery', 'Causal inference']);
@@ -225,6 +226,7 @@ export function renderAiBus(day) {
         L.push(`| ${md(e.experimentId, 60)} | ${num(e.provisionally_supported)} | ${num(e.rejected)} | ${num(e.unresolved)} (${num(e.abstentions)} / ${num(e.noAnswers)}) | ${learningPriority([num(e.provisionally_supported), num(e.rejected), num(e.unresolved)]).toFixed(2)} |`);
       L.push('', '"Preliminärt stött" gäller bara det testade fallet och dess verifierare, aldrig etablerad vetenskap.', '');
     }
+    if (day.memory.deeprap) L.push(deepRapMarkdown(day.memory.deeprap, { heading: '##' }));
   }
 
   L.push('## Begränsningar', '',
@@ -246,7 +248,11 @@ export async function main(env = process.env, { now = new Date().toISOString(), 
     createProblemBankClient({ url: e.SUPABASE_URL, secretKey: e.SUPABASE_SECRET_KEY, fetchImpl: bounded }),
     await readRecentLiteratureReports({ url: e.SUPABASE_URL, secretKey: e.SUPABASE_SECRET_KEY })));
   const labReports = deps.labReports ?? ((e, since) => readRecentLabReports(e.SUPABASE_SERVICE_ROLE_KEY, since));
-  const memory = deps.memory ?? (async e => vemRegisterSummary(await readVemRegister(e.SUPABASE_SERVICE_ROLE_KEY || '')));
+  // One read serves both the register and the DeepRAP scoreboard built from it.
+  const memory = deps.memory ?? (async e => {
+    const rows = await readDeepRapRows(e.SUPABASE_SERVICE_ROLE_KEY || '');
+    return { ...vemRegisterSummary(rows), deeprap: deepRapScoreboard(rows) };
+  });
   const day = await runLiteratureDay(env, { date, now, pipeline, register, labReports, memory,
     tree: deps.tree ?? treeMain, novelty: deps.novelty ?? (e => noveltyMain(e)) });
   const markdown = renderAiBus(day);

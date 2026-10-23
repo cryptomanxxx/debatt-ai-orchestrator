@@ -308,7 +308,7 @@ def evaluate(fixture: dict, strategy: str = "active") -> dict:
     gate = evidence_gate(fixture, proposed, history)
     if gate["accepted"]:
         decision = proposed["scope"]
-    elif not [h for h in viable if h["scope"] != "null"] and len(history) == 3:
+    elif not [h for h in viable if h["scope"] != "null"] and len(history) == view["max_experiments"]:
         decision = "no_supported_transfer"  # NOT a universal proof of no transfer
     else:
         decision = "unresolved"
@@ -408,6 +408,8 @@ def gate_tool(payload: Any) -> dict:
     sends the fixture, Oraklet's proposal and the discovery record here. This
     module rechecks the commitment, replays every intervention, applies the
     evidence gate and runs the enumeration baseline on the same fixture.
+    A view may carry a budget of two interventions (act-map-budget-v1); the
+    commitment binds it, and the gate and the baseline both keep to it.
     """
     if not isinstance(payload, dict) or set(payload) != {"fixture", "proposed", "history"}:
         raise ValueError("invalid_gate_input")
@@ -416,7 +418,7 @@ def gate_tool(payload: Any) -> dict:
         raise ValueError("invalid_gate_input")
     view, truth = fixture["view"], fixture["truth"]
     if (not isinstance(view, dict) or view.get("level") not in (2, 3, 4)
-            or view.get("max_experiments") != 3 or not isinstance(view.get("source"), dict)
+            or view.get("max_experiments") not in (2, 3) or not isinstance(view.get("source"), dict)
             or any(type(view["source"].get(k)) is not int for k in ("a", "b", "c"))
             or not isinstance(truth, dict)
             or set(truth) != {"mapping", "action_to_target", "scope", "target_coefficients"}):
