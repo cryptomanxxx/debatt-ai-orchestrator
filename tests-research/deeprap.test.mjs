@@ -23,7 +23,7 @@ function scripted(seed, choose) {
   const fixtures = makeActMapBudgetCases(seed), seen = [];
   const propose = async messages => {
     const content = JSON.parse(messages[1].content), task = content.task ?? content;
-    const f = fixtures.find(x => x.view.level === task.level);
+    const f = fixtures.find(x => x.view.target_variables[0] === task.targetVariables[0]);
     seen.push({ system: messages[0].content, content });
     const text = /Avgör nu/.test(messages[0].content) ? JSON.stringify({ ...truthful(f), reason: 'R.' })
       : JSON.stringify({ experiments: [{ intervention: choose(f, content.results ? 1 : 0, content.results), value: 1 }], reason: 'Planerat.' });
@@ -35,18 +35,20 @@ const run = choose => { const s = scripted('3', choose); return runActMapExperim
 
 test('the budget fixtures bind their protocol and two-intervention limit, with the direct truth', async () => {
   assert.equal(BUDGET_EXPERIMENTS, 2);
-  const budget = makeActMapBudgetCases('3'), direct = makeActMapCases('3').slice(1);
-  assert.deepEqual(budget.map(f => f.view.level), [3, 4]);
-  for (const [i, f] of budget.entries()) {
+  const budget = makeActMapBudgetCases('3'), [direct] = makeActMapCases('3');
+  assert.deepEqual(budget.map(f => f.view.level), [2, 2]);
+  assert.deepEqual(budget[0].truth, direct.truth, 'the first case is paired with the direct protocol on the same seed');
+  assert.notDeepEqual(budget[1].view.target_variables, budget[0].view.target_variables, 'the second is a fresh fixture');
+  for (const f of budget) {
     assert.deepEqual([f.view.protocol, f.view.max_experiments], [ACT_MAP_BUDGET_PROTOCOL.id, 2]);
-    assert.deepEqual(f.truth, direct[i].truth, 'paired with the direct protocol on the same seed');
-    assert.notEqual(f.commitment, direct[i].commitment);
+    assert.notEqual(f.commitment, direct.commitment);
+    assert.ok(publicTask(f).interventionSets, 'which variable each intervention sets is public, so the first outcome decides the second choice');
     assert.equal(f.commitment, digest({ view: f.view, truth: f.truth }));
     assert.deepEqual([publicTask(f).protocol, publicTask(f).maxExperiments], [ACT_MAP_BUDGET_PROTOCOL.id, 2]);
   }
   const [f] = budget, three = JSON.stringify({ experiments: f.view.target_interventions.map(i => ({ intervention: i, value: 1 })), reason: 'r' });
   assert.equal(checkDesign(three, f).problem, 'invalid_experiments');
-  assert.ok(checkDesign(three, makeActMapCases('3')[1]).design, 'the direct protocol still allows three');
+  assert.ok(checkDesign(three, direct).design, 'the direct protocol still allows three');
   // The gate keeps to the committed budget: a third intervention is rejected by both verifiers.
   const history = [0, 1, 2].map(action => ({ action, value: 1, outcome: intervene(f, action, 1) }));
   const proposed = { scope: 'full', mapping: f.truth.mapping, action_to_target: f.truth.action_to_target };
@@ -67,7 +69,7 @@ test('the budget variant chooses the second intervention after seeing the first'
   assert.equal(second.length, 2);
   assert.ok(second.every(x => x.content.results.length === 1 && x.content.results[0].observed), 'the second choice sees the first outcome');
   assert.deepEqual(report.cases.map(c => c.experiments.length), [2, 2]);
-  assert.ok(report.cases.filter(c => c.hypothesisTest.measured.truth.scope !== 'none').every(c => c.passed));
+  assert.ok(report.cases.every(c => c.passed));
   assert.ok(report.cases.every(c => c.vem.outcome.protocol === 'act-map-budget-v1' && c.vem.outcome.experimentsUsed === 2
     && c.vem.outcome.completable === true && c.vem.outcome.secondCompletes === true));
   assert.equal(report.cases[0].proposal.design.reasons.length, 2);
@@ -79,7 +81,7 @@ test('the budget variant separates bad luck from a poor second choice', async ()
   const missed = (await run((f, step) => byRole(f, step ? 2 : 1))).report;
   for (const c of missed.cases) {
     assert.deepEqual(c.hypothesisTest.measured.planning, { completable: true, secondCompletes: false });
-    if (c.hypothesisTest.measured.truth.scope !== 'none') assert.equal(c.hypothesisTest.measured.gate.reason, 'insufficient_intervention_coverage');
+    assert.equal(c.hypothesisTest.measured.gate.reason, 'insufficient_intervention_coverage');
   }
   // First on s_2: nothing public told the roles apart, so the case says nothing about planning.
   const unlucky = (await run((f, step) => byRole(f, step ? 0 : 2))).report;
@@ -182,7 +184,7 @@ globalThis.fetch=async(url,options={})=>{
     const saved = JSON.parse(await readFile(join(dir, 'saved.json'), 'utf8')).rapport;
     assert.equal(saved.experimentId, 'act-map-budget');
     assert.equal(saved.protocol.id, 'act-map-budget-v1');
-    assert.deepEqual(saved.cases.map(c => [c.level, c.experiments.length]), [[3, 2], [4, 2]]);
+    assert.deepEqual(saved.cases.map(c => [c.level, c.experiments.length]), [[2, 2], [2, 2]]);
     assert.match(await readFile(join(dir, 'reports/oraklet-lab/report.md'), 'utf8'), /## ACT-MAP under budget \(två ingrepp\): Oraklet mot uppräkningsbaslinjen/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });

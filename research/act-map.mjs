@@ -31,17 +31,19 @@ export const ACT_MAP_PROTOCOL = Object.freeze({
   limitations: 'Syntetiska tre-variabel-system i samma linjära familj; ingen verklig vetenskaplig upptäckt. Uppräkningsbaslinjen löser i stort sett alla fall, så testet mäter om modellen kan resonera fram det som en enkel uppräkning hittar. "Preliminärt stött" gäller bara inom den här syntetiska familjen.',
 });
 
-// The budget variant: the same level-3 and level-4 fixtures, at most two interventions, chosen one
-// at a time. With three roles and a gate that needs the root and the mediator covered, two
-// interventions leave no room for trial and error. Nothing public tells the roles apart before an
-// intervention, so the first choice is a guess; the second, chosen after seeing the first outcome,
-// is where planning shows. The fixture's view carries the budget, so the commitment binds it.
+// The budget variant: two level-2 fixtures, at most two interventions, chosen one at a time. With
+// three roles and a gate that needs the root and the mediator covered, two interventions leave no
+// room for trial and error. Nothing public tells the roles apart before an intervention, so the
+// first choice is a guess. Level 2 shows which variable each intervention sets, so the first
+// outcome determines the second choice: that is where planning shows. (At levels 3 and 4 the two
+// unused interventions stay indistinguishable and the second choice would be a coin toss.) The
+// first case has the direct protocol's level-2 truth on the same seed; the fixture's view carries
+// the budget, so the commitment binds it.
 export const BUDGET_EXPERIMENTS = 2;
-export const BUDGET_LEVELS = Object.freeze([3, 4]);
 export const ACT_MAP_BUDGET_PROTOCOL = Object.freeze({
   id: 'act-map-budget-v1',
   hypothesis: 'Kan Oraklet planera sina ingrepp när han bara får två, och ändå hitta eller avvisa överföringen av en känd orsaksmekanism?',
-  rule: 'Samma fall på nivå 3 och 4 och samma godkännande som act-map-oraklet-v1 på samma seed, men högst två ingrepp per fall, valda ett i taget: det andra väljs efter att Oraklet sett utfallet av det första. Evidensgrinden kräver att roten och mediatorn täcks och att två olika ingrepp gjorts. Rapporten visar om det andra ingreppet fullbordade täckningen när det första lämnade det möjligt. Uppräkningsbaslinjen får samma budget.',
+  rule: 'Två fall på nivå 2 (det första med samma facit som act-map-oraklet-v1 på samma seed) och samma godkännande, men högst två ingrepp per fall, valda ett i taget: det andra väljs efter att Oraklet sett utfallet av det första. På nivå 2 visas vilken variabel varje ingrepp sätter, så det första utfallet avgör vilket andra ingrepp som fullbordar täckningen. Evidensgrinden kräver att roten och mediatorn täcks och att två olika ingrepp gjorts. Uppräkningsbaslinjen får samma budget.',
   assumptions: ACT_MAP_PROTOCOL.assumptions,
   limitations: 'Samma syntetiska familj som act-map-oraklet-v1. Inget offentligt skiljer rollerna åt före första ingreppet, så ett första ingrepp på den variabel som motsvarar s_2 gör fallet omöjligt att certifiera; det mäts som tur, inte planering. Ingen verklig vetenskaplig upptäckt.',
 });
@@ -64,10 +66,11 @@ const validSeed = seed => {
 
 // One fixture in the shape the Python gate expects: {view, truth, commitment}.
 // `budget` gives the view the budget variant's protocol and limit; the hidden truth is the same.
-export function makeActMapFixture(seed, level, { budget = false } = {}) {
+// `instance` draws a further fixture at the same level; instance 0 is the direct protocol's.
+export function makeActMapFixture(seed, level, { budget = false, instance = 0 } = {}) {
   validSeed(seed);
   if (!ACT_MAP_LEVELS.includes(level)) throw new ResearchError('invalid_plan');
-  const next = stream(seed, `level-${level}`);
+  const next = stream(seed, instance ? `level-${level}-${instance}` : `level-${level}`);
   const pick = values => values[next() % values.length];
   const a = pick([2, 3, 4]), b = pick([-4, -3, -2]), c = pick([1, 2]);
   const names = prefix => Array.from({ length: 3 }, () => `${prefix}_${next().toString(16).padStart(12, '0').slice(-9)}`);
@@ -85,7 +88,7 @@ export function makeActMapFixture(seed, level, { budget = false } = {}) {
   return { view, truth, commitment: digest({ view, truth }) };
 }
 export const makeActMapCases = seed => ACT_MAP_LEVELS.map(level => makeActMapFixture(seed, level));
-export const makeActMapBudgetCases = seed => BUDGET_LEVELS.map(level => makeActMapFixture(seed, level, { budget: true }));
+export const makeActMapBudgetCases = seed => [0, 1].map(instance => makeActMapFixture(seed, 2, { budget: true, instance }));
 
 function scm([a, b, c], manipulated, value) {
   const x0 = manipulated === 0 ? value : 0;
@@ -350,7 +353,7 @@ async function designStep(fixture, designPropose, budget) {
 }
 
 export async function runActMapExperiment(seed, propose, callTool, onCommit, options = {}) {
-  // `budget` runs the level-3 and level-4 fixtures with two interventions chosen one at a time
+  // `budget` runs two level-2 fixtures with two interventions chosen one at a time
   // (act-map-budget-v1): three calls per case, so two cases fit the lab's budget.
   const protocol = options.budget ? ACT_MAP_BUDGET_PROTOCOL : ACT_MAP_PROTOCOL;
   const fixtures = options.budget ? makeActMapBudgetCases(seed) : makeActMapCases(seed), cases = [];

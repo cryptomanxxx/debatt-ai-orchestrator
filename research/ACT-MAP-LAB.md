@@ -42,10 +42,10 @@ The case is verified, scored and recorded in VEM-Sci exactly as in the direct pr
 `act-map-budget` (protocol `act-map-budget-v1`) is the direct protocol with at most **two** interventions, chosen **one at a time**. The gate needs the root and the mediator covered and two different interventions. With two allowed, Oraklet can no longer simply try all three. Measured so far, he always chose all three interventions with value 1.
 
 1. **First intervention.** Oraklet chooses one. Nothing public tells the roles apart before an intervention, so this choice is a guess.
-2. **Second intervention.** Oraklet sees the first outcome and chooses a different intervention. The outcome shows which variables respond, so a well-planned second choice completes the coverage. This is where planning shows.
+2. **Second intervention.** Oraklet sees the first outcome and chooses a different intervention. At level 2 the task shows which variable each intervention sets, and the outcome shows which variables respond, so the first outcome determines which second intervention completes the coverage. This is where planning shows.
 3. **Claim.** As in the direct protocol; only this call states a confidence.
 
-- **Cases.** Levels 3 and 4: three calls per case means two cases fit the lab's budget. The hidden truth is the same as the direct protocol's on the same seed, so the two compare case by case.
+- **Cases.** Two level-2 fixtures: three calls per case means two cases fit the lab's budget. The first has the direct protocol's level-2 truth on the same seed; the second is a fresh level-2 fixture. Levels 3 and 4 are not used: there the intervention targets are hidden, the two unused interventions look alike after the first outcome, and the second choice would be a coin toss.
 - **Binding.** The fixture's view carries the protocol and the limit of two, so the commitment binds them. The Python gate and the Node replay reject a third intervention, and the enumeration baseline gets the same budget.
 - **What is measured.** Judged against the hidden roles: whether the first intervention left coverage reachable (`completable`, false when it set `s_2`), and whether the second then completed it (`secondCompletes`). A case whose first intervention set `s_2` is bad luck, not poor planning. The report and the DeepRAP scoreboard count the second choice only where it could succeed.
 
