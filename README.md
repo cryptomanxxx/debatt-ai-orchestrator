@@ -168,7 +168,7 @@ References: [GitHub integration](https://developers.cloudflare.com/workers/ci-cd
 
 Create a Node web service from this repository. Build command: `node --version`. Start command: `npm start`. Set environment variables in Render, not in Git. Render provides `PORT`. Use `/health` as health-check path. This repository does not create or deploy a Render service automatically.
 
-Keep the orchestrator key on the Debatt-AI backend, never in browser code. No CORS is enabled: this initial service is designed for backend-to-backend calls. Before public production use add per-user quotas/rate limiting and monitoring. Requests are limited to 32 KiB, messages to 8,000 characters, and completion to 1,024 tokens by default (4,096 for explicit research requests); upstream calls time out after 45 seconds. There is no persistent local state, retry loop or arbitrary code execution.
+Keep the orchestrator key on the Debatt-AI backend, never in browser code. No CORS is enabled: this initial service is designed for backend-to-backend calls. Before public production use add per-user quotas/rate limiting and monitoring. Requests are limited to 32 KiB, messages to 8,000 characters, and completion to 1,024 tokens by default (4,096 for explicit research requests, 8,192 for the lab's tree-search hypothesis and claim steps); upstream calls time out after 45 seconds (100 seconds at 8,192 tokens). There is no persistent local state, retry loop or arbitrary code execution.
 
 ## Modules and planning
 

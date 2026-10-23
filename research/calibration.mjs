@@ -25,9 +25,9 @@ export const MAX_CALIBRATED_CHARS = 7600;
 
 // Wraps an experiment proposer: asks for confidence, records it per call, returns the stripped answer.
 export function calibrated(propose, log) {
-  return async messages => {
+  return async (messages, options) => {
     const withRule = [...messages, { role: 'system', content: CONFIDENCE_RULE }];
-    const answer = await propose(JSON.stringify(withRule).length <= MAX_CALIBRATED_CHARS ? withRule : messages);
+    const answer = await propose(JSON.stringify(withRule).length <= MAX_CALIBRATED_CHARS ? withRule : messages, options);
     const { text, confidence } = stripConfidence(answer.text);
     log.calls.push(confidence);
     return { ...answer, text };

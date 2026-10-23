@@ -304,8 +304,8 @@ export function vemRecord(fixture, claim, history, gate, formatProblem, protocol
 
 // An answer cut off at the lab's token limit never arrived: like an unreadable answer it fails
 // the case and makes no claim, and the run goes on. Repeating it would only repeat the long answer.
-export async function answer(send, messages) {
-  try { return { ai: await send(messages) }; } catch (error) {
+export async function answer(send, messages, options) {
+  try { return { ai: await send(messages, options) }; } catch (error) {
     if (error instanceof ResearchError && error.message === 'model_output_truncated') return { problem: 'truncated' };
     throw error;
   }

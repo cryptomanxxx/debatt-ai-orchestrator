@@ -154,8 +154,8 @@ export function plannerPrompt(history, seed, modelModes = ['default'], researchC
 // A run never silently changes provider/model, including the planning call.
 export function lockModel(propose) {
   let identity;
-  return async messages => {
-    const answer = await propose(messages);
+  return async (messages, options) => {
+    const answer = await propose(messages, options);
     if (!answer || typeof answer.text !== 'string' || !answer.text.trim()
       || typeof answer.provider !== 'string' || !answer.provider
       || typeof answer.model !== 'string' || !answer.model)

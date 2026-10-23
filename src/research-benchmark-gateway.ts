@@ -10,13 +10,14 @@ type Provider=keyof typeof SOURCES;
 const SAFE_ID=/^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,199}$/;
 // lab: Oraklet's experiment calls on a benchmark-ranked model, with the lab's own 4,096-token
 // budget; catalog lookup (25 s) plus this timeout stay below the lab client's 80-second timeout.
-const BUDGET={standard:{tokens:512,chars:4000,timeout:45000},benchmark:{tokens:768,chars:12000,timeout:60000},
-  lab:{tokens:4096,chars:12000,timeout:50000}} as const;
-const MAX_RESPONSE=65536;
+// lab-deep: the tree-search hypothesis and claim steps, 8,192 tokens, because a reasoning model's
+// own reasoning counts against the limit; 25 s plus its timeout stay below the client's 140 s.
+const BUDGET={standard:{tokens:512,chars:4000,timeout:45000,response:65536},benchmark:{tokens:768,chars:12000,timeout:60000,response:65536},
+  lab:{tokens:4096,chars:12000,timeout:50000,response:65536},'lab-deep':{tokens:8192,chars:12000,timeout:110000,response:196608}} as const;
 // Same non-chat predicate as the menu's catalog filter (research/explicit-models.mjs).
 const blockedId=(id:string)=>/embedding|rerank|bge-|gte-|whisper|transcri|tts|audio|image|all-proxy|moderation|anonymiz/i.test(id);
 const error=(status:number,code:string)=>({status,data:{error:code}});
-async function boundedJson(response:Response){
+async function boundedJson(response:Response,max:number){
   const reader=response.body?.getReader();
   if(!reader)throw Error('missing_body');
   let size=0;const chunks:Uint8Array[]=[];
@@ -25,7 +26,7 @@ async function boundedJson(response:Response){
       const {done,value}=await reader.read();
       if(done)break;
       size+=value.byteLength;
-      if(size>MAX_RESPONSE){await reader.cancel();throw Error('oversized');}
+      if(size>max){await reader.cancel();throw Error('oversized');}
       chunks.push(value);
     }
   }finally{reader.releaseLock();}
@@ -102,7 +103,7 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
     return error(502,'benchmark_upstream_failed');
   }
   let data:any;
-  try{data=await boundedJson(response);}catch(e){return error(502,e instanceof Error && e.message==='oversized'?'benchmark_response_too_large':'benchmark_invalid_upstream_json');}
+  try{data=await boundedJson(response,profile.response);}catch(e){return error(502,e instanceof Error && e.message==='oversized'?'benchmark_response_too_large':'benchmark_invalid_upstream_json');}
   const answer=data?.choices?.[0]?.message?.content;
   // No untrusted upstream values are returned in diagnostics: only static error codes.
   if(typeof answer!=='string'||!answer.trim())return error(502,'benchmark_missing_answer');

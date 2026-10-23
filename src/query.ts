@@ -30,7 +30,7 @@ export async function executeQuery(input: unknown, config: Config, bootloops?: B
   const { message, mode = 'default', completionTokenLimit = 1024 } = request;
   if (typeof message !== 'string' || !message.trim() || message.length > 8000
     || typeof mode !== 'string' || !['default', 'reasoning', 'auto'].includes(mode)
-    || ![1024, 4096].includes(completionTokenLimit as number))
+    || ![1024, 4096, 8192].includes(completionTokenLimit as number))
     return { status: 400, data: { error: 'invalid_request' } };
   const profile = defaultModelProfile(config);
   if ('expectedModelFingerprint' in request) {

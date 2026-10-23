@@ -1,5 +1,7 @@
 import type { Config } from '../config.ts';
-export type CompletionTokenLimit = 1024 | 4096;
+// 8192 is for Oraklet's tree-search hypothesis and claim steps, where a reasoning model's own
+// reasoning counts against the limit; it gets a longer timeout to match.
+export type CompletionTokenLimit = 1024 | 4096 | 8192;
 export class ModelRequestError extends Error {
   code: string;
   upstreamStatus?: number;
@@ -20,7 +22,7 @@ export function tokenLimitParameter(model: string, config: Config) {
 export async function complete(message: string, model: string, config: Config, completionTokenLimit: CompletionTokenLimit = 1024) {
   try {
     const response = await fetch(config.baseUrl.replace(/\/$/, '') + '/chat/completions', {
-      method: 'POST', signal: AbortSignal.timeout(45000),
+      method: 'POST', signal: AbortSignal.timeout(completionTokenLimit === 8192 ? 100000 : 45000),
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.modelKey}` },
       body: JSON.stringify({ model, messages: [{ role: 'user', content: message }],
         [tokenLimitParameter(model, config)]: completionTokenLimit })
