@@ -367,9 +367,13 @@ export function actMapDesignMarkdown(cases) {
 
 // A compact, verified record of one design run for the daily ai-bus report (literature-day.mjs):
 // the mechanism as the lab's own equations, the prediction against the enumeration, and each
-// investigation's verdict. Built only from the saved report; null for any other experiment.
+// investigation's verdict. Built only from the saved report; null for any other experiment. A run
+// that failed after some cases is saved without a top-level protocol, so the cases also identify it.
 export function designDigest(report) {
-  if (report?.protocol?.id !== ACT_MAP_DESIGN_PROTOCOL.id || !Array.isArray(report.cases)) return null;
+  if (!Array.isArray(report?.cases)) return null;
+  const own = report.protocol?.id === ACT_MAP_DESIGN_PROTOCOL.id || (report.experimentId === 'act-map-design'
+    && report.cases.some(c => c?.hypothesisTest?.protocol?.id === ACT_MAP_DESIGN_PROTOCOL.id));
+  if (!own) return null;
   const design = report.cases.find(c => c?.kind === 'design');
   if (!design) return null;
   const spec = design.proposal?.spec, valid = spec && !specProblem(spec);
