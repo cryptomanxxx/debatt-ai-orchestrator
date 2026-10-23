@@ -139,7 +139,8 @@ test('the literature day publishes the article, its index and a link, or says wh
     assert.deepEqual(await readdir('ai-bus/artiklar'), ['2026-10-24.md', 'README.md']);
     assert.match(await readFile('ai-bus/artiklar/2026-10-24.md', 'utf8'), /## Faktaunderlag/);
     assert.match(await readFile('ai-bus/artiklar/README.md', 'utf8'), /- 2026-10-24: \[Oraklet hittar sin egen mekanism\]\(2026-10-24\.md\)/);
-    assert.match(await readFile('ai-bus/2026-10-24.md', 'utf8'), /- \*\*Dagens artikel:\*\* \[Oraklet hittar sin egen mekanism\]\(artiklar\/2026-10-24\.md\)/);
+    assert.match(await readFile('ai-bus/rapporter/2026-10-24.md', 'utf8'), /- \*\*Dagens artikel:\*\* \[Oraklet hittar sin egen mekanism\]\(\.\.\/artiklar\/2026-10-24\.md\)/);
+    assert.match(await readFile('ai-bus/senaste.md', 'utf8'), /- \*\*Dagens artikel:\*\* \[Oraklet hittar sin egen mekanism\]\(artiklar\/2026-10-24\.md\)/, 'each copy links from where it sits');
     const saved = JSON.parse(await readFile('reports/literature-day/day.json', 'utf8'));
     assert.equal(saved.article.file, '2026-10-24.md');
     assert.equal(saved.publication, undefined, 'the article text is not duplicated in day.json');
@@ -147,7 +148,7 @@ test('the literature day publishes the article, its index and a link, or says wh
     const rejected = await main({}, { now: '2026-10-25T09:41:00.000Z', deps: deps(article({ title: 'Ett genombrott' })) });
     assert.equal(rejected.article.reason, 'overclaim');
     await assert.rejects(readdir('ai-bus/artiklar'));
-    assert.match(await readFile('ai-bus/2026-10-25.md', 'utf8'), /Dagens artikel:\*\* ingen i dag \(texten överdrev vad verifieringen visar\)/);
+    assert.match(await readFile('ai-bus/rapporter/2026-10-25.md', 'utf8'), /Dagens artikel:\*\* ingen i dag \(texten överdrev vad verifieringen visar\)/);
     assert.match(await articleIndex('nowhere'), /Inga artiklar ännu\./);
   } finally { process.chdir(cwd); await rm(dir, { recursive: true, force: true }); }
 });

@@ -1,0 +1,5 @@
+# Professor Oraklets dagliga rapporter
+
+En rapport per dag om vad Oraklet läste, fann och körde. Den senaste finns alltid i [../senaste.md](../senaste.md). Se [research/LITERATURE-DAY.md](../../research/LITERATURE-DAY.md).
+
+- [2026-10-23](2026-10-23.md)

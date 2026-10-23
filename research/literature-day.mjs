@@ -3,7 +3,7 @@
 // citation-graph novelty check on its candidate, automatic Problem Bank registration of
 // literature-backed catalog problems, and a Swedish report in ai-bus/ built only from saved
 // reports. A failing stage is recorded and the day continues; nothing claims a discovery.
-import { mkdir, writeFile, readFile, appendFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, readdir, appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { main as pipelineMain } from './research-pipeline.mjs';
 import { main as treeMain } from './research-tree-planner.mjs';
@@ -156,7 +156,9 @@ const STATUS = { completed: 'slutförd', partial: 'delvis slutförd', insufficie
   possible_overlap_found: 'möjlig överlappning hittad', no_overlap_found_within_budget: 'ingen överlappning hittad inom budgeten' };
 const status = s => STATUS[s] ?? md(s ?? 'okänd', 60);
 
-export function renderAiBus(day) {
+// `articles` is the path from the file being written to ai-bus/artiklar/: the dated report sits in
+// ai-bus/rapporter/, senaste.md in ai-bus/.
+export function renderAiBus(day, { articles = 'artiklar/' } = {}) {
   const p = day.pipeline ?? {}, collection = stage(p, 'collection')?.summary, initial = stage(p, 'initial_evidence')?.summary,
     final = stage(p, 'follow_up_evidence')?.summary;
   const analyzed = num(initial?.coverage?.summarized) + num(final?.coverage?.summarized);
@@ -178,7 +180,7 @@ export function renderAiBus(day) {
     day.lab?.status === 'error' ? '- **Experiment senaste dygnet:** okänt; labbrapporterna kunde inte läsas.' :
     `- **Experiment ${labScope}:** ${lab.length} körningar, ${lab.reduce((n, r) => n + r.passed, 0)} av ${lab.reduce((n, r) => n + r.cases, 0)} fall godkända`,
     ...(day.article ? [day.article.status === 'published'
-      ? `- **Dagens artikel:** [${md(day.article.title, 140)}](artiklar/${day.article.file})`
+      ? `- **Dagens artikel:** [${md(day.article.title, 140)}](${articles}${day.article.file})`
       : `- **Dagens artikel:** ingen i dag (${md(ARTICLE_REASONS[day.article.reason] ?? day.article.reason ?? day.article.code, 80)})`] : []),
     ...(day.errors?.length ? [`- **Driftfel:** ${day.errors.map(e => md(e, 30)).join(', ')} (se nedan)`] : []), ''];
 
@@ -274,6 +276,15 @@ export function renderAiBus(day) {
   return L.join('\n');
 }
 
+// The index of every daily report, newest first, built from the files themselves.
+export async function reportIndex(directory = 'ai-bus/rapporter') {
+  let files = [];
+  try { files = (await readdir(directory)).filter(f => /^\d{4}-\d{2}-\d{2}\.md$/.test(f)).sort().reverse(); } catch { files = []; }
+  return ['# Professor Oraklets dagliga rapporter', '',
+    'En rapport per dag om vad Oraklet läste, fann och körde. Den senaste finns alltid i [../senaste.md](../senaste.md). Se [research/LITERATURE-DAY.md](../../research/LITERATURE-DAY.md).', '',
+    ...(files.length ? files.map(f => `- [${f.slice(0, 10)}](${f})`) : ['Inga rapporter ännu.']), ''].join('\n');
+}
+
 export async function main(env = process.env, { now = new Date().toISOString(), deps = {} } = {}) {
   const date = now.slice(0, 10);
   const pipeline = deps.pipeline ?? (async e => {
@@ -299,8 +310,9 @@ export async function main(env = process.env, { now = new Date().toISOString(), 
   const markdown = renderAiBus(day);
   await mkdir('reports/literature-day', { recursive: true });
   await writeFile('reports/literature-day/day.json', JSON.stringify(day, null, 2) + '\n');
-  await mkdir('ai-bus', { recursive: true });
-  await writeFile(`ai-bus/${date}.md`, markdown);
+  await mkdir('ai-bus/rapporter', { recursive: true });
+  await writeFile(`ai-bus/rapporter/${date}.md`, renderAiBus(day, { articles: '../artiklar/' }));
+  await writeFile('ai-bus/rapporter/README.md', await reportIndex('ai-bus/rapporter'));
   await writeFile('ai-bus/senaste.md', markdown);
   if (day.publication) {
     await mkdir('ai-bus/artiklar', { recursive: true });

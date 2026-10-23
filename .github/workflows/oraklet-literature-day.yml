@@ -63,17 +63,17 @@ jobs:
         env:
           TOKEN: ${{ steps.app.outputs.token }}
         run: |
-          # Only the files this run generated are kept: the day's report, and the day's article
+          # Only the files this run generated are kept: the day's report with the report index, and the day's article
           # with the article index when one was published. Other ai-bus files are never touched.
           day=$(node -p "require('./reports/literature-day/day.json').date")
           article=$(node -p "require('./reports/literature-day/day.json').article?.file ?? ''")
-          files="ai-bus/${day}.md ai-bus/senaste.md"
+          files="ai-bus/rapporter/${day}.md ai-bus/rapporter/README.md ai-bus/senaste.md"
           if [ -n "$article" ]; then
             # One file per date, named by the lab; anything else is refused.
             echo "$article" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}\.md$' || { echo "Ogiltigt artikelnamn"; exit 1; }
             files="$files ai-bus/artiklar/${article} ai-bus/artiklar/README.md"
           fi
-          mkdir -p "$RUNNER_TEMP/out/ai-bus/artiklar"
+          mkdir -p "$RUNNER_TEMP/out/ai-bus/rapporter" "$RUNNER_TEMP/out/ai-bus/artiklar"
           for f in $files; do cp "$f" "$RUNNER_TEMP/out/$f"; done
           git config user.name 'debatt-ai-model-menu[bot]'
           git config user.email 'debatt-ai-model-menu[bot]@users.noreply.github.com'
@@ -82,7 +82,7 @@ jobs:
           publish() {
             git fetch --depth=1 origin main
             git reset -q --hard origin/main
-            mkdir -p ai-bus/artiklar
+            mkdir -p ai-bus/rapporter ai-bus/artiklar
             for f in $files; do cp "$RUNNER_TEMP/out/$f" "$f"; done
             git add $files
             git diff --cached --quiet && exit 0
@@ -91,7 +91,7 @@ jobs:
           }
           # If main moved between fetch and push, try once more.
           publish || publish
-          echo "Rapporten finns i ai-bus/${day}.md och ai-bus/senaste.md på main${article:+; dagens artikel i ai-bus/artiklar/${article}}." >> "$GITHUB_STEP_SUMMARY"
+          echo "Rapporten finns i ai-bus/rapporter/${day}.md och ai-bus/senaste.md på main${article:+; dagens artikel i ai-bus/artiklar/${article}}." >> "$GITHUB_STEP_SUMMARY"
       - name: Markera körningen som misslyckad om ett steg fick driftfel
         if: ${{ steps.day.outcome == 'failure' }}
         run: |

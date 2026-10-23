@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { LITERATURE_FIELDS, DAILY_MODEL_BUDGET, fieldForDate, registerLiteratureProblems, readRecentLabReports,
@@ -124,8 +124,10 @@ test('main writes the dated and latest ai-bus files and the day record', async (
         experiments: [{ experimentId: 'act-map-transfer', provisionally_supported: 4, rejected: 1, unresolved: 1, abstentions: 0, noAnswers: 1 },
           { experimentId: 'sympy-quadratic', provisionally_supported: 0, rejected: 2, unresolved: 0, abstentions: 0, noAnswers: 0, failures: { verifier_rejected: 2 } }] }) } });
     assert.deepEqual(day.errors, []);
-    const dated = await readFile(join(dir, 'ai-bus/2026-10-24.md'), 'utf8');
-    assert.equal(await readFile(join(dir, 'ai-bus/senaste.md'), 'utf8'), dated);
+    const dated = await readFile(join(dir, 'ai-bus/rapporter/2026-10-24.md'), 'utf8');
+    assert.equal(await readFile(join(dir, 'ai-bus/senaste.md'), 'utf8'), dated, 'without an article both copies are the same');
+    assert.match(await readFile(join(dir, 'ai-bus/rapporter/README.md'), 'utf8'), /- \[2026-10-24\]\(2026-10-24\.md\)/);
+    assert.deepEqual(await readdir(join(dir, 'ai-bus')), ['rapporter', 'senaste.md'], 'no dated report directly in ai-bus');
     assert.match(dated, /Ingen kandidat med tillräckligt underlag i dag\./);
     assert.match(dated, /## Kunskapsminne \(VEM-Sci\)[\s\S]*4 preliminärt stödda, 1 avvisade och 1 olösta/);
     assert.ok(dated.indexOf('| sympy-quadratic | 0 | 2 | 0 (0 / 0) | avvisat av verifieraren ×2 | 0.75 |') < dated.indexOf('| act-map-transfer | 4 | 1 | 1 (0 / 1) | – | 0.38 |'),

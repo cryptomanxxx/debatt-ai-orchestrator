@@ -36,7 +36,7 @@ The day's field alternates by UTC date:
    - **Failure.** An article that fails any check is not published, and the day's report gives the reason. Without a verified lab or register result there is no article.
    - **Published files.** The article goes to `ai-bus/artiklar/ÅÅÅÅ-MM-DD.md` (one per date; a rerun the same day replaces it), with the cited facts and references and a fixed footer saying it is unreviewed. `ai-bus/artiklar/README.md` indexes all articles, and the daily report links the day's article.
 8. **ai-bus report.**
-   - `ai-bus/ÅÅÅÅ-MM-DD.md` and `ai-bus/senaste.md`, and the day's article with the index when one was published, are committed to `main`, using the model-menu app that is already allowed to push there. Only a run of `main` publishes, and the commit contains only the report on top of the latest `main`.
+   - `ai-bus/rapporter/ÅÅÅÅ-MM-DD.md` with the report index `ai-bus/rapporter/README.md`, `ai-bus/senaste.md`, and the day's article with the index when one was published, are committed to `main`, using the model-menu app that is already allowed to push there. Only a run of `main` publishes, and the commit contains only the report on top of the latest `main`.
    - `reports/literature-day/day.json` and all tool reports go to the run artifact.
 
 A stage that fails or misses its deadline (pipeline 35 minutes, each other stage 2–3 minutes, including the memory read) is recorded in the day's report and the remaining stages still run. A summary figure whose stage failed is shown as unknown, never as zero. The publish step commits only the two files this run generated. The run is then marked failed after the report has been committed.
