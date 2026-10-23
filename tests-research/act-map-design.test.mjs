@@ -119,8 +119,10 @@ test('Oraklet designs, preregisters, and finds his mechanism in two hidden targe
   const [design, ...investigations] = report.cases;
   assert.equal(design.vem.kind, 'design');
   assert.equal(design.vem.status, 'provisionally_supported');
-  assert.equal(commits[0].preregistration.sha256, design.preregistration.sha256);
-  assert.deepEqual(commits[0].fixtures.map(f => f.sha256), investigations.map(c => c.commitment), 'targets committed before the investigation');
+  assert.equal(commits.length, 2);
+  assert.deepEqual(commits[0].preregistration, design.preregistration, 'spec and prediction committed in full first');
+  assert.deepEqual(commits[0].fixtures, []);
+  assert.deepEqual(commits[1].fixtures.map(f => f.sha256), investigations.map(c => c.commitment), 'targets committed before the investigation');
   assert.equal(investigations.length, 2);
   assert.ok(investigations.every(c => c.passed && c.vem.outcome.protocol === 'act-map-design-v1' && c.vem.outcome.level === 3));
   assert.ok(investigations.every(c => !JSON.stringify(c.data).match(/target_coefficients|"scope"|mapping/)), 'no truth in what Oraklet sees');
@@ -143,6 +145,11 @@ test('a wrong prediction is rejected with its cause; a non-identifiable design i
   assert.match(actMapDesignMarkdown(sym.report.cases), /inte identifierbar; 2 kopplingar stämmer/);
   const honest = await run(symmetric, { identifiable: false, minInterventions: null });
   assert.equal(honest.report.cases[0].vem.status, 'provisionally_supported', 'a correct "not identifiable" prediction holds');
+  // The prediction is committed before the analysis, so a failing analyzer cannot erase it.
+  const kept = [];
+  await assert.rejects(runActMapDesignExperiment('7', async () => ({ provider: 'test', model: 'same', text: specText(chain, { identifiable: true, minInterventions: 3 }) }),
+    async () => { throw new Error('tool_transport_error'); }, async c => { kept.push(c); }), /tool_transport_error/);
+  assert.deepEqual(kept[0].preregistration.prediction, { identifiable: true, minInterventions: 3 });
   let toolCalls = 0;
   const standard = await runActMapDesignExperiment('7', async () => ({ provider: 'test', model: 'same',
     text: specText({ variables: 3, edges: [edge(0, 1, 2), edge(1, 2, -3), edge(0, 2, 1)] }, { identifiable: true, minInterventions: 2 }) }),

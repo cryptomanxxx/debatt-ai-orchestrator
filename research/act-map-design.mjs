@@ -265,15 +265,18 @@ export async function runActMapDesignExperiment(seed, propose, callTool, onCommi
   const checked = written.ai ? checkSpec(written.ai.text) : written;
   const identity = written.ai ? { provider: written.ai.provider, model: written.ai.model } : { provider: null, model: null };
   const same = next => { if (identity.provider && (next.provider !== identity.provider || next.model !== identity.model)) throw new ResearchError('model_changed'); };
-  // The spec and the prediction are committed before the lab analyses them or builds any target.
+  // The spec and the prediction are committed, in full, before the lab analyses them: a failed or
+  // inconvenient analysis can never make the prediction disappear. The targets are committed
+  // separately once built, before the investigation.
   const preregistration = checked.spec ? { spec: checked.spec, prediction: checked.prediction, sha256: digest({ protocol: protocol.id, spec: checked.spec, prediction: checked.prediction }) } : null;
+  const committed = { protocol: protocol.id, preregistration, fixtures: [] };
+  await onCommit(structuredClone(committed));
   let analysis = null, fixtures = [];
   if (preregistration) {
     analysis = validateAnalysis(await callTool({ op: 'analyze', spec: checked.spec }), { op: 'analyze', spec: checked.spec });
     if (analysis.identifiable) fixtures = [0, 1].map(i => makeDesignFixture(seed, checked.spec, i));
+    if (fixtures.length) await onCommit({ ...committed, fixtures: fixtures.map((f, i) => ({ case: i + 2, sha256: f.commitment })) });
   }
-  await onCommit({ protocol: protocol.id, preregistration: preregistration && { sha256: preregistration.sha256 },
-    fixtures: fixtures.map((f, i) => ({ case: i + 2, sha256: f.commitment })) });
   const predicted = preregistration && checked.prediction.identifiable === analysis.identifiable && checked.prediction.minInterventions === analysis.minInterventions;
   const reason = !preregistration ? null : checked.prediction.identifiable !== analysis.identifiable ? 'identifiability_mispredicted'
     : checked.prediction.minInterventions !== analysis.minInterventions ? 'min_interventions_mispredicted' : null;
