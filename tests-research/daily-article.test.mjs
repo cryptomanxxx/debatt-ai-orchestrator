@@ -109,6 +109,11 @@ test('an article is published only when every citation, number and wording holds
   assert.equal(problem({ results: '+ Labbkörningen [F1]. ' + filler('F1').repeat(3) }), 'markup');
   assert.equal(problem({ results: '1. Labbkörningen [F1]. ' + filler('F1').repeat(3) }), 'markup');
   assert.equal(problem({ results: 'Detta är en bekräftelse [F1]. ' + filler('F1').repeat(3) }), 'overclaim');
+  const many = buildFactSheet({ ...day, lab: { runs: Array.from({ length: 12 }, (_, i) => ({ experimentId: 'x', seed: String(i), status: 'passed', executionStatus: 'completed', cases: 3, passed: 3 })) } });
+  const cites = many.facts.filter(f => f.topic === 'lab').map(f => `[${f.id}]`).join(' ');
+  const started = Date.now();
+  assert.equal(checkArticle(article({ results: `Labbet godkände ${'3 av 3 fall, '.repeat(6)}och 999 fall ${cites}. ` + filler('F1').repeat(3) }), many).problem, 'unsupported_number');
+  assert.ok(Date.now() - started < 500, 'the number check is linear, not an exhaustive search');
   for (const link of ['https://evil.example/path', 'www.evil.example', 'ftp://x.y', 'oraklet@evil.example'])
     assert.equal(problem({ results: `Se ${link} [F1]. ` + filler('F1').repeat(3) }), 'markup', `no autolinked ${link}`);
   assert.ok(checkArticle(article({ results: 'Det gäller t.ex. syntetiska fall, bl.a. små mekanismer [F1]. ' + filler('F1').repeat(3) }), sheet).article,
@@ -132,6 +137,7 @@ test('the article is rendered with its fact basis, references and the fixed foot
   assert.match(out, /- \*\*\[F2\]\*\* .*s\\_2 = -3\\\*s\\_1/, 'Markdown characters in facts are escaped');
   assert.match(out, /Oraklet skrev s\\_2 = -3\\\*s\\_1 \[F2\]\./, 'and in the text, with the citation tags kept');
   assert.doesNotMatch(out, /!\[spårpixel\]\(|\[x\]\(https:\/\/evil\)|\*\*b\*\*/, 'a quote or title cannot inject links, images or emphasis');
+  assert.match(out, /## Referenser\n\n- \*\*\[R1\]\*\* T /, 'a cited literature fact brings its paper, even without an [R#] in the text');
   assert.doesNotMatch(out.replace(/<https:\/\/example\.org\/a>/, ''), /https:\/\/|www\.|\w@/, 'nor GitHub autolinks; only the checked reference URL is a link');
 });
 
