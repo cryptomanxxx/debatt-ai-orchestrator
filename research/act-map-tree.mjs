@@ -50,6 +50,8 @@ export function checkHypotheses(text, fixture) {
     if (checked.claim && !seen.has(key)) { seen.add(key); hypotheses.push(checked.claim); }
   }
   if (!hypotheses.length) return { problem: 'invalid_hypotheses' };
+  // The same contract as the other steps: a short reason is part of a valid answer.
+  if (typeof p.reason !== 'string' || !p.reason.trim() || p.reason.length > 800) return { problem: 'invalid_reason' };
   return { hypotheses };
 }
 
