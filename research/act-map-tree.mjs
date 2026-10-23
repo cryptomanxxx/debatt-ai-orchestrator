@@ -4,19 +4,22 @@ import { ACT_MAP_SYSTEM, makeActMapFixture, publicTask, intervene, predict, name
   checkDesign, checkInference, parseJson, answer, validateActMap, actMapPasses, vemRecord, actMapOutcome } from './act-map.mjs';
 
 // ACT-MAP with agentic tree search (research/ACT-MAP-LAB.md). The direct protocol asks for one
-// answer after the experiments. Here Oraklet first states up to three competing hypotheses; the
+// answer after the experiments. Here Oraklet first states up to two competing hypotheses; the
 // bounded tree search (agentic-tree-search.mjs) checks each against the observations Oraklet has
 // already seen, never against the hidden intervention sizes, and stops at the first one that fits
 // them all. Oraklet then makes the final claim with that evaluation in front of him. The same
 // evidence gate verifies the claim, so results compare directly with act-map-oraklet-v1 on the
 // same seed. Three calls per case, so two cases (levels 3 and 4) fit the lab's call budget.
+// v2 (after v1 runs were cut off at the token limit at level 4): at most two hypotheses, a "none"
+// hypothesis needs no mapping, and the hypothesis and claim steps get the deep token limit
+// (DEEP_TOKEN_LIMIT, 8,192), since a reasoning model's own reasoning counts against the limit.
 
 export const ACT_MAP_TREE_LEVELS = Object.freeze([3, 4]);
-export const MAX_HYPOTHESES = 3;
+export const MAX_HYPOTHESES = 2;
 export const ACT_MAP_TREE_PROTOCOL = Object.freeze({
-  id: 'act-map-tree-v1',
+  id: 'act-map-tree-v2',
   hypothesis: 'Hjälper det Oraklet att först ställa upp konkurrerande hypoteser och pröva dem mot sina observationer (agentisk trädsökning) innan han avgör om en känd orsaksmekanism finns i ett okänt system?',
-  rule: 'Två fall med samma fixturer som act-map-oraklet-v1 på samma seed: nivå 3 (okänd variabel- och ingreppskoppling) och nivå 4 (bara s_0 → s_1 överförs, eller inget). Per fall: Oraklet väljer högst tre ingrepp, ställer upp högst tre hypoteser, trädsökningen prövar dem mot de sedda observationerna, och Oraklet avgör. Godkännande som i act-map-oraklet-v1: rätt beslut och, vid full eller partiell överföring, godkänd evidensgrind med de dolda ingreppsstorlekarna −2 och 3 och rätt koppling.',
+  rule: 'Två fall med samma fixturer som act-map-oraklet-v1 på samma seed: nivå 3 (okänd variabel- och ingreppskoppling) och nivå 4 (bara s_0 → s_1 överförs, eller inget). Per fall: Oraklet väljer högst tre ingrepp, ställer upp högst två hypoteser, trädsökningen prövar dem mot de sedda observationerna, och Oraklet avgör. Hypotes- och beslutsstegen får 8 192 tokens, designsteget labbets vanliga 4 096. Godkännande som i act-map-oraklet-v1: rätt beslut och, vid full eller partiell överföring, godkänd evidensgrind med de dolda ingreppsstorlekarna −2 och 3 och rätt koppling.',
   assumptions: 'Samma syntetiska linjära mekanismer som act-map-oraklet-v1. Trädsökningen använder bara observationer Oraklet redan har sett; de dolda ingreppsstorlekarna och facit ingår aldrig.',
   limitations: 'Trädsökningen använder fler modellanrop (tre per fall) och återkoppling från observationerna än det direkta protokollet (två per fall); jämförelsen är inte gjord med lika beräkningsbudget. Två fall per körning ger stor slumpvariation. Syntetiskt; ingen verklig vetenskaplig upptäckt.',
 });
@@ -28,7 +31,8 @@ export function hypothesesMessages(fixture, results) {
   return [
     { role: 'system', content: ACT_MAP_SYSTEM + 'Du har valt dina experiment och ser resultaten. Avgör inte än. Ställ i stället upp 1–' + MAX_HYPOTHESES +
       ' konkurrerande hypoteser om målsystemet, så olika som möjligt. Varje hypotes har decision ("full"' + (level4 ? ', "partial"' : '') +
-      ' eller "none"), mapping (målvariabel för s_0, s_1, s_2) och interventions (målvariabel per ingrepp); för "none" är de null. ' +
+      ' eller "none"), mapping (målvariabel för s_0, s_1, s_2) och interventions (målvariabel per ingrepp). En "none"-hypotes skrivs bara {"decision":"none"}. ' +
+      'Om observationerna redan motsäger källmekanismens koefficienter räcker den hypotesen ensam. Håll resonemanget kort. ' +
       'Labbet prövar sedan hypoteserna mot observationerna i den ordning du anger och stannar vid den första som stämmer med alla; senare hypoteser kan då lämnas oprövade. Du ser resultatet innan du avgör. Svara endast JSON: ' +
       '{"hypotheses":[{"decision":"full","mapping":{"s_0":"...","s_1":"...","s_2":"..."},"interventions":{"<ingrepp>":"<målvariabel>"}}],"reason":"kort svensk motivering"}.' },
     { role: 'user', content: JSON.stringify({ task: publicTask(fixture), results }) },
@@ -130,7 +134,7 @@ export async function runActMapTreeExperiment(seed, propose, callTool, onCommit,
     else {
       history = checkedDesign.design.experiments.map(e => ({ ...e, outcome: intervene(fixture, e.action, e.value) }));
       const results = named(fixture, history);
-      const proposed = await answer(stepPropose, hypothesesMessages(fixture, results));
+      const proposed = await answer(stepPropose, hypothesesMessages(fixture, results), { deep: true });
       if (proposed.ai) same(proposed.ai);
       const checkedHypotheses = proposed.ai ? checkHypotheses(proposed.ai.text, fixture) : proposed;
       if (checkedHypotheses.problem) formatProblem = `hypotheses:${checkedHypotheses.problem}`;
@@ -138,7 +142,7 @@ export async function runActMapTreeExperiment(seed, propose, callTool, onCommit,
         tree = await searchHypotheses(fixture, checkedHypotheses.hypotheses, history);
         tree.hypotheses = checkedHypotheses.hypotheses;
         const final = await answer(propose, inferenceMessages(fixture, results,
-          { system: TREE_NOTE.system, payload: { hypotheses: tree.candidates } }));
+          { system: TREE_NOTE.system, payload: { hypotheses: tree.candidates } }), { deep: true });
         if (final.ai) same(final.ai);
         const checked = final.ai ? checkInference(final.ai.text, fixture) : final;
         if (checked.problem) formatProblem = `inference:${checked.problem}`;
@@ -170,7 +174,7 @@ export async function runActMapTreeExperiment(seed, propose, callTool, onCommit,
   return { schemaVersion: 2, promptVersion: ACT_MAP_TREE_PROTOCOL.id, researcher: 'Professor Oraklet',
     title: 'ACT-MAP med agentisk trädsökning: konkurrerande hypoteser före beslut',
     question: ACT_MAP_TREE_PROTOCOL.hypothesis,
-    method: 'Oraklet väljer ingrepp, ställer upp konkurrerande hypoteser som trädsökningen prövar mot de sedda observationerna, och avgör sedan. Evidensgrinden prövar påståendet med dolda ingreppsstorlekar; uppräkningsbaslinjen körs på samma fall.',
+    method: 'Oraklet väljer ingrepp, ställer upp högst två konkurrerande hypoteser som trädsökningen prövar mot de sedda observationerna, och avgör sedan; hypotes- och beslutsstegen får 8 192 tokens. Evidensgrinden prövar påståendet med dolda ingreppsstorlekar; uppräkningsbaslinjen körs på samma fall.',
     seed, status: cases.every(c => c.passed) ? 'passed' : 'failed',
     protocol: ACT_MAP_TREE_PROTOCOL, limitations: ACT_MAP_TREE_PROTOCOL.limitations, cases };
 }

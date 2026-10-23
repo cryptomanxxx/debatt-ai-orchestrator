@@ -32,12 +32,15 @@ test('research requests opt into 4096 while invalid budgets never reach the prov
     const ordinary = await executeQuery({ message: 'Test' }, config);
     assert.equal(ordinary.data.inference?.completionTokenLimit, 1024);
     assert.equal(requests[1].max_completion_tokens, 1024);
-    for (const completionTokenLimit of [null, '4096', 8192, -1, 4096.5, 0])
+    const deep = await executeQuery({ message: 'Test', completionTokenLimit: 8192 }, config);
+    assert.equal(deep.data.inference?.completionTokenLimit, 8192);
+    assert.equal(requests[2].max_completion_tokens, 8192);
+    for (const completionTokenLimit of [null, '4096', 16384, 8193, -1, 4096.5, 0])
       assert.equal((await executeQuery({ message: 'Test', completionTokenLimit }, config)).status, 400);
-    assert.equal(requests.length, 2);
+    assert.equal(requests.length, 3);
     await complete('Test', 'small', loadConfig(env), 4096);
-    assert.equal(requests[2].max_tokens, 4096);
-    assert.equal('max_completion_tokens' in requests[2], false);
+    assert.equal(requests[3].max_tokens, 4096);
+    assert.equal('max_completion_tokens' in requests[3], false);
   } finally { globalThis.fetch = original; }
 });
 test('explicit provider override works for aliases and legacy providers', () => {

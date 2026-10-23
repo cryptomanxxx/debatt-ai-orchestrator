@@ -278,3 +278,17 @@ test('the lab profile allows the lab 4,096-token budget and nothing above it',as
  assert.equal((await researchBenchmark({...lab,max_tokens:4097},keys,t)).status,400);
  assert.equal((await researchBenchmark({...input,max_tokens:769},keys,t)).status,400,'benchmark keeps its 768 cap');
 });
+test('the lab-deep profile allows 8,192 tokens and a larger provider response, and nothing above it',async()=>{
+ const deep={...input,profile:'lab-deep',max_tokens:8192};
+ const reasoning='r'.repeat(100000),sent:number[]=[];
+ const t=(async(url:string|URL|Request,init?:RequestInit)=>{
+  if(String(url).endsWith('/models'))return Response.json({data:[{id:input.model}]});
+  sent.push(JSON.parse(String(init?.body)).max_tokens);
+  return Response.json({model:input.model,choices:[{finish_reason:'stop',message:{content:'{"ok":true}',reasoning_content:reasoning}}],usage:{completion_tokens:7000}});
+ }) as typeof fetch;
+ assert.equal((await researchBenchmark(deep,keys,t)).status,200,'a long reasoning trace fits the deep response bound');
+ assert.equal((await researchBenchmark({...deep,max_tokens:8193},keys,t)).status,400);
+ const lab:any=await researchBenchmark({...deep,profile:'lab',max_tokens:4096},keys,t);
+ assert.equal(lab.data.error,'benchmark_response_too_large','the lab profile keeps its 64 KiB bound');
+ assert.deepEqual(sent,[8192,4096]);
+});

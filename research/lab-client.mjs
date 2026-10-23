@@ -37,6 +37,10 @@ const retryable = error => error instanceof ResearchError && TRANSIENT_MODEL_ERR
 export const MAX_MODEL_RETRIES = 3;
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+// A call may ask for the deep limit ({ deep: true }): the tree-search hypothesis and claim steps,
+// where a reasoning model's own reasoning counts against the limit. It gets longer timeouts.
+export const DEEP_TOKEN_LIMIT = 8192;
+
 export function createLabClient({ key, api = LAB_API, completionTokenLimit = 4096, maxModelCalls = 7,
   spacingMs = 0, retryDelayMs = 0, maxRetries = MAX_MODEL_RETRIES, sleep = pause }) {
   let modelCalls = 0, modelRetries = 0;
@@ -50,11 +54,11 @@ export function createLabClient({ key, api = LAB_API, completionTokenLimit = 409
       return send();
     }
   }
-  async function query(body) {
+  async function query(body, timeoutMs = 55000) {
     const kind = body.tool ? 'tool' : 'model';
     try {
       const response = await fetch(api, {
-        method: 'POST', redirect: 'error', signal: AbortSignal.timeout(55000),
+        method: 'POST', redirect: 'error', signal: AbortSignal.timeout(timeoutMs),
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
@@ -77,10 +81,12 @@ export function createLabClient({ key, api = LAB_API, completionTokenLimit = 409
     }
   }
   // Every mode shares the call ceiling. Each proposer locks its own provider/model identity.
-  const proposer = mode => lockModel(messages => modelCall(async () => {
-    const result = await query({ message: JSON.stringify({ instruction: 'Följ denna konversation och svara endast med begärd JSON.', messages }), mode, completionTokenLimit });
+  const proposer = mode => lockModel((messages, { deep = false } = {}) => modelCall(async () => {
+    const limit = deep ? DEEP_TOKEN_LIMIT : completionTokenLimit;
+    const result = await query({ message: JSON.stringify({ instruction: 'Följ denna konversation och svara endast med begärd JSON.', messages }), mode, completionTokenLimit: limit },
+      deep ? 110000 : 55000);
     if (result.status !== 200 || result.data.mock !== false) throw new ResearchError('invalid_model_response');
-    if (result.data.inference?.completionTokenLimit !== completionTokenLimit) throw new ResearchError('model_budget_not_applied');
+    if (result.data.inference?.completionTokenLimit !== limit) throw new ResearchError('model_budget_not_applied');
     return { text: result.data.answer, provider: result.data.provider, model: result.data.model };
   }));
 
@@ -98,13 +104,13 @@ export function createLabClient({ key, api = LAB_API, completionTokenLimit = 409
     benchmark_model_identity_mismatch: 'model_identity_mismatch',
   });
   // The request may include a catalog lookup (up to 25 s) before the 50-second lab completion.
-  const researchProposer = ({ provider, model, root }) => lockModel(messages => modelCall(async () => {
-    const payload = { provider, model, profile: 'lab', max_tokens: completionTokenLimit, messages: [{ role: 'user',
+  const researchProposer = ({ provider, model, root }) => lockModel((messages, { deep = false } = {}) => modelCall(async () => {
+    const payload = { provider, model, profile: deep ? 'lab-deep' : 'lab', max_tokens: deep ? DEEP_TOKEN_LIMIT : completionTokenLimit, messages: [{ role: 'user',
       content: JSON.stringify({ instruction: 'Följ denna konversation och svara endast med begärd JSON.', messages }) }] };
     let response;
     try {
       response = await fetch(api.replace(/\/v1\/query$/, '/v1/research/benchmark'), {
-        method: 'POST', redirect: 'error', signal: AbortSignal.timeout(80000),
+        method: 'POST', redirect: 'error', signal: AbortSignal.timeout(deep ? 140000 : 80000),
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     } catch { throw new ResearchError('model_transport_error'); }
     let data;

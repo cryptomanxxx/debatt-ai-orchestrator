@@ -23,10 +23,17 @@ Three cases use six calls. With the planning call that is the lab's budget of se
 
 ## Tree-search method (`act-map-tree`)
 
-`act-map-tree` (protocol `act-map-tree-v1`) is the same task with [agentic tree search](DEEP-REASONING-BENCHMARK.md) as the reasoning method. It was added because Oraklet failed the direct protocol at level 4. There the right answer was often "no transfer", and the long single answer was twice cut off at the token limit.
+`act-map-tree` (protocol `act-map-tree-v2`) is the same task with [agentic tree search](DEEP-REASONING-BENCHMARK.md) as the reasoning method. It was added because Oraklet failed the direct protocol at level 4. There the right answer was often "no transfer", and the long single answer was twice cut off at the token limit.
+
+**v2.** The first version (`act-map-tree-v1`, up to three hypotheses) fixed a level-3 case the direct protocol got wrong. But its level-4 hypotheses answer was cut off at 4,096 tokens, in a case whose observations plainly contradicted the source coefficients. A reasoning model's own reasoning counts against the limit. v2 therefore:
+- asks for at most two hypotheses;
+- lets a "none" hypothesis be just `{"decision":"none"}`, enough on its own when the observations already contradict the source;
+- gives the hypotheses and claim steps the deep limit of 8,192 tokens (`DEEP_TOKEN_LIMIT`). The design step keeps the lab's 4,096.
+
+The Worker allows 8,192 only on these calls: `/v1/query` takes `completionTokenLimit: 8192` with a 100-second upstream timeout, and the research gateway has a `lab-deep` profile with a 110-second timeout and a larger response bound for the reasoning trace. The DeepRAP scoreboard keeps v1 and v2 apart.
 
 1. **Design.** Oraklet chooses up to three interventions, exactly as in the direct protocol.
-2. **Hypotheses.** Oraklet states 1–3 competing hypotheses without deciding.
+2. **Hypotheses.** Oraklet states 1–2 competing hypotheses without deciding.
 3. **Search.** The bounded tree search (`agentic-tree-search.mjs`: one level, at most three nodes) checks each hypothesis against the observations Oraklet has already seen. It never uses the hidden intervention sizes. A node's score is the share of predicted observations that match. The search stops at the first hypothesis that fits all of them. A "none" hypothesis predicts nothing and is never confirmed by observations alone. The same holds for a transfer hypothesis that the chosen interventions cannot test, for example a partial one when every intervention falls on `s_2`: it is shown as untestable, not as contradicted. Oraklet is told that the search checks hypotheses in his order and may stop at the first fit, and the report keeps every candidate the final step saw.
 4. **Claim.** Oraklet makes the final claim with the evaluation in front of him: which hypotheses fit, and the first contradiction for each that does not. Every hypothesis he stated reaches this step; any the search did not test, because it stopped at an earlier fit, are marked untested. Only this call states a confidence.
 

@@ -40,8 +40,11 @@ test('the tree protocol uses the same fixtures as the direct protocol on the sam
   const tree = makeActMapTreeCases('20261023'), direct = makeActMapCases('20261023');
   assert.deepEqual(tree.map(f => f.view.level), [3, 4]);
   assert.deepEqual(tree.map(f => f.commitment), direct.slice(1).map(f => f.commitment));
-  assert.equal(ACT_MAP_TREE_PROTOCOL.id, 'act-map-tree-v1');
-  assert.match(hypothesesMessages(tree[0], [])[0].content, /Avgör inte än/);
+  assert.equal(ACT_MAP_TREE_PROTOCOL.id, 'act-map-tree-v2');
+  const prompt = hypothesesMessages(tree[0], [])[0].content;
+  assert.match(prompt, /Avgör inte än/);
+  assert.match(prompt, /1–2 konkurrerande hypoteser/);
+  assert.match(prompt, /En "none"-hypotes skrivs bara \{"decision":"none"\}/);
 });
 
 test('consistency checks a hypothesis only against observations already seen', () => {
@@ -58,9 +61,11 @@ test('consistency checks a hypothesis only against observations already seen', (
 
 test('hypotheses parsing drops invalid and repeated candidates and rejects malformed answers', () => {
   const [f] = makeActMapTreeCases('6');
-  const ok = checkHypotheses(JSON.stringify({ hypotheses: [truthful(f), truthful(f), { decision: 'maybe' }], reason: 'r' }), f);
-  assert.equal(ok.hypotheses.length, 1);
-  assert.equal(checkHypotheses(JSON.stringify({ hypotheses: Array(4).fill(truthful(f)), reason: 'r' }), f).problem, 'invalid_hypotheses');
+  assert.equal(checkHypotheses(JSON.stringify({ hypotheses: [truthful(f), truthful(f)], reason: 'r' }), f).hypotheses.length, 1);
+  assert.equal(checkHypotheses(JSON.stringify({ hypotheses: [truthful(f), { decision: 'maybe' }], reason: 'r' }), f).hypotheses.length, 1);
+  assert.equal(checkHypotheses(JSON.stringify({ hypotheses: Array(3).fill(truthful(f)), reason: 'r' }), f).problem, 'invalid_hypotheses', 'at most two');
+  assert.deepEqual(checkHypotheses(JSON.stringify({ hypotheses: [{ decision: 'none' }], reason: 'r' }), f).hypotheses.map(h => [h.decision, h.proposed]),
+    [['none', null]], 'a "none" hypothesis needs no mapping');
   assert.equal(checkHypotheses(JSON.stringify({ hypotheses: [{ decision: 'maybe' }], reason: 'r' }), f).problem, 'invalid_hypotheses');
   assert.equal(checkHypotheses('nej', f).problem, 'not_json');
   assert.equal(checkHypotheses(JSON.stringify({ hypotheses: [truthful(f)], extra: 1 }), f).problem, 'extra_fields');
@@ -71,16 +76,17 @@ test('hypotheses parsing drops invalid and repeated candidates and rejects malfo
 test('the bounded tree search stops at the first hypothesis that fits all observations', async () => {
   const [f] = makeActMapTreeCases('9');
   const history = [0, 1, 2].map(action => ({ action, value: 1, outcome: intervene(f, action, 1) }));
-  const hyps = checkHypotheses(JSON.stringify({ hypotheses: [wrong(f), truthful(f), { decision: 'none', mapping: null, interventions: null }], reason: 'r' }), f).hypotheses;
-  const tree = await searchHypotheses(f, hyps, history);
+  const parse = list => checkHypotheses(JSON.stringify({ hypotheses: list, reason: 'r' }), f).hypotheses;
+  const tree = await searchHypotheses(f, parse([wrong(f), truthful(f)]), history);
   assert.equal(tree.search.algorithm, 'bounded-best-first-tree-search');
   assert.equal(tree.search.verifiedNodeId, 'root/h2');
   assert.deepEqual(tree.evaluated.map(h => [h.hypothesis, h.consistent]), [['h1', false], ['h2', true]]);
   assert.ok(tree.evaluated[0].firstContradiction);
-  assert.deepEqual(tree.notEvaluated, ['h3']);
-  assert.deepEqual(tree.candidates.map(h => [h.hypothesis, h.consistent]), [['h1', false], ['h2', true], ['h3', null]],
+  const early = await searchHypotheses(f, parse([truthful(f), wrong(f)]), history);
+  assert.deepEqual(early.notEvaluated, ['h2']);
+  assert.deepEqual(early.candidates.map(h => [h.hypothesis, h.consistent]), [['h1', true], ['h2', null]],
     'the untested hypothesis still reaches the final step');
-  assert.match(tree.candidates[2].note, /inte prövad/);
+  assert.match(early.candidates[1].note, /inte prövad/);
   assert.match(hypothesesMessages(f, [])[0].content, /stannar vid den första som stämmer/, 'the early stop is disclosed');
 });
 
@@ -96,7 +102,7 @@ test('Oraklet sees which hypotheses fit before the claim; a correct claim passes
     const m = c.hypothesisTest.measured;
     assert.equal(m.correctHypothesisAmongCandidates, true);
     assert.equal(c.vem.status, m.truth.scope === 'none' ? 'unresolved' : 'provisionally_supported');
-    assert.equal(c.tree.search.limits.maxNodes, 3);
+    assert.equal(c.tree.search.limits.maxNodes, 2);
   }
   assert.match(actMapTreeMarkdown(report.cases), /Oraklet 2\/2 rätt/);
 });
@@ -153,13 +159,13 @@ globalThis.fetch=async(url,options={})=>{
   if(options.method==='POST'){await writeFile('saved.json',options.body);return new Response('',{status:201});}
   return Response.json([]);
  }
- const messages=JSON.parse(JSON.parse(options.body).message).messages, content=JSON.parse(messages[1].content);
+ const body=JSON.parse(options.body), messages=JSON.parse(body.message).messages, content=JSON.parse(messages[1].content);
  const kind=!content.results?'design':content.hypotheses?'final':'hypotheses';
- await appendFile('calls.txt',kind+(messages.some(m=>m.content.includes('confidence'))?'+confidence':'')+'\\n');
+ await appendFile('calls.txt',kind+(messages.some(m=>m.content.includes('confidence'))?'+confidence':'')+':'+body.completionTokenLimit+'\\n');
  const none={decision:'none',mapping:null,interventions:null};
  const answer=kind==='design'?{experiments:content.targetInterventions.map(i=>({intervention:i,value:1})),reason:'Test.'}
   :kind==='hypotheses'?{hypotheses:[none],reason:'Test.'}:{...none,reason:'Test.',confidence:0.4};
- return Response.json({mock:false,provider:'test',model:'same',inference:{completionTokenLimit:4096},answer:JSON.stringify(answer)});
+ return Response.json({mock:false,provider:'test',model:'same',inference:{completionTokenLimit:body.completionTokenLimit},answer:JSON.stringify(answer)});
 };`);
     const env = { ...process.env, EXPERIMENT: 'act-map-tree', EXPERIMENT_SEED: '20261023', ORCHESTRATOR_API_KEY: 'test'.repeat(8), SUPABASE_SERVICE_ROLE_KEY: 'test' };
     await promisify(execFile)(process.execPath, ['--import', pathToFileURL(preload).href, fileURLToPath(new URL('../research/runner.mjs', import.meta.url))],
@@ -170,7 +176,7 @@ globalThis.fetch=async(url,options={})=>{
     assert.equal(saved.cases.length, 2);
     assert.equal(saved.calibration.scoredCases, 2);
     assert.deepEqual((await readFile(join(dir, 'calls.txt'), 'utf8')).trim().split('\n'),
-      ['design', 'hypotheses', 'final+confidence', 'design', 'hypotheses', 'final+confidence']);
+      ['design:4096', 'hypotheses:8192', 'final+confidence:8192', 'design:4096', 'hypotheses:8192', 'final+confidence:8192'], 'the deep limit only for hypotheses and claim');
     assert.equal(saved.vem.claims.length, 2);
     assert.match(await readFile(join(dir, 'reports/oraklet-lab/report.md'), 'utf8'), /## ACT-MAP med trädsökning: Oraklet mot uppräkningsbaslinjen/);
   } finally { await rm(dir, { recursive: true, force: true }); }
@@ -187,7 +193,7 @@ test('a transfer hypothesis with nothing to check is untested, not contradicted,
   assert.equal(tree.evaluated[0].checkedObservations, 0);
   assert.equal(tree.evaluated[0].consistent, null);
   assert.match(tree.evaluated[0].note, /kunde inte prövas/);
-  const { propose } = scripted(seed, { hypotheses: f2 => [wrong(f2), truthful(f2), { decision: 'none', mapping: null, interventions: null }], final: f2 => truthful(f2) });
+  const { propose } = scripted(seed, { hypotheses: f2 => [wrong(f2), truthful(f2)], final: f2 => truthful(f2) });
   const report = await runActMapTreeExperiment(seed, propose, callActMap, async () => {});
   for (const c of report.cases) {
     assert.equal(c.tree.candidates.length, c.hypothesisTest.measured.hypotheses, 'all candidates persisted');

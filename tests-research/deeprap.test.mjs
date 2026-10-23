@@ -122,7 +122,7 @@ test('the scoreboard measures reasoning, abstraction and planning from verified 
   assert.deepEqual(s.planning.memory, { runs: 2, topPriority: 1, meanRelativeRank: 0.1176, untestedChosen: 1 });
   const md = deepRapMarkdown(s);
   assert.match(md, /\| Resonemang \| Påståenden som höll vid verifiering \| 50 % \| 2 stödda, 2 avvisade \|/);
-  assert.match(md, /\| Abstraktion \| ACT-MAP trädsökning: rätt beslut \| 100 % \| 2 av 2; per nivå 3: 1\/1, 4: 1\/1 \|/);
+  assert.match(md, /\| Abstraktion \| ACT-MAP trädsökning v1: rätt beslut \| 100 % \| 2 av 2; per nivå 3: 1\/1, 4: 1\/1 \|/);
   assert.match(md, /\| Planering \| Planeringen valde högsta lärprioritet \| 1 av 2 \|/);
   assert.deepEqual(s.planning.budget, { cases: 0, possible: 0, completed: 0, rate: null, unreachable: 0 });
   const budget = deepRapScoreboard([{ skapad: '2026-10-24T05:30:00Z', experimentId: 'act-map-budget', vem: { schema: VEM_SCHEMA, claims: [

@@ -99,3 +99,24 @@ test('a rejected key, an exhausted quota or a gateway rejection stops at once wi
     assert.equal((await lab.researchProposer({ provider: 'hip', model: 'm' })([])).model, 'm', 'a failed upstream request is repeated');
   } finally { s.restore(); }
 });
+
+test('a deep call asks for 8,192 tokens on both paths and checks that the limit was applied', async () => {
+  const original = globalThis.fetch, bodies = [];
+  globalThis.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    bodies.push(body);
+    if (String(url).endsWith('/v1/research/benchmark')) return gatewayOk();
+    return Response.json({ mock: false, provider: 'hip', model: 'm', inference: { completionTokenLimit: body.completionTokenLimit === 8192 && bodies.length === 3 ? 4096 : body.completionTokenLimit }, answer: '{}' });
+  };
+  try {
+    const lab = createLabClient({ key: 'k' }), propose = lab.proposer('default');
+    await propose([]);
+    await propose([], { deep: true });
+    assert.deepEqual(bodies.map(b => b.completionTokenLimit), [4096, 8192]);
+    await assert.rejects(propose([], { deep: true }), /model_budget_not_applied/, 'a deep call answered under the normal limit is rejected');
+    const ranked = lab.researchProposer({ provider: 'hip', model: 'm' });
+    await ranked([]);
+    await ranked([], { deep: true });
+    assert.deepEqual(bodies.slice(3).map(b => [b.profile, b.max_tokens]), [['lab', 4096], ['lab-deep', 8192]]);
+  } finally { globalThis.fetch = original; }
+});
