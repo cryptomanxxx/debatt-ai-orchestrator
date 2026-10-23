@@ -3,7 +3,7 @@
 // citation-graph novelty check on its candidate, automatic Problem Bank registration of
 // literature-backed catalog problems, and a Swedish report in ai-bus/ built only from saved
 // reports. A failing stage is recorded and the day continues; nothing claims a discovery.
-import { mkdir, writeFile, readFile, appendFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, rm, appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { main as pipelineMain } from './research-pipeline.mjs';
 import { main as treeMain } from './research-tree-planner.mjs';
@@ -15,6 +15,9 @@ import { createProblemBankClient } from './problem-bank.mjs';
 import { vemRegisterSummary, learningPriority, failureText, REGISTER_LIMIT } from './vem-sci.mjs';
 import { designDigest } from './act-map-design.mjs';
 import { readDeepRapRows, deepRapScoreboard, deepRapMarkdown } from './deeprap.mjs';
+import { writeDailyArticle, ARTICLE_MODEL_CALLS, ARTICLE_REASONS } from './daily-article.mjs';
+import { writeAiBusIndexes } from './ai-bus-index.mjs';
+import { createLabClient } from './lab-client.mjs';
 
 // The fields Oraklet reads, one per day in turn.
 export const LITERATURE_FIELDS = Object.freeze(['AI for scientific discovery', 'Causal inference']);
@@ -98,7 +101,7 @@ const fail = error => ({ status: 'error', code: /^[a-z_]{3,60}$/.test(error?.mes
 // Each stage has a deadline inside the 60-minute job, so the report is always written even when a
 // provider or database stalls. The CLI exits after writing, so a stage still pending cannot hold the job.
 export const STAGE_DEADLINES_MS = Object.freeze({ pipeline: 35 * 60_000, tree: 3 * 60_000, novelty: 3 * 60_000,
-  problem_bank: 3 * 60_000, lab: 2 * 60_000, memory: 2 * 60_000 });
+  problem_bank: 3 * 60_000, lab: 2 * 60_000, memory: 2 * 60_000, article: 4 * 60_000 });
 const within = (name, promise, deadlines) => {
   let timer;
   return Promise.race([promise, new Promise((_, reject) => {
@@ -107,9 +110,10 @@ const within = (name, promise, deadlines) => {
 };
 const stage = (p, name) => p?.stages?.find(s => s.name === name) ?? null;
 
-export async function runLiteratureDay(env, { date, now = new Date().toISOString(), pipeline, tree, novelty, register, labReports, memory, deadlines = STAGE_DEADLINES_MS }) {
+export async function runLiteratureDay(env, { date, now = new Date().toISOString(), pipeline, tree, novelty, register, labReports, memory, article, deadlines = STAGE_DEADLINES_MS }) {
   const field = fieldForDate(date);
-  const day = { schema_version: 'oraklet-literature-day-1', date, field, model_budget: DAILY_MODEL_BUDGET };
+  // The pipeline keeps its own budget (it accepts 5 or 10); the article's one call comes on top.
+  const day = { schema_version: 'oraklet-literature-day-1', date, field, model_budget: DAILY_MODEL_BUDGET + (article ? ARTICLE_MODEL_CALLS : 0) };
   try {
     day.pipeline = await within('pipeline', pipeline({ ...env, RESEARCH_AREA: field, PIPELINE_MODEL_BUDGET: String(DAILY_MODEL_BUDGET),
       PIPELINE_REQUEST_ID: '', RESEARCH_DASHBOARD_ENABLED: 'false' }), deadlines);
@@ -131,7 +135,15 @@ export async function runLiteratureDay(env, { date, now = new Date().toISOString
   if (memory) {
     try { day.memory = await within('memory', memory(env), deadlines); } catch (error) { day.memory = fail(error); }
   }
-  day.errors = ['pipeline', 'tree', 'novelty', 'problem_bank', 'lab', 'memory'].filter(k => day[k]?.status === 'error');
+  // Oraklet's short article, written last from everything above. Its text is kept off day.json.
+  if (article) {
+    try {
+      const publication = await within('article', article(env, day), deadlines);
+      day.article = publication.record;
+      if (publication.file) Object.defineProperty(day, 'publication', { value: publication, enumerable: false });
+    } catch (error) { day.article = { ...fail(error), reason: fail(error).code }; }
+  }
+  day.errors = ['pipeline', 'tree', 'novelty', 'problem_bank', 'lab', 'memory', 'article'].filter(k => day[k]?.status === 'error');
   return day;
 }
 
@@ -145,7 +157,9 @@ const STATUS = { completed: 'slutförd', partial: 'delvis slutförd', insufficie
   possible_overlap_found: 'möjlig överlappning hittad', no_overlap_found_within_budget: 'ingen överlappning hittad inom budgeten' };
 const status = s => STATUS[s] ?? md(s ?? 'okänd', 60);
 
-export function renderAiBus(day) {
+// `articles` is the path from the file being written to ai-bus/artiklar/: the dated report sits in
+// ai-bus/rapporter/, senaste.md in ai-bus/.
+export function renderAiBus(day, { articles = 'artiklar/' } = {}) {
   const p = day.pipeline ?? {}, collection = stage(p, 'collection')?.summary, initial = stage(p, 'initial_evidence')?.summary,
     final = stage(p, 'follow_up_evidence')?.summary;
   const analyzed = num(initial?.coverage?.summarized) + num(final?.coverage?.summarized);
@@ -160,12 +174,15 @@ export function renderAiBus(day) {
     '## Sammanfattning', '',
     `- **Fält i dag:** ${FIELD_NAMES[day.field] ?? md(day.field)}${p.query ? ` (sökfråga: ${md(p.query, 120)})` : ''}`,
     !Array.isArray(p.stages) ? '- **Litteratur:** okänt; pipelinen misslyckades innan något sparades.' :
-    `- **Litteratur:**${p.status === 'error' ? ' (pipelinen avbröts; siffrorna gäller det som hann sparas)' : ''} ${num(collection?.metadata?.returned_records)} träffar hittade, ${num(collection?.abstracts?.available)} sammanfattningar arkiverade, ${analyzed} sammanfattningar analyserade, ${findings} citerade fynd. Modellanrop: ${num(p.budget?.known_model_calls)} av ${day.model_budget}.`,
+    `- **Litteratur:**${p.status === 'error' ? ' (pipelinen avbröts; siffrorna gäller det som hann sparas)' : ''} ${num(collection?.metadata?.returned_records)} träffar hittade, ${num(collection?.abstracts?.available)} sammanfattningar arkiverade, ${analyzed} sammanfattningar analyserade, ${findings} citerade fynd. Modellanrop: ${num(p.budget?.known_model_calls) + (day.article && day.article.status !== 'skipped' ? ARTICLE_MODEL_CALLS : 0)} av ${day.model_budget}.`,
     `- **Ny hypoteskandidat:** ${p.candidate ? '1' : 'ingen'}${queue.length ? `; granskningskö med ${queue.length} förslag till studier` : ''}`,
     day.problem_bank?.status === 'error' ? '- **Problem Bank:** okänt; registreringen misslyckades.' :
     `- **Problem Bank:** ${bank.filter(b => b.action === 'registered').length} nya problem registrerade automatiskt, ${bank.filter(b => b.action === 'requires_human_approval').length} väntar på ditt godkännande`,
     day.lab?.status === 'error' ? '- **Experiment senaste dygnet:** okänt; labbrapporterna kunde inte läsas.' :
     `- **Experiment ${labScope}:** ${lab.length} körningar, ${lab.reduce((n, r) => n + r.passed, 0)} av ${lab.reduce((n, r) => n + r.cases, 0)} fall godkända`,
+    ...(day.article ? [day.article.status === 'published'
+      ? `- **Dagens artikel:** [${md(day.article.title, 140)}](${articles}${day.article.file})`
+      : `- **Dagens artikel:** ingen i dag (${md(ARTICLE_REASONS[day.article.reason] ?? day.article.reason ?? day.article.code, 80)})`] : []),
     ...(day.errors?.length ? [`- **Driftfel:** ${day.errors.map(e => md(e, 30)).join(', ')} (se nedan)`] : []), ''];
 
   L.push('## Litteratur', '', `Pipelinen: ${status(p.status)}.`, '');
@@ -277,14 +294,25 @@ export async function main(env = process.env, { now = new Date().toISOString(), 
     const rows = await readDeepRapRows(e.SUPABASE_SERVICE_ROLE_KEY || '');
     return { ...vemRegisterSummary(rows), deeprap: deepRapScoreboard(rows) };
   });
-  const day = await runLiteratureDay(env, { date, now, pipeline, register, labReports, memory,
+  // One model call, on the configured default model, through the lab client's checks.
+  const article = deps.article ?? ((e, d) => writeDailyArticle(d,
+    createLabClient({ key: e.ORCHESTRATOR_API_KEY, maxModelCalls: ARTICLE_MODEL_CALLS }).proposer('default'), { field: FIELD_NAMES[d.field] ?? d.field }));
+  const day = await runLiteratureDay(env, { date, now, pipeline, register, labReports, memory, article,
     tree: deps.tree ?? treeMain, novelty: deps.novelty ?? (e => noveltyMain(e)) });
   const markdown = renderAiBus(day);
   await mkdir('reports/literature-day', { recursive: true });
   await writeFile('reports/literature-day/day.json', JSON.stringify(day, null, 2) + '\n');
-  await mkdir('ai-bus', { recursive: true });
-  await writeFile(`ai-bus/${date}.md`, markdown);
+  await mkdir('ai-bus/rapporter', { recursive: true });
+  await writeFile(`ai-bus/rapporter/${date}.md`, renderAiBus(day, { articles: '../artiklar/' }));
   await writeFile('ai-bus/senaste.md', markdown);
+  if (day.publication) {
+    await mkdir('ai-bus/artiklar', { recursive: true });
+    await writeFile(`ai-bus/artiklar/${day.publication.file}`, day.publication.markdown);
+  } else {
+    // A rerun the same day without an article withdraws the earlier one, which the report no longer links.
+    await rm(`ai-bus/artiklar/${date}.md`, { force: true });
+  }
+  await writeAiBusIndexes();
   if (env.GITHUB_STEP_SUMMARY) await appendFile(env.GITHUB_STEP_SUMMARY, markdown);
   console.log(JSON.stringify({ date, field: day.field, pipeline: day.pipeline?.status ?? null, errors: day.errors }));
   return day;
