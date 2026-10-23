@@ -105,6 +105,13 @@ test('an article is published only when every citation, number and wording holds
   assert.equal(problem({ results: 'Labbkörningen godkände tre av tre fall [F1]. ' + filler('F1').repeat(3) }), 'unsupported_number', 'nor in the text');
   assert.equal(problem({ results: 'Oraklet sade "resultatet gäller." Labbkörningen godkände 3 av 3 fall [F1]. ' + filler('F1').repeat(3) }), 'uncited_sentence', 'a closing quote does not hide a sentence end');
   assert.equal(problem({ results: 'Oraklet skrev (se labbet.) Labbkörningen godkände 3 av 3 fall [F1]. ' + filler('F1').repeat(3) }), 'uncited_sentence');
+  assert.equal(problem({ results: 'Oraklet sade "det gäller osv." Labbkörningen godkände 3 av 3 fall [F1]. ' + filler('F1').repeat(3) }), 'uncited_sentence', 'an abbreviation before a closing quote can end a sentence');
+  assert.equal(problem({ results: '+ Labbkörningen [F1]. ' + filler('F1').repeat(3) }), 'markup');
+  assert.equal(problem({ results: '1. Labbkörningen [F1]. ' + filler('F1').repeat(3) }), 'markup');
+  assert.equal(problem({ results: 'Detta är en bekräftelse [F1]. ' + filler('F1').repeat(3) }), 'overclaim');
+  assert.equal(problem({ title: 'En bekräftelse' }), 'overclaim');
+  for (const title of ['Båda fallen godkändes', 'Alla fall godkändes', 'Inga fel hittades'])
+    assert.equal(problem({ title }), 'invalid_title', `no quantity in a title: ${title}`);
   for (const link of ['https://evil.example/path', 'www.evil.example', 'ftp://x.y', 'oraklet@evil.example'])
     assert.equal(problem({ results: `Se ${link} [F1]. ` + filler('F1').repeat(3) }), 'markup', `no autolinked ${link}`);
   assert.equal(problem({ title: 'Se www.evil.example' }), 'markup');
