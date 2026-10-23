@@ -23,7 +23,7 @@ const SCOPE = { full: 'full överföring', none: 'ingen överföring', unresolve
 export function buildFactSheet(day) {
   const facts = [], references = [];
   // verified: the fact reports an outcome an independent verifier decided (not a zero count).
-  const fact = (topic, text, verified = false) => { if (facts.length < MAX_FACTS) facts.push({ id: `F${facts.length + 1}`, topic, text, verified }); };
+  const fact = (topic, text, verified = false) => facts.push({ topic, text, verified });
   for (const r of Array.isArray(day.lab?.runs) ? day.lab.runs : []) {
     const name = clip(r.experimentId ?? r.title, 60);
     fact('lab', r.executionStatus === 'error' ? `Labbkörningen ${name} (seed ${clip(r.seed, 12)}) avbröts med driftfel; ${int(r.passed) ?? 0} av ${int(r.cases) ?? 0} slutförda fall godkändes.`
@@ -59,7 +59,10 @@ export function buildFactSheet(day) {
     for (const f of findings.slice(0, 2)) fact('literature', `Sammanfattningen av ${ref.id} innehåller citatet "${clip(f.quote, 220)}" (fynd av typen ${clip(f.kind, 30)}, läst av Oraklet; tolkningen är inte granskad).`);
   }
   if (day.pipeline?.candidate) fact('literature', `Dagens hypoteskandidat, overifierad och utan experiment: ${clip(day.pipeline.candidate.hypothesis, 300)}`);
-  return { facts, references };
+  // The cap keeps verified facts first, so unverified entries cannot crowd out a verified result;
+  // the kept facts stay in their order and are numbered after the cut.
+  const keep = new Set([...facts.filter(f => f.verified), ...facts.filter(f => !f.verified)].slice(0, MAX_FACTS));
+  return { facts: facts.filter(f => keep.has(f)).map((f, i) => ({ id: `F${i + 1}`, ...f })), references };
 }
 
 // An article needs something verified to write about: a completed case or a decided claim, not
@@ -96,11 +99,12 @@ const sentences = text => text.replace(ABBREVIATIONS, m => m.replace(/\./g, '\u2
   .split(/(?<=[.!?])\s+/).filter(s => s.trim());
 
 // The sentence's numbers can each be placed in a cited fact so that numbers from the same fact keep
-// its order: "88 % mot 97 %" does not pass where the fact says "97 % mot 88 %".
+// its order and each occurrence is used once: "88 % mot 97 %" does not pass where the fact says
+// "97 % mot 88 %", nor does "97 % … 97 % mot 88 %".
 function inFactOrder(found, facts, i = 0, last = facts.map(() => 0)) {
   if (i === found.length) return true;
   return facts.some((roles, f) => roles.some((r, at) => r === found[i] && at >= last[f]
-    && inFactOrder(found, facts, i + 1, last.map((x, g) => g === f ? at : x))));
+    && inFactOrder(found, facts, i + 1, last.map((x, g) => g === f ? at + 1 : x))));
 }
 
 // GitHub turns bare URLs, www. hosts and e-mail addresses into links; an article has none.
@@ -126,7 +130,9 @@ export function checkArticle(text, sheet) {
   const known = new Map([...sheet.facts.map(f => [f.id, f.text]), ...sheet.references.map(r => [r.id, r.title])]);
   if (tags(body).some(id => !known.has(id))) return { problem: 'unknown_citation' };
   if (!tags(body).some(id => id.startsWith('F'))) return { problem: 'no_fact_cited' };
-  for (const s of sentences(body)) {
+  // Sentences are split within each section, so a section without a final full stop cannot borrow
+  // the next section's citation.
+  for (const s of SECTIONS.flatMap(([k]) => sentences(a[k]))) {
     // Every sentence states something, so every sentence cites its basis.
     if (!tags(s).length) return { problem: 'uncited_sentence' };
     const found = numberRoles(s);
@@ -178,7 +184,9 @@ export async function articleIndex(directory = 'ai-bus/artiklar') {
 export async function writeDailyArticle(day, propose, { field }) {
   const sheet = buildFactSheet(day);
   // The request must fit /v1/query: the last facts (literature first) go when it would not.
-  while (JSON.stringify(articleMessages(sheet, day.date)).length > MAX_ARTICLE_REQUEST_CHARS && sheet.facts.length > 1) sheet.facts.pop();
+  // Unverified facts go first, from the end, so a verified result is the last thing cut.
+  while (JSON.stringify(articleMessages(sheet, day.date)).length > MAX_ARTICLE_REQUEST_CHARS && sheet.facts.length > 1)
+    sheet.facts.splice(sheet.facts.findLastIndex(f => !f.verified) >= 0 ? sheet.facts.findLastIndex(f => !f.verified) : sheet.facts.length - 1, 1);
   sheet.references = sheet.references.filter(r => sheet.facts.some(f => f.text.includes(r.id)));
   if (!worthWriting(sheet)) return { record: { status: 'skipped', reason: 'no_verified_results', facts: sheet.facts.length } };
   let answer;

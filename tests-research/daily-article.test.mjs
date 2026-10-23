@@ -55,6 +55,11 @@ test('the fact sheet is written by the lab from saved reports, with checked refe
   assert.equal(worthWriting(emptyRegister), false, 'an empty register is not a verified result');
   assert.equal(worthWriting(buildFactSheet({ lab: { runs: [{ experimentId: 'x', seed: '1', executionStatus: 'error', cases: 0, passed: 0 }] } })), false, 'nor is a run without cases');
   assert.ok(JSON.stringify(articleMessages(sheet, day.date)).length < MAX_ARTICLE_REQUEST_CHARS);
+  const crowded = buildFactSheet({ ...day, lab: { runs: Array.from({ length: 14 }, (_, i) => ({ experimentId: 'act-map-design', seed: String(i), executionStatus: 'error', cases: 0, passed: 0,
+    design: { equations: ['s_1 = 2*s_0'], prediction: { identifiable: true, minInterventions: 2 }, investigations: [] } })) } });
+  assert.equal(crowded.facts.length, 40);
+  assert.ok(worthWriting(crowded), 'unverified entries cannot crowd out a verified result');
+  assert.deepEqual(crowded.facts.map(f => f.id), crowded.facts.map((_, i) => `F${i + 1}`));
 });
 
 test('an article is published only when every citation, number and wording holds', () => {
@@ -87,6 +92,8 @@ test('an article is published only when every citation, number and wording holds
   const calibration = sheet.facts.find(f => f.text.includes('97 % mot 88 %')).id;
   assert.equal(problem({ results: `Säkerheten var 88 % mot 97 % rätt svar [${calibration}]. ` + filler('F1').repeat(3) }), 'unsupported_number', 'numbers from one fact keep its order');
   assert.ok(checkArticle(article({ results: `Säkerheten var 97 % mot 88 % rätt svar [${calibration}]. ` + filler('F1').repeat(3) }), sheet).article);
+  assert.equal(problem({ results: `Säkerheten var 97 % och sedan 97 % mot 88 % rätt svar [${calibration}]. ` + filler('F1').repeat(3) }), 'unsupported_number', 'a fact supplies each number once');
+  assert.equal(problem({ abstract: 'Ett påstående utan hänvisning', background: `Labbet låter Oraklet skriva egna experiment [F3]. ${filler('F3')} ${filler('F3')} ${filler('F5')}` }), 'uncited_sentence', 'a section cannot borrow the next section\'s citation');
   for (const link of ['https://evil.example/path', 'www.evil.example', 'ftp://x.y', 'oraklet@evil.example'])
     assert.equal(problem({ results: `Se ${link} [F1]. ` + filler('F1').repeat(3) }), 'markup', `no autolinked ${link}`);
   assert.equal(problem({ title: 'Se www.evil.example' }), 'markup');
