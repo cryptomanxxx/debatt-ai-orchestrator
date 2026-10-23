@@ -203,7 +203,8 @@ test('the register aggregates saved runs per experiment and never fails the lab 
   assert.deepEqual(summary.totals, { provisionally_supported: 1, rejected: 1, unresolved: 1 });
   assert.deepEqual(summary.experiments.map(e => [e.experimentId, e.abstentions, e.latest.slice(0, 10)]),
     [['act-map-transfer', 1, '2026-10-22'], ['sympy-quadratic', 0, '2026-10-21']]);
-  assert.match(vemRegisterMarkdown(summary), /\| act-map-transfer \| 1 \| 0 \| 1 \(1 \/ 0\) \| 2026-10-22 \|/);
+  assert.match(vemRegisterMarkdown(summary), /\| act-map-transfer \| 1 \| 0 \| 1 \(1 \/ 0\) \| – \| 2026-10-22 \|/, 'an abstention without a verified outcome is not counted as a failure');
+  assert.match(vemRegisterMarkdown(summary), /\| sympy-quadratic \| 0 \| 1 \| 0 \(0 \/ 0\) \| avvisat av verifieraren ×1 \|/);
   const dir = await mkdtemp(join(tmpdir(), 'vem-')), cwd = process.cwd();
   try {
     process.chdir(dir);

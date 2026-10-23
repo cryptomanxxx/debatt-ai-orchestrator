@@ -12,7 +12,7 @@ import { readRecentLiteratureReports } from './run-oraklet-proposals.mjs';
 import { literatureProblemProposals } from './literature-problem-proposals.mjs';
 import { makeCatalogProblem, createOrVerifyCatalogProblem } from './problem-bank-create-catalog.mjs';
 import { createProblemBankClient } from './problem-bank.mjs';
-import { vemRegisterSummary, learningPriority, REGISTER_LIMIT } from './vem-sci.mjs';
+import { vemRegisterSummary, learningPriority, failureText, REGISTER_LIMIT } from './vem-sci.mjs';
 import { readDeepRapRows, deepRapScoreboard, deepRapMarkdown } from './deeprap.mjs';
 
 // The fields Oraklet reads, one per day in turn.
@@ -221,9 +221,9 @@ export function renderAiBus(day) {
     else {
       const t = day.memory.totals ?? {};
       L.push(`Från de senaste ${num(day.memory.runs)} körningarna med register (högst ${REGISTER_LIMIT}): ${num(t.provisionally_supported)} preliminärt stödda, ${num(t.rejected)} avvisade och ${num(t.unresolved)} olösta påståenden. Labbets planering ser samma register och prioriterar där påståenden inte höll eller belägg saknas.`, '',
-        '| Experiment | Stödda | Avvisade | Olösta (avstått / utan svar) | Lärprioritet |', '| --- | --- | --- | --- | --- |');
+        '| Experiment | Stödda | Avvisade | Olösta (avstått / utan svar) | Vanligaste felorsaker | Lärprioritet |', '| --- | --- | --- | --- | --- | --- |');
       for (const e of [...exps].sort((a, b) => learningPriority([b.provisionally_supported, b.rejected, b.unresolved]) - learningPriority([a.provisionally_supported, a.rejected, a.unresolved])))
-        L.push(`| ${md(e.experimentId, 60)} | ${num(e.provisionally_supported)} | ${num(e.rejected)} | ${num(e.unresolved)} (${num(e.abstentions)} / ${num(e.noAnswers)}) | ${learningPriority([num(e.provisionally_supported), num(e.rejected), num(e.unresolved)]).toFixed(2)} |`);
+        L.push(`| ${md(e.experimentId, 60)} | ${num(e.provisionally_supported)} | ${num(e.rejected)} | ${num(e.unresolved)} (${num(e.abstentions)} / ${num(e.noAnswers)}) | ${md(failureText(e.failures && typeof e.failures === 'object' ? e.failures : {}), 160) || '–'} | ${learningPriority([num(e.provisionally_supported), num(e.rejected), num(e.unresolved)]).toFixed(2)} |`);
       L.push('', '"Preliminärt stött" gäller bara det testade fallet och dess verifierare, aldrig etablerad vetenskap.', '');
     }
     if (day.memory.deeprap) L.push(deepRapMarkdown(day.memory.deeprap, { heading: '##' }));

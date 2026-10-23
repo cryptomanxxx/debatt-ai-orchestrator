@@ -1,7 +1,7 @@
 import { mkdir, writeFile, appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { readJson } from './lab-client.mjs';
-import { digest } from './act-map.mjs';
+import { digest, problemText } from './act-map.mjs';
 
 // VEM-Sci register (research/ACT-MAP-LAB.md): every answer Oraklet gives in the lab is a claim.
 // It is "proposed", goes "under_test", and only the experiment's own independent verifier moves it
@@ -51,6 +51,53 @@ export function vemLine(state) {
   return `\nVEM-Sci: ${state.claims.length} påståenden i registret: ${s} preliminärt stödda, ${r} avvisade, ${u} olösta.\n`;
 }
 
+// Why a claim did not hold, derived from what the lab and the verifier recorded, never from the
+// model's own account: the gate's reason, a missing answer, or the verified outcome. Null when the
+// claim held, or for a correct abstention. Codes are stable; FAILURE_TEXT gives the Swedish label.
+const GATE_FAILURES = Object.freeze({
+  insufficient_intervention_coverage: 'coverage', insufficient_evidence: 'too_few_interventions',
+  contradicted_by_discovery: 'contradicted', heldout_intervention_mismatch: 'heldout_mismatch',
+  invalid_hypothesis_schema: 'invalid_claim', invalid_scope_for_level: 'invalid_claim',
+  discovery_budget_exceeded: 'over_budget',
+});
+export const FAILURE_TEXT = Object.freeze({
+  truncated: 'svaret klipptes vid tokengränsen', unreadable: 'svaret var inte giltig JSON', missed_transfer: 'avstod fast mekanismen överfördes',
+  invalid_hypotheses: 'hypoteslistan var ogiltig',
+  false_certification: 'godkänt men fel', coverage: 'ingreppen täckte inte roten och mediatorn', too_few_interventions: 'för få olika ingrepp',
+  contradicted: 'motsägs av egna observationer', heldout_mismatch: 'föll på dolda ingreppsstorlekar', invalid_claim: 'ogiltigt påstående',
+  over_budget: 'för många ingrepp', gate_rejected: 'avvisat av evidensgrinden', verifier_rejected: 'avvisat av verifieraren',
+  unverified: 'saknar oberoende verifiering',
+});
+// A missing answer keeps the lab's own problem code ("inference:invalid_decision" → invalid_decision),
+// so a valid answer that broke the answer contract is told apart from one that was not JSON.
+const noAnswerCause = reason => {
+  const problem = String(reason ?? '').split(':').at(-1);
+  if (problem === 'not_json' || !/^[a-z_]{1,40}$/.test(problem)) return 'unreadable';
+  return problem;
+};
+export function failureOf(claim) {
+  const code = (() => {
+    if (claim?.kind === 'no_answer') return noAnswerCause(claim.reason);
+    if (claim?.kind === 'abstention') return claim.outcome?.passed === false ? 'missed_transfer' : null;
+    if (claim?.status === 'provisionally_supported') return claim.outcome?.passed === false ? 'false_certification' : null;
+    if (claim?.kind === 'transfer') return GATE_FAILURES[claim.reason] ?? 'gate_rejected';
+    return claim?.status === 'rejected' ? 'verifier_rejected' : claim?.status === 'unresolved' ? 'unverified' : null;
+  })();
+  if (!code) return null;
+  return Number.isInteger(claim.outcome?.level) ? `${code}@${claim.outcome.level}` : code;
+}
+// The most frequent failures, most common first: "truncated@4×2, coverage@3×1".
+export function failureSummary(failures = {}, limit = 2) {
+  return Object.entries(failures).sort(([a, x], [b, y]) => y - x || (a < b ? -1 : 1)).slice(0, limit).map(([k, n]) => `${k}×${n}`).join(', ');
+}
+const failureLabel = key => {
+  const [code, level] = key.split('@');
+  return (FAILURE_TEXT[code] ?? problemText(code)) + (level ? ` (nivå ${level})` : '');
+};
+export function failureText(failures = {}, limit = 2) {
+  return Object.entries(failures).sort(([a, x], [b, y]) => y - x || (a < b ? -1 : 1)).slice(0, limit).map(([k, n]) => `${failureLabel(k)} ×${n}`).join('; ');
+}
+
 // The register across saved runs: rows are {skapad, experimentId, vem} from oraklet_experiment.
 export function vemRegisterSummary(rows) {
   const experiments = new Map();
@@ -61,8 +108,10 @@ export function vemRegisterSummary(rows) {
     for (const claim of row.vem.claims) {
       if (!VEM_STATUSES.includes(claim?.status)) continue;
       const id = typeof claim.experimentId === 'string' ? claim.experimentId : row.experimentId ?? 'okänt';
-      const e = experiments.get(id) ?? { experimentId: id, provisionally_supported: 0, rejected: 0, unresolved: 0, abstentions: 0, noAnswers: 0, latest: null };
+      const e = experiments.get(id) ?? { experimentId: id, provisionally_supported: 0, rejected: 0, unresolved: 0, abstentions: 0, noAnswers: 0, failures: {}, latest: null };
       e[claim.status]++;
+      const failure = failureOf(claim);
+      if (failure) e.failures[failure] = (e.failures[failure] ?? 0) + 1;
       if (claim.kind === 'abstention') e.abstentions++;
       if (claim.kind === 'no_answer') e.noAnswers++;
       if (!e.latest || String(row.skapad) > e.latest) e.latest = String(row.skapad ?? '');
@@ -82,17 +131,21 @@ export function vemRegisterMarkdown(summary, { limit } = {}) {
     + `Påståenden: ${t.provisionally_supported} preliminärt stödda, ${t.rejected} avvisade, ${t.unresolved} olösta. `
     + 'Bara experimentets egen oberoende verifiering flyttar ett påstående; "preliminärt stött" gäller bara det testade fallet.\n\n'
     + (summary.experiments.length
-      ? '| Experiment | Preliminärt stödda | Avvisade | Olösta (avstått / utan svar) | Senast |\n| --- | --- | --- | --- | --- |\n'
-        + summary.experiments.map(e => `| ${e.experimentId} | ${e.provisionally_supported} | ${e.rejected} | ${e.unresolved} (${e.abstentions} / ${e.noAnswers ?? 0}) | ${e.latest?.slice(0, 10) ?? ''} |`).join('\n') + '\n'
+      ? '| Experiment | Preliminärt stödda | Avvisade | Olösta (avstått / utan svar) | Vanligaste felorsaker | Senast |\n| --- | --- | --- | --- | --- | --- |\n'
+        + summary.experiments.map(e => `| ${e.experimentId} | ${e.provisionally_supported} | ${e.rejected} | ${e.unresolved} (${e.abstentions} / ${e.noAnswers ?? 0}) | ${failureText(e.failures) || '–'} | ${e.latest?.slice(0, 10) ?? ''} |`).join('\n') + '\n'
       : 'Inga körningar med register ännu.\n');
 }
 
 // What the planner learns from the register. Each experiment's claims are [provisionally
-// supported, rejected, unresolved]. Its learning priority is the smoothed share of claims that did
+// supported, rejected, unresolved], followed by its most frequent failures ("truncated@4×2")
+// when it has any. Its learning priority is the smoothed share of claims that did
 // not hold, (rejected + unresolved + 1) / (claims + 2): an experiment without claims scores 0.5,
 // repeated failures score higher and repeated support lower. The lab computes it, not the model.
 export const learningPriority = ([s, r, u] = [0, 0, 0]) => (r + u + 1) / (s + r + u + 2);
-const claimsOf = e => [e.provisionally_supported, e.rejected, e.unresolved];
+const claimsOf = e => {
+  const weak = failureSummary(e.failures);
+  return [e.provisionally_supported, e.rejected, e.unresolved, ...(weak ? [weak] : [])];
+};
 // {experimentId: [s, r, u]} for the given experiments that have claims, highest priority first.
 export function vemKnowledge(summary, experimentIds) {
   const byId = new Map((summary?.experiments ?? []).map(e => [e.experimentId, claimsOf(e)]));
@@ -103,7 +156,8 @@ export function vemKnowledge(summary, experimentIds) {
 // rank among the offered experiments (1 = nothing had a higher priority).
 export function knowledgeChoice(knowledge, experimentIds, chosen) {
   const priority = learningPriority(knowledge[chosen]);
-  return { claims: knowledge[chosen] ?? null, priority: Math.round(priority * 1e4) / 1e4,
+  const [s, r, u, failures] = knowledge[chosen] ?? [];
+  return { claims: knowledge[chosen] ? [s, r, u] : null, ...(failures ? { failures } : {}), priority: Math.round(priority * 1e4) / 1e4,
     rank: 1 + experimentIds.filter(id => learningPriority(knowledge[id]) > priority).length, of: experimentIds.length };
 }
 export function knowledgeLine(k) {
@@ -111,7 +165,8 @@ export function knowledgeLine(k) {
   if (k.unavailable) return '\nKunskapsminne: VEM-Sci-registret kunde inte läsas; planeringen valde utan det.\n';
   const claims = k.claims ? `${k.claims[0]}/${k.claims[1]}/${k.claims[2]} (stödda/avvisade/olösta)` : 'inga tidigare påståenden';
   const shown = k.shown?.omitted ? ` Planeringen såg ${k.shown.entries} poster (${k.shown.omitted} utelämnade för utrymmet)${k.claims && !k.shown.chosenShown ? '; det valda experimentets post var bland de utelämnade' : ''}.` : '';
-  return `\nKunskapsminne: planeringen såg registret från ${k.runs} körningar. Valt experiment: ${claims}; lärprioritet ${k.priority}, plats ${k.rank} av ${k.of}.${shown}\n`;
+  const failures = k.failures ? ` Kända felorsaker: ${k.failures}.` : '';
+  return `\nKunskapsminne: planeringen såg registret från ${k.runs} körningar. Valt experiment: ${claims}; lärprioritet ${k.priority}, plats ${k.rank} av ${k.of}.${failures}${shown}\n`;
 }
 
 export const REGISTER_LIMIT = 200;

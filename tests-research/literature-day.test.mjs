@@ -121,13 +121,14 @@ test('main writes the dated and latest ai-bus files and the day record', async (
       register: async () => [], labReports: async () => ({ runs: [], truncated: false }),
       memory: async () => ({ runs: 3, totals: { provisionally_supported: 4, rejected: 1, unresolved: 1 },
         experiments: [{ experimentId: 'act-map-transfer', provisionally_supported: 4, rejected: 1, unresolved: 1, abstentions: 0, noAnswers: 1 },
-          { experimentId: 'sympy-quadratic', provisionally_supported: 0, rejected: 2, unresolved: 0, abstentions: 0, noAnswers: 0 }] }) } });
+          { experimentId: 'sympy-quadratic', provisionally_supported: 0, rejected: 2, unresolved: 0, abstentions: 0, noAnswers: 0, failures: { verifier_rejected: 2 } }] }) } });
     assert.deepEqual(day.errors, []);
     const dated = await readFile(join(dir, 'ai-bus/2026-10-24.md'), 'utf8');
     assert.equal(await readFile(join(dir, 'ai-bus/senaste.md'), 'utf8'), dated);
     assert.match(dated, /Ingen kandidat med tillräckligt underlag i dag\./);
     assert.match(dated, /## Kunskapsminne \(VEM-Sci\)[\s\S]*4 preliminärt stödda, 1 avvisade och 1 olösta/);
-    assert.ok(dated.indexOf('| sympy-quadratic | 0 | 2 | 0 (0 / 0) | 0.75 |') < dated.indexOf('| act-map-transfer | 4 | 1 | 1 (0 / 1) | 0.38 |'), 'highest priority first');
+    assert.ok(dated.indexOf('| sympy-quadratic | 0 | 2 | 0 (0 / 0) | avvisat av verifieraren ×2 | 0.75 |') < dated.indexOf('| act-map-transfer | 4 | 1 | 1 (0 / 1) | – | 0.38 |'),
+      'highest priority first; failure causes shown, and none for a register saved before they existed');
     assert.equal(JSON.parse(await readFile(join(dir, 'reports/literature-day/day.json'), 'utf8')).date, '2026-10-24');
   } finally { process.chdir(cwd); await rm(dir, { recursive: true, force: true }); }
 });
