@@ -128,6 +128,9 @@ test('failures come from the verifier and the lab, with the ACT-MAP level, never
   const cases = [
     [{ kind: 'no_answer', status: 'unresolved', reason: 'hypotheses:truncated', outcome: outcome(4, false) }, 'truncated@4'],
     [{ kind: 'no_answer', status: 'unresolved', reason: 'design:not_json' }, 'unreadable'],
+    [{ kind: 'no_answer', status: 'unresolved', reason: 'inference:invalid_decision', outcome: outcome(3, false) }, 'invalid_decision@3'],
+    [{ kind: 'no_answer', status: 'unresolved', reason: 'second:repeated_intervention' }, 'repeated_intervention'],
+    [{ kind: 'no_answer', status: 'unresolved', reason: 'design:Not Valid!' }, 'unreadable'],
     [{ kind: 'abstention', status: 'unresolved', outcome: outcome(3, false) }, 'missed_transfer@3'],
     [{ kind: 'abstention', status: 'unresolved', outcome: outcome(4, true) }, null],
     [{ kind: 'transfer', status: 'rejected', reason: 'insufficient_intervention_coverage', outcome: outcome(2, false) }, 'coverage@2'],
@@ -143,6 +146,7 @@ test('failures come from the verifier and the lab, with the ACT-MAP level, never
   const summary = vemRegisterSummary([row('act-map-tree', cases.slice(0, 2).concat([cases[0]]).map(([c]) => ({ experimentId: 'act-map-tree', ...c })))]);
   assert.deepEqual(summary.experiments[0].failures, { 'truncated@4': 2, unreadable: 1 });
   assert.equal(failureSummary(summary.experiments[0].failures), 'truncated@4×2, unreadable×1', 'most frequent first');
-  assert.equal(failureText(summary.experiments[0].failures), 'svaret klipptes vid tokengränsen (nivå 4) ×2; oläsbart svar ×1');
+  assert.equal(failureText(summary.experiments[0].failures), 'svaret klipptes vid tokengränsen (nivå 4) ×2; svaret var inte giltig JSON ×1');
+  assert.equal(failureText({ 'invalid_decision@3': 1 }), 'decision var inte ett tillåtet beslut (nivå 3) ×1', 'the lab\'s own problem text');
   assert.deepEqual(vemKnowledge(summary, offered)['act-map-tree'], [0, 0, 3, 'truncated@4×2, unreadable×1']);
 });

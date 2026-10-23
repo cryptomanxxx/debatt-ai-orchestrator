@@ -86,7 +86,7 @@ The register also records why a claim did not hold. The lab derives the cause fr
 
 | Cause | Source |
 | --- | --- |
-| `truncated` / `unreadable` | No readable answer: cut off at the token limit, or not valid JSON |
+| `truncated` / `unreadable` / the lab's problem code | No usable answer: cut off at the token limit, not valid JSON, or valid JSON that broke the answer contract, kept as the lab's own code (`invalid_decision`, `invalid_experiments`, `repeated_intervention`, …) |
 | `missed_transfer` | Abstained ("none") although the mechanism transferred (verified outcome) |
 | `coverage`, `too_few_interventions`, `contradicted`, `heldout_mismatch`, `invalid_claim`, `over_budget` | The ACT-MAP evidence gate's reason for rejecting a transfer claim |
 | `false_certification` | The gate certified a claim, but the decision or correspondence was wrong |

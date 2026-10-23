@@ -1,7 +1,7 @@
 import { mkdir, writeFile, appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { readJson } from './lab-client.mjs';
-import { digest } from './act-map.mjs';
+import { digest, problemText } from './act-map.mjs';
 
 // VEM-Sci register (research/ACT-MAP-LAB.md): every answer Oraklet gives in the lab is a claim.
 // It is "proposed", goes "under_test", and only the experiment's own independent verifier moves it
@@ -61,15 +61,23 @@ const GATE_FAILURES = Object.freeze({
   discovery_budget_exceeded: 'over_budget',
 });
 export const FAILURE_TEXT = Object.freeze({
-  truncated: 'svaret klipptes vid tokengränsen', unreadable: 'oläsbart svar', missed_transfer: 'avstod fast mekanismen överfördes',
+  truncated: 'svaret klipptes vid tokengränsen', unreadable: 'svaret var inte giltig JSON', missed_transfer: 'avstod fast mekanismen överfördes',
+  invalid_hypotheses: 'hypoteslistan var ogiltig',
   false_certification: 'godkänt men fel', coverage: 'ingreppen täckte inte roten och mediatorn', too_few_interventions: 'för få olika ingrepp',
   contradicted: 'motsägs av egna observationer', heldout_mismatch: 'föll på dolda ingreppsstorlekar', invalid_claim: 'ogiltigt påstående',
   over_budget: 'för många ingrepp', gate_rejected: 'avvisat av evidensgrinden', verifier_rejected: 'avvisat av verifieraren',
   unverified: 'saknar oberoende verifiering',
 });
+// A missing answer keeps the lab's own problem code ("inference:invalid_decision" → invalid_decision),
+// so a valid answer that broke the answer contract is told apart from one that was not JSON.
+const noAnswerCause = reason => {
+  const problem = String(reason ?? '').split(':').at(-1);
+  if (problem === 'not_json' || !/^[a-z_]{1,40}$/.test(problem)) return 'unreadable';
+  return problem;
+};
 export function failureOf(claim) {
   const code = (() => {
-    if (claim?.kind === 'no_answer') return String(claim.reason ?? '').endsWith(':truncated') ? 'truncated' : 'unreadable';
+    if (claim?.kind === 'no_answer') return noAnswerCause(claim.reason);
     if (claim?.kind === 'abstention') return claim.outcome?.passed === false ? 'missed_transfer' : null;
     if (claim?.status === 'provisionally_supported') return claim.outcome?.passed === false ? 'false_certification' : null;
     if (claim?.kind === 'transfer') return GATE_FAILURES[claim.reason] ?? 'gate_rejected';
@@ -84,7 +92,7 @@ export function failureSummary(failures = {}, limit = 2) {
 }
 const failureLabel = key => {
   const [code, level] = key.split('@');
-  return (FAILURE_TEXT[code] ?? code) + (level ? ` (nivå ${level})` : '');
+  return (FAILURE_TEXT[code] ?? problemText(code)) + (level ? ` (nivå ${level})` : '');
 };
 export function failureText(failures = {}, limit = 2) {
   return Object.entries(failures).sort(([a, x], [b, y]) => y - x || (a < b ? -1 : 1)).slice(0, limit).map(([k, n]) => `${failureLabel(k)} ×${n}`).join('; ');
