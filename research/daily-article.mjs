@@ -74,7 +74,7 @@ export function articleMessages(sheet, date) {
     { role: 'system', content: 'Du är Professor Oraklet och skriver dagens korta vetenskapliga artikel på svenska, 300–700 ord: mer en utförlig sammanfattning än en hel artikel. '
       + 'Välj ett sammanhållet ämne bland faktaunderlaget, helst ett verifierat labbresultat, och skriv bara det underlaget säger. '
       + 'Varje mening med ett påstående eller en siffra ska hänvisa till sitt underlag med [F1], [F2] … och litteratur med [R1], [R2] …; hitta aldrig på siffror, källor eller resultat. '
-      + 'Rubriken får inte innehålla siffror. Varje mening ska ha minst en hänvisning. En siffra får bara stå i en mening som hänvisar till ett faktum där just den siffran finns, med samma ord eller tecken efter sig som i faktumet (till exempel "3 av 5 fall", "88 %"); skriv inga datum och ingen annan numrering. Ingen Markdown, inga listor, inga webbadresser. Står flera siffror ur samma faktum i en mening, behåll faktumets ordning. '
+      + 'Rubriken får inte innehålla siffror eller räkneord. Skriv alla tal med siffror, aldrig med ord som "tre" eller "hälften". Varje mening ska ha minst en hänvisning. En siffra får bara stå i en mening som hänvisar till ett faktum där just den siffran finns, med samma ord eller tecken efter sig som i faktumet (till exempel "3 av 5 fall", "88 %"); skriv inga datum och ingen annan numrering. Ingen Markdown, inga listor, inga webbadresser. Står flera siffror ur samma faktum i en mening, behåll faktumets ordning. '
       + 'Skriv "preliminärt stött", aldrig "bevisat" eller "bekräftat"; påstå ingen upptäckt eller något genombrott. Begränsningar ska nämna att allt är syntetiskt eller bygger på sammanfattningar och att inget är granskat. '
       + 'Svara endast JSON: {"title":"…","abstract":"…","background":"…","method":"…","results":"…","limitations":"…"}.' },
     { role: 'user', content: JSON.stringify({ date, facts: sheet.facts.map(({ id, text }) => ({ id, text })), references: sheet.references.map(({ id, title }) => ({ id, title })) }) },
@@ -97,9 +97,10 @@ const WORD = '[^\\s\\d.,;:!?()]';
 const numberRoles = text => { const t = plain(text); return [...t.matchAll(new RegExp(NUMBER + '\\s*(' + WORD + '*)', 'g'))]
   .map(m => `${normal(m[1])} ${m[2] ? m[2].toLowerCase() : '<' + (t.slice(0, m.index).match(new RegExp('(' + WORD + '+)[\\s.,;:!?()]*$'))?.[1] ?? '').toLowerCase()}`); };
 // Common Swedish abbreviations do not end a sentence, unless a capital letter follows ("osv. Nästa").
+// A closing quote or bracket after the full stop still ends it ('gäller." Nästa').
 const ABBREVIATIONS = /\b(t\.ex|bl\.a|m\.fl|m\.m|s\.k|d\.v\.s|o\.s\.v|t\.o\.m|fr\.o\.m|e\.d|dvs|osv|ca|jfr|resp|inkl|exkl|etc|nr|kap|fig|tab)\./gi;
 const sentences = text => text.replace(ABBREVIATIONS, (m, _, at, all) => /^\s+[A-ZÅÄÖ]/.test(all.slice(at + m.length)) ? m : m.replace(/\./g, '\u2024'))
-  .split(/(?<=[.!?])\s+/).filter(s => s.trim());
+  .split(/(?<=[.!?]["'\u201D\u2019\u00BB)\]]*)\s+/).filter(s => s.trim());
 
 // The sentence's numbers can each be placed in a cited fact so that numbers from the same fact keep
 // its order and each occurrence is used once: "88 % mot 97 %" does not pass where the fact says
@@ -109,6 +110,9 @@ function inFactOrder(found, facts, i = 0, last = facts.map(() => 0)) {
   return facts.some((roles, f) => roles.some((r, at) => r === found[i] && at >= last[f]
     && inFactOrder(found, facts, i + 1, last.map((x, g) => g === f ? at + 1 : x))));
 }
+
+// Spelled-out quantities cannot be checked against the facts ("en"/"ett" are also articles and stay).
+const NUMBER_WORDS = /(?<![\p{L}])(noll|två|tre|fyra|fem|sex|sju|åtta|nio|tio|elva|tolv|tretton|fjorton|femton|sexton|sjutton|arton|nitton|tjugo\p{L}*|trettio\p{L}*|fyrtio\p{L}*|femtio\p{L}*|sextio\p{L}*|sjuttio\p{L}*|åttio\p{L}*|nittio\p{L}*|hundra\p{L}*|tusen\p{L}*|miljon\p{L}*|miljard\p{L}*|hälften|halva|dubbelt|tredjedel\p{L}*|fjärdedel\p{L}*|procent\p{L}*)(?![\p{L}])/iu;
 
 // GitHub turns bare URLs, www. hosts and e-mail addresses into links; an article has none.
 const LINKLIKE = /[a-z][a-z0-9+.-]*:\/\/|\bwww\.|\bmailto:|[\w.+-]+@[\w-]+\.[a-z]/i;
@@ -123,15 +127,15 @@ export function checkArticle(text, sheet) {
   if (!a || typeof a !== 'object' || Object.keys(a).sort().join() !== [...keys].sort().join() || keys.some(k => typeof a[k] !== 'string' || !a[k].trim()))
     return { problem: 'invalid_shape' };
   // A title cannot cite a fact, so it carries no numbers at all.
-  if (a.title.length > 140 || /[\[\]#`<>|*_]|\p{N}/u.test(a.title)) return { problem: 'invalid_title' };
+  if (a.title.length > 140 || /[\[\]#`<>|*_]|\p{N}/u.test(a.title) || NUMBER_WORDS.test(a.title)) return { problem: 'invalid_title' };
   if (LINKLIKE.test(a.title) || SECTIONS.some(([k]) => LINKLIKE.test(a[k]))) return { problem: 'markup' };
   const body = SECTIONS.map(([k]) => a[k]).join('\n');
   const words = body.split(/\s+/).filter(Boolean).length;
   if (words < 250 || words > 900) return { problem: 'invalid_length' };
   if (/[`<>|#]|\]\(|^\s*[-*]\s/m.test(body)) return { problem: 'markup' };
   if (OVERCLAIM.test(a.title) || OVERCLAIM.test(body)) return { problem: 'overclaim' };
-  // Only ASCII digits are checked against the facts, so no other numeral may stand in for one.
-  if (/(?![0-9])\p{N}/u.test(body)) return { problem: 'unsupported_number' };
+  // Only ASCII digits are checked against the facts, so no other numeral or number word may stand in for one.
+  if (/(?![0-9])\p{N}/u.test(body) || NUMBER_WORDS.test(body)) return { problem: 'unsupported_number' };
   const known = new Map([...sheet.facts.map(f => [f.id, f.text]), ...sheet.references.map(r => [r.id, r.title])]);
   if (tags(body).some(id => !known.has(id))) return { problem: 'unknown_citation' };
   if (!tags(body).some(id => id.startsWith('F'))) return { problem: 'no_fact_cited' };

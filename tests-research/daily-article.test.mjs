@@ -101,6 +101,10 @@ test('an article is published only when every citation, number and wording holds
   assert.equal(problem({ title: 'En ny upptäckt' }), 'overclaim');
   assert.equal(problem({ title: 'Labbet godkände \uFF13 av \uFF11 fall' }), 'invalid_title', 'no numerals of any script in a title');
   assert.equal(problem({ results: 'Labbkörningen godkände \uFF13 av \uFF13 fall [F1]. ' + filler('F1').repeat(3) }), 'unsupported_number', 'nor unchecked numerals in the text');
+  assert.equal(problem({ title: 'Tre av ett fall godkändes' }), 'invalid_title', 'no spelled-out quantities in a title');
+  assert.equal(problem({ results: 'Labbkörningen godkände tre av tre fall [F1]. ' + filler('F1').repeat(3) }), 'unsupported_number', 'nor in the text');
+  assert.equal(problem({ results: 'Oraklet sade "resultatet gäller." Labbkörningen godkände 3 av 3 fall [F1]. ' + filler('F1').repeat(3) }), 'uncited_sentence', 'a closing quote does not hide a sentence end');
+  assert.equal(problem({ results: 'Oraklet skrev (se labbet.) Labbkörningen godkände 3 av 3 fall [F1]. ' + filler('F1').repeat(3) }), 'uncited_sentence');
   for (const link of ['https://evil.example/path', 'www.evil.example', 'ftp://x.y', 'oraklet@evil.example'])
     assert.equal(problem({ results: `Se ${link} [F1]. ` + filler('F1').repeat(3) }), 'markup', `no autolinked ${link}`);
   assert.equal(problem({ title: 'Se www.evil.example' }), 'markup');
