@@ -78,6 +78,9 @@ test('the bounded tree search stops at the first hypothesis that fits all observ
   assert.deepEqual(tree.evaluated.map(h => [h.hypothesis, h.consistent]), [['h1', false], ['h2', true]]);
   assert.ok(tree.evaluated[0].firstContradiction);
   assert.deepEqual(tree.notEvaluated, ['h3']);
+  assert.deepEqual(tree.candidates.map(h => [h.hypothesis, h.consistent]), [['h1', false], ['h2', true], ['h3', null]],
+    'the untested hypothesis still reaches the final step');
+  assert.match(tree.candidates[2].note, /inte prövad/);
 });
 
 test('Oraklet sees which hypotheses fit before the claim; a correct claim passes the gate', async () => {
@@ -85,7 +88,7 @@ test('Oraklet sees which hypotheses fit before the claim; a correct claim passes
   const report = await runActMapTreeExperiment('20261023', propose, callActMap, async () => {});
   assert.deepEqual(calls.map(c => c.kind), ['design', 'hypotheses', 'final', 'design', 'hypotheses', 'final']);
   const finals = calls.filter(c => c.kind === 'final');
-  assert.ok(finals.every(c => Array.isArray(c.content.hypotheses) && c.content.hypotheses.length >= 1));
+  assert.ok(finals.every(c => Array.isArray(c.content.hypotheses) && c.content.hypotheses.length === 2), 'all stated hypotheses, tested or not');
   assert.ok(finals.every(c => !JSON.stringify(c.content).match(/target_coefficients|"scope"|-2,3|HOLDOUT/)), 'no truth or hidden sizes reach the model');
   assert.equal(report.status, 'passed');
   for (const c of report.cases) {

@@ -28,7 +28,7 @@ Three cases use six calls. With the planning call that is the lab's budget of se
 1. **Design.** Oraklet chooses up to three interventions, exactly as in the direct protocol.
 2. **Hypotheses.** Oraklet states 1–3 competing hypotheses without deciding.
 3. **Search.** The bounded tree search (`agentic-tree-search.mjs`: one level, at most three nodes) checks each hypothesis against the observations Oraklet has already seen. It never uses the hidden intervention sizes. A node's score is the share of predicted observations that match. The search stops at the first hypothesis that fits all of them. A "none" hypothesis predicts nothing and is never confirmed by observations alone.
-4. **Claim.** Oraklet makes the final claim with the evaluation in front of him: which hypotheses fit, and the first contradiction for each that does not. Only this call states a confidence.
+4. **Claim.** Oraklet makes the final claim with the evaluation in front of him: which hypotheses fit, and the first contradiction for each that does not. Every hypothesis he stated reaches this step; any the search did not test, because it stopped at an earlier fit, are marked untested. Only this call states a confidence.
 
 The case is verified, scored and recorded in VEM-Sci exactly as in the direct protocol.
 

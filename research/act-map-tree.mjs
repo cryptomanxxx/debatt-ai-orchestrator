@@ -93,12 +93,17 @@ export async function searchHypotheses(fixture, hypotheses, history) {
       ...(c.contradiction ? { firstContradiction: c.contradiction } : {}),
       ...(h.decision === 'none' ? { note: 'gör inga förutsägelser; kan inte bekräftas av observationerna' } : {}) };
   });
-  return { search, evaluated, notEvaluated: [...byId.keys()].filter(id => !search.trace.some(n => n.actionId === id)) };
+  const notEvaluated = [...byId.keys()].filter(id => !search.trace.some(n => n.actionId === id));
+  // Every hypothesis Oraklet stated reaches the final step: the untested ones are marked as such.
+  const candidates = [...evaluated, ...notEvaluated.map(id => ({ hypothesis: id, decision: byId.get(id).decision,
+    ...namedClaim(fixture, byId.get(id).proposed), consistent: null,
+    note: 'inte prövad: sökningen stannade vid första hypotesen som stämde med alla observationer' }))];
+  return { search, evaluated, notEvaluated, candidates };
 }
 
 const TREE_NOTE = Object.freeze({
   system: 'Du har också ställt upp konkurrerande hypoteser, och labbet har prövat dem mot observationerna du har sett (hypotheses). ' +
-    'consistent betyder att hypotesen stämmer med alla dessa observationer; firstContradiction visar var den inte stämmer. ' +
+    'consistent betyder att hypotesen stämmer med alla dessa observationer; firstContradiction visar var den inte stämmer; consistent null betyder att den inte prövades. ' +
     'Ingen hypotes är prövad mot de dolda ingreppsstorlekarna. Om ingen hypotes med överföring stämmer är det ett tecken på att mekanismen inte gäller. ',
 });
 
@@ -129,7 +134,7 @@ export async function runActMapTreeExperiment(seed, propose, callTool, onCommit,
         tree = await searchHypotheses(fixture, checkedHypotheses.hypotheses, history);
         tree.hypotheses = checkedHypotheses.hypotheses;
         const final = await answer(propose, inferenceMessages(fixture, results,
-          { system: TREE_NOTE.system, payload: { hypotheses: tree.evaluated } }));
+          { system: TREE_NOTE.system, payload: { hypotheses: tree.candidates } }));
         if (final.ai) same(final.ai);
         const checked = final.ai ? checkInference(final.ai.text, fixture) : final;
         if (checked.problem) formatProblem = `inference:${checked.problem}`;
