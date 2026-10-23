@@ -22,7 +22,7 @@ A completed measurement can contain an incorrect model proposal. Reports disting
 
 ### Current experiment coverage
 
-The catalog contains **twenty-two runnable experiments**. Fifteen are available to automatic planning: fourteen synthetic method tests, among them an [Oraklet-designed, preregistered experiment](research/EXPERIMENT-DESIGN.md) and [ACT-MAP causal-mechanism transfer, where Oraklet chooses his own interventions](research/ACT-MAP-LAB.md), and one [blind prediction of held-out Perturb-seq knockouts](research/PERTURBSEQ-HOLDOUT.md); seven are selected manually because they use fixed published data, are exploratory follow-ups or are separate pilots. `node research/show-catalog.mjs` prints the current catalog.
+The catalog contains **twenty-three runnable experiments**. Sixteen are available to automatic planning: fifteen synthetic method tests, among them an [Oraklet-designed, preregistered experiment](research/EXPERIMENT-DESIGN.md) and [ACT-MAP causal-mechanism transfer, where Oraklet chooses his own interventions](research/ACT-MAP-LAB.md), directly or with agentic tree search, and one [blind prediction of held-out Perturb-seq knockouts](research/PERTURBSEQ-HOLDOUT.md); seven are selected manually because they use fixed published data, are exploratory follow-ups or are separate pilots. `node research/show-catalog.mjs` prints the current catalog.
 
 | Experiment area | Implemented methods and tools | Selection |
 | --- | --- | --- |
@@ -36,7 +36,7 @@ The catalog contains **twenty-two runnable experiments**. Fifteen are available 
 | Symbolic mathematics | SymPy exact quadratic equations | Automatic |
 | Machine learning | Scikit-learn linear/quadratic regression with separate training, validation and test data | Automatic |
 | Causal inference | DoWhy backdoor adjustment under a given causal diagram | Automatic |
-| Causal-mechanism transfer | ACT-MAP: Oraklet chooses interventions in an unknown system, proposes which variables and interventions match a known mechanism or abstains; evidence gate and enumeration baseline | Automatic |
+| Causal-mechanism transfer | ACT-MAP: Oraklet chooses interventions in an unknown system, proposes which variables and interventions match a known mechanism or abstains; evidence gate and enumeration baseline. Also with agentic tree search over his own competing hypotheses | Automatic |
 | Functional genomics | Blind prediction of published held-out Perturb-seq knockout effects against always-none and gene-family baselines | Automatic |
 | Synthetic glucose forecasting | Insulin absorption simulator and robustness to incorrect meal/sensitivity inputs | Automatic |
 | Published insulin data | Temperature evidence audit, warming forecasts, curve-shape follow-up and separate-publication check | Manual |

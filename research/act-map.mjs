@@ -86,7 +86,7 @@ export function intervene(fixture, action, value) {
 }
 
 // What a hypothesis predicts for one intervention: {targetIndex: value}; partial claims say nothing about s_2.
-function predict(view, h, action, value) {
+export function predict(view, h, action, value) {
   const j = h.mapping.indexOf(h.action_to_target[action]);
   if (h.scope === 'partial' && j === 2) return {};
   const outcomes = scm([view.source.a, view.source.b, view.source.c], j, value);
@@ -160,26 +160,29 @@ export function publicTask(fixture) {
     allowedDecisions: view.level === 4 ? DECISIONS : ['full', 'none'] };
 }
 
-const SYSTEM = 'Du är Professor Oraklet och undersöker om en känd orsaksmekanism (källan, variablerna s_0, s_1, s_2) finns i ett okänt målsystem med tre variabler. Målsystemets namn är slumpade och säger inget om vilken roll variablerna har. Ett ingrepp sätter en målvariabel till ett värde; du ser sedan alla tre målvariablernas värden. ';
+export const ACT_MAP_SYSTEM = 'Du är Professor Oraklet och undersöker om en känd orsaksmekanism (källan, variablerna s_0, s_1, s_2) finns i ett okänt målsystem med tre variabler. Målsystemets namn är slumpade och säger inget om vilken roll variablerna har. Ett ingrepp sätter en målvariabel till ett värde; du ser sedan alla tre målvariablernas värden. ';
 export function designMessages(fixture) {
   return [
-    { role: 'system', content: SYSTEM + `Välj först dina experiment: 1–${MAX_EXPERIMENTS} ingrepp, vart och ett ett av targetInterventions med ett av allowedValues. Svara endast JSON: {"experiments":[{"intervention":"<namn>","value":1}],"reason":"kort svensk motivering"}.` },
+    { role: 'system', content: ACT_MAP_SYSTEM + `Välj först dina experiment: 1–${MAX_EXPERIMENTS} ingrepp, vart och ett ett av targetInterventions med ett av allowedValues. Svara endast JSON: {"experiments":[{"intervention":"<namn>","value":1}],"reason":"kort svensk motivering"}.` },
     { role: 'user', content: JSON.stringify(publicTask(fixture)) },
   ];
 }
-export function inferenceMessages(fixture, results) {
+// The inference request; `extra` adds the tree-search evaluation of Oraklet's own hypotheses
+// (act-map-tree.mjs) without changing the answer format.
+export function inferenceMessages(fixture, results, extra = null) {
   const level4 = fixture.view.level === 4;
   return [
-    { role: 'system', content: SYSTEM + 'Du har valt dina experiment och ser resultaten. Avgör nu om källmekanismen finns i målsystemet. ' +
+    { role: 'system', content: ACT_MAP_SYSTEM + 'Du har valt dina experiment och ser resultaten. Avgör nu om källmekanismen finns i målsystemet. ' +
       '"full": hela mekanismen gäller; ange vilken målvariabel som motsvarar s_0, s_1 och s_2 och vilken målvariabel varje ingrepp sätter. ' +
       (level4 ? '"partial": bara s_0 → s_1 gäller, inte ekvationen för s_2; ange ändå hela kopplingen. ' : '') +
       '"none": mekanismen stöds inte; då är mapping och interventions null. Ditt påstående prövas med ingreppsstorlekar du inte har sett. ' +
+      (extra ? extra.system : '') +
       'Svara endast JSON: {"decision":"full","mapping":{"s_0":"<målvariabel>","s_1":"...","s_2":"..."},"interventions":{"<ingrepp>":"<målvariabel>"},"reason":"kort svensk motivering"}.' },
-    { role: 'user', content: JSON.stringify({ task: publicTask(fixture), results }) },
+    { role: 'user', content: JSON.stringify({ task: publicTask(fixture), results, ...(extra ? extra.payload : {}) }) },
   ];
 }
 
-function parseJson(text) {
+export function parseJson(text) {
   const t = String(text).trim().replace(/^<think>[\s\S]*?<\/think>\s*/, '');
   const fenced = t.match(/^```(?:json)?\s*\n([\s\S]*?)\n?```$/);
   const value = JSON.parse(fenced ? fenced[1] : t);
@@ -237,9 +240,9 @@ const PROBLEM_TEXT = Object.freeze({
 });
 export const problemText = code => PROBLEM_TEXT[code] ?? code;
 
-const named = (fixture, history) => history.map(r => ({ intervention: fixture.view.target_interventions[r.action], value: r.value,
+export const named = (fixture, history) => history.map(r => ({ intervention: fixture.view.target_interventions[r.action], value: r.value,
   observed: Object.fromEntries(fixture.view.target_variables.map((v, i) => [v, r.outcome[i]])) }));
-const namedClaim = (fixture, proposed) => proposed && {
+export const namedClaim = (fixture, proposed) => proposed && {
   mapping: Object.fromEntries(proposed.mapping.map((t, s) => [`s_${s}`, fixture.view.target_variables[t]])),
   interventions: Object.fromEntries(proposed.action_to_target.map((t, a) => [fixture.view.target_interventions[a], fixture.view.target_variables[t]])) };
 
@@ -256,11 +259,11 @@ export function actMapPasses(claim, fixture, gate) {
 // The case's VEM-Sci record: a proposal is "proposed", goes "under_test" and only the evidence
 // gate moves it on. Abstention ("none") is never an accepted claim. A case without a readable
 // answer is remembered too, as unresolved with the reason, so the planner sees where Oraklet fails.
-function vemRecord(fixture, claim, history, gate, formatProblem) {
-  if (!claim) return { claimId: digest({ protocol: ACT_MAP_PROTOCOL.id, fixture: fixture.commitment, noAnswer: formatProblem }),
+export function vemRecord(fixture, claim, history, gate, formatProblem, protocol = ACT_MAP_PROTOCOL.id) {
+  if (!claim) return { claimId: digest({ protocol, fixture: fixture.commitment, noAnswer: formatProblem }),
     kind: 'no_answer', transitions: ['unanswered'], status: 'unresolved', reason: formatProblem, evidenceSha256: digest(history) };
   const statement = { decision: claim.decision, ...namedClaim(fixture, claim.proposed) };
-  return { claimId: digest({ protocol: ACT_MAP_PROTOCOL.id, fixture: fixture.commitment, statement }),
+  return { claimId: digest({ protocol, fixture: fixture.commitment, statement }),
     kind: claim.decision === 'none' ? 'abstention' : 'transfer', statement,
     transitions: ['proposed', 'under_test', gate.status], status: gate.status,
     evidenceSha256: digest(history), verifier: 'act-map-evidence-gate', ...(gate.reason ? { reason: gate.reason } : {}) };
@@ -268,7 +271,7 @@ function vemRecord(fixture, claim, history, gate, formatProblem) {
 
 // An answer cut off at the lab's token limit never arrived: like an unreadable answer it fails
 // the case and makes no claim, and the run goes on. Repeating it would only repeat the long answer.
-async function answer(send, messages) {
+export async function answer(send, messages) {
   try { return { ai: await send(messages) }; } catch (error) {
     if (error instanceof ResearchError && error.message === 'model_output_truncated') return { problem: 'truncated' };
     throw error;

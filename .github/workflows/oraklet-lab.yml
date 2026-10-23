@@ -24,6 +24,7 @@ on:
           - sklearn-polynomial
           - dowhy-backdoor
           - act-map-transfer
+          - act-map-tree
           - perturbseq-holdout
           - glucose-absorption
           - glucose-robustness

@@ -9,6 +9,8 @@ instruktioner, kalibrering eller korrigering. Båda svaren bedöms av experiment
 
 `act-map-transfer` låter Oraklet själv välja ingrepp i ett okänt syntetiskt system och avgöra om en känd orsaksmekanism finns där (full, partiell eller ingen överföring). Evidensgrinden från ACT-MAP-piloten prövar påståendet med dolda ingreppsstorlekar, och uppräkningsbaslinjen körs på samma fall. Automatiskt valbart. Varje svar i labbet sparas också som ett påstående i VEM-Sci-registret. Se [ACT-MAP i labbet](ACT-MAP-LAB.md).
 
+`act-map-tree` är samma uppgift på nivå 3–4, men med agentisk trädsökning. Oraklet ställer först upp konkurrerande hypoteser, labbet prövar dem mot hans observationer, och sedan avgör han. Fixturerna är desamma som i `act-map-transfer` på samma seed, så metoderna kan jämföras parvis. Automatiskt valbart.
+
 `perturbseq-holdout` låter Oraklet blint förutsäga effekten av genutslagningar som
 hållits utanför ett publicerat Perturb-seq-dataset och jämför mot låst facit och två
 fasta baslinjer. Automatiskt valbart. Se [källa, protokoll och begränsningar](PERTURBSEQ-HOLDOUT.md).
