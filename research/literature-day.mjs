@@ -3,7 +3,8 @@
 // citation-graph novelty check on its candidate, automatic Problem Bank registration of
 // literature-backed catalog problems, and a Swedish report in ai-bus/ built only from saved
 // reports. A failing stage is recorded and the day continues; nothing claims a discovery.
-import { mkdir, writeFile, readFile, readdir, appendFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, readdir, rm, appendFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { main as pipelineMain } from './research-pipeline.mjs';
 import { main as treeMain } from './research-tree-planner.mjs';
@@ -317,8 +318,11 @@ export async function main(env = process.env, { now = new Date().toISOString(), 
   if (day.publication) {
     await mkdir('ai-bus/artiklar', { recursive: true });
     await writeFile(`ai-bus/artiklar/${day.publication.file}`, day.publication.markdown);
-    await writeFile('ai-bus/artiklar/README.md', await articleIndex('ai-bus/artiklar'));
+  } else {
+    // A rerun the same day without an article withdraws the earlier one, which the report no longer links.
+    await rm(`ai-bus/artiklar/${date}.md`, { force: true });
   }
+  if (existsSync('ai-bus/artiklar')) await writeFile('ai-bus/artiklar/README.md', await articleIndex('ai-bus/artiklar'));
   if (env.GITHUB_STEP_SUMMARY) await appendFile(env.GITHUB_STEP_SUMMARY, markdown);
   console.log(JSON.stringify({ date, field: day.field, pipeline: day.pipeline?.status ?? null, errors: day.errors }));
   return day;

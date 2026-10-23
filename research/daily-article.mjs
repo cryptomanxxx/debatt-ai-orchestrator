@@ -71,7 +71,7 @@ export function articleMessages(sheet, date) {
     { role: 'system', content: 'Du är Professor Oraklet och skriver dagens korta vetenskapliga artikel på svenska, 300–700 ord: mer en utförlig sammanfattning än en hel artikel. '
       + 'Välj ett sammanhållet ämne bland faktaunderlaget, helst ett verifierat labbresultat, och skriv bara det underlaget säger. '
       + 'Varje mening med ett påstående eller en siffra ska hänvisa till sitt underlag med [F1], [F2] … och litteratur med [R1], [R2] …; hitta aldrig på siffror, källor eller resultat. '
-      + 'Rubriken får inte innehålla siffror. Varje mening ska ha minst en hänvisning. En siffra får bara stå i en mening som hänvisar till ett faktum där just den siffran finns, med samma ord eller tecken efter sig som i faktumet (till exempel "3 av 5 fall", "88 %"); skriv inga datum och ingen annan numrering. Ingen Markdown, inga listor. '
+      + 'Rubriken får inte innehålla siffror. Varje mening ska ha minst en hänvisning. En siffra får bara stå i en mening som hänvisar till ett faktum där just den siffran finns, med samma ord eller tecken efter sig som i faktumet (till exempel "3 av 5 fall", "88 %"); skriv inga datum och ingen annan numrering. Ingen Markdown, inga listor, inga webbadresser. Står flera siffror ur samma faktum i en mening, behåll faktumets ordning. '
       + 'Skriv "preliminärt stött", aldrig "bevisat" eller "bekräftat"; påstå ingen upptäckt eller något genombrott. Begränsningar ska nämna att allt är syntetiskt eller bygger på sammanfattningar och att inget är granskat. '
       + 'Svara endast JSON: {"title":"…","abstract":"…","background":"…","method":"…","results":"…","limitations":"…"}.' },
     { role: 'user', content: JSON.stringify({ date, facts: sheet.facts.map(({ id, text }) => ({ id, text })), references: sheet.references.map(({ id, title }) => ({ id, title })) }) },
@@ -95,6 +95,17 @@ const ABBREVIATIONS = /\b(t\.ex|bl\.a|m\.fl|m\.m|s\.k|d\.v\.s|o\.s\.v|t\.o\.m|fr
 const sentences = text => text.replace(ABBREVIATIONS, m => m.replace(/\./g, '\u2024'))
   .split(/(?<=[.!?])\s+/).filter(s => s.trim());
 
+// The sentence's numbers can each be placed in a cited fact so that numbers from the same fact keep
+// its order: "88 % mot 97 %" does not pass where the fact says "97 % mot 88 %".
+function inFactOrder(found, facts, i = 0, last = facts.map(() => 0)) {
+  if (i === found.length) return true;
+  return facts.some((roles, f) => roles.some((r, at) => r === found[i] && at >= last[f]
+    && inFactOrder(found, facts, i + 1, last.map((x, g) => g === f ? at : x))));
+}
+
+// GitHub turns bare URLs, www. hosts and e-mail addresses into links; an article has none.
+const LINKLIKE = /[a-z][a-z0-9+.-]*:\/\/|\bwww\.|\bmailto:|[\w.+-]+@[\w-]+\.[a-z]/i;
+
 export function checkArticle(text, sheet) {
   let a;
   try {
@@ -106,6 +117,7 @@ export function checkArticle(text, sheet) {
     return { problem: 'invalid_shape' };
   // A title cannot cite a fact, so it carries no numbers at all.
   if (a.title.length > 140 || /[\[\]#`<>|*_\d]/.test(a.title)) return { problem: 'invalid_title' };
+  if (LINKLIKE.test(a.title) || SECTIONS.some(([k]) => LINKLIKE.test(a[k]))) return { problem: 'markup' };
   const body = SECTIONS.map(([k]) => a[k]).join('\n');
   const words = body.split(/\s+/).filter(Boolean).length;
   if (words < 250 || words > 900) return { problem: 'invalid_length' };
@@ -122,8 +134,7 @@ export function checkArticle(text, sheet) {
     const cited = tags(s).filter(id => id.startsWith('F'));
     if (!cited.length) return { problem: 'uncited_number' };
     // Every number must come, with its role, from a fact the same sentence cites.
-    const allowed = new Set(cited.flatMap(id => numberRoles(known.get(id))));
-    if (found.some(n => !allowed.has(n))) return { problem: 'unsupported_number' };
+    if (!inFactOrder(found, cited.map(id => numberRoles(known.get(id))))) return { problem: 'unsupported_number' };
   }
   return { article: Object.fromEntries(keys.map(k => [k, a[k].replace(/\s+/g, ' ').trim()])), words };
 }

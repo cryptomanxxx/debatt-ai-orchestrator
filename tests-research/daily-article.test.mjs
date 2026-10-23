@@ -84,6 +84,12 @@ test('an article is published only when every citation, number and wording holds
   // F2 says s_2 = -3*s_1: dropping the sign changes the mechanism.
   assert.equal(problem({ results: 'Oraklet skrev s_2 = 3*s_1 [F2]. ' + filler('F1').repeat(3) }), 'unsupported_number', 'a sign belongs to its number');
   assert.ok(checkArticle(article({ results: 'Oraklet skrev s_2 = −3*s_1 [F2]. ' + filler('F1').repeat(3) }), sheet).article, 'a typographic minus is the same sign');
+  const calibration = sheet.facts.find(f => f.text.includes('97 % mot 88 %')).id;
+  assert.equal(problem({ results: `Säkerheten var 88 % mot 97 % rätt svar [${calibration}]. ` + filler('F1').repeat(3) }), 'unsupported_number', 'numbers from one fact keep its order');
+  assert.ok(checkArticle(article({ results: `Säkerheten var 97 % mot 88 % rätt svar [${calibration}]. ` + filler('F1').repeat(3) }), sheet).article);
+  for (const link of ['https://evil.example/path', 'www.evil.example', 'ftp://x.y', 'oraklet@evil.example'])
+    assert.equal(problem({ results: `Se ${link} [F1]. ` + filler('F1').repeat(3) }), 'markup', `no autolinked ${link}`);
+  assert.equal(problem({ title: 'Se www.evil.example' }), 'markup');
   assert.ok(checkArticle(article({ results: 'Det gäller t.ex. syntetiska fall, bl.a. små mekanismer [F1]. ' + filler('F1').repeat(3) }), sheet).article,
     'Swedish abbreviations do not end a sentence');
 });
@@ -144,6 +150,10 @@ test('the literature day publishes the article, its index and a link, or says wh
     const saved = JSON.parse(await readFile('reports/literature-day/day.json', 'utf8'));
     assert.equal(saved.article.file, '2026-10-24.md');
     assert.equal(saved.publication, undefined, 'the article text is not duplicated in day.json');
+    const rerun = await main({}, { now: '2026-10-24T15:00:00.000Z', deps: deps(article({ title: 'Ett genombrott' })) });
+    assert.equal(rerun.article.status, 'rejected');
+    assert.deepEqual(await readdir('ai-bus/artiklar'), ['README.md'], 'a rerun the same day without an article withdraws the earlier one');
+    assert.match(await readFile('ai-bus/artiklar/README.md', 'utf8'), /Inga artiklar ännu\./);
     await rm('ai-bus', { recursive: true });
     const rejected = await main({}, { now: '2026-10-25T09:41:00.000Z', deps: deps(article({ title: 'Ett genombrott' })) });
     assert.equal(rejected.article.reason, 'overclaim');
