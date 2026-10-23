@@ -80,6 +80,12 @@ test('an article is published only when every citation, number and wording holds
   assert.equal(problem({ results: 'Se [länk](https://x) [F1]. ' + filler('F1').repeat(3) }), 'markup');
   assert.equal(problem({ abstract: 'Kort [F1].', background: 'Kort [F1].', method: 'Kort [F1].', results: 'Kort [F1].', limitations: 'Kort [F1].' }), 'invalid_length');
   assert.equal(problem({ title: 'Rubrik med [F1]' }), 'invalid_title');
+  assert.equal(problem({ title: 'Labbet godkände 3 av 1 fall' }), 'invalid_title', 'a title cannot cite a fact, so it has no numbers');
+  // F2 says s_2 = -3*s_1: dropping the sign changes the mechanism.
+  assert.equal(problem({ results: 'Oraklet skrev s_2 = 3*s_1 [F2]. ' + filler('F1').repeat(3) }), 'unsupported_number', 'a sign belongs to its number');
+  assert.ok(checkArticle(article({ results: 'Oraklet skrev s_2 = −3*s_1 [F2]. ' + filler('F1').repeat(3) }), sheet).article, 'a typographic minus is the same sign');
+  assert.ok(checkArticle(article({ results: 'Det gäller t.ex. syntetiska fall, bl.a. små mekanismer [F1]. ' + filler('F1').repeat(3) }), sheet).article,
+    'Swedish abbreviations do not end a sentence');
 });
 
 test('the article is rendered with its fact basis, references and the fixed footer', () => {
@@ -91,6 +97,14 @@ test('the article is rendered with its fact basis, references and the fixed foot
   assert.doesNotMatch(md, /\[F2\]\*\*/, 'only cited facts are listed');
   assert.match(md, /- \*\*\[R1\]\*\* Backdoor adjustment in practice <https:\/\/example\.org\/a>/);
   assert.match(md, /inte granskad av en människa/);
+  const hostile = buildFactSheet({ ...day, pipeline: { stages: [{ name: 'initial_evidence', summary: { papers: [{ title: 'T [x](https://evil) **b**', source_url: 'https://example.org/a',
+    findings: [{ kind: 'limitation', claim: 'c', quote: '![spårpixel](https://evil.example/p.png) and *emph*' }] }] } }] } });
+  const q = hostile.facts.find(f => f.topic === 'literature').id;
+  const out = renderArticle(checkArticle(article({ results: 'Oraklet skrev s_2 = -3*s_1 [F2]. ' + filler('F1').repeat(3),
+    limitations: `Allt bygger på sammanfattningar [${q}]. ` + filler('F1').repeat(3) }), hostile).article, hostile, { date: 'd', field: 'f', model: 'm' });
+  assert.match(out, /- \*\*\[F2\]\*\* .*s\\_2 = -3\\\*s\\_1/, 'Markdown characters in facts are escaped');
+  assert.match(out, /Oraklet skrev s\\_2 = -3\\\*s\\_1 \[F2\]\./, 'and in the text, with the citation tags kept');
+  assert.doesNotMatch(out, /!\[spårpixel\]\(|\[x\]\(https:\/\/evil\)|\*\*b\*\*/, 'a quote or title cannot inject links, images or emphasis');
 });
 
 test('the daily article: one deep call, skipped without verified results, rejected rather than published when a check fails', async () => {

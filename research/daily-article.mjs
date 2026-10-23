@@ -71,7 +71,7 @@ export function articleMessages(sheet, date) {
     { role: 'system', content: 'Du är Professor Oraklet och skriver dagens korta vetenskapliga artikel på svenska, 300–700 ord: mer en utförlig sammanfattning än en hel artikel. '
       + 'Välj ett sammanhållet ämne bland faktaunderlaget, helst ett verifierat labbresultat, och skriv bara det underlaget säger. '
       + 'Varje mening med ett påstående eller en siffra ska hänvisa till sitt underlag med [F1], [F2] … och litteratur med [R1], [R2] …; hitta aldrig på siffror, källor eller resultat. '
-      + 'Varje mening ska ha minst en hänvisning. En siffra får bara stå i en mening som hänvisar till ett faktum där just den siffran finns, med samma ord eller tecken efter sig som i faktumet (till exempel "3 av 5 fall", "88 %"); skriv inga datum och ingen annan numrering. Ingen Markdown, inga listor. '
+      + 'Rubriken får inte innehålla siffror. Varje mening ska ha minst en hänvisning. En siffra får bara stå i en mening som hänvisar till ett faktum där just den siffran finns, med samma ord eller tecken efter sig som i faktumet (till exempel "3 av 5 fall", "88 %"); skriv inga datum och ingen annan numrering. Ingen Markdown, inga listor. '
       + 'Skriv "preliminärt stött", aldrig "bevisat" eller "bekräftat"; påstå ingen upptäckt eller något genombrott. Begränsningar ska nämna att allt är syntetiskt eller bygger på sammanfattningar och att inget är granskat. '
       + 'Svara endast JSON: {"title":"…","abstract":"…","background":"…","method":"…","results":"…","limitations":"…"}.' },
     { role: 'user', content: JSON.stringify({ date, facts: sheet.facts.map(({ id, text }) => ({ id, text })), references: sheet.references.map(({ id, title }) => ({ id, title })) }) },
@@ -81,12 +81,19 @@ export function articleMessages(sheet, date) {
 // Words that would overstate what a verifier recorded.
 const OVERCLAIM = /\b(bevis\w*|bevisa\w*|bekräfta\w*|genombrott\w*|banbrytande|fastställ\w*|säkerställ\w*|revolution\w*|definitivt)\b/i;
 const tags = text => [...text.matchAll(/\[([FR]\d{1,2})\]/g)].map(m => m[1]);
-const numbers = text => [...text.replace(/\[[FR]\d{1,2}\]/g, ' ').matchAll(/\d+(?:[.,]\d+)?/g)].map(m => m[0].replace(',', '.'));
+// A sign written directly before a number belongs to it ("-3*s_1"), so a sign cannot be dropped.
+const NUMBER = '([-+\u2212]?\\d+(?:[.,]\\d+)?)';
+const plain = text => text.replace(/\[[FR]\d{1,2}\]/g, ' ').replace(/\u2212/g, '-');
+const normal = n => n.replace(',', '.').replace(/^\+/, '');
+const numbers = text => [...plain(text).matchAll(new RegExp(NUMBER, 'g'))].map(m => normal(m[1]));
 // Each number with the word or sign that follows it ("3 av", "3 fall", "88 %"), so a number keeps
 // its role: "3 av 1" does not pass where the fact says "1 av 3".
-const numberRoles = text => [...text.replace(/\[[FR]\d{1,2}\]/g, ' ').matchAll(/(\d+(?:[.,]\d+)?)\s*([^\s\d.,;:!?()]*)/g)]
-  .map(m => `${m[1].replace(',', '.')} ${m[2].toLowerCase()}`);
-const sentences = text => text.split(/(?<=[.!?])\s+/).filter(s => s.trim());
+const numberRoles = text => [...plain(text).matchAll(new RegExp(NUMBER + '\\s*([^\\s\\d.,;:!?()]*)', 'g'))]
+  .map(m => `${normal(m[1])} ${m[2].toLowerCase()}`);
+// Common Swedish abbreviations do not end a sentence.
+const ABBREVIATIONS = /\b(t\.ex|bl\.a|m\.fl|m\.m|s\.k|d\.v\.s|o\.s\.v|t\.o\.m|fr\.o\.m|e\.d|dvs|osv|ca|jfr|resp|inkl|exkl|etc|nr|kap|fig|tab)\./gi;
+const sentences = text => text.replace(ABBREVIATIONS, m => m.replace(/\./g, '\u2024'))
+  .split(/(?<=[.!?])\s+/).filter(s => s.trim());
 
 export function checkArticle(text, sheet) {
   let a;
@@ -97,7 +104,8 @@ export function checkArticle(text, sheet) {
   const keys = ['title', ...SECTIONS.map(([k]) => k)];
   if (!a || typeof a !== 'object' || Object.keys(a).sort().join() !== [...keys].sort().join() || keys.some(k => typeof a[k] !== 'string' || !a[k].trim()))
     return { problem: 'invalid_shape' };
-  if (a.title.length > 140 || /[\[\]#`<>|*_]/.test(a.title)) return { problem: 'invalid_title' };
+  // A title cannot cite a fact, so it carries no numbers at all.
+  if (a.title.length > 140 || /[\[\]#`<>|*_\d]/.test(a.title)) return { problem: 'invalid_title' };
   const body = SECTIONS.map(([k]) => a[k]).join('\n');
   const words = body.split(/\s+/).filter(Boolean).length;
   if (words < 250 || words > 900) return { problem: 'invalid_length' };
@@ -117,21 +125,24 @@ export function checkArticle(text, sheet) {
     const allowed = new Set(cited.flatMap(id => numberRoles(known.get(id))));
     if (found.some(n => !allowed.has(n))) return { problem: 'unsupported_number' };
   }
-  if (numbers(a.title).some(n => !sheet.facts.some(f => numbers(f.text).includes(n)))) return { problem: 'unsupported_number' };
   return { article: Object.fromEntries(keys.map(k => [k, a[k].replace(/\s+/g, ' ').trim()])), words };
 }
 
+// Fact and reference text can carry external quotes and titles: every Markdown character is
+// escaped, as for untrusted literature in the daily report. The article body keeps its [F#] tags.
+const inert = v => String(v ?? '').replace(/\s+/g, ' ').trim().replace(/[\\`*_[\]|#]/g, '\\$&').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const escapeText = v => inert(v).replace(/\\\[([FR]\d{1,2})\\\]/g, '[$1]');
 const FOOTER = '*Skriven av Professor Oraklet, en AI, utifrån faktaunderlaget nedan. Underlaget kommer från sparade, oberoende verifierade körningar och från sammanfattningar med kontrollerade citat; texten är inte granskad av en människa eller av vetenskapliga granskare. "Preliminärt stött" gäller bara det testade fallet, aldrig etablerad vetenskap.*';
 export function renderArticle(article, sheet, { date, field, model }) {
   const cited = new Set(SECTIONS.flatMap(([k]) => tags(article[k])));
   const L = [`# ${article.title}`, '', `*Professor Oraklet, ${date}. Fält: ${field}. Modell: ${clip(model, 80)}.*`, ''];
-  for (const [k, heading] of SECTIONS) L.push(`## ${heading}`, '', article[k], '');
+  for (const [k, heading] of SECTIONS) L.push(`## ${heading}`, '', escapeText(article[k]), '');
   L.push('## Faktaunderlag', '', 'Varje [F#] i texten hänvisar till en mening som labbet skrev från en sparad rapport.', '');
-  for (const f of sheet.facts.filter(f => cited.has(f.id))) L.push(`- **[${f.id}]** ${f.text.replace(/[`<>|]/g, "'")}`);
+  for (const f of sheet.facts.filter(f => cited.has(f.id))) L.push(`- **[${f.id}]** ${inert(f.text)}`);
   const refs = sheet.references.filter(r => cited.has(r.id));
   if (refs.length) {
     L.push('', '## Referenser', '');
-    for (const r of refs) L.push(`- **[${r.id}]** ${r.title.replace(/[`<>|[\]]/g, "'")}${r.url ? ` <${r.url}>` : ''}`);
+    for (const r of refs) L.push(`- **[${r.id}]** ${inert(r.title)}${r.url ? ` <${r.url}>` : ''}`);
   }
   L.push('', '---', '', FOOTER, '');
   return L.join('\n');
