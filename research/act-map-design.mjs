@@ -364,3 +364,30 @@ export function actMapDesignMarkdown(cases) {
   }
   return lines.join('\n');
 }
+
+// A compact, verified record of one design run for the daily ai-bus report (literature-day.mjs):
+// the mechanism as the lab's own equations, the prediction against the enumeration, and each
+// investigation's verdict. Built only from the saved report; null for any other experiment. A run
+// that failed after some cases is saved without a top-level protocol, so the cases also identify it.
+export function designDigest(report) {
+  if (!Array.isArray(report?.cases)) return null;
+  const own = report.protocol?.id === ACT_MAP_DESIGN_PROTOCOL.id || (report.experimentId === 'act-map-design'
+    && report.cases.some(c => c?.hypothesisTest?.protocol?.id === ACT_MAP_DESIGN_PROTOCOL.id));
+  if (!own) return null;
+  const design = report.cases.find(c => c?.kind === 'design');
+  if (!design) return null;
+  const spec = design.proposal?.spec, valid = spec && !specProblem(spec);
+  return {
+    equations: valid ? specEquations(spec) : null,
+    problem: valid ? null : String(design.formatProblem ?? 'invalid_spec').slice(0, 60),
+    prediction: valid ? design.proposal.prediction : null,
+    analysis: valid && design.analysis ? { identifiable: design.analysis.identifiable, minInterventions: design.analysis.minInterventions,
+      consistentAfterAll: design.analysis.consistentAfterAll } : null,
+    predicted: design.passed === true,
+    reason: typeof design.proposal?.reason === 'string' ? design.proposal.reason.slice(0, 300) : null,
+    investigations: report.cases.filter(c => c?.kind === 'investigation').map(c => ({ case: c.case,
+      decision: c.formatProblem ? null : c.proposal?.decision ?? null, truth: c.hypothesisTest?.measured?.truth?.scope ?? null,
+      gate: c.hypothesisTest?.measured?.gate?.status ?? null, baseline: c.hypothesisTest?.measured?.baseline?.decision ?? null,
+      experiments: Array.isArray(c.experiments) ? c.experiments.length : 0, passed: c.passed === true })),
+  };
+}
