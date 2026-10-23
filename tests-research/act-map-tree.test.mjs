@@ -64,6 +64,8 @@ test('hypotheses parsing drops invalid and repeated candidates and rejects malfo
   assert.equal(checkHypotheses(JSON.stringify({ hypotheses: [{ decision: 'maybe' }], reason: 'r' }), f).problem, 'invalid_hypotheses');
   assert.equal(checkHypotheses('nej', f).problem, 'not_json');
   assert.equal(checkHypotheses(JSON.stringify({ hypotheses: [truthful(f)], extra: 1 }), f).problem, 'extra_fields');
+  for (const reason of [undefined, 7, '  ', 'x'.repeat(801)])
+    assert.equal(checkHypotheses(JSON.stringify({ hypotheses: [truthful(f)], reason }), f).problem, 'invalid_reason', String(reason));
 });
 
 test('the bounded tree search stops at the first hypothesis that fits all observations', async () => {
