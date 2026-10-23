@@ -193,4 +193,8 @@ test('a transfer hypothesis with nothing to check is untested, not contradicted,
     assert.equal(c.tree.candidates.length, c.hypothesisTest.measured.hypotheses, 'all candidates persisted');
     assert.ok(c.tree.candidates.every(h => ['full', 'partial', 'none'].includes(h.decision)));
   }
+  const untestable = { ...report.cases[1], tree: { ...report.cases[1].tree, candidates: [{ ...tree.evaluated[0], hypothesis: 'h9' }] } };
+  const row = actMapTreeMarkdown([untestable]).split('\n').find(l => l.startsWith(`| ${untestable.case} |`));
+  assert.match(row, /h9 [^|,]* –/);
+  assert.doesNotMatch(row, /✗/);
 });

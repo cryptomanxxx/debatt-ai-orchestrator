@@ -186,11 +186,13 @@ export function actMapTreeMarkdown(cases) {
   const ok = selected.filter(c => c.passed).length, base = selected.filter(c => c.hypothesisTest.measured.baselinePassed).length;
   return '\n\n## ACT-MAP med trädsökning: Oraklet mot uppräkningsbaslinjen\n\n'
     + `Oraklet ${ok}/${selected.length} rätt, uppräkningsbaslinjen ${base}/${selected.length}. Felaktigt godkända påståenden: ${selected.filter(c => c.hypothesisTest.measured.falseCertification).length}. `
-    + 'Jämför med act-map-transfer på samma seed (samma fixturer, utan trädsökning).\n\n'
+    + 'Jämför med act-map-transfer på samma seed (samma fixturer, utan trädsökning). '
+    + 'Hypoteser: ✓ stämmer med observationerna, ✗ motsägs, – kunde inte prövas eller prövades inte.\n\n'
     + '| Fall | Nivå | Hypoteser (stämmer med observationerna) | Oraklets beslut | Facit | Grinden |\n| --- | --- | --- | --- | --- | --- |\n'
     + selected.map(c => {
       const m = c.hypothesisTest.measured;
-      const hyps = c.tree ? c.tree.evaluated.map(h => `${h.hypothesis} ${decisionText[h.decision]}${h.consistent ? ' ✓' : h.decision === 'none' ? ' –' : ' ✗'}`).join(', ') : '–';
+      // consistent is null for a hypothesis that predicts nothing or that the search never reached.
+      const hyps = c.tree ? (c.tree.candidates ?? c.tree.evaluated).map(h => `${h.hypothesis} ${decisionText[h.decision]}${h.consistent === true ? ' ✓' : h.consistent === false ? ' ✗' : ' –'}`).join(', ') : '–';
       return `| ${c.case} | ${c.level} | ${hyps} | ${c.formatProblem ? 'oläsbart (' + c.formatProblem + ')' : decisionText[c.proposal.decision]} | ${decisionText[m.truth.scope]} | ${m.gate.status} |`;
     }).join('\n')
     + '\n\n' + selected.filter(c => c.proposal.reason).map(c => `Fall ${c.case}, Oraklets motivering: ${inert(c.proposal.reason)}`).join('\n\n');
