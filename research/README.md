@@ -11,7 +11,7 @@ instruktioner, kalibrering eller korrigering. Båda svaren bedöms av experiment
 
 `act-map-tree` är samma uppgift på nivå 3–4, men med agentisk trädsökning. Oraklet ställer först upp konkurrerande hypoteser, labbet prövar dem mot hans observationer, och sedan avgör han. Fixturerna är desamma som i `act-map-transfer` på samma seed, så metoderna kan jämföras parvis. Automatiskt valbart.
 
-`act-map-budget` är samma fall som `act-map-transfer` men med högst två ingrepp, så Oraklet måste planera vilka ingrepp som är informativa. Efter varje labbkörning skrivs **DeepRAP-mått** för resonemang, abstraktion och planering, byggda på verifierade körningar. De visas också i ai-bus. Se [ACT-MAP-LAB.md](ACT-MAP-LAB.md#deeprap-scoreboard).
+`act-map-budget` är samma fall som `act-map-transfer` på nivå 3 och 4 men med två ingrepp valda ett i taget: det andra väljer Oraklet efter att ha sett utfallet av det första, så det mäter om han planerar efter vad han ser. Efter varje labbkörning skrivs **DeepRAP-mått** för resonemang, abstraktion och planering, byggda på verifierade körningar. De visas också i ai-bus. Se [ACT-MAP-LAB.md](ACT-MAP-LAB.md#deeprap-scoreboard).
 
 `perturbseq-holdout` låter Oraklet blint förutsäga effekten av genutslagningar som
 hållits utanför ett publicerat Perturb-seq-dataset och jämför mot låst facit och två

@@ -39,9 +39,15 @@ The case is verified, scored and recorded in VEM-Sci exactly as in the direct pr
 
 ## Budget method (`act-map-budget`)
 
-`act-map-budget` (protocol `act-map-budget-v1`) is the direct protocol with at most **two** interventions. The fixtures are the same three as on the same seed. The gate needs the root and the mediator covered and two different interventions. With two allowed, Oraklet can no longer simply try all three. He has to plan which two are informative.
+`act-map-budget` (protocol `act-map-budget-v1`) is the direct protocol with at most **two** interventions, chosen **one at a time**. The gate needs the root and the mediator covered and two different interventions. With two allowed, Oraklet can no longer simply try all three. Measured so far, he always chose all three interventions with value 1.
 
-Measured so far, Oraklet always chose all three interventions with value 1, so this tests planning. For comparison, the report shows whether the enumeration baseline managed with at most two (`baselineWithinBudget`).
+1. **First intervention.** Oraklet chooses one. Nothing public tells the roles apart before an intervention, so this choice is a guess.
+2. **Second intervention.** Oraklet sees the first outcome and chooses a different intervention. The outcome shows which variables respond, so a well-planned second choice completes the coverage. This is where planning shows.
+3. **Claim.** As in the direct protocol; only this call states a confidence.
+
+- **Cases.** Levels 3 and 4: three calls per case means two cases fit the lab's budget. The hidden truth is the same as the direct protocol's on the same seed, so the two compare case by case.
+- **Binding.** The fixture's view carries the protocol and the limit of two, so the commitment binds them. The Python gate and the Node replay reject a third intervention, and the enumeration baseline gets the same budget.
+- **What is measured.** Judged against the hidden roles: whether the first intervention left coverage reachable (`completable`, false when it set `s_2`), and whether the second then completed it (`secondCompletes`). A case whose first intervention set `s_2` is bad luck, not poor planning. The report and the DeepRAP scoreboard count the second choice only where it could succeed.
 
 ## Verification
 
@@ -91,7 +97,7 @@ After each lab run, the step **Uppdatera Oraklets VEM-Sci-register** (`node rese
 | --- | --- |
 | Reasoning | Share of decided claims that held at verification. Unresolved claims, split into abstentions and missing answers. Stated confidence against the share correct (Brier score). |
 | Abstraction | ACT-MAP correct decisions per protocol (direct, tree search, two interventions) and per level. Falsely certified transfers. |
-| Planning | Interventions per correct case, Oraklet against the enumeration baseline. How often the daily planner chose the experiment with the highest learning priority, its mean relative rank, and how often it chose an untested experiment. |
+| Planning | Interventions per correct case, Oraklet against the enumeration baseline. With two interventions, how often the second completed the coverage where the first left it possible. How often the daily planner chose the experiment with the highest learning priority, its mean relative rank, and how often it chose an untested experiment. |
 
 ACT-MAP claims carry their verified outcome for this: protocol, level, pass, interventions used, the baseline's interventions and its result. Every figure is shown with the number of cases behind it, and few cases mean large uncertainty.
 

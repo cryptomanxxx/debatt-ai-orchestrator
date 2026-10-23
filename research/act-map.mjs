@@ -31,16 +31,19 @@ export const ACT_MAP_PROTOCOL = Object.freeze({
   limitations: 'Syntetiska tre-variabel-system i samma linjära familj; ingen verklig vetenskaplig upptäckt. Uppräkningsbaslinjen löser i stort sett alla fall, så testet mäter om modellen kan resonera fram det som en enkel uppräkning hittar. "Preliminärt stött" gäller bara inom den här syntetiska familjen.',
 });
 
-// The budget variant: same fixtures, at most two interventions. With three roles and a gate that
-// needs the root and the mediator covered, two interventions leave no room for trial and error:
-// Oraklet has to plan which two are informative.
+// The budget variant: the same level-3 and level-4 fixtures, at most two interventions, chosen one
+// at a time. With three roles and a gate that needs the root and the mediator covered, two
+// interventions leave no room for trial and error. Nothing public tells the roles apart before an
+// intervention, so the first choice is a guess; the second, chosen after seeing the first outcome,
+// is where planning shows. The fixture's view carries the budget, so the commitment binds it.
 export const BUDGET_EXPERIMENTS = 2;
+export const BUDGET_LEVELS = Object.freeze([3, 4]);
 export const ACT_MAP_BUDGET_PROTOCOL = Object.freeze({
   id: 'act-map-budget-v1',
   hypothesis: 'Kan Oraklet planera sina ingrepp när han bara får två, och ändå hitta eller avvisa överföringen av en känd orsaksmekanism?',
-  rule: 'Samma tre fall och samma godkännande som act-map-oraklet-v1 på samma seed, men högst två ingrepp per fall. Evidensgrinden kräver att roten och mediatorn täcks och att minst två olika ingrepp gjorts; uppräkningsbaslinjens antal ingrepp redovisas för jämförelse.',
+  rule: 'Samma fall på nivå 3 och 4 och samma godkännande som act-map-oraklet-v1 på samma seed, men högst två ingrepp per fall, valda ett i taget: det andra väljs efter att Oraklet sett utfallet av det första. Evidensgrinden kräver att roten och mediatorn täcks och att två olika ingrepp gjorts. Rapporten visar om det andra ingreppet fullbordade täckningen när det första lämnade det möjligt. Uppräkningsbaslinjen får samma budget.',
   assumptions: ACT_MAP_PROTOCOL.assumptions,
-  limitations: 'Samma syntetiska familj som act-map-oraklet-v1. Uppräkningsbaslinjen får fortfarande upp till tre ingrepp; rapporten visar om den klarade sig med två. Ingen verklig vetenskaplig upptäckt.',
+  limitations: 'Samma syntetiska familj som act-map-oraklet-v1. Inget offentligt skiljer rollerna åt före första ingreppet, så ett första ingrepp på den variabel som motsvarar s_2 gör fallet omöjligt att certifiera; det mäts som tur, inte planering. Ingen verklig vetenskaplig upptäckt.',
 });
 
 function stream(seed, label) {
@@ -60,7 +63,8 @@ const validSeed = seed => {
 };
 
 // One fixture in the shape the Python gate expects: {view, truth, commitment}.
-export function makeActMapFixture(seed, level) {
+// `budget` gives the view the budget variant's protocol and limit; the hidden truth is the same.
+export function makeActMapFixture(seed, level, { budget = false } = {}) {
   validSeed(seed);
   if (!ACT_MAP_LEVELS.includes(level)) throw new ResearchError('invalid_plan');
   const next = stream(seed, `level-${level}`);
@@ -74,13 +78,14 @@ export function makeActMapFixture(seed, level) {
   const scope = level === 4 ? pick(['partial', 'none']) : 'full';
   // Partial: only the s_0 -> s_1 submechanism carries over. None: no mechanism carries over.
   const coefficients = scope === 'full' ? [a, b, c] : scope === 'partial' ? [a, b - 7, c + 6] : [a + 7, b - 7, c + 6];
-  const view = { protocol: ACT_MAP_PROTOCOL.id, level, max_experiments: MAX_EXPERIMENTS,
+  const view = { protocol: budget ? ACT_MAP_BUDGET_PROTOCOL.id : ACT_MAP_PROTOCOL.id, level, max_experiments: budget ? BUDGET_EXPERIMENTS : MAX_EXPERIMENTS,
     source: { variables: ['s_0', 's_1', 's_2'], a, b, c, equations: ['s_1=a*s_0+u_1', 's_2=b*s_1+c*s_0+u_2'] },
     target_variables: targetVariables, target_interventions: targetInterventions };
   const truth = { mapping, action_to_target: actionToTarget, scope, target_coefficients: coefficients };
   return { view, truth, commitment: digest({ view, truth }) };
 }
 export const makeActMapCases = seed => ACT_MAP_LEVELS.map(level => makeActMapFixture(seed, level));
+export const makeActMapBudgetCases = seed => BUDGET_LEVELS.map(level => makeActMapFixture(seed, level, { budget: true }));
 
 function scm([a, b, c], manipulated, value) {
   const x0 = manipulated === 0 ? value : 0;
@@ -113,7 +118,7 @@ export function gateDecision(fixture, proposed, history) {
   const perm = list => Array.isArray(list) && list.length === 3 && [...list].sort().join() === '0,1,2' && list.every(Number.isInteger);
   if (!['full', 'partial'].includes(proposed?.scope) || !perm(proposed.mapping) || !perm(proposed.action_to_target)
     || (proposed.scope === 'partial' && view.level !== 4)) return { status: 'rejected', accepted: false };
-  if (history.length > MAX_EXPERIMENTS || history.some(r => String(r.outcome) !== String(intervene(fixture, r.action, r.value))))
+  if (history.length > view.max_experiments || history.some(r => String(r.outcome) !== String(intervene(fixture, r.action, r.value))))
     return { status: 'rejected', accepted: false };
   const roles = new Set(history.map(r => proposed.mapping.indexOf(proposed.action_to_target[r.action])));
   if (new Set(history.map(r => r.action)).size < 2 || !roles.has(0) || !roles.has(1)) return { status: 'rejected', accepted: false };
@@ -161,27 +166,38 @@ export function validateActMap(evidence, input) {
 
 // What Oraklet sees: the source mechanism, the target names and, at level 2, which target
 // variable each intervention sets. Never the mapping, the coefficients of the target or the scope.
-export function publicTask(fixture, maxExperiments = MAX_EXPERIMENTS) {
+export function publicTask(fixture) {
   const { view } = fixture;
-  return { protocol: ACT_MAP_PROTOCOL.id, level: view.level,
+  return { protocol: view.protocol, level: view.level,
     source: { equations: [`s_1 = ${view.source.a}*s_0`, `s_2 = ${view.source.b}*s_1 + ${view.source.c}*s_0`],
       note: 'Brusfritt. Utan ingrepp är alla variabler 0. Ett ingrepp sätter en variabel till ett värde och bryter dess egen ekvation.' },
     targetVariables: view.target_variables, targetInterventions: view.target_interventions,
     ...(view.level === 2 ? { interventionSets: Object.fromEntries(view.target_interventions.map((a, i) => [a, view.target_variables[fixture.truth.action_to_target[i]]])) } : {}),
-    allowedValues: VALUES, maxExperiments,
+    allowedValues: VALUES, maxExperiments: view.max_experiments,
     allowedDecisions: view.level === 4 ? DECISIONS : ['full', 'none'] };
 }
 
 export const ACT_MAP_SYSTEM = 'Du är Professor Oraklet och undersöker om en känd orsaksmekanism (källan, variablerna s_0, s_1, s_2) finns i ett okänt målsystem med tre variabler. Målsystemets namn är slumpade och säger inget om vilken roll variablerna har. Ett ingrepp sätter en målvariabel till ett värde; du ser sedan alla tre målvariablernas värden. ';
-export function designMessages(fixture, maxExperiments = MAX_EXPERIMENTS) {
+const DESIGN_FORMAT = 'Svara endast JSON: {"experiments":[{"intervention":"<namn>","value":1}],"reason":"kort svensk motivering"}.';
+export function designMessages(fixture) {
   return [
-    { role: 'system', content: ACT_MAP_SYSTEM + `Välj först dina experiment: 1–${maxExperiments} ingrepp, vart och ett ett av targetInterventions med ett av allowedValues. Svara endast JSON: {"experiments":[{"intervention":"<namn>","value":1}],"reason":"kort svensk motivering"}.` },
-    { role: 'user', content: JSON.stringify(publicTask(fixture, maxExperiments)) },
+    { role: 'system', content: ACT_MAP_SYSTEM + `Välj först dina experiment: 1–${fixture.view.max_experiments} ingrepp, vart och ett ett av targetInterventions med ett av allowedValues. ${DESIGN_FORMAT}` },
+    { role: 'user', content: JSON.stringify(publicTask(fixture)) },
+  ];
+}
+// The budget variant asks for one intervention at a time; the second request shows the first outcome.
+const BUDGET_RULE = 'Du får bara två ingrepp och väljer dem ett i taget: först ett, sedan ett till när du har sett utfallet. Ett påstående om överföring kan bara godkännas om dina två ingrepp tillsammans sätter de målvariabler som motsvarar s_0 och s_1. ';
+export function budgetStepMessages(fixture, results = null) {
+  return [
+    { role: 'system', content: ACT_MAP_SYSTEM + BUDGET_RULE + (results
+      ? 'Du har gjort ditt första ingrepp och ser utfallet i results. Välj ditt andra ingrepp: ett annat av targetInterventions än det första, med ett av allowedValues. '
+      : 'Välj ditt första ingrepp: ett av targetInterventions med ett av allowedValues. ') + 'Ange exakt ett ingrepp i experiments. ' + DESIGN_FORMAT },
+    { role: 'user', content: JSON.stringify(results ? { task: publicTask(fixture), results } : publicTask(fixture)) },
   ];
 }
 // The inference request; `extra` adds the tree-search evaluation of Oraklet's own hypotheses
 // (act-map-tree.mjs) without changing the answer format.
-export function inferenceMessages(fixture, results, extra = null, maxExperiments = MAX_EXPERIMENTS) {
+export function inferenceMessages(fixture, results, extra = null) {
   const level4 = fixture.view.level === 4;
   return [
     { role: 'system', content: ACT_MAP_SYSTEM + 'Du har valt dina experiment och ser resultaten. Avgör nu om källmekanismen finns i målsystemet. ' +
@@ -190,7 +206,7 @@ export function inferenceMessages(fixture, results, extra = null, maxExperiments
       '"none": mekanismen stöds inte; då är mapping och interventions null. Ditt påstående prövas med ingreppsstorlekar du inte har sett. ' +
       (extra ? extra.system : '') +
       'Svara endast JSON: {"decision":"full","mapping":{"s_0":"<målvariabel>","s_1":"...","s_2":"..."},"interventions":{"<ingrepp>":"<målvariabel>"},"reason":"kort svensk motivering"}.' },
-    { role: 'user', content: JSON.stringify({ task: publicTask(fixture, maxExperiments), results, ...(extra ? extra.payload : {}) }) },
+    { role: 'user', content: JSON.stringify({ task: publicTask(fixture), results, ...(extra ? extra.payload : {}) }) },
   ];
 }
 
@@ -204,7 +220,7 @@ export function parseJson(text) {
 const validReason = r => typeof r === 'string' && r.trim() && r.length <= 800;
 
 // A design answer becomes the lab's discovery record: [{action, value}], or a fixed problem code.
-export function checkDesign(text, fixture, maxExperiments = MAX_EXPERIMENTS) {
+export function checkDesign(text, fixture, maxExperiments = fixture.view.max_experiments) {
   let p;
   try { p = parseJson(text); } catch { return { problem: 'not_json' }; }
   if (Object.keys(p).some(k => !['experiments', 'reason'].includes(k))) return { problem: 'extra_fields' };
@@ -246,7 +262,8 @@ export function checkInference(text, fixture) {
 
 const PROBLEM_TEXT = Object.freeze({
   not_json: 'svaret var inte giltig JSON', extra_fields: 'svaret hade fält som inte efterfrågades',
-  invalid_experiments: 'experiments var inte 1–3 ingrepp med kända namn och tillåtna värden', duplicate_experiment: 'samma ingrepp och värde förekom två gånger',
+  invalid_experiments: 'experiments var inte ett tillåtet antal ingrepp med kända namn och tillåtna värden', duplicate_experiment: 'samma ingrepp och värde förekom två gånger',
+  repeated_intervention: 'det andra ingreppet var samma som det första',
   invalid_decision: 'decision var inte ett tillåtet beslut', invalid_mapping: 'mapping angav inte tre olika målvariabler för s_0, s_1 och s_2',
   truncated: 'svaret klipptes vid labbets tokengräns', invalid_interventions: 'interventions angav inte en egen målvariabel för vart och ett av de tre ingreppen', invalid_reason: 'reason saknades eller var längre än 800 tecken',
 });
@@ -291,29 +308,64 @@ export async function answer(send, messages) {
   }
 }
 
+// The truth role (0 = s_0, 1 = s_1, 2 = s_2) of the variable an intervention sets.
+const roleOf = (fixture, action) => fixture.truth.mapping.indexOf(fixture.truth.action_to_target[action]);
+// Budget planning, judged against the hidden roles: after a first intervention on s_0 or s_1 the
+// gate's coverage is still reachable, and the second choice completes it or not. After one on s_2
+// it is not, so that case says nothing about planning (`completable: false`).
+export function budgetPlanning(fixture, history) {
+  if (!history.length) return { completable: null, secondCompletes: null };
+  const first = roleOf(fixture, history[0].action), completable = first !== 2;
+  return { completable, secondCompletes: completable && history.length > 1 ? roleOf(fixture, history[1].action) === 1 - first : null };
+}
+
 export const actMapOutcome = (protocol, measured, passed) => ({ protocol, level: measured.level, passed,
   experimentsUsed: measured.experimentsUsed, baselineExperiments: measured.baseline.experiment_cost,
-  baselinePassed: measured.baselinePassed, falseCertification: measured.falseCertification });
+  baselinePassed: measured.baselinePassed, falseCertification: measured.falseCertification,
+  ...(measured.planning ? measured.planning : {}) });
+
+// The design step: the direct protocol asks for all interventions at once; the budget variant asks
+// for one, shows its outcome and asks for the second. Returns {history, design, ai, problem}.
+async function designStep(fixture, designPropose, budget) {
+  if (!budget) {
+    const design = await answer(designPropose, designMessages(fixture));
+    const checked = design.ai ? checkDesign(design.ai.text, fixture) : design;
+    if (checked.problem) return { history: [], design: null, ai: design.ai, problem: `design:${checked.problem}` };
+    return { history: checked.design.experiments.map(e => ({ ...e, outcome: intervene(fixture, e.action, e.value) })), design: checked.design, ai: design.ai };
+  }
+  const first = await answer(designPropose, budgetStepMessages(fixture));
+  const one = first.ai ? checkDesign(first.ai.text, fixture, 1) : first;
+  if (one.problem) return { history: [], design: null, ai: first.ai, problem: `design:${one.problem}` };
+  const history = one.design.experiments.map(e => ({ ...e, outcome: intervene(fixture, e.action, e.value) }));
+  const second = await answer(designPropose, budgetStepMessages(fixture, named(fixture, history)));
+  if (second.ai && (second.ai.provider !== first.ai.provider || second.ai.model !== first.ai.model)) throw new ResearchError('model_changed');
+  let two = second.ai ? checkDesign(second.ai.text, fixture, 1) : second;
+  if (two.design && two.design.experiments[0].action === history[0].action) two = { problem: 'repeated_intervention' };
+  const design = { experiments: [...one.design.experiments], reasons: [one.design.reason] };
+  if (two.problem) return { history, design, ai: first.ai, problem: `second:${two.problem}` };
+  const e = two.design.experiments[0];
+  history.push({ ...e, outcome: intervene(fixture, e.action, e.value) });
+  design.experiments.push(e); design.reasons.push(two.design.reason);
+  return { history, design, ai: first.ai };
+}
 
 export async function runActMapExperiment(seed, propose, callTool, onCommit, options = {}) {
-  // `budget` runs the same fixtures with at most two interventions (act-map-budget-v1).
+  // `budget` runs the level-3 and level-4 fixtures with two interventions chosen one at a time
+  // (act-map-budget-v1): three calls per case, so two cases fit the lab's budget.
   const protocol = options.budget ? ACT_MAP_BUDGET_PROTOCOL : ACT_MAP_PROTOCOL;
-  const maxExperiments = options.budget ? BUDGET_EXPERIMENTS : MAX_EXPERIMENTS;
-  const fixtures = makeActMapCases(seed), cases = [];
-  // The design call carries no confidence: calibration scores the claim, which the inference call makes.
+  const fixtures = options.budget ? makeActMapBudgetCases(seed) : makeActMapCases(seed), cases = [];
+  // The design calls carry no confidence: calibration scores the claim, which the inference call makes.
   const designPropose = options.designPropose ?? propose;
   await onCommit(fixtures.map((f, i) => ({ case: i + 1, level: f.view.level, sha256: f.commitment, protocol })));
   for (const [i, fixture] of fixtures.entries()) {
-    const design = await answer(designPropose, designMessages(fixture, maxExperiments));
-    const checkedDesign = design.ai ? checkDesign(design.ai.text, fixture, maxExperiments) : design;
-    let history = [], claim = null, formatProblem = null, ai = design.ai ?? { provider: null, model: null };
-    if (checkedDesign.problem) formatProblem = `design:${checkedDesign.problem}`;
-    else {
-      history = checkedDesign.design.experiments.map(e => ({ ...e, outcome: intervene(fixture, e.action, e.value) }));
-      const inference = await answer(propose, inferenceMessages(fixture, named(fixture, history), null, maxExperiments));
+    const step = await designStep(fixture, designPropose, options.budget);
+    const { history } = step;
+    let claim = null, formatProblem = step.problem ?? null, ai = step.ai ?? { provider: null, model: null };
+    if (!formatProblem) {
+      const inference = await answer(propose, inferenceMessages(fixture, named(fixture, history)));
       if (inference.ai) {
         ai = inference.ai;
-        if (ai.provider !== design.ai.provider || ai.model !== design.ai.model) throw new ResearchError('model_changed', { case: i + 1 });
+        if (ai.provider !== step.ai.provider || ai.model !== step.ai.model) throw new ResearchError('model_changed', { case: i + 1 });
       }
       const checked = inference.ai ? checkInference(ai.text, fixture) : inference;
       if (checked.problem) formatProblem = `inference:${checked.problem}`;
@@ -326,9 +378,9 @@ export async function runActMapExperiment(seed, propose, callTool, onCommit, opt
     const measured = { level: fixture.view.level, truth, gate: result.gate, baseline: result.baseline,
       baselinePassed: result.baseline.scope_correct && (fixture.truth.scope === 'none' || result.baseline.mapping_correct && result.baseline.accepted),
       falseCertification: result.gate.accepted && !passed, experimentsUsed: history.length,
-      ...(options.budget ? { baselineWithinBudget: result.baseline.experiment_cost <= maxExperiments } : {}) };
-    cases.push({ case: i + 1, level: fixture.view.level, commitment: fixture.commitment, data: publicTask(fixture, maxExperiments),
-      proposal: { design: checkedDesign.design ?? null, decision: claim?.decision ?? null, ...namedClaim(fixture, claim?.proposed ?? null), reason: claim?.reason ?? null },
+      ...(options.budget ? { planning: budgetPlanning(fixture, history) } : {}) };
+    cases.push({ case: i + 1, level: fixture.view.level, commitment: fixture.commitment, data: publicTask(fixture),
+      proposal: { design: step.design, decision: claim?.decision ?? null, ...namedClaim(fixture, claim?.proposed ?? null), reason: claim?.reason ?? null },
       provider: ai.provider, model: ai.model, experiments: named(fixture, history), evidence,
       hypothesisTest: { protocol, decision: passed ? 'correct_transfer_decision' : 'incorrect_transfer_decision', measured,
         independentlyVerified: true, verificationScope: 'python-evidence-gate-and-node-replay', familyInference: null },
@@ -340,7 +392,9 @@ export async function runActMapExperiment(seed, propose, callTool, onCommit, opt
   return { schemaVersion: 2, promptVersion: protocol.id, researcher: 'Professor Oraklet',
     title: options.budget ? 'ACT-MAP under budget: två ingrepp' : 'ACT-MAP: överföring av en orsaksmekanism till ett okänt system',
     question: protocol.hypothesis,
-    method: `Oraklet väljer själv högst ${maxExperiments === MAX_EXPERIMENTS ? 'tre' : 'två'} ingrepp per fall, ser utfallen och föreslår en koppling eller avstår. Evidensgrinden prövar påståendet med dolda ingreppsstorlekar; uppräkningsbaslinjen körs på samma fall.`,
+    method: options.budget
+      ? 'Oraklet väljer två ingrepp ett i taget: det andra efter att ha sett utfallet av det första. Sedan föreslår han en koppling eller avstår. Evidensgrinden prövar påståendet med dolda ingreppsstorlekar; uppräkningsbaslinjen får samma budget på samma fall.'
+      : 'Oraklet väljer själv högst tre ingrepp per fall, ser utfallen och föreslår en koppling eller avstår. Evidensgrinden prövar påståendet med dolda ingreppsstorlekar; uppräkningsbaslinjen körs på samma fall.',
     seed, status: cases.every(c => c.passed) ? 'passed' : 'failed',
     protocol, limitations: protocol.limitations, cases };
 }
@@ -351,6 +405,11 @@ export function actMapSummary(m) {
 }
 // Model text is shown as one code span.
 const inert = v => '`' + String(v ?? '').replace(/`/g, "'").replace(/\s+/g, ' ').trim() + '`';
+export function budgetLine(planning) {
+  const possible = planning.filter(p => p?.completable === true), unlucky = planning.filter(p => p?.completable === false).length;
+  return `Andra ingreppet fullbordade täckningen av s_0 och s_1 i ${possible.filter(p => p.secondCompletes).length} av ${possible.length} fall där det första lämnade det möjligt`
+    + `${unlucky ? `; i ${unlucky} fall satte det första ingreppet s_2 och täckningen gick inte att nå` : ''}. Uppräkningsbaslinjen hade samma budget.\n\n`;
+}
 export function actMapMarkdown(cases) {
   const ids = [ACT_MAP_PROTOCOL.id, ACT_MAP_BUDGET_PROTOCOL.id];
   const selected = cases.filter(c => ids.includes(c.hypothesisTest?.protocol?.id));
@@ -358,7 +417,7 @@ export function actMapMarkdown(cases) {
   const budget = selected[0].hypothesisTest.protocol.id === ACT_MAP_BUDGET_PROTOCOL.id;
   const ok = selected.filter(c => c.passed).length, base = selected.filter(c => c.hypothesisTest.measured.baselinePassed).length;
   return `\n\n## ACT-MAP${budget ? ' under budget (två ingrepp)' : ''}: Oraklet mot uppräkningsbaslinjen\n\n`
-    + (budget ? `Uppräkningsbaslinjen klarade sig med högst två ingrepp i ${selected.filter(c => c.hypothesisTest.measured.baselineWithinBudget).length} av ${selected.length} fall.\n\n` : '')
+    + (budget ? budgetLine(selected.map(c => c.hypothesisTest.measured.planning)) : '')
     + `Oraklet ${ok}/${selected.length} rätt, uppräkningsbaslinjen ${base}/${selected.length}. Felaktigt godkända påståenden: ${selected.filter(c => c.hypothesisTest.measured.falseCertification).length}.\n\n`
     + '| Fall | Nivå | Oraklets ingrepp | Oraklets beslut | Facit | Grinden | Baslinjen |\n| --- | --- | --- | --- | --- | --- | --- |\n'
     + selected.map(c => {

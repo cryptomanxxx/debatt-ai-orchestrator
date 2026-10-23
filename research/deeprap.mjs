@@ -41,6 +41,10 @@ export function deepRapScoreboard(rows) {
   // cases where both decided correctly. Planning across runs: how the daily planner's choices
   // relate to the register (rank 1 = no experiment had a higher learning priority).
   const efficient = outcomes.filter(o => o.passed && o.baselinePassed && Number.isInteger(o.experimentsUsed) && Number.isInteger(o.baselineExperiments));
+  // Budget planning: the second intervention, chosen after the first outcome, completes the gate's
+  // coverage or not. Only cases where the first left it possible count (see act-map.mjs).
+  const budget = outcomes.filter(o => o.protocol === 'act-map-budget-v1');
+  const possible = budget.filter(o => o.completable === true);
   const planned = valid.map(r => r.knowledge).filter(k => k && !k.unavailable && Number.isInteger(k.rank) && Number.isInteger(k.of) && k.of > 0);
 
   return { schema: SCOREBOARD_SCHEMA, runs: valid.length,
@@ -52,6 +56,8 @@ export function deepRapScoreboard(rows) {
     abstraction: { protocols: byProtocol, falseCertifications: outcomes.filter(o => o.falseCertification).length },
     planning: {
       interventions: { cases: efficient.length, oraklet: mean(efficient.map(o => o.experimentsUsed)), baseline: mean(efficient.map(o => o.baselineExperiments)) },
+      budget: { cases: budget.length, possible: possible.length, completed: possible.filter(o => o.secondCompletes === true).length,
+        rate: rate(possible.filter(o => o.secondCompletes === true).length, possible.length), unreachable: budget.filter(o => o.completable === false).length },
       memory: { runs: planned.length, topPriority: planned.filter(k => k.rank === 1).length,
         meanRelativeRank: mean(planned.map(k => (k.rank - 1) / Math.max(1, k.of - 1))),
         untestedChosen: planned.filter(k => k.claims === null).length } } };
@@ -72,6 +78,7 @@ export function deepRapMarkdown(s, { heading = '#' } = {}) {
   if (!a.protocols.length) L.push('| Abstraktion | ACT-MAP: rätt beslut | – | inga ACT-MAP-fall med utfall ännu |');
   L.push(`| Abstraktion | Felaktigt godkända överföringar | ${a.falseCertifications} | alla ACT-MAP-fall |`,
     `| Planering | Ingrepp per rätt fall: Oraklet mot uppräkningsbaslinjen | ${fmt(p.interventions.oraklet)} mot ${fmt(p.interventions.baseline)} | ${p.interventions.cases} fall där båda hade rätt |`,
+    `| Planering | Två ingrepp: det andra fullbordade täckningen | ${pct(p.budget.rate)} | ${p.budget.completed} av ${p.budget.possible} fall där det var möjligt${p.budget.unreachable ? `; ${p.budget.unreachable} där första ingreppet satte s_2` : ''} |`,
     `| Planering | Planeringen valde högsta lärprioritet | ${p.memory.runs ? `${p.memory.topPriority} av ${p.memory.runs}` : '–'} | körningar planerade med minnet${p.memory.runs ? `; relativ placering i snitt ${fmt(p.memory.meanRelativeRank)} (0 = högst), ${p.memory.untestedChosen} val av obeprövat experiment` : ''} |`, '');
   return L.join('\n');
 }
