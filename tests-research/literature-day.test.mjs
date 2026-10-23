@@ -157,3 +157,18 @@ test('an unreadable register is recorded as a failed memory stage and the report
   assert.ok(day.errors.includes('memory'));
   assert.match(render({ ...day, model_budget: 10 }), /## Kunskapsminne \(VEM-Sci\)\n\nRegistret kunde inte läsas \(vem\\_register\\_unavailable\)\./);
 });
+
+test('every workflow that pushes with an app token keeps the read-only checkout token out of git', async () => {
+  const { readdir, readFile } = await import('node:fs/promises');
+  const dir = new URL('../.github/workflows/', import.meta.url);
+  const pushing = [];
+  for (const name of await readdir(dir)) {
+    const yml = await readFile(new URL(name, dir), 'utf8');
+    if (!yml.includes('git remote set-url origin "https://x-access-token:')) continue;
+    pushing.push(name);
+    // actions/checkout otherwise stores its own token, which git sends instead of the app token (403 on push).
+    const checkouts = yml.match(/uses: actions\/checkout@[^\n]*\n(?:\s+with:\n(?:\s{10,}[^\n]*\n)*)?/g) ?? [];
+    assert.ok(checkouts.length && checkouts.every(c => /persist-credentials: false/.test(c)), name);
+  }
+  assert.ok(pushing.includes('oraklet-literature-day.yml') && pushing.includes('discover-research-models.yml'), pushing.join());
+});
