@@ -3,7 +3,8 @@
 Professor Oraklets dagliga rapporter. Varje dag kl. 09:41 UTC skriver Oraklet:
 
 - `ÅÅÅÅ-MM-DD.md`: dagens rapport;
-- `senaste.md`: alltid den senaste rapporten.
+- `senaste.md`: alltid den senaste rapporten;
+- `artiklar/`: en kort vetenskaplig artikel om dagens verifierade resultat, när det finns något att skriva om, med ett register i [artiklar/README.md](artiklar/README.md).
 
 Rapporten redovisar:
 

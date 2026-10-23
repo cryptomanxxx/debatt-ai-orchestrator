@@ -59,9 +59,18 @@ jobs:
         env:
           TOKEN: ${{ steps.app.outputs.token }}
         run: |
-          # Only the two files this run generated are kept; other ai-bus files are never touched.
+          # Only the files this run generated are kept: the day's report, and the day's article
+          # with the article index when one was published. Other ai-bus files are never touched.
           day=$(node -p "require('./reports/literature-day/day.json').date")
-          mkdir -p "$RUNNER_TEMP/ai-bus" && cp "ai-bus/${day}.md" ai-bus/senaste.md "$RUNNER_TEMP/ai-bus/"
+          article=$(node -p "require('./reports/literature-day/day.json').article?.file ?? ''")
+          files="ai-bus/${day}.md ai-bus/senaste.md"
+          if [ -n "$article" ]; then
+            # The file name is built by the lab from a checked title; anything else is refused.
+            echo "$article" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]{1,60}\.md$' || { echo "Ogiltigt artikelnamn"; exit 1; }
+            files="$files ai-bus/artiklar/${article} ai-bus/artiklar/README.md"
+          fi
+          mkdir -p "$RUNNER_TEMP/out/ai-bus/artiklar"
+          for f in $files; do cp "$f" "$RUNNER_TEMP/out/$f"; done
           git config user.name 'debatt-ai-model-menu[bot]'
           git config user.email 'debatt-ai-model-menu[bot]@users.noreply.github.com'
           git remote set-url origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
@@ -69,15 +78,16 @@ jobs:
           publish() {
             git fetch --depth=1 origin main
             git reset -q --hard origin/main
-            mkdir -p ai-bus && cp "$RUNNER_TEMP/ai-bus/${day}.md" "$RUNNER_TEMP/ai-bus/senaste.md" ai-bus/
-            git add "ai-bus/${day}.md" ai-bus/senaste.md
+            mkdir -p ai-bus/artiklar
+            for f in $files; do cp "$RUNNER_TEMP/out/$f" "$f"; done
+            git add $files
             git diff --cached --quiet && exit 0
             git commit -q -m "chore(ai-bus): Professor Oraklets dag ${day}"
             git push origin HEAD:main
           }
           # If main moved between fetch and push, try once more.
           publish || publish
-          echo "Rapporten finns i ai-bus/${day}.md och ai-bus/senaste.md på main." >> "$GITHUB_STEP_SUMMARY"
+          echo "Rapporten finns i ai-bus/${day}.md och ai-bus/senaste.md på main${article:+; dagens artikel i ai-bus/artiklar/${article}}." >> "$GITHUB_STEP_SUMMARY"
       - name: Markera körningen som misslyckad om ett steg fick driftfel
         if: ${{ steps.day.outcome == 'failure' }}
         run: |

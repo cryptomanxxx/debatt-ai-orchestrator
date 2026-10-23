@@ -119,6 +119,7 @@ test('main writes the dated and latest ai-bus files and the day record', async (
     const day = await main({}, { now: '2026-10-24T09:41:00.000Z', deps: { pipeline: async () => pipelineReport({ candidate_id: null, candidate: null }),
       tree: async () => ({ status: 'insufficient_evidence', review_queue: [] }), novelty: () => assert.fail(),
       register: async () => [], labReports: async () => ({ runs: [], truncated: false }),
+      article: async () => ({ record: { status: 'skipped', reason: 'no_verified_results', facts: 0 } }),
       memory: async () => ({ runs: 3, totals: { provisionally_supported: 4, rejected: 1, unresolved: 1 },
         experiments: [{ experimentId: 'act-map-transfer', provisionally_supported: 4, rejected: 1, unresolved: 1, abstentions: 0, noAnswers: 1 },
           { experimentId: 'sympy-quadratic', provisionally_supported: 0, rejected: 2, unresolved: 0, abstentions: 0, noAnswers: 0, failures: { verifier_rejected: 2 } }] }) } });
