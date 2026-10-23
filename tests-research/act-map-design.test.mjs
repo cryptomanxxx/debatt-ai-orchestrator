@@ -195,3 +195,25 @@ globalThis.fetch=async(url,options={})=>{
     assert.match(await readFile(join(dir, 'reports/oraklet-lab/report.md'), 'utf8'), /## ACT-MAP: Oraklets egen mekanism/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test('ai-bus shows what Oraklet designed, his prediction against the enumeration and the investigation verdicts', async () => {
+  const { readRecentLabReports, renderAiBus } = await import('../research/literature-day.mjs');
+  const { report } = await run(diamond, { identifiable: true, minInterventions: 2 });
+  const sym = (await run(symmetric, { identifiable: false, minInterventions: null })).report;
+  const bad = await runActMapDesignExperiment('7', async () => ({ provider: 'test', model: 'same', text: 'nej' }), async () => {}, async () => {});
+  const rows = [report, sym, bad].map((r, i) => ({ skapad: `2026-10-24T0${i}:00:00Z`, rapport: { ...r, experimentId: 'act-map-design' } }));
+  rows.push({ skapad: '2026-10-24T05:00:00Z', rapport: { experimentId: 'sympy-quadratic', seed: '1', status: 'passed', cases: [] } });
+  const lab = await readRecentLabReports('key', 'x', async () => new Response(JSON.stringify(rows)));
+  assert.equal(lab.runs[3].design, undefined, 'only design runs carry a design record');
+  assert.deepEqual(lab.runs[0].design.equations, ['s_1 = 2*s_0', 's_2 = -1*s_0', 's_3 = 3*s_1 + 1*s_2']);
+  assert.equal(lab.runs[0].design.predicted, false, 'the enumeration says three, not two');
+  const md = renderAiBus({ date: '2026-10-24', field: 'Causal inference', model_budget: 10, pipeline: {}, errors: [], lab });
+  const section = md.slice(md.indexOf('## Oraklets egna experiment'));
+  assert.ok(md.indexOf('## Experiment') < md.indexOf('## Oraklets egna experiment'));
+  assert.match(section, /Mekanism: `s_1 = 2\*s_0`, `s_2 = -1\*s_0`, `s_3 = 3\*s_1 \+ 1\*s_2`\./);
+  assert.match(section, /Förutsägelse: identifierbar med minst 2 ingrepp\. Labbets uppräkning: identifierbar med minst 3 ingrepp\. Förutsägelsen stämde inte\./);
+  assert.match(section, /\| 2 \| 4 \| full \| full \| provisionally\\_supported \| full \| ja \|/);
+  assert.match(section, /inte identifierbar \(2 kopplingar stämmer\)\. Förutsägelsen stämde\.[\s\S]*labbet gömde den inte/);
+  assert.match(section, /Ingen giltig mekanism \(spec:not\\_json\); inget påstående prövades/);
+  assert.match(section, /Oraklets motivering: `Egen design\.`/);
+});

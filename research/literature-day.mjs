@@ -13,6 +13,7 @@ import { literatureProblemProposals } from './literature-problem-proposals.mjs';
 import { makeCatalogProblem, createOrVerifyCatalogProblem } from './problem-bank-create-catalog.mjs';
 import { createProblemBankClient } from './problem-bank.mjs';
 import { vemRegisterSummary, learningPriority, failureText, REGISTER_LIMIT } from './vem-sci.mjs';
+import { designDigest } from './act-map-design.mjs';
 import { readDeepRapRows, deepRapScoreboard, deepRapMarkdown } from './deeprap.mjs';
 
 // The fields Oraklet reads, one per day in turn.
@@ -72,8 +73,25 @@ export async function readRecentLabReports(serviceKey, since, fetchImpl = fetch)
     passed: Array.isArray(r.cases) ? r.cases.filter(c => c?.passed === true).length : 0,
     problemBank: r.problemBank?.id ?? null,
     baseline: r.baseline?.status === 'completed' ? r.baseline.summary : r.baseline ? { status: r.baseline.status } : null,
+    ...(designDigest(r) ? { design: designDigest(r) } : {}),
   }));
   return { runs, truncated: rows.length > LAB_REPORT_LIMIT };
+}
+
+// Model text (the reason) is shown as one inert code span; equations are the lab's own rendering.
+const inert = v => '`' + String(v ?? '').replace(/`/g, "'").replace(/\s+/g, ' ').trim().slice(0, 300) + '`';
+const identifiability = a => !a ? '–' : a.identifiable ? `identifierbar med minst ${num(a.minInterventions)} ingrepp` : 'inte identifierbar';
+const scopeText = { full: 'full', none: 'ingen', unresolved: 'olöst' };
+export function designLines(r) {
+  const d = r.design, L = [`### ${md(r.experimentId, 60)}, seed ${md(r.seed, 12)}`, ''];
+  if (!d.equations) return [...L, `Ingen giltig mekanism (${md(d.problem, 60)}); inget påstående prövades.`, ''];
+  L.push(`Mekanism: ${d.equations.map(inert).join(', ')}.`, '',
+    `Förutsägelse: ${identifiability(d.prediction)}. Labbets uppräkning: ${identifiability(d.analysis)}${d.analysis && !d.analysis.identifiable ? ` (${num(d.analysis.consistentAfterAll)} kopplingar stämmer)` : ''}. Förutsägelsen ${d.predicted ? 'stämde' : 'stämde inte'}.`, '');
+  if (!d.investigations.length) L.push(d.analysis && !d.analysis.identifiable ? 'Mekanismen går inte att identifiera, så labbet gömde den inte i något målsystem.' : 'Ingen undersökning slutfördes.', '');
+  else L.push('| Fall | Ingrepp | Oraklets beslut | Facit | Grinden | Baslinjen | Godkänt |', '| --- | --- | --- | --- | --- | --- | --- |',
+    ...d.investigations.map(i => `| ${num(i.case)} | ${num(i.experiments)} | ${i.decision ? scopeText[i.decision] ?? md(i.decision, 12) : 'oläsbart'} | ${scopeText[i.truth] ?? '–'} | ${md(i.gate, 30)} | ${scopeText[i.baseline] ?? md(i.baseline, 12)} | ${i.passed ? 'ja' : 'nej'} |`), '');
+  if (d.reason) L.push(`Oraklets motivering: ${inert(d.reason)}`, '');
+  return L;
 }
 
 const fail = error => ({ status: 'error', code: /^[a-z_]{3,60}$/.test(error?.message ?? '') ? error.message : 'stage_failed' });
@@ -211,6 +229,12 @@ export function renderAiBus(day) {
       L.push(`| ${md(r.experimentId ?? r.title, 60)} | ${md(r.seed, 12)} | ${r.executionStatus === 'error' ? 'driftfel' : md(r.status, 20)} | ${r.passed} av ${r.cases} | ${bare} |`);
     }
     L.push('');
+  }
+  const designs = lab.filter(r => r.design);
+  if (designs.length) {
+    L.push('## Oraklets egna experiment', '',
+      'Experiment som Oraklet själv utformade (`act-map-design`): en egen orsaksmekanism som deklarativ specifikation, en förregistrerad förutsägelse om dess identifierbarhet, och undersökningen när labbet gömt mekanismen i okända system. Förutsägelsen avgörs av labbets uppräkning, undersökningen av evidensgrinden; inget av det är Oraklets eget omdöme.', '');
+    for (const r of designs) L.push(...designLines(r));
   }
 
   if (day.memory) {
