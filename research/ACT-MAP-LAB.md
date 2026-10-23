@@ -80,17 +80,32 @@ Every answer Oraklet gives in the lab, in every experiment, is a claim with the 
 - **ACT-MAP:** the gate decides the status. Abstaining (`none`) is recorded as an unresolved abstention, never as accepted knowledge. A case without a readable answer, for example one cut off at the token limit, is recorded as `no_answer` with its reason and status unresolved. It makes no statement, but the memory shows where Oraklet fails to answer.
 - **Other experiments:** a case that passed its independent verifier is provisionally supported, and a case that failed it is rejected. A case without independent verification is unresolved. A verified first answer that was then corrected (Ratfit feedback) is a claim of its own. Each claim is bound to a hash of the whole verified case, so the verifier's results count, whichever field they are stored in.
 
+### Why claims failed
+
+The register also records why a claim did not hold. The lab derives the cause from what the verifier and the lab recorded, never from the model's own account (`failureOf` in `vem-sci.mjs`). For ACT-MAP the level is added (`truncated@4`).
+
+| Cause | Source |
+| --- | --- |
+| `truncated` / `unreadable` | No readable answer: cut off at the token limit, or not valid JSON |
+| `missed_transfer` | Abstained ("none") although the mechanism transferred (verified outcome) |
+| `coverage`, `too_few_interventions`, `contradicted`, `heldout_mismatch`, `invalid_claim`, `over_budget` | The ACT-MAP evidence gate's reason for rejecting a transfer claim |
+| `false_certification` | The gate certified a claim, but the decision or correspondence was wrong |
+| `verifier_rejected` / `unverified` | Other experiments: rejected by their verifier, or without independent verification |
+
+A claim that held, or a correct abstention, has no cause. Claims saved before outcomes were recorded may lack the level, and an old abstention without an outcome counts as no failure.
+
 ### The planner uses the register
 
 Oraklet plans with his memory. Before the daily lab (`EXPERIMENT=auto`) chooses an experiment, it reads the register and gives the planner `knowledge`: for each automatic experiment with claims, `[provisionally supported, rejected, unresolved]`.
 
+- **Failure causes.** After the claims, an entry carries the experiment's two most frequent causes, for example `"act-map-tree": [2, 0, 2, "truncated@4×1"]`. The planner is asked to say in `reason` which cause it wants to test, and `plan.knowledge.failures` records the causes of the chosen experiment.
 - **Priority.** The lab, not the model, orders the entries by learning priority `(rejected + unresolved + 1) / (claims + 2)`. An experiment without claims scores 0.5. Claims that did not hold raise the score, and repeated support lowers it.
 - **Instruction.** The planner is asked to prefer experiments whose claims were rejected or are unresolved, or where evidence is missing, and to say in `reason` what it wants to learn.
 - **Fit.** If the request would exceed the planner limit, entries beyond the five highest priorities are dropped before open problems and ranked models. The planner is then told how many entries were left out (`knowledgeOmitted`), so a missing entry is never read as "no claims". `plan.knowledge.shown` records how many entries the planner saw and whether the chosen experiment's entry was among them.
 - **Recorded choice.** The choice is committed with the plan as `plan.knowledge`, before any experiment call. It holds the chosen experiment's claims, its learning priority and its rank among the offered experiments; rank 1 means nothing had a higher priority. The report shows the same line ("Kunskapsminne: …"), so it can be measured whether Oraklet steers by what he has learned.
 - **Outage.** If the register cannot be read, the planner chooses without it, and the plan records `unavailable`.
 
-The daily literature report in [`ai-bus/`](../ai-bus/README.md) shows the register per experiment with its learning priority.
+The daily literature report in [`ai-bus/`](../ai-bus/README.md) shows the register per experiment with its most frequent failure causes and its learning priority.
 
 After each lab run, the step **Uppdatera Oraklets VEM-Sci-register** (`node research/vem-sci.mjs`) reads the register from the latest 200 saved runs that carry one. It counts the claims per experiment and status and writes the result to the step summary and the artifact. A read failure is reported and never fails the run. Runs saved before this change have no register entry.
 
@@ -121,6 +136,5 @@ The lab step **DeepRAP-mått** writes the scoreboard to the step summary and the
 ## Next steps
 
 - Harder fixtures: more variables, noise, nonlinear and partial motifs that are really held out, and observational data the model must use.
-- Let the register say why a claim failed, for example which ACT-MAP level or which kind of mistake, so that the planner can target the weakness itself and not only the experiment.
 - Several runs of `act-map-transfer` and `act-map-tree` on the same seeds, to tell whether the tree method helps at level 4.
 - A bare-question arm for ACT-MAP, comparable to the [bare baseline](BARE-BASELINE.md).

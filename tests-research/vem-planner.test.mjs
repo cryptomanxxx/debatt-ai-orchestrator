@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { learningPriority, vemKnowledge, knowledgeChoice, knowledgeLine, vemRegisterSummary, VEM_SCHEMA } from '../research/vem-sci.mjs';
+import { learningPriority, vemKnowledge, knowledgeChoice, knowledgeLine, vemRegisterSummary, failureOf, failureSummary, failureText, VEM_SCHEMA } from '../research/vem-sci.mjs';
 import { CATALOG, plannerPrompt, choosePlan, fitPlannerContext, MAX_PLANNER_CHARS } from '../research/catalog.mjs';
 
 const offered = CATALOG.filter(e => e.automatic !== false).map(e => e.id);
@@ -26,12 +26,13 @@ test('learning priority favours experiments whose claims failed and those withou
   assert.equal(summary.experiments.find(e => e.experimentId === 'act-map-transfer').noAnswers, 1);
   const knowledge = vemKnowledge(summary, offered);
   assert.deepEqual(Object.keys(knowledge), ['sympy-quadratic', 'act-map-transfer', 'ratfit-baseline'], 'highest priority first; manual experiments left out');
-  assert.deepEqual(knowledge['sympy-quadratic'], [0, 2, 0]);
-  assert.deepEqual(knowledgeChoice(knowledge, offered, 'sympy-quadratic'), { claims: [0, 2, 0], priority: 0.75, rank: 1, of: offered.length });
+  assert.deepEqual(knowledge['sympy-quadratic'], [0, 2, 0, 'verifier_rejected×2'], 'claims, then the most frequent failures');
+  assert.deepEqual(knowledge['ratfit-baseline'], [2, 0, 0], 'no failures, nothing after the claims');
+  assert.deepEqual(knowledgeChoice(knowledge, offered, 'sympy-quadratic'), { claims: [0, 2, 0], failures: 'verifier_rejected×2', priority: 0.75, rank: 1, of: offered.length });
   const untested = knowledgeChoice(knowledge, offered, 'dowhy-backdoor');
   assert.deepEqual([untested.claims, untested.priority, untested.rank], [null, 0.5, 2]);
   assert.equal(knowledgeChoice(knowledge, offered, 'ratfit-baseline').rank, offered.length);
-  assert.match(knowledgeLine({ runs: 4, ...knowledgeChoice(knowledge, offered, 'sympy-quadratic') }), /0\/2\/0 \(stödda\/avvisade\/olösta\); lärprioritet 0.75, plats 1 av/);
+  assert.match(knowledgeLine({ runs: 4, ...knowledgeChoice(knowledge, offered, 'sympy-quadratic') }), /0\/2\/0 \(stödda\/avvisade\/olösta\); lärprioritet 0.75, plats 1 av \d+\. Kända felorsaker: verifier_rejected×2\./);
   assert.match(knowledgeLine({ unavailable: true }), /kunde inte läsas/);
   assert.equal(knowledgeLine(undefined), '');
 });
@@ -46,7 +47,7 @@ test('the planner sees the register only when it has entries, and the rule asks 
 
 test('register entries shrink from the lowest priority, after literature and before open problems', () => {
   const history = Array.from({ length: 10 }, () => ({ titel: 'x'.repeat(80), status: 'passed', seed: '123456789', experimentId: 'glucose-robustness' }));
-  const knowledge = Object.fromEntries(offered.map((id, i) => [id, [i, 1, 1]]));
+  const knowledge = Object.fromEntries(offered.map((id, i) => [id, [i, 1, 1, 'heldout_mismatch@3×2, truncated@4×1']]));
   const open = Array.from({ length: 3 }, (_, i) => ({ problemBankId: 'p-' + i, version: 1, experimentId: 'glucose-robustness',
     literature: { researchQuestion: 'q'.repeat(300), articles: 20, reportedLimitations: 5 } }));
   const choices = Object.fromEntries(['symbolic', 'probability', 'causal', 'statistics', 'discrete'].map(d =>
@@ -110,7 +111,8 @@ globalThis.fetch=async(url,options={})=>{
     await promisify(execFile)(process.execPath, ['--import', pathToFileURL(preload).href, fileURLToPath(new URL('../research/runner.mjs', import.meta.url))],
       { cwd: dir, env, timeout: 30000 });
     const planner = JSON.parse(await readFile(join(dir, 'planner.json'), 'utf8'));
-    assert.deepEqual(JSON.parse(planner[1].content).knowledge, { 'sympy-quadratic': [0, 2, 0] });
+    assert.deepEqual(JSON.parse(planner[1].content).knowledge, { 'sympy-quadratic': [0, 2, 0, 'verifier_rejected×2'] });
+    assert.match(planner[0].content, /vanligaste felorsakerna \(orsak@nivå×antal\)/);
     const saved = JSON.parse(await readFile(join(dir, 'saved.json'), 'utf8')).rapport;
     assert.deepEqual(saved.plan.knowledge, { source: VEM_SCHEMA, runs: 1, claims: null, priority: 0.5, rank: 2, of: offered.length,
       shown: { entries: 1, omitted: 0, chosenShown: false } });
@@ -119,4 +121,28 @@ globalThis.fetch=async(url,options={})=>{
     assert.deepEqual(plan.plan.knowledge, saved.plan.knowledge, 'committed with the plan before the experiment');
     assert.match(await readFile(join(dir, 'reports/oraklet-lab/report.md'), 'utf8'), /Kunskapsminne: planeringen såg registret från 1 körningar\. Valt experiment: inga tidigare påståenden; lärprioritet 0.5, plats 2 av/);
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('failures come from the verifier and the lab, with the ACT-MAP level, never from the model', () => {
+  const outcome = (level, passed) => ({ protocol: 'act-map-oraklet-v1', level, passed });
+  const cases = [
+    [{ kind: 'no_answer', status: 'unresolved', reason: 'hypotheses:truncated', outcome: outcome(4, false) }, 'truncated@4'],
+    [{ kind: 'no_answer', status: 'unresolved', reason: 'design:not_json' }, 'unreadable'],
+    [{ kind: 'abstention', status: 'unresolved', outcome: outcome(3, false) }, 'missed_transfer@3'],
+    [{ kind: 'abstention', status: 'unresolved', outcome: outcome(4, true) }, null],
+    [{ kind: 'transfer', status: 'rejected', reason: 'insufficient_intervention_coverage', outcome: outcome(2, false) }, 'coverage@2'],
+    [{ kind: 'transfer', status: 'rejected', reason: 'heldout_intervention_mismatch', outcome: outcome(3, false) }, 'heldout_mismatch@3'],
+    [{ kind: 'transfer', status: 'rejected', reason: 'something_new' }, 'gate_rejected'],
+    [{ kind: 'transfer', status: 'provisionally_supported', outcome: outcome(3, false) }, 'false_certification@3'],
+    [{ kind: 'transfer', status: 'provisionally_supported', outcome: outcome(3, true) }, null],
+    [{ kind: 'answer', status: 'rejected' }, 'verifier_rejected'],
+    [{ kind: 'answer', status: 'unresolved' }, 'unverified'],
+    [{ kind: 'answer', status: 'provisionally_supported' }, null],
+  ];
+  for (const [c, expected] of cases) assert.equal(failureOf(c), expected, JSON.stringify(c));
+  const summary = vemRegisterSummary([row('act-map-tree', cases.slice(0, 2).concat([cases[0]]).map(([c]) => ({ experimentId: 'act-map-tree', ...c })))]);
+  assert.deepEqual(summary.experiments[0].failures, { 'truncated@4': 2, unreadable: 1 });
+  assert.equal(failureSummary(summary.experiments[0].failures), 'truncated@4×2, unreadable×1', 'most frequent first');
+  assert.equal(failureText(summary.experiments[0].failures), 'svaret klipptes vid tokengränsen (nivå 4) ×2; oläsbart svar ×1');
+  assert.deepEqual(vemKnowledge(summary, offered)['act-map-tree'], [0, 0, 3, 'truncated@4×2, unreadable×1']);
 });

@@ -1,6 +1,6 @@
 # Oraklets dagliga forskningslabb
 
-När labbet själv väljer experiment (`auto`) läser planeringen först Oraklets VEM-Sci-register, alltså vilka påståenden som tidigare har stötts, avvisats eller förblivit olösta per experiment. Den prioriterar där påståenden inte höll eller där belägg saknas. Hur valet förhåller sig till registret sparas med planen (`plan.knowledge`). Se [ACT-MAP-LAB.md](ACT-MAP-LAB.md#vem-sci-register).
+När labbet själv väljer experiment (`auto`) läser planeringen först Oraklets VEM-Sci-register, alltså vilka påståenden som tidigare har stötts, avvisats eller förblivit olösta per experiment. Den prioriterar där påståenden inte höll eller där belägg saknas, och ser också varför påståenden föll (till exempel `truncated@4`: svaret klipptes på nivå 4), härlett från verifierarna och aldrig från modellens egen förklaring. Hur valet förhåller sig till registret sparas med planen (`plan.knowledge`). Se [ACT-MAP-LAB.md](ACT-MAP-LAB.md#vem-sci-register).
 
 Gratismodellerna (HIP/Blablador) begränsar täta anrop (HTTP 429). Labbet väntar därför 10 sekunder mellan modellanropen. En fråga som misslyckas tillfälligt, genom 429, ett annat fel hos leverantören eller en bruten anslutning, ställs en gång till efter 45 sekunder, högst tre gånger per körning. Upprepningen är samma fråga och inte ett nytt svar. Den räknas inte mot budgeten på sju modellanrop, men rapporten anger hur många upprepningar körningen gjorde (`modelRetries`). Se `lab-client.mjs`.
 
