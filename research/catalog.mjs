@@ -72,6 +72,8 @@ export const CATALOG = Object.freeze([
     question: 'Kan Oraklet planera två informativa ingrepp och ändå avgöra ACT-MAP rätt?' },
   { id: 'act-map-tree', domain: 'causal', name: 'ACT-MAP med trädsökning', toolId: 'act-map', method: 'tree',
     question: 'Hjälper egna konkurrerande hypoteser, prövade mot observationerna, Oraklet i ACT-MAP?' },
+  { id: 'act-map-design', domain: 'causal', name: 'ACT-MAP: egen mekanism', toolId: 'act-map', method: 'design',
+    question: 'Kan Oraklet utforma en egen orsaksmekanism, förutsäga om den går att identifiera och sedan hitta den i ett okänt system?' },
   { id: 'perturbseq-holdout', domain: 'statistics', name: 'Perturb-seq: dolda gener', toolId: 'perturbseq-holdout',
     question: 'Förutsäger Oraklet effekten (ingen/svag/stark) av dolda genutslagningar bättre än två baslinjer?' },
   { id: 'glucose-absorption', domain: 'statistics', name: 'Glukos: absorption och adaptiva prognoser', toolId: 'glucose-simulator', question: 'Hur påverkar absorptionstakten en syntetisk glukoskurva och 30–60-minutersprognoser?' },

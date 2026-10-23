@@ -20,6 +20,7 @@ Välj experiment i Oraklets forskningslabb. `catalog-only` visar menyn utan mode
 | act-map-transfer | act-map | Hittar Oraklet med egna ingrepp en känd orsaksmekanism i ett okänt system? |
 | act-map-budget | act-map | Kan Oraklet planera två informativa ingrepp och ändå avgöra ACT-MAP rätt? |
 | act-map-tree | act-map | Hjälper egna konkurrerande hypoteser, prövade mot observationerna, Oraklet i ACT-MAP? |
+| act-map-design | act-map | Kan Oraklet utforma en egen orsaksmekanism, förutsäga om den går att identifiera och sedan hitta den i ett okänt system? |
 | perturbseq-holdout | perturbseq-holdout | Förutsäger Oraklet effekten (ingen/svag/stark) av dolda genutslagningar bättre än två baslinjer? |
 | glucose-absorption | glucose-simulator | Hur påverkar absorptionstakten en syntetisk glukoskurva och 30–60-minutersprognoser? |
 | glucose-robustness | glucose-robustness-simulator | Kvarstår adaptiva prognosfördelar när måltidsuppgifter och antagen insulinkänslighet är felaktiga? |

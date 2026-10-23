@@ -10,7 +10,7 @@ import { VEM_SCHEMA, REGISTER_LIMIT } from './vem-sci.mjs';
 export const SCOREBOARD_SCHEMA = 'oraklet-deeprap-scoreboard-v1';
 // Tree search v1 (three hypotheses, 4,096 tokens) is kept apart from v2 (two hypotheses, 8,192).
 const ACT_MAP_PROTOCOLS = Object.freeze({ 'act-map-oraklet-v1': 'direkt', 'act-map-tree-v1': 'trädsökning v1', 'act-map-tree-v2': 'trädsökning',
-  'act-map-budget-v1': 'två ingrepp' });
+  'act-map-budget-v1': 'två ingrepp', 'act-map-design-v1': 'egen mekanism' });
 
 const round = v => Math.round(v * 1e4) / 1e4;
 const rate = (k, n) => n ? round(k / n) : null;

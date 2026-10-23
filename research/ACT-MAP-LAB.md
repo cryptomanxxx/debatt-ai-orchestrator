@@ -56,6 +56,36 @@ The case is verified, scored and recorded in VEM-Sci exactly as in the direct pr
 - **Binding.** The fixture's view carries the protocol and the limit of two, so the commitment binds them. The Python gate and the Node replay reject a third intervention, and the enumeration baseline gets the same budget.
 - **What is measured.** Judged against the hidden roles: whether the first intervention left coverage reachable (`completable`, false when it set `s_2`), and whether the second then completed it (`secondCompletes`). A case whose first intervention set `s_2` is bad luck, not poor planning. The report and the DeepRAP scoreboard count the second choice only where it could succeed.
 
+## Oraklet's own mechanism (`act-map-design`)
+
+`act-map-design` (protocol `act-map-design-v1`, automatic) lets Oraklet write the experiment himself. He writes a declarative spec, never code, so nothing the model writes is executed:
+
+```json
+{"variables": 4,
+ "edges": [{"from": "s_0", "to": "s_1", "coef": 2}, {"from": "s_0", "to": "s_2", "coef": -1},
+           {"from": "s_1", "to": "s_3", "coef": 3}, {"from": "s_2", "to": "s_3", "coef": 1}],
+ "prediction": {"identifiable": true, "minInterventions": 3},
+ "reason": "..."}
+```
+
+1. **Spec and preregistration (one call).** The mechanism is linear and noise-free over 3–4 variables.
+   - **Bounds.** 2–6 edges from lower to higher index, integer coefficients from −4 to 4 except 0, and `s_0` as the only root.
+   - **Novelty.** It must differ from the fixed ACT-MAP mechanism.
+   - **Prediction.** Whether exactly one correspondence fits when every intervention is made once with value 1 (`identifiable`), and if so the fewest such interventions that leave one (`minInterventions`).
+   - **Commitment.** Spec and prediction are hashed before the lab looks at them.
+2. **Independent check.** `research/act_map_design.py` (`analyze`) enumerates all correspondences (at most 4!·4! = 576), and a separate Node implementation must agree. The prediction is a claim of kind `design` in VEM-Sci. It is provisionally supported when it matches, and rejected otherwise with the cause `identifiability_mispredicted` or `min_interventions_mispredicted`.
+3. **Investigation (two calls per case, only for an identifiable design).** The lab hides the mechanism in two target systems:
+   - **Unknowns.** Random names, and an unknown variable and intervention correspondence (level 3 in DeepRAP terms).
+   - **Second target.** It may have one changed coefficient. The lab then checks that no correspondence fits, so the right answer is "none".
+   - **Commitment.** Both targets are committed before the investigation.
+   - **Procedure.** Oraklet chooses up to as many interventions as there are variables and claims "full" with a correspondence, or "none".
+   - **Gate.** The same module's evidence gate needs at least two different interventions, coverage of every variable with an outgoing edge, a fit with the discovery outcomes, and held-out intervention sizes −2 and 3. Its decision must equal the Node replay.
+   - **Baseline.** The enumeration baseline runs on the same targets.
+
+**Budget.** Five model calls in all, and three tool calls (one analysis, two gates). A design that is not identifiable is not hidden. Hiding it would make the investigation unfair, because several correspondences would explain the same observations.
+
+**Limitations.** Oraklet chooses the difficulty himself, and the space is small enough for enumeration to solve every identifiable design. The experiment measures whether he can reason about his own design and then carry it out, not whether he finds anything new.
+
 ## Verification
 
 The fixture (the shown task plus the hidden truth) is hashed before any model call. The lab sends the fixture, Oraklet's claim and the discovery record to `research/act_map_benchmark.py --gate`, which does the following:
@@ -135,6 +165,6 @@ The lab step **DeepRAP-mått** writes the scoreboard to the step summary and the
 
 ## Next steps
 
-- Harder fixtures: more variables, noise, nonlinear and partial motifs that are really held out, and observational data the model must use.
+- Harder fixtures: more variables, noise, nonlinear and partial motifs that are really held out, and observational data the model must use. `act-map-design` lets Oraklet widen the mechanism family himself, within declarative bounds.
 - Several runs of `act-map-transfer` and `act-map-tree` on the same seeds, to tell whether the tree method helps at level 4.
 - A bare-question arm for ACT-MAP, comparable to the [bare baseline](BARE-BASELINE.md).

@@ -9,6 +9,8 @@ instruktioner, kalibrering eller korrigering. Båda svaren bedöms av experiment
 
 `act-map-transfer` låter Oraklet själv välja ingrepp i ett okänt syntetiskt system och avgöra om en känd orsaksmekanism finns där (full, partiell eller ingen överföring). Evidensgrinden från ACT-MAP-piloten prövar påståendet med dolda ingreppsstorlekar, och uppräkningsbaslinjen körs på samma fall. Automatiskt valbart. Varje svar i labbet sparas också som ett påstående i VEM-Sci-registret. Se [ACT-MAP i labbet](ACT-MAP-LAB.md).
 
+`act-map-design` låter Oraklet själv utforma experimentet: han skriver en egen orsaksmekanism som deklarativ specifikation (ingen kod körs), förregistrerar om den går att identifiera, och undersöker den sedan när labbet gömt den i två okända system. Se [ACT-MAP-LAB.md](ACT-MAP-LAB.md#oraklets-own-mechanism-act-map-design). Automatiskt valbart.
+
 `act-map-tree` är samma uppgift på nivå 3–4, men med agentisk trädsökning. Oraklet ställer först upp konkurrerande hypoteser, labbet prövar dem mot hans observationer, och sedan avgör han. Fixturerna är desamma som i `act-map-transfer` på samma seed, så metoderna kan jämföras parvis. Automatiskt valbart.
 
 `act-map-budget` är två fall på nivå 2 med två ingrepp valda ett i taget: det andra väljer Oraklet efter att ha sett utfallet av det första, och på nivå 2 avgör det utfallet vilket ingrepp som fullbordar täckningen. Det mäter om han planerar efter vad han ser. Efter varje labbkörning skrivs **DeepRAP-mått** för resonemang, abstraktion och planering, byggda på verifierade körningar. De visas också i ai-bus. Se [ACT-MAP-LAB.md](ACT-MAP-LAB.md#deeprap-scoreboard).
