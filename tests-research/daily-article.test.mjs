@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { buildFactSheet, worthWriting, checkArticle, articleSlug, renderArticle, articleMessages, writeDailyArticle, articleIndex,
+import { buildFactSheet, worthWriting, checkArticle, renderArticle, articleMessages, writeDailyArticle, articleIndex,
   MAX_ARTICLE_REQUEST_CHARS } from '../research/daily-article.mjs';
 import { main } from '../research/literature-day.mjs';
 import { deepRapScoreboard } from '../research/deeprap.mjs';
@@ -33,7 +33,7 @@ function article(over = {}) {
     abstract: `Oraklet utformade själv en mekanism och förutsade hur den kan identifieras [F3]. ${filler('F3')} ${filler('F4')}`,
     background: `Labbet låter Oraklet skriva egna experiment som deklarativa specifikationer [F3]. ${filler('F3')} ${filler('F3')} ${filler('F5')}`,
     method: `Labbets uppräkning prövade förutsägelsen och evidensgrinden prövade undersökningen [F4]. ${filler('F4')} ${filler('F5')} ${filler('F4')}`,
-    results: `Labbkörningen godkände 3 av 3 fall [F1]. Förutsägelsen om minst 2 ingrepp stämde [F4]. ${filler('F5')} ${filler('F1')} ${filler('F6')}`,
+    results: `Labbkörningen godkände 3 av 3 fall [F1]. Förutsägelsen om minst 2 ingrepp stämde [F3]. ${filler('F5')} ${filler('F1')} ${filler('F6')}`,
     limitations: `Allt är syntetiskt och bygger på små mekanismer; litteraturen bygger på sammanfattningar [R1]. ${filler('F6')} ${filler('F1')} ${filler('F3')}`,
   };
   return JSON.stringify({ ...base, ...over });
@@ -50,6 +50,10 @@ test('the fact sheet is written by the lab from saved reports, with checked refe
   assert.ok(sheet.facts.some(f => f.text.includes('R1') && f.text.includes('Small samples limit power.')));
   assert.equal(worthWriting(sheet), true);
   assert.equal(worthWriting(buildFactSheet({ pipeline: day.pipeline })), false, 'literature alone is not a verified result');
+  const emptyRegister = buildFactSheet({ lab: { runs: [] }, memory: { runs: 0, totals: { provisionally_supported: 0, rejected: 0, unresolved: 0 }, deeprap: empty } });
+  assert.equal(emptyRegister.facts.length, 1);
+  assert.equal(worthWriting(emptyRegister), false, 'an empty register is not a verified result');
+  assert.equal(worthWriting(buildFactSheet({ lab: { runs: [{ experimentId: 'x', seed: '1', executionStatus: 'error', cases: 0, passed: 0 }] } })), false, 'nor is a run without cases');
   assert.ok(JSON.stringify(articleMessages(sheet, day.date)).length < MAX_ARTICLE_REQUEST_CHARS);
 });
 
@@ -64,10 +68,14 @@ test('an article is published only when every citation, number and wording holds
   assert.equal(problem({ results: 'Detta bevisar att Oraklet kan resonera [F1]. ' + filler('F1').repeat(3) }), 'overclaim');
   assert.equal(problem({ title: 'Ett genombrott för Oraklet' }), 'overclaim');
   assert.equal(problem({ results: 'Labbkörningen godkände 3 av 3 fall [F99]. ' + filler('F1').repeat(3) }), 'unknown_citation');
-  assert.equal(problem({ results: 'Labbkörningen godkände 3 av 3 fall. ' + filler('F1').repeat(3) }), 'uncited_number');
+  assert.equal(problem({ results: 'Labbkörningen godkände 3 av 3 fall. ' + filler('F1').repeat(3) }), 'uncited_sentence');
+  assert.equal(problem({ results: 'Labbkörningen godkände 3 av 3 fall [R1]. ' + filler('F1').repeat(3) }), 'uncited_number', 'a number needs a fact, not only a reference');
   assert.equal(problem({ results: 'Labbkörningen godkände 4 av 3 fall [F1]. ' + filler('F1').repeat(3) }), 'unsupported_number');
   assert.equal(problem({ results: 'Förutsägelsen stämde i 2 fall [F1]. ' + filler('F1').repeat(3) }), 'unsupported_number', 'a number must come from the fact cited in the same sentence');
   assert.equal(problem({ results: 'Den 24 oktober körde labbet [F1]. ' + filler('F1').repeat(3) }), 'unsupported_number', 'no dates');
+  assert.equal(problem({ results: 'Labbkörningen sympy-quadratic godkände 3 av 1 fall [F5]. ' + filler('F1').repeat(3) }), 'unsupported_number', 'a number keeps its role: 1 av 3 is not 3 av 1');
+  assert.ok(checkArticle(article({ results: 'Labbkörningen sympy-quadratic godkände 1 av 3 fall [F5]. ' + filler('F1').repeat(3) }), sheet).article);
+  assert.equal(problem({ results: 'Oraklet resonerar som en människa. Labbkörningen godkände 3 av 3 fall [F1]. ' + filler('F1').repeat(3) }), 'uncited_sentence', 'every sentence cites its basis');
   assert.equal(problem({ results: '- Labbkörningen [F1]. ' + filler('F1').repeat(3) }), 'markup');
   assert.equal(problem({ results: 'Se [länk](https://x) [F1]. ' + filler('F1').repeat(3) }), 'markup');
   assert.equal(problem({ abstract: 'Kort [F1].', background: 'Kort [F1].', method: 'Kort [F1].', results: 'Kort [F1].', limitations: 'Kort [F1].' }), 'invalid_length');
@@ -83,7 +91,6 @@ test('the article is rendered with its fact basis, references and the fixed foot
   assert.doesNotMatch(md, /\[F2\]\*\*/, 'only cited facts are listed');
   assert.match(md, /- \*\*\[R1\]\*\* Backdoor adjustment in practice <https:\/\/example\.org\/a>/);
   assert.match(md, /inte granskad av en människa/);
-  assert.equal(articleSlug('Oraklet hittar sin egen mekanism – åäö!'), 'oraklet-hittar-sin-egen-mekanism-aao');
 });
 
 test('the daily article: one deep call, skipped without verified results, rejected rather than published when a check fails', async () => {
@@ -92,7 +99,7 @@ test('the daily article: one deep call, skipped without verified results, reject
   const published = await writeDailyArticle(day, propose(article()), { field: 'Kausal inferens' });
   assert.deepEqual(calls, [{ deep: true }]);
   assert.equal(published.record.status, 'published');
-  assert.equal(published.file, '2026-10-24-oraklet-hittar-sin-egen-mekanism.md');
+  assert.equal(published.file, '2026-10-24.md', 'one stable file per date');
   assert.deepEqual(published.record.cited, ['F1', 'F3', 'F4', 'F5', 'F6', 'R1']);
   const rejected = await writeDailyArticle(day, propose(article({ results: 'Detta bevisar allt [F1]. ' + filler('F1').repeat(3) })), { field: 'x' });
   assert.deepEqual([rejected.record.status, rejected.record.reason, rejected.file], ['rejected', 'overclaim', undefined]);
@@ -105,20 +112,22 @@ test('the daily article: one deep call, skipped without verified results, reject
 test('the literature day publishes the article, its index and a link, or says why there is none', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'article-day-')), cwd = process.cwd();
   process.chdir(dir);
+  const budgets = [];
   const deps = text => ({
-    pipeline: async () => ({ status: 'completed', stages: day.pipeline.stages }), tree: async () => ({ status: 'insufficient_evidence', review_queue: [] }),
+    pipeline: async e => { budgets.push(e.PIPELINE_MODEL_BUDGET); return { status: 'completed', stages: day.pipeline.stages }; }, tree: async () => ({ status: 'insufficient_evidence', review_queue: [] }),
     novelty: async () => ({}), register: async () => [], labReports: async () => day.lab, memory: async () => day.memory,
     article: (e, d) => writeDailyArticle(d, async () => ({ text, provider: 'hip', model: 'glm' }), { field: 'Kausal inferens' }) });
   try {
     const published = await main({}, { now: '2026-10-24T09:41:00.000Z', deps: deps(article()) });
     assert.deepEqual(published.errors, []);
+    assert.deepEqual([budgets[0], published.model_budget], ['10', 11], 'the pipeline keeps a budget it accepts; the article call comes on top');
     assert.equal(published.article.status, 'published');
-    assert.deepEqual(await readdir('ai-bus/artiklar'), ['2026-10-24-oraklet-hittar-sin-egen-mekanism.md', 'README.md']);
-    assert.match(await readFile('ai-bus/artiklar/2026-10-24-oraklet-hittar-sin-egen-mekanism.md', 'utf8'), /## Faktaunderlag/);
-    assert.match(await readFile('ai-bus/artiklar/README.md', 'utf8'), /- 2026-10-24: \[Oraklet hittar sin egen mekanism\]\(2026-10-24-oraklet-hittar-sin-egen-mekanism\.md\)/);
-    assert.match(await readFile('ai-bus/2026-10-24.md', 'utf8'), /- \*\*Dagens artikel:\*\* \[Oraklet hittar sin egen mekanism\]\(artiklar\/2026-10-24-oraklet-hittar-sin-egen-mekanism\.md\)/);
+    assert.deepEqual(await readdir('ai-bus/artiklar'), ['2026-10-24.md', 'README.md']);
+    assert.match(await readFile('ai-bus/artiklar/2026-10-24.md', 'utf8'), /## Faktaunderlag/);
+    assert.match(await readFile('ai-bus/artiklar/README.md', 'utf8'), /- 2026-10-24: \[Oraklet hittar sin egen mekanism\]\(2026-10-24\.md\)/);
+    assert.match(await readFile('ai-bus/2026-10-24.md', 'utf8'), /- \*\*Dagens artikel:\*\* \[Oraklet hittar sin egen mekanism\]\(artiklar\/2026-10-24\.md\)/);
     const saved = JSON.parse(await readFile('reports/literature-day/day.json', 'utf8'));
-    assert.equal(saved.article.file, '2026-10-24-oraklet-hittar-sin-egen-mekanism.md');
+    assert.equal(saved.article.file, '2026-10-24.md');
     assert.equal(saved.publication, undefined, 'the article text is not duplicated in day.json');
     await rm('ai-bus', { recursive: true });
     const rejected = await main({}, { now: '2026-10-25T09:41:00.000Z', deps: deps(article({ title: 'Ett genombrott' })) });

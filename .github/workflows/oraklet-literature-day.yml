@@ -65,8 +65,8 @@ jobs:
           article=$(node -p "require('./reports/literature-day/day.json').article?.file ?? ''")
           files="ai-bus/${day}.md ai-bus/senaste.md"
           if [ -n "$article" ]; then
-            # The file name is built by the lab from a checked title; anything else is refused.
-            echo "$article" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]{1,60}\.md$' || { echo "Ogiltigt artikelnamn"; exit 1; }
+            # One file per date, named by the lab; anything else is refused.
+            echo "$article" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}\.md$' || { echo "Ogiltigt artikelnamn"; exit 1; }
             files="$files ai-bus/artiklar/${article} ai-bus/artiklar/README.md"
           fi
           mkdir -p "$RUNNER_TEMP/out/ai-bus/artiklar"

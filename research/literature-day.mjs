@@ -111,10 +111,10 @@ const stage = (p, name) => p?.stages?.find(s => s.name === name) ?? null;
 
 export async function runLiteratureDay(env, { date, now = new Date().toISOString(), pipeline, tree, novelty, register, labReports, memory, article, deadlines = STAGE_DEADLINES_MS }) {
   const field = fieldForDate(date);
-  const day = { schema_version: 'oraklet-literature-day-1', date, field, model_budget: DAILY_MODEL_BUDGET };
+  // The pipeline keeps its own budget (it accepts 5 or 10); the article's one call comes on top.
+  const day = { schema_version: 'oraklet-literature-day-1', date, field, model_budget: DAILY_MODEL_BUDGET + (article ? ARTICLE_MODEL_CALLS : 0) };
   try {
-    // The day's article takes its one call from the same daily budget.
-    day.pipeline = await within('pipeline', pipeline({ ...env, RESEARCH_AREA: field, PIPELINE_MODEL_BUDGET: String(DAILY_MODEL_BUDGET - (article ? ARTICLE_MODEL_CALLS : 0)),
+    day.pipeline = await within('pipeline', pipeline({ ...env, RESEARCH_AREA: field, PIPELINE_MODEL_BUDGET: String(DAILY_MODEL_BUDGET),
       PIPELINE_REQUEST_ID: '', RESEARCH_DASHBOARD_ENABLED: 'false' }), deadlines);
   } catch (error) { day.pipeline = fail(error); }
   const initialId = stage(day.pipeline, 'initial_evidence')?.report_id ?? null;
@@ -171,7 +171,7 @@ export function renderAiBus(day) {
     '## Sammanfattning', '',
     `- **Fält i dag:** ${FIELD_NAMES[day.field] ?? md(day.field)}${p.query ? ` (sökfråga: ${md(p.query, 120)})` : ''}`,
     !Array.isArray(p.stages) ? '- **Litteratur:** okänt; pipelinen misslyckades innan något sparades.' :
-    `- **Litteratur:**${p.status === 'error' ? ' (pipelinen avbröts; siffrorna gäller det som hann sparas)' : ''} ${num(collection?.metadata?.returned_records)} träffar hittade, ${num(collection?.abstracts?.available)} sammanfattningar arkiverade, ${analyzed} sammanfattningar analyserade, ${findings} citerade fynd. Modellanrop: ${num(p.budget?.known_model_calls) + (['published', 'rejected'].includes(day.article?.status) ? ARTICLE_MODEL_CALLS : 0)} av ${day.model_budget}.`,
+    `- **Litteratur:**${p.status === 'error' ? ' (pipelinen avbröts; siffrorna gäller det som hann sparas)' : ''} ${num(collection?.metadata?.returned_records)} träffar hittade, ${num(collection?.abstracts?.available)} sammanfattningar arkiverade, ${analyzed} sammanfattningar analyserade, ${findings} citerade fynd. Modellanrop: ${num(p.budget?.known_model_calls) + (day.article && day.article.status !== 'skipped' ? ARTICLE_MODEL_CALLS : 0)} av ${day.model_budget}.`,
     `- **Ny hypoteskandidat:** ${p.candidate ? '1' : 'ingen'}${queue.length ? `; granskningskö med ${queue.length} förslag till studier` : ''}`,
     day.problem_bank?.status === 'error' ? '- **Problem Bank:** okänt; registreringen misslyckades.' :
     `- **Problem Bank:** ${bank.filter(b => b.action === 'registered').length} nya problem registrerade automatiskt, ${bank.filter(b => b.action === 'requires_human_approval').length} väntar på ditt godkännande`,

@@ -22,29 +22,32 @@ const SCOPE = { full: 'full överföring', none: 'ingen överföring', unresolve
 // Every fact is a Swedish sentence written by the lab from a saved report, never by a model.
 export function buildFactSheet(day) {
   const facts = [], references = [];
-  const fact = (topic, text) => { if (facts.length < MAX_FACTS) facts.push({ id: `F${facts.length + 1}`, topic, text }); };
+  // verified: the fact reports an outcome an independent verifier decided (not a zero count).
+  const fact = (topic, text, verified = false) => { if (facts.length < MAX_FACTS) facts.push({ id: `F${facts.length + 1}`, topic, text, verified }); };
   for (const r of Array.isArray(day.lab?.runs) ? day.lab.runs : []) {
     const name = clip(r.experimentId ?? r.title, 60);
     fact('lab', r.executionStatus === 'error' ? `Labbkörningen ${name} (seed ${clip(r.seed, 12)}) avbröts med driftfel; ${int(r.passed) ?? 0} av ${int(r.cases) ?? 0} slutförda fall godkändes.`
-      : `Labbkörningen ${name} (seed ${clip(r.seed, 12)}) godkände ${int(r.passed) ?? 0} av ${int(r.cases) ?? 0} fall av experimentets egen oberoende verifierare.`);
+      : `Labbkörningen ${name} (seed ${clip(r.seed, 12)}) godkände ${int(r.passed) ?? 0} av ${int(r.cases) ?? 0} fall av experimentets egen oberoende verifierare.`,
+    r.executionStatus !== 'error' && (int(r.cases) ?? 0) > 0);
     const d = r.design;
     if (d?.equations) {
       fact('design', `I ${name} (seed ${clip(r.seed, 12)}) utformade Oraklet själv mekanismen ${d.equations.join('; ')}.`);
       const said = d.prediction?.identifiable ? `identifierbar med minst ${d.prediction.minInterventions} ingrepp` : 'inte identifierbar';
       const found = d.analysis?.identifiable ? `identifierbar med minst ${d.analysis.minInterventions} ingrepp` : `inte identifierbar (${int(d.analysis?.consistentAfterAll) ?? 0} kopplingar stämmer)`;
-      fact('design', `Oraklet förregistrerade att mekanismen är ${said}; labbets uppräkning fann att den är ${found}, så förutsägelsen ${d.predicted ? 'stämde' : 'stämde inte'}.`);
+      fact('design', `Oraklet förregistrerade att mekanismen är ${said}; labbets uppräkning fann att den är ${found}, så förutsägelsen ${d.predicted ? 'stämde' : 'stämde inte'}.`, Boolean(d.analysis));
       for (const i of d.investigations ?? []) fact('design', `I målsystem ${int(i.case) ?? 0} gjorde Oraklet ${int(i.experiments) ?? 0} ingrepp och avgjorde ${SCOPE[i.decision] ?? 'inget läsbart svar'}; facit var ${SCOPE[i.truth] ?? 'okänt'}, evidensgrinden gav ${clip(i.gate, 30)} och fallet ${i.passed ? 'godkändes' : 'godkändes inte'}.`);
     }
   }
   const m = day.memory;
   if (m && m.status !== 'error' && m.totals) {
-    fact('memory', `VEM-Sci-registret från ${int(m.runs) ?? 0} sparade körningar har ${int(m.totals.provisionally_supported) ?? 0} preliminärt stödda, ${int(m.totals.rejected) ?? 0} avvisade och ${int(m.totals.unresolved) ?? 0} olösta påståenden, avgjorda av experimentens egna verifierare.`);
+    fact('memory', `VEM-Sci-registret från ${int(m.runs) ?? 0} sparade körningar har ${int(m.totals.provisionally_supported) ?? 0} preliminärt stödda, ${int(m.totals.rejected) ?? 0} avvisade och ${int(m.totals.unresolved) ?? 0} olösta påståenden, avgjorda av experimentens egna verifierare.`,
+      (int(m.totals.provisionally_supported) ?? 0) + (int(m.totals.rejected) ?? 0) > 0);
     const r = m.deeprap?.reasoning;
     if (r && pct(r.supportRate)) fact('deeprap', `Av de avgjorda påståendena höll ${pct(r.supportRate)} vid oberoende verifiering (${int(r.supported) ?? 0} stödda, ${int(r.rejected) ?? 0} avvisade).`);
     if (r?.calibration?.cases && pct(r.calibration.meanConfidence) && pct(r.calibration.passRate))
       fact('deeprap', `Oraklets angivna säkerhet var i snitt ${pct(r.calibration.meanConfidence)} mot ${pct(r.calibration.passRate)} rätt svar över ${int(r.calibration.cases) ?? 0} fall.`);
     for (const p of m.deeprap?.abstraction?.protocols ?? []) if (pct(p.rate))
-      fact('deeprap', `ACT-MAP ${clip(p.label, 40)}: ${int(p.passed) ?? 0} av ${int(p.cases) ?? 0} fall rätt beslut (${pct(p.rate)}).`);
+      fact('deeprap', `ACT-MAP ${clip(p.label, 40)}: ${int(p.passed) ?? 0} av ${int(p.cases) ?? 0} fall rätt beslut (${pct(p.rate)}).`, (int(p.cases) ?? 0) > 0);
   }
   const stages = Array.isArray(day.pipeline?.stages) ? day.pipeline.stages : [];
   const papers = stages.filter(s => ['initial_evidence', 'follow_up_evidence'].includes(s.name)).flatMap(s => s.summary?.papers ?? []);
@@ -59,15 +62,16 @@ export function buildFactSheet(day) {
   return { facts, references };
 }
 
-// An article needs something verified to write about: a lab run or the register.
-export const worthWriting = sheet => sheet.facts.some(f => ['lab', 'design', 'memory', 'deeprap'].includes(f.topic));
+// An article needs something verified to write about: a completed case or a decided claim, not
+// merely an empty register or a run without cases.
+export const worthWriting = sheet => sheet.facts.some(f => f.verified);
 
 export function articleMessages(sheet, date) {
   return [
     { role: 'system', content: 'Du är Professor Oraklet och skriver dagens korta vetenskapliga artikel på svenska, 300–700 ord: mer en utförlig sammanfattning än en hel artikel. '
       + 'Välj ett sammanhållet ämne bland faktaunderlaget, helst ett verifierat labbresultat, och skriv bara det underlaget säger. '
       + 'Varje mening med ett påstående eller en siffra ska hänvisa till sitt underlag med [F1], [F2] … och litteratur med [R1], [R2] …; hitta aldrig på siffror, källor eller resultat. '
-      + 'En siffra får bara stå i en mening som hänvisar till ett faktum där just den siffran finns; skriv inga datum och ingen annan numrering. Ingen Markdown, inga listor. '
+      + 'Varje mening ska ha minst en hänvisning. En siffra får bara stå i en mening som hänvisar till ett faktum där just den siffran finns, med samma ord eller tecken efter sig som i faktumet (till exempel "3 av 5 fall", "88 %"); skriv inga datum och ingen annan numrering. Ingen Markdown, inga listor. '
       + 'Skriv "preliminärt stött", aldrig "bevisat" eller "bekräftat"; påstå ingen upptäckt eller något genombrott. Begränsningar ska nämna att allt är syntetiskt eller bygger på sammanfattningar och att inget är granskat. '
       + 'Svara endast JSON: {"title":"…","abstract":"…","background":"…","method":"…","results":"…","limitations":"…"}.' },
     { role: 'user', content: JSON.stringify({ date, facts: sheet.facts.map(({ id, text }) => ({ id, text })), references: sheet.references.map(({ id, title }) => ({ id, title })) }) },
@@ -78,6 +82,10 @@ export function articleMessages(sheet, date) {
 const OVERCLAIM = /\b(bevis\w*|bevisa\w*|bekräfta\w*|genombrott\w*|banbrytande|fastställ\w*|säkerställ\w*|revolution\w*|definitivt)\b/i;
 const tags = text => [...text.matchAll(/\[([FR]\d{1,2})\]/g)].map(m => m[1]);
 const numbers = text => [...text.replace(/\[[FR]\d{1,2}\]/g, ' ').matchAll(/\d+(?:[.,]\d+)?/g)].map(m => m[0].replace(',', '.'));
+// Each number with the word or sign that follows it ("3 av", "3 fall", "88 %"), so a number keeps
+// its role: "3 av 1" does not pass where the fact says "1 av 3".
+const numberRoles = text => [...text.replace(/\[[FR]\d{1,2}\]/g, ' ').matchAll(/(\d+(?:[.,]\d+)?)\s*([^\s\d.,;:!?()]*)/g)]
+  .map(m => `${m[1].replace(',', '.')} ${m[2].toLowerCase()}`);
 const sentences = text => text.split(/(?<=[.!?])\s+/).filter(s => s.trim());
 
 export function checkArticle(text, sheet) {
@@ -98,22 +106,19 @@ export function checkArticle(text, sheet) {
   const known = new Map([...sheet.facts.map(f => [f.id, f.text]), ...sheet.references.map(r => [r.id, r.title])]);
   if (tags(body).some(id => !known.has(id))) return { problem: 'unknown_citation' };
   if (!tags(body).some(id => id.startsWith('F'))) return { problem: 'no_fact_cited' };
-  // Every number must come from a fact the same sentence cites.
   for (const s of sentences(body)) {
-    const found = numbers(s);
+    // Every sentence states something, so every sentence cites its basis.
+    if (!tags(s).length) return { problem: 'uncited_sentence' };
+    const found = numberRoles(s);
     if (!found.length) continue;
     const cited = tags(s).filter(id => id.startsWith('F'));
     if (!cited.length) return { problem: 'uncited_number' };
-    const allowed = new Set(cited.flatMap(id => numbers(known.get(id))));
+    // Every number must come, with its role, from a fact the same sentence cites.
+    const allowed = new Set(cited.flatMap(id => numberRoles(known.get(id))));
     if (found.some(n => !allowed.has(n))) return { problem: 'unsupported_number' };
   }
   if (numbers(a.title).some(n => !sheet.facts.some(f => numbers(f.text).includes(n)))) return { problem: 'unsupported_number' };
   return { article: Object.fromEntries(keys.map(k => [k, a[k].replace(/\s+/g, ' ').trim()])), words };
-}
-
-export function articleSlug(title) {
-  return title.toLowerCase().replace(/[åä]/g, 'a').replace(/ö/g, 'o').replace(/é/g, 'e').normalize('NFKD').replace(/[^\x20-\x7e]/g, '')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60).replace(/-+$/, '') || 'artikel';
 }
 
 const FOOTER = '*Skriven av Professor Oraklet, en AI, utifrån faktaunderlaget nedan. Underlaget kommer från sparade, oberoende verifierade körningar och från sammanfattningar med kontrollerade citat; texten är inte granskad av en människa eller av vetenskapliga granskare. "Preliminärt stött" gäller bara det testade fallet, aldrig etablerad vetenskap.*';
@@ -135,7 +140,7 @@ export function renderArticle(article, sheet, { date, field, model }) {
 // The index of every published article, newest first, built from the files themselves.
 export async function articleIndex(directory = 'ai-bus/artiklar') {
   let files = [];
-  try { files = (await readdir(directory)).filter(f => /^\d{4}-\d{2}-\d{2}-[a-z0-9-]+\.md$/.test(f)).sort().reverse(); } catch { files = []; }
+  try { files = (await readdir(directory)).filter(f => /^\d{4}-\d{2}-\d{2}\.md$/.test(f)).sort().reverse(); } catch { files = []; }
   const rows = [];
   for (const f of files) {
     const title = ((await readFile(`${directory}/${f}`, 'utf8')).match(/^# (.+)$/m)?.[1] ?? f).replace(/[[\]|]/g, "'");
@@ -157,9 +162,11 @@ export async function writeDailyArticle(day, propose, { field }) {
   let answer;
   try { answer = await propose(articleMessages(sheet, day.date), { deep: true }); }
   catch (error) { return { record: { status: 'error', reason: /^[a-z_]{3,60}$/.test(error?.message ?? '') ? error.message : 'model_failed', facts: sheet.facts.length } }; }
+  // The call was spent whatever the outcome; the report counts every article call that was made.
   const checked = checkArticle(answer.text, sheet);
   if (checked.problem) return { record: { status: 'rejected', reason: checked.problem, facts: sheet.facts.length, model: answer.model ?? null } };
-  const file = `${day.date}-${articleSlug(checked.article.title)}.md`;
+  // One stable file per date: a rerun the same day replaces the day's article instead of adding one.
+  const file = `${day.date}.md`;
   return { record: { status: 'published', file, title: checked.article.title, words: checked.words, facts: sheet.facts.length,
     cited: [...new Set(SECTIONS.flatMap(([k]) => tags(checked.article[k])))].sort(), model: answer.model ?? null },
   file, markdown: renderArticle(checked.article, sheet, { date: day.date, field, model: `${answer.provider ?? ''} ${answer.model ?? ''}`.trim() }) };
@@ -169,5 +176,5 @@ export const ARTICLE_REASONS = Object.freeze({
   no_verified_results: 'inga verifierade resultat att skriva om', not_json: 'svaret var inte giltig JSON', invalid_shape: 'svaret saknade avsnitt',
   invalid_title: 'ogiltig rubrik', invalid_length: 'texten var inte 250–900 ord', markup: 'texten innehöll otillåten formatering',
   overclaim: 'texten överdrev vad verifieringen visar', unknown_citation: 'texten hänvisade till underlag som inte finns', no_fact_cited: 'texten hänvisade inte till underlaget',
-  uncited_number: 'en siffra saknade hänvisning', unsupported_number: 'en siffra fanns inte i det hänvisade underlaget', model_failed: 'modellanropet misslyckades',
+  uncited_number: 'en siffra saknade hänvisning', uncited_sentence: 'en mening saknade hänvisning', unsupported_number: 'en siffra fanns inte i det hänvisade underlaget', model_failed: 'modellanropet misslyckades',
 });
