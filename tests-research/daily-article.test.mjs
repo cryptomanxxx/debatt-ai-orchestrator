@@ -29,7 +29,6 @@ const day = {
 const filler = id => 'Resultatet ska läsas som ett preliminärt stöd inom den syntetiska familjen och gäller bara de testade fallen med deras egna verifierare ' + `[${id}].`;
 function article(over = {}) {
   const base = {
-    title: 'Oraklet hittar sin egen mekanism',
     abstract: `Oraklet utformade själv en mekanism och förutsade hur den kan identifieras [F3]. ${filler('F3')} ${filler('F4')}`,
     background: `Labbet låter Oraklet skriva egna experiment som deklarativa specifikationer [F3]. ${filler('F3')} ${filler('F3')} ${filler('F5')}`,
     method: `Labbets uppräkning prövade förutsägelsen och evidensgrinden prövade undersökningen [F4]. ${filler('F4')} ${filler('F5')} ${filler('F4')}`,
@@ -70,8 +69,14 @@ test('an article is published only when every citation, number and wording holds
   const problem = over => checkArticle(article(over), sheet).problem;
   assert.equal(checkArticle('nej', sheet).problem, 'not_json');
   assert.equal(checkArticle(JSON.stringify({ title: 't' }), sheet).problem, 'invalid_shape');
+  assert.equal(ok.article.title, 'En mekanism som Oraklet utformade själv', 'the lab writes the title from the first verified fact cited');
+  assert.equal(checkArticle(article({ title: 'Ett fall godkändes, en upptäckt' }), sheet).article.title, 'En mekanism som Oraklet utformade själv', 'a title the model sends is ignored');
+  const literatureOnly = id => ({ abstract: `Litteraturen tar upp små urval [${id}]. ${filler(id)} ${filler(id)}`, background: `Bakgrund [${id}]. ${filler(id)} ${filler(id)} ${filler(id)}`,
+    method: `Metod [${id}]. ${filler(id)} ${filler(id)} ${filler(id)}`, results: `Resultat [${id}]. ${filler(id)} ${filler(id)} ${filler(id)}`, limitations: `Allt bygger på sammanfattningar [${id}]. ${filler(id)} ${filler(id)} ${filler(id)}` });
+  const unverified = sheet.facts.find(f => f.topic === 'literature').id;
+  assert.equal(problem(literatureOnly(unverified)), 'no_verified_fact_cited', 'the article must cite a verified result, not only literature');
+  assert.ok(checkArticle(article({ results: 'Metoden omfattar flera steg osv. [F1]. ' + filler('F1').repeat(3) }), sheet).article, 'a citation after a sentence-final abbreviation belongs to that sentence');
   assert.equal(problem({ results: 'Detta bevisar att Oraklet kan resonera [F1]. ' + filler('F1').repeat(3) }), 'overclaim');
-  assert.equal(problem({ title: 'Ett genombrott för Oraklet' }), 'overclaim');
   assert.equal(problem({ results: 'Labbkörningen godkände 3 av 3 fall [F99]. ' + filler('F1').repeat(3) }), 'unknown_citation');
   assert.equal(problem({ results: 'Labbkörningen godkände 3 av 3 fall. ' + filler('F1').repeat(3) }), 'uncited_sentence');
   assert.equal(problem({ results: 'Labbkörningen godkände 3 av 3 fall [R1]. ' + filler('F1').repeat(3) }), 'uncited_number', 'a number needs a fact, not only a reference');
@@ -84,8 +89,6 @@ test('an article is published only when every citation, number and wording holds
   assert.equal(problem({ results: '- Labbkörningen [F1]. ' + filler('F1').repeat(3) }), 'markup');
   assert.equal(problem({ results: 'Se [länk](https://x) [F1]. ' + filler('F1').repeat(3) }), 'markup');
   assert.equal(problem({ abstract: 'Kort [F1].', background: 'Kort [F1].', method: 'Kort [F1].', results: 'Kort [F1].', limitations: 'Kort [F1].' }), 'invalid_length');
-  assert.equal(problem({ title: 'Rubrik med [F1]' }), 'invalid_title');
-  assert.equal(problem({ title: 'Labbet godkände 3 av 1 fall' }), 'invalid_title', 'a title cannot cite a fact, so it has no numbers');
   // F2 says s_2 = -3*s_1: dropping the sign changes the mechanism.
   assert.equal(problem({ results: 'Oraklet skrev s_2 = 3*s_1 [F2]. ' + filler('F1').repeat(3) }), 'unsupported_number', 'a sign belongs to its number');
   assert.ok(checkArticle(article({ results: 'Oraklet skrev s_2 = −3*s_1 [F2]. ' + filler('F1').repeat(3) }), sheet).article, 'a typographic minus is the same sign');
@@ -98,10 +101,7 @@ test('an article is published only when every citation, number and wording holds
   assert.equal(problem({ results: 'Labbkörningen godkände 3 av 3 fall och ytterligare 3 fall [F1] [F1]. ' + filler('F1').repeat(3) }), 'unsupported_number', 'citing a fact twice does not supply its numbers twice');
   assert.equal(problem({ results: 'Resultaten gäller små fall osv. Labbkörningen godkände 3 av 3 fall [F1]. ' + filler('F1').repeat(3) }), 'uncited_sentence', 'an abbreviation can still end a sentence');
   assert.equal(problem({ results: 'Detta är en upptäckt [F1]. ' + filler('F1').repeat(3) }), 'overclaim');
-  assert.equal(problem({ title: 'En ny upptäckt' }), 'overclaim');
-  assert.equal(problem({ title: 'Labbet godkände \uFF13 av \uFF11 fall' }), 'invalid_title', 'no numerals of any script in a title');
   assert.equal(problem({ results: 'Labbkörningen godkände \uFF13 av \uFF13 fall [F1]. ' + filler('F1').repeat(3) }), 'unsupported_number', 'nor unchecked numerals in the text');
-  assert.equal(problem({ title: 'Tre av ett fall godkändes' }), 'invalid_title', 'no spelled-out quantities in a title');
   assert.equal(problem({ results: 'Labbkörningen godkände tre av tre fall [F1]. ' + filler('F1').repeat(3) }), 'unsupported_number', 'nor in the text');
   assert.equal(problem({ results: 'Oraklet sade "resultatet gäller." Labbkörningen godkände 3 av 3 fall [F1]. ' + filler('F1').repeat(3) }), 'uncited_sentence', 'a closing quote does not hide a sentence end');
   assert.equal(problem({ results: 'Oraklet skrev (se labbet.) Labbkörningen godkände 3 av 3 fall [F1]. ' + filler('F1').repeat(3) }), 'uncited_sentence');
@@ -109,12 +109,8 @@ test('an article is published only when every citation, number and wording holds
   assert.equal(problem({ results: '+ Labbkörningen [F1]. ' + filler('F1').repeat(3) }), 'markup');
   assert.equal(problem({ results: '1. Labbkörningen [F1]. ' + filler('F1').repeat(3) }), 'markup');
   assert.equal(problem({ results: 'Detta är en bekräftelse [F1]. ' + filler('F1').repeat(3) }), 'overclaim');
-  assert.equal(problem({ title: 'En bekräftelse' }), 'overclaim');
-  for (const title of ['Båda fallen godkändes', 'Alla fall godkändes', 'Inga fel hittades'])
-    assert.equal(problem({ title }), 'invalid_title', `no quantity in a title: ${title}`);
   for (const link of ['https://evil.example/path', 'www.evil.example', 'ftp://x.y', 'oraklet@evil.example'])
     assert.equal(problem({ results: `Se ${link} [F1]. ` + filler('F1').repeat(3) }), 'markup', `no autolinked ${link}`);
-  assert.equal(problem({ title: 'Se www.evil.example' }), 'markup');
   assert.ok(checkArticle(article({ results: 'Det gäller t.ex. syntetiska fall, bl.a. små mekanismer [F1]. ' + filler('F1').repeat(3) }), sheet).article,
     'Swedish abbreviations do not end a sentence');
 });
@@ -122,7 +118,7 @@ test('an article is published only when every citation, number and wording holds
 test('the article is rendered with its fact basis, references and the fixed footer', () => {
   const sheet = buildFactSheet(day);
   const md = renderArticle(checkArticle(article(), sheet).article, sheet, { date: day.date, field: 'Kausal inferens', model: 'hip glm' });
-  assert.match(md, /^# Oraklet hittar sin egen mekanism\n\n\*Professor Oraklet, 2026-10-24\. Fält: Kausal inferens\. Modell: hip glm\.\*/);
+  assert.match(md, /^# En mekanism som Oraklet utformade själv\n\n\*Professor Oraklet, 2026-10-24\. Fält: Kausal inferens\. Modell: hip glm\.\*/);
   for (const h of ['Sammanfattning', 'Bakgrund', 'Metod', 'Resultat', 'Begränsningar', 'Faktaunderlag', 'Referenser']) assert.match(md, new RegExp(`## ${h}\\n`));
   assert.match(md, /- \*\*\[F1\]\*\* Labbkörningen act-map-design \(seed 7\) godkände 3 av 3 fall/);
   assert.doesNotMatch(md, /\[F2\]\*\*/, 'only cited facts are listed');
@@ -170,18 +166,18 @@ test('the literature day publishes the article, its index and a link, or says wh
     assert.equal(published.article.status, 'published');
     assert.deepEqual(await readdir('ai-bus/artiklar'), ['2026-10-24.md', 'README.md']);
     assert.match(await readFile('ai-bus/artiklar/2026-10-24.md', 'utf8'), /## Faktaunderlag/);
-    assert.match(await readFile('ai-bus/artiklar/README.md', 'utf8'), /- 2026-10-24: \[Oraklet hittar sin egen mekanism\]\(2026-10-24\.md\)/);
-    assert.match(await readFile('ai-bus/rapporter/2026-10-24.md', 'utf8'), /- \*\*Dagens artikel:\*\* \[Oraklet hittar sin egen mekanism\]\(\.\.\/artiklar\/2026-10-24\.md\)/);
-    assert.match(await readFile('ai-bus/senaste.md', 'utf8'), /- \*\*Dagens artikel:\*\* \[Oraklet hittar sin egen mekanism\]\(artiklar\/2026-10-24\.md\)/, 'each copy links from where it sits');
+    assert.match(await readFile('ai-bus/artiklar/README.md', 'utf8'), /- 2026-10-24: \[En mekanism som Oraklet utformade själv\]\(2026-10-24\.md\)/);
+    assert.match(await readFile('ai-bus/rapporter/2026-10-24.md', 'utf8'), /- \*\*Dagens artikel:\*\* \[En mekanism som Oraklet utformade själv\]\(\.\.\/artiklar\/2026-10-24\.md\)/);
+    assert.match(await readFile('ai-bus/senaste.md', 'utf8'), /- \*\*Dagens artikel:\*\* \[En mekanism som Oraklet utformade själv\]\(artiklar\/2026-10-24\.md\)/, 'each copy links from where it sits');
     const saved = JSON.parse(await readFile('reports/literature-day/day.json', 'utf8'));
     assert.equal(saved.article.file, '2026-10-24.md');
     assert.equal(saved.publication, undefined, 'the article text is not duplicated in day.json');
-    const rerun = await main({}, { now: '2026-10-24T15:00:00.000Z', deps: deps(article({ title: 'Ett genombrott' })) });
+    const rerun = await main({}, { now: '2026-10-24T15:00:00.000Z', deps: deps(article({ results: 'Detta är ett genombrott [F1]. ' + filler('F1').repeat(3) })) });
     assert.equal(rerun.article.status, 'rejected');
     assert.deepEqual(await readdir('ai-bus/artiklar'), ['README.md'], 'a rerun the same day without an article withdraws the earlier one');
     assert.match(await readFile('ai-bus/artiklar/README.md', 'utf8'), /Inga artiklar ännu\./);
     await rm('ai-bus', { recursive: true });
-    const rejected = await main({}, { now: '2026-10-25T09:41:00.000Z', deps: deps(article({ title: 'Ett genombrott' })) });
+    const rejected = await main({}, { now: '2026-10-25T09:41:00.000Z', deps: deps(article({ results: 'Detta är ett genombrott [F1]. ' + filler('F1').repeat(3) })) });
     assert.equal(rejected.article.reason, 'overclaim');
     await assert.rejects(readdir('ai-bus/artiklar'));
     assert.match(await readFile('ai-bus/rapporter/2026-10-25.md', 'utf8'), /Dagens artikel:\*\* ingen i dag \(texten överdrev vad verifieringen visar\)/);

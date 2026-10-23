@@ -29,9 +29,10 @@ The day's field alternates by UTC date:
    - **Fact sheet.** The lab builds a numbered fact sheet from the saved reports only: lab runs, Oraklet's own designs, the VEM-Sci register, DeepRAP, and the literature findings with their verified quotes as references. An article is written only when the sheet holds a verified outcome: a completed case or a decided claim, not an empty register.
    - **Writing.** Oraklet writes a 250–900-word article in Swedish, more an extended summary than a full paper, with the sections Sammanfattning, Bakgrund, Metod, Resultat and Begränsningar. He cites `[F#]` for facts and `[R#]` for literature.
    - **Checks before publishing.**
-     - Every sentence must cite the sheet, and every citation must exist in it.
-     - Every number must appear, with the word or sign that follows it, in a fact cited in the same sentence. So "3 av 1" does not pass where the fact says "1 av 3". Dates are not allowed.
-     - Wordings that overstate a result (bevisat, bekräftat, genombrott …) are refused, as is Markdown.
+     - Every sentence must cite the sheet, every citation must exist in it, and the article must cite at least one verified result.
+     - Every number must be written in digits and appear, with the word or sign that follows it and in the fact's order, in a fact cited in the same sentence. So "3 av 1" does not pass where the fact says "1 av 3". Dates and number words are not allowed.
+     - The title is written by the lab from the topic of the first verified result cited, never by the model, since a title cites nothing.
+     - Wordings that overstate a result (bevisat, bekräftat, genombrott, upptäckt …) are refused, as are Markdown and links.
      - These checks cannot catch every change of meaning in prose, such as a flipped verb. That is why the article lists its cited facts and is marked unreviewed.
    - **Failure.** An article that fails any check is not published, and the day's report gives the reason. Without a verified lab or register result there is no article.
    - **Published files.** The article goes to `ai-bus/artiklar/ÅÅÅÅ-MM-DD.md` (one per date; a rerun the same day replaces it, or withdraws it when the rerun publishes none), with the cited facts and references and a fixed footer saying it is unreviewed. `ai-bus/artiklar/README.md` indexes all articles, and the daily report links the day's article. Both indexes are rebuilt by `research/ai-bus-index.mjs` on the latest `main` before the publish commit, so a file that reached `main` during the run stays listed.
