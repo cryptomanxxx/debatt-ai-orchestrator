@@ -81,6 +81,7 @@ test('the bounded tree search stops at the first hypothesis that fits all observ
   assert.deepEqual(tree.candidates.map(h => [h.hypothesis, h.consistent]), [['h1', false], ['h2', true], ['h3', null]],
     'the untested hypothesis still reaches the final step');
   assert.match(tree.candidates[2].note, /inte prövad/);
+  assert.match(hypothesesMessages(f, [])[0].content, /stannar vid den första som stämmer/, 'the early stop is disclosed');
 });
 
 test('Oraklet sees which hypotheses fit before the claim; a correct claim passes the gate', async () => {
@@ -173,4 +174,23 @@ globalThis.fetch=async(url,options={})=>{
     assert.equal(saved.vem.claims.length, 2);
     assert.match(await readFile(join(dir, 'reports/oraklet-lab/report.md'), 'utf8'), /## ACT-MAP med trädsökning: Oraklet mot uppräkningsbaslinjen/);
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('a transfer hypothesis with nothing to check is untested, not contradicted, and every candidate is saved', async () => {
+  const seed = Array.from({ length: 50 }, (_, i) => String(i)).find(x => makeActMapTreeCases(x)[1].truth.scope === 'partial');
+  const f = makeActMapTreeCases(seed)[1];
+  // One intervention, on the variable that plays s_2: a partial hypothesis predicts nothing for it.
+  const onS2 = f.truth.action_to_target.indexOf(f.truth.mapping[2]);
+  const history = [{ action: onS2, value: 1, outcome: intervene(f, onS2, 1) }];
+  const partial = checkHypotheses(JSON.stringify({ hypotheses: [truthful(f)], reason: 'r' }), f).hypotheses;
+  const tree = await searchHypotheses(f, partial, history);
+  assert.equal(tree.evaluated[0].checkedObservations, 0);
+  assert.equal(tree.evaluated[0].consistent, null);
+  assert.match(tree.evaluated[0].note, /kunde inte prövas/);
+  const { propose } = scripted(seed, { hypotheses: f2 => [wrong(f2), truthful(f2), { decision: 'none', mapping: null, interventions: null }], final: f2 => truthful(f2) });
+  const report = await runActMapTreeExperiment(seed, propose, callActMap, async () => {});
+  for (const c of report.cases) {
+    assert.equal(c.tree.candidates.length, c.hypothesisTest.measured.hypotheses, 'all candidates persisted');
+    assert.ok(c.tree.candidates.every(h => ['full', 'partial', 'none'].includes(h.decision)));
+  }
 });

@@ -29,7 +29,7 @@ export function hypothesesMessages(fixture, results) {
     { role: 'system', content: ACT_MAP_SYSTEM + 'Du har valt dina experiment och ser resultaten. Avgör inte än. Ställ i stället upp 1–' + MAX_HYPOTHESES +
       ' konkurrerande hypoteser om målsystemet, så olika som möjligt. Varje hypotes har decision ("full"' + (level4 ? ', "partial"' : '') +
       ' eller "none"), mapping (målvariabel för s_0, s_1, s_2) och interventions (målvariabel per ingrepp); för "none" är de null. ' +
-      'Labbet prövar sedan varje hypotes mot observationerna och visar resultatet innan du avgör. Svara endast JSON: ' +
+      'Labbet prövar sedan hypoteserna mot observationerna i den ordning du anger och stannar vid den första som stämmer med alla; senare hypoteser kan då lämnas oprövade. Du ser resultatet innan du avgör. Svara endast JSON: ' +
       '{"hypotheses":[{"decision":"full","mapping":{"s_0":"...","s_1":"...","s_2":"..."},"interventions":{"<ingrepp>":"<målvariabel>"}}],"reason":"kort svensk motivering"}.' },
     { role: 'user', content: JSON.stringify({ task: publicTask(fixture), results }) },
   ];
@@ -89,9 +89,12 @@ export async function searchHypotheses(fixture, hypotheses, history) {
   const evaluated = search.trace.map(n => {
     const h = byId.get(n.actionId), c = n.result;
     return { hypothesis: n.actionId, decision: h.decision, ...namedClaim(fixture, h.proposed),
-      consistent: n.verified, checkedObservations: c.checked, matchedObservations: c.matched,
+      // A hypothesis with nothing to check (a "none", or a partial one whose interventions all fall
+      // on s_2) is untestable here: neither consistent nor contradicted.
+      consistent: c.checked === 0 ? null : n.verified, checkedObservations: c.checked, matchedObservations: c.matched,
       ...(c.contradiction ? { firstContradiction: c.contradiction } : {}),
-      ...(h.decision === 'none' ? { note: 'gör inga förutsägelser; kan inte bekräftas av observationerna' } : {}) };
+      ...(h.decision === 'none' ? { note: 'gör inga förutsägelser; kan inte bekräftas av observationerna' }
+        : c.checked === 0 ? { note: 'kunde inte prövas: dina ingrepp ger inga förutsägelser för den här hypotesen' } : {}) };
   });
   const notEvaluated = [...byId.keys()].filter(id => !search.trace.some(n => n.actionId === id));
   // Every hypothesis Oraklet stated reaches the final step: the untested ones are marked as such.
@@ -103,8 +106,9 @@ export async function searchHypotheses(fixture, hypotheses, history) {
 
 const TREE_NOTE = Object.freeze({
   system: 'Du har också ställt upp konkurrerande hypoteser, och labbet har prövat dem mot observationerna du har sett (hypotheses). ' +
-    'consistent betyder att hypotesen stämmer med alla dessa observationer; firstContradiction visar var den inte stämmer; consistent null betyder att den inte prövades. ' +
-    'Ingen hypotes är prövad mot de dolda ingreppsstorlekarna. Om ingen hypotes med överföring stämmer är det ett tecken på att mekanismen inte gäller. ',
+    'consistent betyder att hypotesen stämmer med alla dessa observationer; firstContradiction visar var den inte stämmer. ' +
+    'consistent null betyder att hypotesen inte prövades eller inte gick att pröva med dina ingrepp; det är varken stöd eller motsägelse. ' +
+    'Ingen hypotes är prövad mot de dolda ingreppsstorlekarna. Om alla prövade hypoteser med överföring motsägs är det ett tecken på att mekanismen inte gäller. ',
 });
 
 export async function runActMapTreeExperiment(seed, propose, callTool, onCommit, options = {}) {
@@ -149,7 +153,8 @@ export async function runActMapTreeExperiment(seed, propose, callTool, onCommit,
     cases.push({ case: i + 1, level: fixture.view.level, commitment: fixture.commitment, data: publicTask(fixture),
       proposal: { design: checkedDesign.design ?? null, decision: claim?.decision ?? null, ...namedClaim(fixture, claim?.proposed ?? null), reason: claim?.reason ?? null },
       provider: ai.provider, model: ai.model, experiments: named(fixture, history), evidence,
-      tree: tree && { search: tree.search, evaluated: tree.evaluated, notEvaluated: tree.notEvaluated },
+      // Every candidate the final step saw, tested or not, so the report can rebuild that input.
+      tree: tree && { search: tree.search, evaluated: tree.evaluated, notEvaluated: tree.notEvaluated, candidates: tree.candidates },
       hypothesisTest: { protocol: ACT_MAP_TREE_PROTOCOL, decision: passed ? 'correct_transfer_decision' : 'incorrect_transfer_decision',
         measured: { level: fixture.view.level, truth, gate: result.gate, baseline: result.baseline,
           baselinePassed: result.baseline.scope_correct && (fixture.truth.scope === 'none' || result.baseline.mapping_correct && result.baseline.accepted),
