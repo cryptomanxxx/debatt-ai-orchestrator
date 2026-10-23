@@ -67,6 +67,8 @@ export const FAILURE_TEXT = Object.freeze({
   contradicted: 'motsägs av egna observationer', heldout_mismatch: 'föll på dolda ingreppsstorlekar', invalid_claim: 'ogiltigt påstående',
   over_budget: 'för många ingrepp', gate_rejected: 'avvisat av evidensgrinden', verifier_rejected: 'avvisat av verifieraren',
   unverified: 'saknar oberoende verifiering',
+  standard_mechanism: 'mekanismen var ACT-MAP:s fasta', invalid_spec: 'ogiltig mekanism', invalid_prediction: 'ogiltig förutsägelse',
+  identifiability_mispredicted: 'fel om mekanismen går att identifiera', min_interventions_mispredicted: 'fel minsta antal ingrepp',
 });
 // A missing answer keeps the lab's own problem code ("inference:invalid_decision" → invalid_decision),
 // so a valid answer that broke the answer contract is told apart from one that was not JSON.
@@ -81,6 +83,8 @@ export function failureOf(claim) {
     if (claim?.kind === 'abstention') return claim.outcome?.passed === false ? 'missed_transfer' : null;
     if (claim?.status === 'provisionally_supported') return claim.outcome?.passed === false ? 'false_certification' : null;
     if (claim?.kind === 'transfer') return GATE_FAILURES[claim.reason] ?? 'gate_rejected';
+    // A design claim is rejected when the enumeration contradicts Oraklet's preregistered prediction.
+    if (claim?.kind === 'design' && claim.status === 'rejected') return FAILURE_TEXT[claim.reason] ? claim.reason : 'verifier_rejected';
     return claim?.status === 'rejected' ? 'verifier_rejected' : claim?.status === 'unresolved' ? 'unverified' : null;
   })();
   if (!code) return null;

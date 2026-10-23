@@ -26,6 +26,7 @@ on:
           - act-map-transfer
           - act-map-budget
           - act-map-tree
+          - act-map-design
           - perturbseq-holdout
           - glucose-absorption
           - glucose-robustness
