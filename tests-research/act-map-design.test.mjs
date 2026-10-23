@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ACT_MAP_DESIGN_PROTOCOL, checkSpec, specProblem, specEquations, analyzeSpec, makeDesignFixture, interveneDesign,
   predictDesign, gateDesign, callActMapDesign, validateAnalysis, validateDesignGate, runActMapDesignExperiment,
-  actMapDesignMarkdown, specMessages } from '../research/act-map-design.mjs';
+  actMapDesignMarkdown, specMessages, SPEC_TEMPLATE } from '../research/act-map-design.mjs';
 import { failureOf } from '../research/vem-sci.mjs';
 import { CATALOG } from '../research/catalog.mjs';
 
@@ -39,6 +39,9 @@ test('a spec is declarative, bounded and new; the prediction is part of it', () 
   assert.equal(checkSpec(JSON.stringify({ ...chain, prediction: { identifiable: true, minInterventions: 2 }, reason: 'r', code: 'x' })).problem, 'extra_fields');
   assert.equal(specProblem({ variables: 3, edges: [[0, 1, 2]] }), 'invalid_spec', 'at least two edges');
   assert.match(specMessages()[0].content, /deklarativ specifikation, ingen kod/);
+  const template = checkSpec(SPEC_TEMPLATE);
+  assert.ok(template.spec && !template.problem, 'the answer template in the prompt is itself a valid spec');
+  assert.ok(specMessages()[0].content.includes(SPEC_TEMPLATE));
 });
 
 test('identifiability is computed the same way in Python and Node, including a symmetric design', async () => {

@@ -63,6 +63,8 @@ export function specEquations(spec) {
     .map(e => `${e[2]}*s_${e[0]}`).join(' + ').replace(/\+ -/g, '- '));
 }
 
+// The answer format shown to Oraklet; it is itself a valid spec (tests check it parses).
+export const SPEC_TEMPLATE = '{"variables":3,"edges":[{"from":"s_0","to":"s_1","coef":2},{"from":"s_0","to":"s_2","coef":-1}],"prediction":{"identifiable":true,"minInterventions":1},"reason":"kort svensk motivering"}';
 export function specMessages() {
   return [
     { role: 'system', content: 'Du är Professor Oraklet och utformar själv ett experiment. Skriv en orsaksmekanism som en deklarativ specifikation, ingen kod: '
@@ -71,7 +73,8 @@ export function specMessages() {
       + 'Labbet gömmer sedan mekanismen i ett okänt system med slumpade namn, där varken variablerna eller ingreppen är kända, och du ska hitta den med egna ingrepp. '
       + 'Förregistrera innan labbet analyserar: identifiable = om exakt en koppling (vilken målvariabel som är vilken s_i och vilket ingrepp som sätter vilken variabel) stämmer med utfallen när varje ingrepp görs en gång med värdet 1; '
       + 'minInterventions = det minsta antalet olika sådana ingrepp som räcker för att bara en koppling ska stämma, eller null om den inte är identifierbar. En symmetrisk mekanism kan vara omöjlig att identifiera. '
-      + 'Svara endast JSON: {"variables":3,"edges":[{"from":"s_0","to":"s_1","coef":2}],"prediction":{"identifiable":true,"minInterventions":2},"reason":"kort svensk motivering"}.' },
+      + 'Svara endast JSON i det här formatet (exemplets värden visar bara formatet; förutsägelsen i exemplet är inte kontrollerad): '
+      + SPEC_TEMPLATE + '.' },
     { role: 'user', content: JSON.stringify({ protocol: ACT_MAP_DESIGN_PROTOCOL.id, allowedVariables: [3, 4], allowedCoefficients: DESIGN_COEFFICIENTS, maxEdges: 6 }) },
   ];
 }
