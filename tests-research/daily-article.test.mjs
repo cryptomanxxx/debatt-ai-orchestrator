@@ -94,6 +94,13 @@ test('an article is published only when every citation, number and wording holds
   assert.ok(checkArticle(article({ results: `Säkerheten var 97 % mot 88 % rätt svar [${calibration}]. ` + filler('F1').repeat(3) }), sheet).article);
   assert.equal(problem({ results: `Säkerheten var 97 % och sedan 97 % mot 88 % rätt svar [${calibration}]. ` + filler('F1').repeat(3) }), 'unsupported_number', 'a fact supplies each number once');
   assert.equal(problem({ abstract: 'Ett påstående utan hänvisning', background: `Labbet låter Oraklet skriva egna experiment [F3]. ${filler('F3')} ${filler('F3')} ${filler('F5')}` }), 'uncited_sentence', 'a section cannot borrow the next section\'s citation');
+  assert.equal(problem({ results: 'Resultatet var 7 [F1]. ' + filler('F1').repeat(3) }), 'unsupported_number', 'a bare number cannot borrow the seed');
+  assert.equal(problem({ results: 'Labbkörningen godkände 3 av 3 fall och ytterligare 3 fall [F1] [F1]. ' + filler('F1').repeat(3) }), 'unsupported_number', 'citing a fact twice does not supply its numbers twice');
+  assert.equal(problem({ results: 'Resultaten gäller små fall osv. Labbkörningen godkände 3 av 3 fall [F1]. ' + filler('F1').repeat(3) }), 'uncited_sentence', 'an abbreviation can still end a sentence');
+  assert.equal(problem({ results: 'Detta är en upptäckt [F1]. ' + filler('F1').repeat(3) }), 'overclaim');
+  assert.equal(problem({ title: 'En ny upptäckt' }), 'overclaim');
+  assert.equal(problem({ title: 'Labbet godkände \uFF13 av \uFF11 fall' }), 'invalid_title', 'no numerals of any script in a title');
+  assert.equal(problem({ results: 'Labbkörningen godkände \uFF13 av \uFF13 fall [F1]. ' + filler('F1').repeat(3) }), 'unsupported_number', 'nor unchecked numerals in the text');
   for (const link of ['https://evil.example/path', 'www.evil.example', 'ftp://x.y', 'oraklet@evil.example'])
     assert.equal(problem({ results: `Se ${link} [F1]. ` + filler('F1').repeat(3) }), 'markup', `no autolinked ${link}`);
   assert.equal(problem({ title: 'Se www.evil.example' }), 'markup');
@@ -111,13 +118,14 @@ test('the article is rendered with its fact basis, references and the fixed foot
   assert.match(md, /- \*\*\[R1\]\*\* Backdoor adjustment in practice <https:\/\/example\.org\/a>/);
   assert.match(md, /inte granskad av en människa/);
   const hostile = buildFactSheet({ ...day, pipeline: { stages: [{ name: 'initial_evidence', summary: { papers: [{ title: 'T [x](https://evil) **b**', source_url: 'https://example.org/a',
-    findings: [{ kind: 'limitation', claim: 'c', quote: '![spårpixel](https://evil.example/p.png) and *emph*' }] }] } }] } });
+    findings: [{ kind: 'limitation', claim: 'c', quote: '![spårpixel](https://evil.example/p.png) and *emph*, see www.evil.example or x@evil.example' }] }] } }] } });
   const q = hostile.facts.find(f => f.topic === 'literature').id;
   const out = renderArticle(checkArticle(article({ results: 'Oraklet skrev s_2 = -3*s_1 [F2]. ' + filler('F1').repeat(3),
     limitations: `Allt bygger på sammanfattningar [${q}]. ` + filler('F1').repeat(3) }), hostile).article, hostile, { date: 'd', field: 'f', model: 'm' });
   assert.match(out, /- \*\*\[F2\]\*\* .*s\\_2 = -3\\\*s\\_1/, 'Markdown characters in facts are escaped');
   assert.match(out, /Oraklet skrev s\\_2 = -3\\\*s\\_1 \[F2\]\./, 'and in the text, with the citation tags kept');
   assert.doesNotMatch(out, /!\[spårpixel\]\(|\[x\]\(https:\/\/evil\)|\*\*b\*\*/, 'a quote or title cannot inject links, images or emphasis');
+  assert.doesNotMatch(out.replace(/<https:\/\/example\.org\/a>/, ''), /https:\/\/|www\.|\w@/, 'nor GitHub autolinks; only the checked reference URL is a link');
 });
 
 test('the daily article: one deep call, skipped without verified results, rejected rather than published when a check fails', async () => {
@@ -168,4 +176,18 @@ test('the literature day publishes the article, its index and a link, or says wh
     assert.match(await readFile('ai-bus/rapporter/2026-10-25.md', 'utf8'), /Dagens artikel:\*\* ingen i dag \(texten överdrev vad verifieringen visar\)/);
     assert.match(await articleIndex('nowhere'), /Inga artiklar ännu\./);
   } finally { process.chdir(cwd); await rm(dir, { recursive: true, force: true }); }
+});
+
+test('the publish step rebuilds both indexes from the files on the latest main', async () => {
+  const { writeAiBusIndexes } = await import('../research/ai-bus-index.mjs');
+  const dir = await mkdtemp(join(tmpdir(), 'ai-bus-index-'));
+  try {
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    await mkdir(join(dir, 'rapporter')); await mkdir(join(dir, 'artiklar'));
+    for (const d of ['2026-10-24', '2026-10-25']) await writeFile(join(dir, 'rapporter', `${d}.md`), `# Dag ${d}\n`);
+    await writeFile(join(dir, 'artiklar', '2026-10-25.md'), '# En artikel\n');
+    await writeAiBusIndexes(dir);
+    assert.match(await readFile(join(dir, 'rapporter/README.md'), 'utf8'), /- \[2026-10-25\]\(2026-10-25\.md\)\n- \[2026-10-24\]\(2026-10-24\.md\)/, 'a report that reached main during the run stays listed');
+    assert.match(await readFile(join(dir, 'artiklar/README.md'), 'utf8'), /- 2026-10-25: \[En artikel\]\(2026-10-25\.md\)/);
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });

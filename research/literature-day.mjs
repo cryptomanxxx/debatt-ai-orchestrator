@@ -3,8 +3,7 @@
 // citation-graph novelty check on its candidate, automatic Problem Bank registration of
 // literature-backed catalog problems, and a Swedish report in ai-bus/ built only from saved
 // reports. A failing stage is recorded and the day continues; nothing claims a discovery.
-import { mkdir, writeFile, readFile, readdir, rm, appendFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { mkdir, writeFile, readFile, rm, appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { main as pipelineMain } from './research-pipeline.mjs';
 import { main as treeMain } from './research-tree-planner.mjs';
@@ -16,7 +15,8 @@ import { createProblemBankClient } from './problem-bank.mjs';
 import { vemRegisterSummary, learningPriority, failureText, REGISTER_LIMIT } from './vem-sci.mjs';
 import { designDigest } from './act-map-design.mjs';
 import { readDeepRapRows, deepRapScoreboard, deepRapMarkdown } from './deeprap.mjs';
-import { writeDailyArticle, articleIndex, ARTICLE_MODEL_CALLS, ARTICLE_REASONS } from './daily-article.mjs';
+import { writeDailyArticle, ARTICLE_MODEL_CALLS, ARTICLE_REASONS } from './daily-article.mjs';
+import { writeAiBusIndexes } from './ai-bus-index.mjs';
 import { createLabClient } from './lab-client.mjs';
 
 // The fields Oraklet reads, one per day in turn.
@@ -277,15 +277,6 @@ export function renderAiBus(day, { articles = 'artiklar/' } = {}) {
   return L.join('\n');
 }
 
-// The index of every daily report, newest first, built from the files themselves.
-export async function reportIndex(directory = 'ai-bus/rapporter') {
-  let files = [];
-  try { files = (await readdir(directory)).filter(f => /^\d{4}-\d{2}-\d{2}\.md$/.test(f)).sort().reverse(); } catch { files = []; }
-  return ['# Professor Oraklets dagliga rapporter', '',
-    'En rapport per dag om vad Oraklet läste, fann och körde. Den senaste finns alltid i [../senaste.md](../senaste.md). Se [research/LITERATURE-DAY.md](../../research/LITERATURE-DAY.md).', '',
-    ...(files.length ? files.map(f => `- [${f.slice(0, 10)}](${f})`) : ['Inga rapporter ännu.']), ''].join('\n');
-}
-
 export async function main(env = process.env, { now = new Date().toISOString(), deps = {} } = {}) {
   const date = now.slice(0, 10);
   const pipeline = deps.pipeline ?? (async e => {
@@ -313,7 +304,6 @@ export async function main(env = process.env, { now = new Date().toISOString(), 
   await writeFile('reports/literature-day/day.json', JSON.stringify(day, null, 2) + '\n');
   await mkdir('ai-bus/rapporter', { recursive: true });
   await writeFile(`ai-bus/rapporter/${date}.md`, renderAiBus(day, { articles: '../artiklar/' }));
-  await writeFile('ai-bus/rapporter/README.md', await reportIndex('ai-bus/rapporter'));
   await writeFile('ai-bus/senaste.md', markdown);
   if (day.publication) {
     await mkdir('ai-bus/artiklar', { recursive: true });
@@ -322,7 +312,7 @@ export async function main(env = process.env, { now = new Date().toISOString(), 
     // A rerun the same day without an article withdraws the earlier one, which the report no longer links.
     await rm(`ai-bus/artiklar/${date}.md`, { force: true });
   }
-  if (existsSync('ai-bus/artiklar')) await writeFile('ai-bus/artiklar/README.md', await articleIndex('ai-bus/artiklar'));
+  await writeAiBusIndexes();
   if (env.GITHUB_STEP_SUMMARY) await appendFile(env.GITHUB_STEP_SUMMARY, markdown);
   console.log(JSON.stringify({ date, field: day.field, pipeline: day.pipeline?.status ?? null, errors: day.errors }));
   return day;

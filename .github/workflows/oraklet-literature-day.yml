@@ -89,8 +89,11 @@ jobs:
             git reset -q --hard origin/main
             mkdir -p ai-bus/rapporter ai-bus/artiklar
             for f in $files; do cp "$RUNNER_TEMP/out/$f" "$f"; done
-            git add $files
             if [ -n "${withdraw:-}" ]; then git rm -q --ignore-unmatch "$withdraw"; fi
+            # The indexes are rebuilt on the latest main, so files that reached it during the run stay listed.
+            node research/ai-bus-index.mjs
+            git add $files
+            if [ -f ai-bus/artiklar/README.md ]; then git add ai-bus/artiklar/README.md; fi
             git diff --cached --quiet && exit 0
             git commit -q -m "chore(ai-bus): Professor Oraklets dag ${day}"
             git push origin HEAD:main

@@ -82,7 +82,7 @@ export function articleMessages(sheet, date) {
 }
 
 // Words that would overstate what a verifier recorded.
-const OVERCLAIM = /\b(bevis\w*|bevisa\w*|bekräfta\w*|genombrott\w*|banbrytande|fastställ\w*|säkerställ\w*|revolution\w*|definitivt)\b/i;
+const OVERCLAIM = /\b(bevis\w*|bevisa\w*|bekräfta\w*|genombrott\w*|upptäck\w*|banbrytande|fastställ\w*|säkerställ\w*|revolution\w*|definitivt)\b/i;
 const tags = text => [...text.matchAll(/\[([FR]\d{1,2})\]/g)].map(m => m[1]);
 // A sign written directly before a number belongs to it ("-3*s_1"), so a sign cannot be dropped.
 const NUMBER = '([-+\u2212]?\\d+(?:[.,]\\d+)?)';
@@ -90,12 +90,15 @@ const plain = text => text.replace(/\[[FR]\d{1,2}\]/g, ' ').replace(/\u2212/g, '
 const normal = n => n.replace(',', '.').replace(/^\+/, '');
 const numbers = text => [...plain(text).matchAll(new RegExp(NUMBER, 'g'))].map(m => normal(m[1]));
 // Each number with the word or sign that follows it ("3 av", "3 fall", "88 %"), so a number keeps
-// its role: "3 av 1" does not pass where the fact says "1 av 3".
-const numberRoles = text => [...plain(text).matchAll(new RegExp(NUMBER + '\\s*([^\\s\\d.,;:!?()]*)', 'g'))]
-  .map(m => `${normal(m[1])} ${m[2].toLowerCase()}`);
-// Common Swedish abbreviations do not end a sentence.
+// its role: "3 av 1" does not pass where the fact says "1 av 3". A number followed only by
+// punctuation takes the word before it ("seed 7)" is "7 <seed"), so a bare number cannot borrow
+// support from an unrelated one.
+const WORD = '[^\\s\\d.,;:!?()]';
+const numberRoles = text => { const t = plain(text); return [...t.matchAll(new RegExp(NUMBER + '\\s*(' + WORD + '*)', 'g'))]
+  .map(m => `${normal(m[1])} ${m[2] ? m[2].toLowerCase() : '<' + (t.slice(0, m.index).match(new RegExp('(' + WORD + '+)[\\s.,;:!?()]*$'))?.[1] ?? '').toLowerCase()}`); };
+// Common Swedish abbreviations do not end a sentence, unless a capital letter follows ("osv. Nästa").
 const ABBREVIATIONS = /\b(t\.ex|bl\.a|m\.fl|m\.m|s\.k|d\.v\.s|o\.s\.v|t\.o\.m|fr\.o\.m|e\.d|dvs|osv|ca|jfr|resp|inkl|exkl|etc|nr|kap|fig|tab)\./gi;
-const sentences = text => text.replace(ABBREVIATIONS, m => m.replace(/\./g, '\u2024'))
+const sentences = text => text.replace(ABBREVIATIONS, (m, _, at, all) => /^\s+[A-ZÅÄÖ]/.test(all.slice(at + m.length)) ? m : m.replace(/\./g, '\u2024'))
   .split(/(?<=[.!?])\s+/).filter(s => s.trim());
 
 // The sentence's numbers can each be placed in a cited fact so that numbers from the same fact keep
@@ -120,13 +123,15 @@ export function checkArticle(text, sheet) {
   if (!a || typeof a !== 'object' || Object.keys(a).sort().join() !== [...keys].sort().join() || keys.some(k => typeof a[k] !== 'string' || !a[k].trim()))
     return { problem: 'invalid_shape' };
   // A title cannot cite a fact, so it carries no numbers at all.
-  if (a.title.length > 140 || /[\[\]#`<>|*_\d]/.test(a.title)) return { problem: 'invalid_title' };
+  if (a.title.length > 140 || /[\[\]#`<>|*_]|\p{N}/u.test(a.title)) return { problem: 'invalid_title' };
   if (LINKLIKE.test(a.title) || SECTIONS.some(([k]) => LINKLIKE.test(a[k]))) return { problem: 'markup' };
   const body = SECTIONS.map(([k]) => a[k]).join('\n');
   const words = body.split(/\s+/).filter(Boolean).length;
   if (words < 250 || words > 900) return { problem: 'invalid_length' };
   if (/[`<>|#]|\]\(|^\s*[-*]\s/m.test(body)) return { problem: 'markup' };
   if (OVERCLAIM.test(a.title) || OVERCLAIM.test(body)) return { problem: 'overclaim' };
+  // Only ASCII digits are checked against the facts, so no other numeral may stand in for one.
+  if (/(?![0-9])\p{N}/u.test(body)) return { problem: 'unsupported_number' };
   const known = new Map([...sheet.facts.map(f => [f.id, f.text]), ...sheet.references.map(r => [r.id, r.title])]);
   if (tags(body).some(id => !known.has(id))) return { problem: 'unknown_citation' };
   if (!tags(body).some(id => id.startsWith('F'))) return { problem: 'no_fact_cited' };
@@ -140,14 +145,16 @@ export function checkArticle(text, sheet) {
     const cited = tags(s).filter(id => id.startsWith('F'));
     if (!cited.length) return { problem: 'uncited_number' };
     // Every number must come, with its role, from a fact the same sentence cites.
-    if (!inFactOrder(found, cited.map(id => numberRoles(known.get(id))))) return { problem: 'unsupported_number' };
+    if (!inFactOrder(found, [...new Set(cited)].map(id => numberRoles(known.get(id))))) return { problem: 'unsupported_number' };
   }
   return { article: Object.fromEntries(keys.map(k => [k, a[k].replace(/\s+/g, ' ').trim()])), words };
 }
 
 // Fact and reference text can carry external quotes and titles: every Markdown character is
 // escaped, as for untrusted literature in the daily report. The article body keeps its [F#] tags.
-const inert = v => String(v ?? '').replace(/\s+/g, ' ').trim().replace(/[\\`*_[\]|#]/g, '\\$&').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+// GitHub autolinks are broken with a zero-width space; the checked reference URL is rendered apart.
+const inert = v => String(v ?? '').replace(/\s+/g, ' ').trim().replace(/[\\`*_[\]|#]/g, '\\$&').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/:\/\//g, ':\u200B//').replace(/\b(www)\./gi, '$1\u200B.').replace(/@/g, '\u200B@');
 const escapeText = v => inert(v).replace(/\\\[([FR]\d{1,2})\\\]/g, '[$1]');
 const FOOTER = '*Skriven av Professor Oraklet, en AI, utifrån faktaunderlaget nedan. Underlaget kommer från sparade, oberoende verifierade körningar och från sammanfattningar med kontrollerade citat; texten är inte granskad av en människa eller av vetenskapliga granskare. "Preliminärt stött" gäller bara det testade fallet, aldrig etablerad vetenskap.*';
 export function renderArticle(article, sheet, { date, field, model }) {
