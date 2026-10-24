@@ -106,7 +106,10 @@ export async function researchBenchmark(input:unknown,keys:ResearchKeys,transpor
   try{data=await boundedJson(response,profile.response);}catch(e){return error(502,e instanceof Error && e.message==='oversized'?'benchmark_response_too_large':'benchmark_invalid_upstream_json');}
   const answer=data?.choices?.[0]?.message?.content;
   // No untrusted upstream values are returned in diagnostics: only static error codes.
-  if(typeof answer!=='string'||!answer.trim())return error(502,'benchmark_missing_answer');
+  // A reasoning model can spend the whole limit before any visible answer: that is truncation,
+  // never retried, not an empty answer, which the lab repeats once.
+  if(typeof answer!=='string'||!answer.trim())
+    return error(502,data?.choices?.[0]?.finish_reason==='length'?'benchmark_output_truncated':'benchmark_missing_answer');
   if(answer.includes(key))return error(502,'benchmark_invalid_response');
   if(answer.length>16000)return error(502,'benchmark_response_too_large');
   const replied=data?.model;

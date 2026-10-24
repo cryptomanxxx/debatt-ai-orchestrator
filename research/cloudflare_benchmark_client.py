@@ -17,7 +17,7 @@ SAFE_ERRORS = frozenset({'missing_orchestrator_key','invalid_gateway_path','gate
     'benchmark_catalog_unavailable','benchmark_transport_failed','benchmark_upstream_failed',
     'benchmark_upstream_auth_rejected','benchmark_upstream_quota_exhausted',
     'benchmark_invalid_response','benchmark_token_budget_exceeded',
-    'benchmark_missing_answer','benchmark_response_too_large','benchmark_model_identity_mismatch',
+    'benchmark_missing_answer','benchmark_output_truncated','benchmark_response_too_large','benchmark_model_identity_mismatch',
     'benchmark_invalid_finish_reason','benchmark_invalid_upstream_json',
     'benchmark_alias_unresolved','benchmark_non_chat_model','benchmark_model_not_listed'})
 
@@ -35,7 +35,7 @@ WORKER_ERROR_CODES = frozenset({
     "benchmark_upstream_failed", "benchmark_upstream_auth_rejected",
     "benchmark_upstream_quota_exhausted", "benchmark_invalid_response",
     "benchmark_token_budget_exceeded",
-    "benchmark_missing_answer", "benchmark_response_too_large",
+    "benchmark_missing_answer", "benchmark_output_truncated", "benchmark_response_too_large",
     "benchmark_model_identity_mismatch", "benchmark_invalid_finish_reason",
     "benchmark_invalid_upstream_json",
 })

@@ -51,6 +51,7 @@ test('distinguishes safe validation failures without leaking upstream contents',
  const cases=[
   {answer:{model:'other',choices:[{finish_reason:'stop',message:{content:'secret reply'}}]},code:'benchmark_model_identity_mismatch'},
   {answer:{model:input.model,choices:[{finish_reason:'stop',message:{content:''}}]},code:'benchmark_missing_answer'},
+  {answer:{model:input.model,choices:[{finish_reason:'length',message:{content:''}}]},code:'benchmark_output_truncated'},
   {answer:{model:input.model,choices:[{finish_reason:'other',message:{content:'valid'}}]},code:'benchmark_invalid_finish_reason'},
   {answer:{model:input.model,choices:[{finish_reason:'stop',message:{content:'x'.repeat(16001)}}]},code:'benchmark_response_too_large'},
  ];

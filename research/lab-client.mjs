@@ -111,6 +111,7 @@ export function createLabClient({ key, api = LAB_API, completionTokenLimit = 409
     benchmark_invalid_finish_reason: 'incomplete_model_response',
     benchmark_token_budget_exceeded: 'model_budget_not_applied',
     benchmark_missing_answer: 'model_empty_response',
+    benchmark_output_truncated: 'model_output_truncated',
     benchmark_model_identity_mismatch: 'model_identity_mismatch',
   });
   // The request may include a catalog lookup (up to 25 s) before the 50-second lab completion.

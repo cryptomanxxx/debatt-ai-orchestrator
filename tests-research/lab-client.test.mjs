@@ -147,6 +147,13 @@ test('an empty answer is repeated once like a dropped connection, and every fail
     assert.equal((await lab.researchProposer({ provider: 'hip', model: 'm' })([])).model, 'm', 'a ranked model\'s empty answer is repeated too');
     assert.equal(lab.modelRetries(), 1);
   } finally { s.restore(); }
+  s = script([() => Response.json({ error: 'benchmark_output_truncated' }, { status: 502 }), gatewayOk]);
+  try {
+    const lab = createLabClient({ key: 'k' });
+    await assert.rejects(lab.researchProposer({ provider: 'hip', model: 'm' })([]), /model_output_truncated/,
+      'a limit spent before any visible answer is truncation, never repeated');
+    assert.equal(lab.modelRetries(), 0);
+  } finally { s.restore(); }
   s = script([() => Response.json({ error: 'benchmark_invalid_finish_reason' }, { status: 502 })]);
   try {
     const error = await createLabClient({ key: 'k' }).researchProposer({ provider: 'blablador', model: 'alias-large' })([]).catch(e => e);
