@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { complete } from './providers/openai.ts';
+import { complete, ModelRequestError } from './providers/openai.ts';
 import type { CompletionTokenLimit } from './providers/openai.ts';
 import { createPlan } from './planning/planner.ts';
 import { executeTool } from './tools/registry.ts';
@@ -18,8 +18,14 @@ export async function orchestrate(message: string, mode: Mode, config: Config, c
     toolResult = executeTool(action.tool, action.expression);
     answer = String(toolResult.value);
   } else {
-    answer = mock ? 'Testläge: förfrågan har passerat orchestratorn. Ingen AI-modell har anropats.'
-      : await complete(action.message, action.model, config, completionTokenLimit);
+    try {
+      answer = mock ? 'Testläge: förfrågan har passerat orchestratorn. Ingen AI-modell har anropats.'
+        : await complete(action.message, action.model, config, completionTokenLimit);
+    } catch (error) {
+      // The same public identity a successful answer reports.
+      if (error instanceof ModelRequestError) Object.assign(error, { provider: config.provider, model: action.model });
+      throw error;
+    }
   }
   const durationMs = Math.round(performance.now() - started);
   const verification = verify(answer, toolResult, mock);

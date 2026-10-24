@@ -153,7 +153,8 @@ test('Workers runtime routes real inference and hides provider failures', async 
     fail = true;
     const failure = await request(runtime, '{"message":"Hej"}');
     assert.equal(failure.status, 502);
-    assert.deepEqual(await failure.json(), { error: 'model_upstream_http_error', upstreamStatus: 500 });
+    assert.deepEqual(await failure.json(), { error: 'model_upstream_http_error', upstreamStatus: 500,
+      provider: 'openai', model: 'default-test-model' }, 'a failure names the model that was called');
     assert.equal(calls[3].model, 'default-test-model');
   } finally { await runtime.dispose(); }
 });

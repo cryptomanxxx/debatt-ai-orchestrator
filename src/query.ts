@@ -48,7 +48,8 @@ export async function executeQuery(input: unknown, config: Config, bootloops?: B
   } catch (error) {
     if (error instanceof CalculationError) return { status: 400, data: { error: error.message } };
     if (error instanceof ModelRequestError) return { status: 502,
-      data: { error: error.code, ...(error.upstreamStatus ? { upstreamStatus: error.upstreamStatus } : {}) } };
+      data: { error: error.code, ...(error.upstreamStatus ? { upstreamStatus: error.upstreamStatus } : {}),
+        ...(error.provider && error.model ? { provider: error.provider, model: error.model } : {}) } };
     return { status: 502, data: { error: 'model_request_failed' } };
   }
 }
