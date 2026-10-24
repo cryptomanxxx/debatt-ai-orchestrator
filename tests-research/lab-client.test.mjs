@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createLabClient, MAX_MODEL_RETRIES } from '../research/lab-client.mjs';
+import { diagnostic } from '../research/errors.mjs';
 
 const ok = () => Response.json({ mock: false, provider: 'hip', model: 'm', inference: { completionTokenLimit: 4096 }, answer: '{}' });
 const rateLimited = () => Response.json({ error: 'model_upstream_http_error', upstreamStatus: 429 }, { status: 502 });
@@ -119,4 +120,44 @@ test('a deep call asks for 8,192 tokens on both paths and checks that the limit 
     await ranked([], { deep: true });
     assert.deepEqual(bodies.slice(3).map(b => [b.profile, b.max_tokens]), [['lab', 4096], ['lab-deep', 8192]]);
   } finally { globalThis.fetch = original; }
+});
+
+test('an empty answer is repeated once like a dropped connection, and every failure names the model that was called', async () => {
+  const empty = () => Response.json({ error: 'model_empty_response', provider: 'hip', model: 'glm-4' }, { status: 502 });
+  let s = script([empty, ok]);
+  try {
+    const lab = createLabClient({ key: 'k' });
+    assert.equal((await lab.proposer('default')([])).model, 'm');
+    assert.equal(lab.modelRetries(), 1);
+    assert.equal(lab.modelCalls(), 1, 'the repeat is the same request, not another answer');
+  } finally { s.restore(); }
+  s = script([empty, empty]);
+  try {
+    const error = await createLabClient({ key: 'k' }).proposer('default')([]).catch(e => e);
+    assert.deepEqual(diagnostic(error), { code: 'model_empty_response', httpStatus: 502, provider: 'hip', model: 'glm-4' });
+  } finally { s.restore(); }
+  s = script([() => Response.json({ error: 'model_empty_response', provider: 'hip', model: 'bad name <x>' }, { status: 502 }), empty]);
+  try {
+    const error = await createLabClient({ key: 'k', maxRetries: 0 }).proposer('default')([]).catch(e => e);
+    assert.deepEqual(diagnostic(error), { code: 'model_empty_response', httpStatus: 502 }, 'only plain, bounded names enter a public report');
+  } finally { s.restore(); }
+  s = script([() => Response.json({ error: 'benchmark_missing_answer' }, { status: 502 }), gatewayOk]);
+  try {
+    const lab = createLabClient({ key: 'k' });
+    assert.equal((await lab.researchProposer({ provider: 'hip', model: 'm' })([])).model, 'm', 'a ranked model\'s empty answer is repeated too');
+    assert.equal(lab.modelRetries(), 1);
+  } finally { s.restore(); }
+  s = script([() => Response.json({ error: 'benchmark_output_truncated' }, { status: 502 }), gatewayOk]);
+  try {
+    const lab = createLabClient({ key: 'k' });
+    await assert.rejects(lab.researchProposer({ provider: 'hip', model: 'm' })([]), /model_output_truncated/,
+      'a limit spent before any visible answer is truncation, never repeated');
+    assert.equal(lab.modelRetries(), 0);
+  } finally { s.restore(); }
+  s = script([() => Response.json({ error: 'benchmark_invalid_finish_reason' }, { status: 502 })]);
+  try {
+    const error = await createLabClient({ key: 'k' }).researchProposer({ provider: 'blablador', model: 'alias-large' })([]).catch(e => e);
+    assert.deepEqual(diagnostic(error), { code: 'incomplete_model_response', httpStatus: 502, provider: 'blablador', model: 'alias-large' },
+      'a ranked model is named by the lab, whatever failed');
+  } finally { s.restore(); }
 });

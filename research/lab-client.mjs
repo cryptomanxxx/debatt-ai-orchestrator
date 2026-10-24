@@ -22,20 +22,30 @@ export async function readJson(response, max = 65536) {
   } finally { reader.releaseLock(); }
 }
 
-// Free HIP/Blablador models rate-limit bursts of calls (HTTP 429), and a provider can drop a
-// connection. The lab therefore spaces its model calls and repeats a request that failed in one of
-// these ways once, after a pause. A repeat is the same request, not a second answer: it does not
+// Free HIP/Blablador models rate-limit bursts of calls (HTTP 429), a provider can drop a
+// connection, and a model can return an empty answer. The lab therefore spaces its model calls and
+// repeats a request that failed in one of these ways once, after a pause. An empty answer holds no
+// answer, so its repeat gives the model no second attempt at the question; a truncated one does,
+// and is never repeated. A repeat is the same request, not a second answer: it does not
 // count against the call budget, and the run reports how many there were (modelRetries).
-export const TRANSIENT_MODEL_ERRORS = Object.freeze(['model_upstream_http_error', 'model_transport_error']);
+export const TRANSIENT_MODEL_ERRORS = Object.freeze(['model_upstream_http_error', 'model_transport_error', 'model_empty_response']);
 // A rejected key or an exhausted quota will not pass on a repeat: those stop the run at once.
 const TERMINAL_UPSTREAM_STATUSES = Object.freeze([401, 402, 403]);
 // The research gateway names its failures; only these are worth repeating.
 const RETRYABLE_GATEWAY_ERRORS = Object.freeze(['benchmark_upstream_rate_limited', 'benchmark_upstream_failed',
-  'benchmark_catalog_unavailable', 'benchmark_transport_failed']);
+  'benchmark_catalog_unavailable', 'benchmark_transport_failed', 'benchmark_missing_answer']);
 const retryable = error => error instanceof ResearchError && TRANSIENT_MODEL_ERRORS.includes(error.message)
   && error.retryable !== false && !TERMINAL_UPSTREAM_STATUSES.includes(error.diagnostic.upstreamStatus);
 export const MAX_MODEL_RETRIES = 3;
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+// A ranked model's failure names the model the lab asked for, whatever went wrong.
+async function identified(provider, model, send) {
+  try { return await send(); } catch (error) {
+    if (error instanceof ResearchError && !error.diagnostic.model)
+      error.diagnostic = new ResearchError(error.message, { ...error.diagnostic, provider, model }).diagnostic;
+    throw error;
+  }
+}
 
 // A call may ask for the deep limit ({ deep: true }): the tree-search hypothesis and claim steps,
 // where a reasoning model's own reasoning counts against the limit. It gets longer timeouts.
@@ -63,16 +73,16 @@ export function createLabClient({ key, api = LAB_API, completionTokenLimit = 409
         body: JSON.stringify(body),
       });
       if (!(body.tool ? [200, 422] : [200]).includes(response.status)) {
-        let code = `${kind}_http_error`, upstreamStatus;
+        let code = `${kind}_http_error`, upstreamStatus, provider, model;
         try {
           const data = await readJson(response);
           if (kind === 'model' && ['model_upstream_http_error', 'model_output_truncated',
             'model_empty_response', 'model_invalid_response', 'model_transport_error'].includes(data?.error)) {
             code = data.error;
-            upstreamStatus = data.upstreamStatus;
+            ({ upstreamStatus, provider, model } = data);
           }
         } catch { /* An untrusted body never becomes public diagnostic text. */ }
-        throw new ResearchError(code, { httpStatus: response.status, upstreamStatus });
+        throw new ResearchError(code, { httpStatus: response.status, upstreamStatus, provider, model });
       }
       return { status: response.status, data: await readJson(response) };
     } catch (error) {
@@ -101,10 +111,11 @@ export function createLabClient({ key, api = LAB_API, completionTokenLimit = 409
     benchmark_invalid_finish_reason: 'incomplete_model_response',
     benchmark_token_budget_exceeded: 'model_budget_not_applied',
     benchmark_missing_answer: 'model_empty_response',
+    benchmark_output_truncated: 'model_output_truncated',
     benchmark_model_identity_mismatch: 'model_identity_mismatch',
   });
   // The request may include a catalog lookup (up to 25 s) before the 50-second lab completion.
-  const researchProposer = ({ provider, model, root }) => lockModel((messages, { deep = false } = {}) => modelCall(async () => {
+  const researchProposer = ({ provider, model, root }) => lockModel((messages, { deep = false } = {}) => modelCall(() => identified(provider, model, async () => {
     const payload = { provider, model, profile: deep ? 'lab-deep' : 'lab', max_tokens: deep ? DEEP_TOKEN_LIMIT : completionTokenLimit, messages: [{ role: 'user',
       content: JSON.stringify({ instruction: 'Följ denna konversation och svara endast med begärd JSON.', messages }) }] };
     let response;
@@ -116,7 +127,7 @@ export function createLabClient({ key, api = LAB_API, completionTokenLimit = 409
     let data;
     try { data = await readJson(response); } catch { throw new ResearchError('model_invalid_response', { httpStatus: response.status }); }
     if (response.status !== 200) {
-      const error = new ResearchError(GATEWAY_ERRORS[data?.error] ?? 'model_upstream_http_error', { httpStatus: response.status });
+      const error = new ResearchError(GATEWAY_ERRORS[data?.error] ?? 'model_upstream_http_error', { httpStatus: response.status, provider, model });
       error.retryable = RETRYABLE_GATEWAY_ERRORS.includes(data?.error);
       throw error;
     }
@@ -126,6 +137,6 @@ export function createLabClient({ key, api = LAB_API, completionTokenLimit = 409
     if (root && data.resolved_model !== root) throw new ResearchError('model_identity_mismatch');
     if (data.finish_reason !== 'stop') throw new ResearchError('model_output_truncated');
     return { text: unwrapJsonAnswer(data.answer), provider: data.provider, model: data.model };
-  }));
+  })));
   return { query, proposer, researchProposer, modelCalls: () => modelCalls, modelRetries: () => modelRetries };
 }

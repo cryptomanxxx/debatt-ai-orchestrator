@@ -5,6 +5,9 @@ export type CompletionTokenLimit = 1024 | 4096 | 8192;
 export class ModelRequestError extends Error {
   code: string;
   upstreamStatus?: number;
+  // The model that was called, so a failure still says which one failed (set by orchestrate).
+  provider?: string;
+  model?: string;
   constructor(code: 'model_upstream_http_error' | 'model_output_truncated' | 'model_empty_response'
     | 'model_invalid_response' | 'model_transport_error', upstreamStatus?: number) {
     super(code);
