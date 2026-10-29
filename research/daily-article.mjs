@@ -8,7 +8,8 @@ import { readdir, readFile } from 'node:fs/promises';
 // every number and every wording that would overstate a result; an article that fails is not
 // published and the day's report says why. Nothing here is peer-reviewed.
 
-export const ARTICLE_MODEL_CALLS = 1;
+// One draft and, when the lab rejects it, one rewrite told which rule it broke.
+export const ARTICLE_MODEL_CALLS = 2;
 export const ARTICLE_SCHEMA = 'oraklet-article-1';
 const MAX_FACTS = 40, MAX_REFERENCES = 8;
 // /v1/query takes 8,000 characters including the lab's wrapper; the request stays below this.
@@ -69,20 +70,25 @@ export function buildFactSheet(day) {
 // merely an empty register or a run without cases.
 export const worthWriting = sheet => sheet.facts.some(f => f.verified);
 
-export function articleMessages(sheet, date) {
+// Room kept in the request for the rewrite's note on why the draft was rejected.
+const FEEDBACK_RESERVE = 400;
+export function articleMessages(sheet, date, feedback = '') {
   return [
     { role: 'system', content: 'Du är Professor Oraklet och skriver dagens korta vetenskapliga artikel på svenska, 300–700 ord: mer en utförlig sammanfattning än en hel artikel. '
       + 'Välj ett sammanhållet ämne bland faktaunderlaget, helst ett verifierat labbresultat, och skriv bara det underlaget säger. '
       + 'Varje mening med ett påstående eller en siffra ska hänvisa till sitt underlag med [F1], [F2] … och litteratur med [R1], [R2] …; hitta aldrig på siffror, källor eller resultat. '
       + 'Skriv alla tal med siffror, aldrig med ord som "tre" eller "hälften". Varje mening ska ha minst en hänvisning. En siffra får bara stå i en mening som hänvisar till ett faktum där just den siffran finns, med samma ord eller tecken efter sig som i faktumet (till exempel "3 av 5 fall", "88 %"); skriv inga datum och ingen annan numrering. Ingen Markdown, inga listor, inga webbadresser. Står flera siffror ur samma faktum i en mening, behåll faktumets ordning. '
-      + 'Skriv "preliminärt stött", aldrig "bevisat" eller "bekräftat"; påstå ingen upptäckt eller något genombrott. Begränsningar ska nämna att allt är syntetiskt eller bygger på sammanfattningar och att inget är granskat. '
-      + 'Labbet sätter rubriken. Svara endast JSON: {"abstract":"…","background":"…","method":"…","results":"…","limitations":"…"}.' },
+      + `Använd aldrig orden ${BANNED_WORDS}, inte ens nekade ("inte bekräftat", "ingen upptäckt" avvisas också); skriv i stället "preliminärt stött", "overifierat" eller "inte granskat". Begränsningar ska nämna att allt är syntetiskt eller bygger på sammanfattningar och att inget är granskat. `
+      + 'Labbet sätter rubriken. Svara endast JSON: {"abstract":"…","background":"…","method":"…","results":"…","limitations":"…"}.'
+      + (feedback ? ` Ditt förra utkast avvisades av labbet: ${feedback} Skriv om hela artikeln så att den följer alla regler.` : '') },
     { role: 'user', content: JSON.stringify({ date, facts: sheet.facts.map(({ id, text }) => ({ id, text })), references: sheet.references.map(({ id, title }) => ({ id, title })) }) },
   ];
 }
 
-// Words that would overstate what a verifier recorded.
-const OVERCLAIM = /\b(bevis\w*|bevisa\w*|bekräft\w*|genombrott\w*|upptäck\w*|banbrytande|fastställ\w*|säkerställ\w*|revolution\w*|definitivt)\b/i;
+// Words that would overstate what a verifier recorded. They are refused even negated: the prompt
+// names them, and a rejected draft gets one rewrite told which word it used.
+const OVERCLAIM = /(?<![\p{L}])(bevis\p{L}*|bekräft\p{L}*|genombrott\p{L}*|upptäck\p{L}*|banbrytande|fastställ\p{L}*|säkerställ\p{L}*|revolution\p{L}*|definitivt)/iu;
+const BANNED_WORDS = '"bevis", "bevisa", "bekräfta", "bekräftelse", "genombrott", "upptäcka", "upptäckt", "banbrytande", "fastställa", "säkerställa", "revolutionerande" och "definitivt"';
 const tags = text => [...text.matchAll(/\[([FR]\d{1,2})\]/g)].map(m => m[1]);
 // A sign written directly before a number belongs to it ("-3*s_1"), so a sign cannot be dropped.
 const NUMBER = '([-+\u2212]?\\d+(?:[.,]\\d+)?)';
@@ -148,7 +154,9 @@ export function checkArticle(text, sheet) {
   if (words < 250 || words > 900) return { problem: 'invalid_length' };
   // Each section is rendered as one paragraph, so a list or heading marker can only open it.
   if (/[`<>|#]|\]\(/.test(body) || SECTIONS.some(([k]) => /^\s*([-*+]|\d+[.)])\s/.test(a[k]))) return { problem: 'markup' };
-  if (OVERCLAIM.test(body)) return { problem: 'overclaim' };
+  const overclaim = body.match(OVERCLAIM);
+  // The word is one of the fixed stems above, so it may be named in the report and the rewrite.
+  if (overclaim) return { problem: 'overclaim', term: overclaim[1].toLowerCase().slice(0, 30) };
   // Only ASCII digits are checked against the facts, so no other numeral or number word may stand in for one.
   if (/(?![0-9])\p{N}/u.test(body) || NUMBER_WORDS.test(body)) return { problem: 'unsupported_number' };
   const known = new Map([...sheet.facts.map(f => [f.id, f.text]), ...sheet.references.map(r => [r.id, r.title])]);
@@ -216,21 +224,34 @@ export async function writeDailyArticle(day, propose, { field }) {
   const sheet = buildFactSheet(day);
   // The request must fit /v1/query: the last facts (literature first) go when it would not.
   // Unverified facts go first, from the end, so a verified result is the last thing cut.
-  while (JSON.stringify(articleMessages(sheet, day.date)).length > MAX_ARTICLE_REQUEST_CHARS && sheet.facts.length > 1)
+  while (JSON.stringify(articleMessages(sheet, day.date)).length > MAX_ARTICLE_REQUEST_CHARS - FEEDBACK_RESERVE && sheet.facts.length > 1)
     sheet.facts.splice(sheet.facts.findLastIndex(f => !f.verified) >= 0 ? sheet.facts.findLastIndex(f => !f.verified) : sheet.facts.length - 1, 1);
   sheet.references = sheet.references.filter(r => sheet.facts.some(f => f.ref === r.id));
   if (!worthWriting(sheet)) return { record: { status: 'skipped', reason: 'no_verified_results', facts: sheet.facts.length } };
-  let answer;
-  try { answer = await propose(articleMessages(sheet, day.date), { deep: true }); }
-  catch (error) { return { record: { status: 'error', reason: /^[a-z_]{3,60}$/.test(error?.message ?? '') ? error.message : 'model_failed', facts: sheet.facts.length } }; }
-  // The call was spent whatever the outcome; the report counts every article call that was made.
-  const checked = checkArticle(answer.text, sheet);
-  if (checked.problem) return { record: { status: 'rejected', reason: checked.problem, facts: sheet.facts.length, model: answer.model ?? null } };
+  // Every call made is counted (calls), whatever its outcome. A rejected draft gets one rewrite,
+  // told only the lab's fixed reason; the rewrite passes the same checks or nothing is published.
+  let answer, checked, calls = 0, first;
+  for (const feedback of ['', null]) {
+    const note = feedback ?? rewriteNote(checked);
+    calls++;
+    try { answer = await propose(articleMessages(sheet, day.date, note), { deep: true }); }
+    catch (error) { return { record: { status: 'error', reason: /^[a-z_]{3,60}$/.test(error?.message ?? '') ? error.message : 'model_failed', facts: sheet.facts.length, calls, ...(first ? { first } : {}) } }; }
+    checked = checkArticle(answer.text, sheet);
+    if (!checked.problem) break;
+    first ??= problemRecord(checked);
+  }
+  if (checked.problem) return { record: { status: 'rejected', ...problemRecord(checked), facts: sheet.facts.length, model: answer.model ?? null, calls, first } };
   // One stable file per date: a rerun the same day replaces the day's article instead of adding one.
   const file = `${day.date}.md`;
-  return { record: { status: 'published', file, title: checked.article.title, words: checked.words, facts: sheet.facts.length,
+  return { record: { status: 'published', file, title: checked.article.title, words: checked.words, facts: sheet.facts.length, calls, ...(first ? { first } : {}),
     cited: [...new Set(SECTIONS.flatMap(([k]) => tags(checked.article[k])))].sort(), model: answer.model ?? null },
   file, markdown: renderArticle(checked.article, sheet, { date: day.date, field, model: `${answer.provider ?? ''} ${answer.model ?? ''}`.trim() }) };
+}
+
+const problemRecord = c => ({ reason: c.problem, ...(c.term ? { term: c.term } : {}) });
+// The rewrite is told the rule in the lab's own words, never any model text.
+function rewriteNote(c) {
+  return `${ARTICLE_REASONS[c.problem] ?? 'en kontroll misslyckades'}${c.term ? ` (ordet "${c.term}")` : ''}.`;
 }
 
 export const ARTICLE_REASONS = Object.freeze({
