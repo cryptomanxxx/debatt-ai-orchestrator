@@ -97,11 +97,13 @@ export function designLines(r) {
   return L;
 }
 
+// The article's calls as made; a stage that timed out or failed before saying is counted in full.
+const articleCalls = a => !a || a.status === 'skipped' ? 0 : Number.isInteger(a.calls) ? a.calls : ARTICLE_MODEL_CALLS;
 const fail = error => ({ status: 'error', code: /^[a-z_]{3,60}$/.test(error?.message ?? '') ? error.message : 'stage_failed' });
 // Each stage has a deadline inside the 60-minute job, so the report is always written even when a
 // provider or database stalls. The CLI exits after writing, so a stage still pending cannot hold the job.
 export const STAGE_DEADLINES_MS = Object.freeze({ pipeline: 35 * 60_000, tree: 3 * 60_000, novelty: 3 * 60_000,
-  problem_bank: 3 * 60_000, lab: 2 * 60_000, memory: 2 * 60_000, article: 4 * 60_000 });
+  problem_bank: 3 * 60_000, lab: 2 * 60_000, memory: 2 * 60_000, article: 6 * 60_000 });
 const within = (name, promise, deadlines) => {
   let timer;
   return Promise.race([promise, new Promise((_, reject) => {
@@ -174,7 +176,7 @@ export function renderAiBus(day, { articles = 'artiklar/' } = {}) {
     '## Sammanfattning', '',
     `- **Fält i dag:** ${FIELD_NAMES[day.field] ?? md(day.field)}${p.query ? ` (sökfråga: ${md(p.query, 120)})` : ''}`,
     !Array.isArray(p.stages) ? '- **Litteratur:** okänt; pipelinen misslyckades innan något sparades.' :
-    `- **Litteratur:**${p.status === 'error' ? ' (pipelinen avbröts; siffrorna gäller det som hann sparas)' : ''} ${num(collection?.metadata?.returned_records)} träffar hittade, ${num(collection?.abstracts?.available)} sammanfattningar arkiverade, ${analyzed} sammanfattningar analyserade, ${findings} citerade fynd. Modellanrop: ${num(p.budget?.known_model_calls) + (day.article && day.article.status !== 'skipped' ? ARTICLE_MODEL_CALLS : 0)} av ${day.model_budget}.`,
+    `- **Litteratur:**${p.status === 'error' ? ' (pipelinen avbröts; siffrorna gäller det som hann sparas)' : ''} ${num(collection?.metadata?.returned_records)} träffar hittade, ${num(collection?.abstracts?.available)} sammanfattningar arkiverade, ${analyzed} sammanfattningar analyserade, ${findings} citerade fynd. Modellanrop: ${num(p.budget?.known_model_calls) + articleCalls(day.article)} av ${day.model_budget}.`,
     `- **Ny hypoteskandidat:** ${p.candidate ? '1' : 'ingen'}${queue.length ? `; granskningskö med ${queue.length} förslag till studier` : ''}`,
     day.problem_bank?.status === 'error' ? '- **Problem Bank:** okänt; registreringen misslyckades.' :
     `- **Problem Bank:** ${bank.filter(b => b.action === 'registered').length} nya problem registrerade automatiskt, ${bank.filter(b => b.action === 'requires_human_approval').length} väntar på ditt godkännande`,
@@ -182,7 +184,7 @@ export function renderAiBus(day, { articles = 'artiklar/' } = {}) {
     `- **Experiment ${labScope}:** ${lab.length} körningar, ${lab.reduce((n, r) => n + r.passed, 0)} av ${lab.reduce((n, r) => n + r.cases, 0)} fall godkända`,
     ...(day.article ? [day.article.status === 'published'
       ? `- **Dagens artikel:** [${md(day.article.title, 140)}](${articles}${day.article.file})`
-      : `- **Dagens artikel:** ingen i dag (${md(ARTICLE_REASONS[day.article.reason] ?? day.article.reason ?? day.article.code, 80)})`] : []),
+      : `- **Dagens artikel:** ingen i dag (${md(ARTICLE_REASONS[day.article.reason] ?? day.article.reason ?? day.article.code, 80)}${day.article.term ? `, ordet "${md(day.article.term, 30)}"` : ''}${day.article.first ? `; även första utkastet avvisades: ${md(ARTICLE_REASONS[day.article.first.reason] ?? day.article.first.reason, 80)}${day.article.first.term ? `, ordet "${md(day.article.first.term, 30)}"` : ''}` : ''})`] : []),
     ...(day.errors?.length ? [`- **Driftfel:** ${day.errors.map(e => md(e, 30)).join(', ')} (se nedan)`] : []), ''];
 
   L.push('## Litteratur', '', `Pipelinen: ${status(p.status)}.`, '');
