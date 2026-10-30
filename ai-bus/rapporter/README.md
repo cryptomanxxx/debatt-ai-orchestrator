@@ -2,6 +2,7 @@
 
 En rapport per dag om vad Oraklet läste, fann och körde. Den senaste finns alltid i [../senaste.md](../senaste.md). Se [research/LITERATURE-DAY.md](../../research/LITERATURE-DAY.md).
 
+- [2026-10-30](2026-10-30.md)
 - [2026-10-29](2026-10-29.md)
 - [2026-10-28](2026-10-28.md)
 - [2026-10-27](2026-10-27.md)
