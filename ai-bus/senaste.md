@@ -5,12 +5,11 @@
 ## Sammanfattning
 
 - **Fält i dag:** Kausal inferens (sökfråga: causal inference machine learning)
-- **Litteratur:** 40 träffar hittade, 8 sammanfattningar arkiverade, 6 sammanfattningar analyserade, 14 citerade fynd. Modellanrop: 4 av 13.
+- **Litteratur:** 40 träffar hittade, 8 sammanfattningar arkiverade, 6 sammanfattningar analyserade, 13 citerade fynd. Modellanrop: 4 av 13.
 - **Ny hypoteskandidat:** 1; granskningskö med 6 förslag till studier
 - **Problem Bank:** 0 nya problem registrerade automatiskt, 0 väntar på ditt godkännande
 - **Experiment senaste dygnet:** 1 körningar, 0 av 0 fall godkända
-- **Dagens artikel:** ingen i dag (model\_upstream\_http\_error; tidigare utkast avvisades: en siffra fanns inte i det hänvisade underlaget; texten var inte 250–900 ord)
-- **Driftfel:** article (se nedan)
+- **Dagens artikel:** ingen i dag (texten överdrev vad verifieringen visar, ordet "bekräftelse"; tidigare utkast avvisades: texten överdrev vad verifieringen visar, ordet "bekräftade"; en siffra fanns inte i det hänvisade underlaget)
 
 ## Litteratur
 
@@ -24,7 +23,7 @@ Pipelinen: delvis slutförd.
 | Deep Learning for Causal Inference | summarized | 2 |
 | Artificial intelligence in gut-brain axis research for Alzheimer’s disease: From associative insights toward causal inference and personalized interventions | summarized | 3 |
 | Modeling Adaptive Cyber Fraud Patterns Using Causal Inference and Digital Twin Simulations in Critical Infrastructure Protection Systems. | summarized | 3 |
-| Integrating Causal Inference with Digital Twin Modeling for Individualized Mental Health Research | summarized | 2 |
+| Integrating Causal Inference with Digital Twin Modeling for Individualized Mental Health Research | summarized | 1 |
 
 ### Utdrag ur fynden
 
@@ -70,7 +69,7 @@ möjlig överlappning hittad; 9 senare verk att granska. Att inget hittas inom b
 
 ## Problem Bank
 
-- `oraklet-dowhy-backdoor-001` → `dowhy-backdoor`: redan registrerad. Litteratur: Does adjusting for an identified confounder recover a causal effect that the unadjusted association misstates? (2 artiklar)
+- `oraklet-dowhy-backdoor-001` → `dowhy-backdoor`: redan registrerad. Litteratur: Does adjusting for an identified confounder recover a causal effect that the unadjusted association misstates? (1 artiklar)
 
 Registrerade problem erbjuds den dagliga labbkörningen, som kan välja att arbeta på dem.
 
