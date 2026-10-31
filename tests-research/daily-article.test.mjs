@@ -165,6 +165,10 @@ test('the daily article: one deep call, skipped without verified results, reject
   assert.deepEqual([rejected.record.status, rejected.record.reason, rejected.file], ['rejected', 'overclaim', undefined]);
   const skipped = await writeDailyArticle({ date: day.date, pipeline: day.pipeline }, () => assert.fail('no model call'), { field: 'x' });
   assert.deepEqual(skipped.record, { status: 'skipped', reason: 'no_verified_results', facts: 1 });
+  const { ResearchError } = await import('../research/errors.mjs');
+  const limited = await writeDailyArticle(day, async () => { throw new ResearchError('model_upstream_http_error', { httpStatus: 502, upstreamStatus: 429, provider: 'hip', model: 'GLM-5.2' }); }, { field: 'x' });
+  assert.deepEqual([limited.record.reason, limited.record.upstreamStatus, limited.record.provider, limited.record.model], ['model_upstream_http_error', 429, 'hip', 'GLM-5.2'], 'a failed call names its model and status');
+  assert.match(renderAiBus({ date: day.date, field: 'x', model_budget: 13, pipeline: {}, article: limited.record }), /ingen i dag \(model\\_upstream\\_http\\_error, hip\/GLM-5\.2 svarade HTTP 429\)/);
   const failed = await writeDailyArticle(day, async () => { throw new Error('model_output_truncated'); }, { field: 'x' });
   assert.deepEqual([failed.record.status, failed.record.reason, failed.record.calls], ['error', 'model_output_truncated', 1]);
 });
@@ -193,6 +197,8 @@ test('a rejected draft gets up to two rewrites, each told what it broke; the dra
   assert.deepEqual(rejected.record, { status: 'rejected', reason: 'unsupported_number', facts: rejected.record.facts, model: 'glm', calls: 3,
     earlier: [{ reason: 'overclaim', term: 'bekräftar' }, { reason: 'unsupported_number' }] });
   assert.equal(sent.length, 3, 'never a fourth call');
+  const short = checkArticle(article({ abstract: 'Kort [F3].', background: 'Kort [F3].', method: 'Kort [F4].', results: 'Kort [F1].', limitations: 'Kort [F1].' }), buildFactSheet(day));
+  assert.deepEqual([short.problem, short.number], ['invalid_length', '10 ord; skriv 300–700'], 'the rewrite is told the length it wrote');
   assert.equal(rejected.drafts.length, 3);
   assert.doesNotMatch(JSON.stringify(rejected.record), /Labbkörningen|granskare/, 'no model text in the record that reaches ai-bus');
   const md = renderAiBus({ date: day.date, field: 'Causal inference', model_budget: 13, pipeline: {}, article: rejected.record });

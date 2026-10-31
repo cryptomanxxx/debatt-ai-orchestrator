@@ -102,8 +102,11 @@ const articleCalls = a => !a || a.status === 'skipped' ? 0 : Number.isInteger(a.
 const fail = error => ({ status: 'error', code: /^[a-z_]{3,60}$/.test(error?.message ?? '') ? error.message : 'stage_failed' });
 // Each stage has a deadline inside the 60-minute job, so the report is always written even when a
 // provider or database stalls. The CLI exits after writing, so a stage still pending cannot hold the job.
-export const STAGE_DEADLINES_MS = Object.freeze({ pipeline: 33 * 60_000, tree: 3 * 60_000, novelty: 3 * 60_000,
-  problem_bank: 3 * 60_000, lab: 2 * 60_000, memory: 2 * 60_000, article: 8 * 60_000 });
+// The article's calls are paced like the lab's (oraklet-lab.yml): the free models rate-limit
+// back-to-back calls, and a repeat right after a 429 fails again.
+export const ARTICLE_SPACING_MS = 10_000, ARTICLE_RETRY_DELAY_MS = 45_000;
+export const STAGE_DEADLINES_MS = Object.freeze({ pipeline: 31 * 60_000, tree: 3 * 60_000, novelty: 3 * 60_000,
+  problem_bank: 3 * 60_000, lab: 2 * 60_000, memory: 2 * 60_000, article: 10 * 60_000 });
 const within = (name, promise, deadlines) => {
   let timer;
   return Promise.race([promise, new Promise((_, reject) => {
@@ -185,7 +188,7 @@ export function renderAiBus(day, { articles = 'artiklar/' } = {}) {
     `- **Experiment ${labScope}:** ${lab.length} körningar, ${lab.reduce((n, r) => n + r.passed, 0)} av ${lab.reduce((n, r) => n + r.cases, 0)} fall godkända`,
     ...(day.article ? [day.article.status === 'published'
       ? `- **Dagens artikel:** [${md(day.article.title, 140)}](${articles}${day.article.file})`
-      : `- **Dagens artikel:** ingen i dag (${md(ARTICLE_REASONS[day.article.reason] ?? day.article.reason ?? day.article.code, 80)}${day.article.term ? `, ordet "${md(day.article.term, 30)}"` : ''}${Array.isArray(day.article.earlier) && day.article.earlier.length ? `; tidigare utkast avvisades: ${day.article.earlier.slice(0, 3).map(e => `${md(ARTICLE_REASONS[e?.reason] ?? e?.reason, 80)}${e?.term ? `, ordet "${md(e.term, 30)}"` : ''}`).join('; ')}` : ''})`] : []),
+      : `- **Dagens artikel:** ingen i dag (${md(ARTICLE_REASONS[day.article.reason] ?? day.article.reason ?? day.article.code, 80)}${day.article.term ? `, ordet "${md(day.article.term, 30)}"` : ''}${day.article.status === 'error' && day.article.model ? `, ${md(day.article.provider, 30)}/${md(day.article.model, 80)}${Number.isInteger(day.article.upstreamStatus) ? ` svarade HTTP ${day.article.upstreamStatus}` : ''}` : ''}${Array.isArray(day.article.earlier) && day.article.earlier.length ? `; tidigare utkast avvisades: ${day.article.earlier.slice(0, 3).map(e => `${md(ARTICLE_REASONS[e?.reason] ?? e?.reason, 80)}${e?.term ? `, ordet "${md(e.term, 30)}"` : ''}`).join('; ')}` : ''})`] : []),
     ...(day.errors?.length ? [`- **Driftfel:** ${day.errors.map(e => md(e, 30)).join(', ')} (se nedan)`] : []), ''];
 
   L.push('## Litteratur', '', `Pipelinen: ${status(p.status)}.`, '');
@@ -299,7 +302,8 @@ export async function main(env = process.env, { now = new Date().toISOString(), 
   });
   // One model call, on the configured default model, through the lab client's checks.
   const article = deps.article ?? ((e, d) => writeDailyArticle(d,
-    createLabClient({ key: e.ORCHESTRATOR_API_KEY, maxModelCalls: ARTICLE_MODEL_CALLS }).proposer('default'), { field: FIELD_NAMES[d.field] ?? d.field }));
+    createLabClient({ key: e.ORCHESTRATOR_API_KEY, maxModelCalls: ARTICLE_MODEL_CALLS, spacingMs: ARTICLE_SPACING_MS, retryDelayMs: ARTICLE_RETRY_DELAY_MS })
+      .proposer('default'), { field: FIELD_NAMES[d.field] ?? d.field }));
   const day = await runLiteratureDay(env, { date, now, pipeline, register, labReports, memory, article,
     tree: deps.tree ?? treeMain, novelty: deps.novelty ?? (e => noveltyMain(e)) });
   const markdown = renderAiBus(day);
