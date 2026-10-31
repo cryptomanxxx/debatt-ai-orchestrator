@@ -78,7 +78,7 @@ export function articleMessages(sheet, date, feedback = '') {
       + 'Välj ett sammanhållet ämne bland faktaunderlaget, helst ett verifierat labbresultat, och skriv bara det underlaget säger. '
       + 'Varje mening med ett påstående eller en siffra ska hänvisa till sitt underlag med [F1], [F2] … och litteratur med [R1], [R2] …; hitta aldrig på siffror, källor eller resultat. '
       + 'Skriv alla tal med siffror, aldrig med ord som "tre" eller "hälften". Varje mening ska ha minst en hänvisning. En siffra får bara stå i en mening som hänvisar till ett faktum där just den siffran finns, med samma ord eller tecken efter sig som i faktumet (till exempel "3 av 5 fall", "88 %"); skriv inga datum och ingen annan numrering. Ingen Markdown, inga listor, inga webbadresser. Står flera siffror ur samma faktum i en mening, behåll faktumets ordning. '
-      + `Använd inte orden ${BANNED_WORDS}; de får bara stå direkt nekade, som "ingen ny upptäckt" eller "inte bekräftat". Skriv hellre "preliminärt stött", "overifierat" eller "inte granskat". Begränsningar ska nämna att allt är syntetiskt eller bygger på sammanfattningar och att inget är granskat. `
+      + `Använd inte orden ${BANNED_WORDS}; de får bara stå direkt nekade, som "ingen ny upptäckt" eller "inte bekräftat", och "metoder för kausal upptäckt" går bra som namn på en metodfamilj. Skriv hellre "preliminärt stött", "overifierat" eller "inte granskat". Begränsningar ska nämna att allt är syntetiskt eller bygger på sammanfattningar och att inget är granskat. `
       + 'Labbet sätter rubriken. Svara endast JSON: {"abstract":"…","background":"…","method":"…","results":"…","limitations":"…"}.'
       + (feedback ? ` Ditt förra utkast avvisades av labbet: ${feedback} Skriv om hela artikeln så att den följer alla regler.` : '') },
     { role: 'user', content: JSON.stringify({ date, facts: sheet.facts.map(({ id, text }) => ({ id, text })), references: sheet.references.map(({ id, title }) => ({ id, title })) }) },
@@ -93,8 +93,14 @@ export function articleMessages(sheet, date, feedback = '') {
 const OVERCLAIM = /(?<![\p{L}])(bevis\p{L}*|bekräft\p{L}*|genombrott\p{L}*|upptäck\p{L}*|banbrytande|fastställ\p{L}*|säkerställ\p{L}*|revolution\p{L}*|definitivt)/giu;
 const NEGATED = /(?:^|[^\p{L}])(?:inte|ej|ingen|inget|inga|aldrig)((?:\s+\p{L}+){0,2})\s+$/iu;
 const QUALIFIER = /^(en|ett|någon|något|några|ny|nya|nytt|egen|eget|egna|sådan|sådant|sådana|verklig\p{L}*|vetenskaplig\p{L}*|egentlig\p{L}*|slutgiltig\p{L}*|formell\p{L}*|fullständig\p{L}*|heller|ännu)$/iu;
+// "kausal upptäckt" (causal discovery) names a family of methods, not a claim of a discovery, only in
+// the fixed forms "<metod|ramverk|algoritm|verktyg|teknik…> för [ett ord] kausal upptäckt" and "inom
+// kausal upptäckt". "Metoden gav en kausal upptäckt", "beröm för sin kausala upptäckt" and
+// "Oraklet gjorde en kausal upptäckt" stay refused.
+const METHOD_NAME = /(?:(?:metod|ramverk|algoritm|verktyg|teknik)\p{L}*\s+för(?:\s+(?!(?:sin|sina|sitt|hans|hennes|dess|deras|en|ett|egen|eget|egna)(?![\p{L}]))\p{L}+)?|(?:^|[^\p{L}])inom)\s+kausal\s+$/iu;
 function overclaimTerm(text) {
   for (const m of text.matchAll(OVERCLAIM)) {
+    if (m[1].toLowerCase() === 'upptäckt' && METHOD_NAME.test(text.slice(Math.max(0, m.index - 80), m.index))) continue;
     const before = text.slice(Math.max(0, m.index - 60), m.index).match(NEGATED);
     if (!before || !before[1].trim().split(/\s+/).filter(Boolean).every(w => QUALIFIER.test(w))) return m[1].toLowerCase().slice(0, 30);
   }
