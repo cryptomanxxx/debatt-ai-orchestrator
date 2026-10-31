@@ -94,8 +94,10 @@ export function articleMessages(sheet, date, feedback = '') {
 const OVERCLAIM = /(?<![\p{L}])(bevis\p{L}*|bekräft\p{L}*|genombrott\p{L}*|upptäck\p{L}*|banbrytande|fastställ\p{L}*|säkerställ\p{L}*|revolution\p{L}*|definitivt)/giu;
 const NEGATED = /(?:^|[^\p{L}])(inte|ej|ingen|inget|inga|aldrig|utan)((?:\s+\p{L}+){0,2})\s+$/iu;
 const NEGATOR = /(?<![\p{L}])(?:inte|ej|ingen|inget|inga|aldrig|varken)(?![\p{L}])/iu;
-// The sentence the term stands in, up to the term: from the last sentence end before it.
-const sentenceBefore = (text, at) => { const head = text.slice(0, at); const ends = [...head.matchAll(/[.!?]["'\u201D\u2019\u00BB)\]]*\s|\n/g)]; return ends.length ? head.slice(ends.at(-1).index + ends.at(-1)[0].length) : head; };
+// The sentence the term stands in, up to the term, split as the number checks split it, so an
+// abbreviation ("t.ex. slumpen") ends no sentence. The text is one section with its whitespace
+// collapsed, so a line break within it ends no sentence either.
+const sentenceBefore = (text, at) => sentences(text.slice(0, at)).at(-1) ?? '';
 const QUALIFIER = /^(en|ett|någon|något|några|ny|nya|nytt|egen|eget|egna|sådan|sådant|sådana|verklig\p{L}*|vetenskaplig\p{L}*|egentlig\p{L}*|slutgiltig\p{L}*|formell\p{L}*|fullständig\p{L}*|empirisk\p{L}*|experimentell\p{L}*|statistisk\p{L}*|oberoende|extern\p{L}*|direkt\p{L}*|tydlig\p{L}*|heller|ännu)$/iu;
 // "kausal upptäckt" (causal discovery) names a family of methods, not a claim of a discovery, only in
 // the fixed forms "<metod|ramverk|framework|algoritm|verktyg|teknik…> för [ett ord] kausal upptäckt" and "inom
@@ -190,7 +192,9 @@ export function checkArticle(text, sheet) {
   // Each section is rendered as one paragraph, so a list or heading marker can only open it.
   if (/[`<>|#]|\]\(/.test(body) || SECTIONS.some(([k]) => /^\s*([-*+]|\d+[.)])\s/.test(a[k]))) return { problem: 'markup' };
   // The word is one of the fixed stems above, so it may be named in the report and the rewrite.
-  const term = overclaimTerm(body);
+  // Checked per section, whitespace collapsed as when rendered: a line break within a section ends no
+  // sentence, and a section boundary does.
+  const term = SECTIONS.map(([k]) => overclaimTerm(a[k].replace(/\s+/g, ' '))).find(Boolean);
   if (term) return { problem: 'overclaim', term };
   // Only ASCII digits are checked against the facts, so no other numeral or number word may stand in for one.
   if (/(?![0-9])\p{N}/u.test(body)) return { problem: 'unsupported_number' };
