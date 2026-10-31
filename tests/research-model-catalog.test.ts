@@ -51,6 +51,23 @@ test('a rejected key, an exhausted quota and a rate limit are told apart from an
   }
 });
 
+test('each refused catalog body names its own reason',async()=>{
+  const cases:[Response,string][]=[
+    [new Response('x'.repeat(300000),{status:200}),'model_catalog_too_large'],
+    [new Response('{}',{status:200,headers:{'content-length':'300000'}}),'model_catalog_too_large'],
+    [new Response('<html>maintenance</html>',{status:200}),'model_catalog_not_json'],
+    [Response.json({data:'bad'}),'model_catalog_invalid_response'],
+    [Response.json({data:Array.from({length:501},(_,i)=>({id:'m'+i}))}),'model_catalog_too_many_models'],
+    [Response.json({data:Array.from({length:201},(_,i)=>({id:'m'+i}))}),'model_catalog_too_many_models'],
+    [Response.json({data:[{id:'bad id'},{name:'x'}]}),'model_catalog_no_valid_ids'],
+  ];
+  for(const [response,code] of cases)
+    assert.deepEqual(await discoverResearchModels('blablador',keys,(async()=>response) as typeof fetch),{status:502,data:{error:code}});
+  const big=Response.json({data:Array.from({length:120},(_,i)=>({id:'model-'+i,description:'d'.repeat(800)}))});
+  const ok=await discoverResearchModels('blablador',keys,(async()=>big) as typeof fetch);
+  assert.equal(ok.status,200,'a catalog above 64 KiB with metadata is accepted');
+});
+
 test('mixed catalogs retain valid models and discard invalid entries without leaks',async()=>{
   const response=Response.json({data:[
     {id:'alias-kimi-k3-1m'},null,{id:'bad\\nheader'}, {id:keys.BLABLADOR_API_KEY},

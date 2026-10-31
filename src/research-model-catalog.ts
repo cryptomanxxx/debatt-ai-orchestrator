@@ -6,7 +6,9 @@ const SOURCES = {
   blablador: {base:'https://api.blablador.fz-juelich.de/v1',secret:'BLABLADOR_API_KEY'}
 } as const;
 type Provider = keyof typeof SOURCES;
-const MAX_BYTES=65536;
+// The Worker's own clients accept 256 KiB for the catalog; a provider listing many models with
+// metadata can pass 64 KiB.
+const MAX_BYTES=262144;
 const MODEL_ID=/^[a-zA-Z0-9][a-zA-Z0-9_./:+-]{0,199}$/;
 // Backing model ("root") of a catalog entry, e.g. "openai/gpt-oss-120b" or a /p/scratch path.
 const ROOT=/^[a-zA-Z0-9_./:+-]{1,300}$/;
@@ -37,7 +39,7 @@ export async function discoverResearchModels(provider: string, keys: ResearchKey
   }
   if(Number(response.headers.get('content-length')||0)>MAX_BYTES){
     await response.body?.cancel().catch(()=>{});
-    return {status:502,data:{error:'model_catalog_invalid_response'}};
+    return {status:502,data:{error:'model_catalog_too_large'}};
   }
   const reader=response.body?.getReader();
   if(!reader)return {status:502,data:{error:'model_catalog_invalid_response'}};
@@ -47,7 +49,7 @@ export async function discoverResearchModels(provider: string, keys: ResearchKey
       const {value,done}=await reader.read();
       if(done)break;
       size+=value.byteLength;
-      if(size>MAX_BYTES){await reader.cancel();return {status:502,data:{error:'model_catalog_invalid_response'}};}
+      if(size>MAX_BYTES){await reader.cancel();return {status:502,data:{error:'model_catalog_too_large'}};}
       chunks.push(value);
     }
   }catch{return {status:502,data:{error:'model_catalog_transport_failed'}};}
@@ -55,9 +57,12 @@ export async function discoverResearchModels(provider: string, keys: ResearchKey
   try{
     const bytes=new Uint8Array(size);let offset=0;
     for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
-    const parsed=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
-    if(!Array.isArray(parsed?.data) || parsed.data.length>500)
-      return {status:502,data:{error:'model_catalog_invalid_response'}};
+    let parsed;
+    try{parsed=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}
+    catch{return {status:502,data:{error:'model_catalog_not_json'}};}
+    // Each refusal has its own fixed code, so a run says why a catalog was refused.
+    if(!Array.isArray(parsed?.data))return {status:502,data:{error:'model_catalog_invalid_response'}};
+    if(parsed.data.length>500)return {status:502,data:{error:'model_catalog_too_many_models'}};
     // Reuse the established research router strategy: ignore malformed individual
     // rows, not the entire catalog. Keep strict output character and size bounds.
     const ids=[...new Set(parsed.data.flatMap((item:unknown)=>{
@@ -65,8 +70,8 @@ export async function discoverResearchModels(provider: string, keys: ResearchKey
       const id=(item as {id?:unknown}).id;
       return typeof id==='string' && MODEL_ID.test(id) && !id.includes(key) ? [id] : [];
     }))].sort();
-    if(ids.length>200 || (parsed.data.length>0 && ids.length===0))
-      return {status:502,data:{error:'model_catalog_invalid_response'}};
+    if(ids.length>200)return {status:502,data:{error:'model_catalog_too_many_models'}};
+    if(parsed.data.length>0 && ids.length===0)return {status:502,data:{error:'model_catalog_no_valid_ids'}};
     // roots: every entry's backing model (internal only, never returned to callers).
     // aliases: alias-* IDs with a usable root, exported so callers can show what an alias runs.
     const roots=new Map<string,string>();
