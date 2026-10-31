@@ -174,7 +174,7 @@ export function checkArticle(text, sheet) {
   if (SECTIONS.some(([k]) => LINKLIKE.test(a[k]))) return { problem: 'markup' };
   const body = SECTIONS.map(([k]) => a[k]).join('\n');
   const words = body.split(/\s+/).filter(Boolean).length;
-  if (words < 250 || words > 900) return { problem: 'invalid_length' };
+  if (words < 250 || words > 900) return { problem: 'invalid_length', number: `${words} ord; skriv 300–700` };
   // Each section is rendered as one paragraph, so a list or heading marker can only open it.
   if (/[`<>|#]|\]\(/.test(body) || SECTIONS.some(([k]) => /^\s*([-*+]|\d+[.)])\s/.test(a[k]))) return { problem: 'markup' };
   // The word is one of the fixed stems above, so it may be named in the report and the rewrite.
@@ -271,7 +271,13 @@ export async function writeDailyArticle(day, propose, { field }) {
     const note = attempt ? rewriteNote(checked) : '';
     calls++;
     try { answer = await propose(articleMessages(sheet, day.date, note), { deep: true }); }
-    catch (error) { return result({ status: 'error', reason: /^[a-z_]{3,60}$/.test(error?.message ?? '') ? error.message : 'model_failed', facts: sheet.facts.length, calls, ...(earlier.length ? { earlier } : {}) }); }
+    catch (error) {
+      // The lab's bounded diagnostic says which provider and model failed, and with which status.
+      const { upstreamStatus, httpStatus, provider, model } = error?.diagnostic ?? {};
+      return result({ status: 'error', reason: /^[a-z_]{3,60}$/.test(error?.message ?? '') ? error.message : 'model_failed', facts: sheet.facts.length, calls,
+        ...(Number.isInteger(upstreamStatus) ? { upstreamStatus } : {}), ...(Number.isInteger(httpStatus) ? { httpStatus } : {}),
+        ...(provider && model ? { provider, model } : {}), ...(earlier.length ? { earlier } : {}) });
+    }
     checked = checkArticle(answer.text, sheet);
     if (!checked.problem) break;
     drafts.push({ attempt: attempt + 1, ...problemRecord(checked), ...(checked.sentence ? { sentence: clip(checked.sentence, 600) } : {}),
