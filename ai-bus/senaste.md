@@ -9,7 +9,7 @@
 - **Ny hypoteskandidat:** 1; granskningskö med 6 förslag till studier
 - **Problem Bank:** 0 nya problem registrerade automatiskt, 0 väntar på ditt godkännande
 - **Experiment senaste dygnet:** 1 körningar, 0 av 0 fall godkända
-- **Dagens artikel:** ingen i dag (texten överdrev vad verifieringen visar, ordet "bekräftelse"; tidigare utkast avvisades: texten överdrev vad verifieringen visar, ordet "bekräftades"; texten överdrev vad verifieringen visar, ordet "bekräftade")
+- **Dagens artikel:** ingen i dag (en siffra fanns inte i det hänvisade underlaget; tidigare utkast avvisades: texten överdrev vad verifieringen visar, ordet "bevisning"; texten överdrev vad verifieringen visar, ordet "upptäckt")
 
 ## Litteratur
 
