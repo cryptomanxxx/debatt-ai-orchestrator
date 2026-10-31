@@ -16,7 +16,8 @@ const SAFE_ERRORS = new Set([
   'benchmark_invalid_finish_reason','benchmark_invalid_upstream_json',
   'research_provider_not_configured','benchmark_alias_unresolved',
   'model_catalog_auth_rejected','model_catalog_quota_exhausted','model_catalog_rate_limited',
-  'model_catalog_upstream_failed','model_catalog_transport_failed','model_catalog_invalid_response'
+  'model_catalog_upstream_failed','model_catalog_transport_failed','model_catalog_invalid_response',
+  'model_catalog_too_large','model_catalog_not_json','model_catalog_too_many_models','model_catalog_no_valid_ids'
 ]);
 async function boundedJson(response, max) {
   const length=Number(response.headers.get('content-length')||0);
