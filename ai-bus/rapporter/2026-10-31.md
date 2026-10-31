@@ -5,11 +5,12 @@
 ## Sammanfattning
 
 - **Fält i dag:** Kausal inferens (sökfråga: causal inference machine learning)
-- **Litteratur:** 30 träffar hittade, 8 sammanfattningar arkiverade, 9 sammanfattningar analyserade, 23 citerade fynd. Modellanrop: 4 av 12.
-- **Ny hypoteskandidat:** 1
+- **Litteratur:** 40 träffar hittade, 8 sammanfattningar arkiverade, 5 sammanfattningar analyserade, 12 citerade fynd. Modellanrop: 6 av 13.
+- **Ny hypoteskandidat:** 1; granskningskö med 6 förslag till studier
 - **Problem Bank:** 0 nya problem registrerade automatiskt, 0 väntar på ditt godkännande
 - **Experiment senaste dygnet:** 1 körningar, 0 av 0 fall godkända
-- **Dagens artikel:** ingen i dag (en siffra fanns inte i det hänvisade underlaget; även första utkastet avvisades: texten överdrev vad verifieringen visar, ordet "bekräftades")
+- **Dagens artikel:** ingen i dag (model\_upstream\_http\_error; tidigare utkast avvisades: texten överdrev vad verifieringen visar, ordet "upptäckt")
+- **Driftfel:** article (se nedan)
 
 ## Litteratur
 
@@ -17,27 +18,24 @@ Pipelinen: delvis slutförd.
 
 | Artikel | Status | Fynd |
 | --- | --- | --- |
-| Alpha-TCM: A Nine-Layer Framework for TCM-Guided Multimodal Inference and Structured-Prior Auditing | error | 0 |
+| Applied Statistics and Machine Learning for Social Science Research | insufficient\_evidence | 0 |
+| Alpha-TCM: A Nine-Layer Framework for TCM-Guided Multimodal Inference and Structured-Prior Auditing | summarized | 3 |
 | Causal ML: Python package for causal inference machine learning | summarized | 1 |
 | Deep Learning for Causal Inference | summarized | 2 |
-| Evaluating Causal Reasoning in LLMs: A Case Study in the Challenges of Procedural Generation | summarized | 2 |
-| Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound | summarized | 3 |
-| Integrated machine learning and causal inference reveal CHRDL1 as a diagnostic and functional biomarker in NSCLC | summarized | 3 |
-| Machine learning-causal inference based on multi-omics data reveals the association of altered gut bacteria and bile acid metabolism with neonatal jaundice | summarized | 3 |
-| Machine Learning in Causal Inference: Application in Pharmacovigilance | summarized | 3 |
-| Machine learning and causal inference applied to the gut metagenome-metabolome axis reveals a link between neonatal jaundice and autism spectrum disorder | summarized | 3 |
-| Explainable machine learning and causal inference reveal habitat-specific environmental and functional-trait drivers of zooplankton biodiversity in a karst rive | summarized | 3 |
+| Artificial intelligence in gut-brain axis research for Alzheimer’s disease: From associative insights toward causal inference and personalized interventions | summarized | 3 |
+| Modeling Adaptive Cyber Fraud Patterns Using Causal Inference and Digital Twin Simulations in Critical Infrastructure Protection Systems. | summarized | 3 |
+| Integrating Causal Inference with Digital Twin Modeling for Individualized Mental Health Research | error | 0 |
 
 ### Utdrag ur fynden
 
+- **method:** A synthetic prototype uses four conditional-Gaussian encoders for multimodal inputs and a frozen bridge to predict outcomes. *(Alpha-TCM: A Nine-Layer Framework for TCM-Guided Multimodal Inference and Structured-Prior Auditing)*
+- **result:** Contextual knowledge reduced mean absolute error compared to marginal committee fusion at 600 and 1,200 cases, but not compared to equal‑information neural controls. *(Alpha-TCM: A Nine-Layer Framework for TCM-Guided Multimodal Inference and Structured-Prior Auditing)*
+- **limitation:** The prototype makes no claims about clinical, diagnostic, therapeutic, causal, longitudinal, or transfer validity of TCM. *(Alpha-TCM: A Nine-Layer Framework for TCM-Guided Multimodal Inference and Structured-Prior Auditing)*
 - **method:** Causal ML provides uplift modeling and causal inference methods using machine learning algorithms. *(Causal ML: Python package for causal inference machine learning)*
 - **method:** Provides an introduction to building and optimizing custom deep learning models for heterogeneous treatment effect estimation. *(Deep Learning for Causal Inference)*
 - **limitation:** Current causal inference methods do not yet handle non-linear, time‑varying, or text/network/image confounding. *(Deep Learning for Causal Inference)*
-- **result:** Simple models such as random forests achieve high performance on CLadder-generated data after training on a sample. *(Evaluating Causal Reasoning in LLMs: A Case Study in the Challenges of Procedural Generation)*
-- **result:** Commercial LLMs are extremely brittle on CLadder tests, and removing critical text sections has little impact on their performance. *(Evaluating Causal Reasoning in LLMs: A Case Study in the Challenges of Procedural Generation)*
-- **method:** Used integrated analysis of monitoring, satellite, and reanalysis data with explainable machine learning and causal inference. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
-- **result:** Elevated temperature and solar radiation explained 57% of the ozone increase. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
-- **limitation:** Chemical transport models are computationally intensive, and machine learning struggles with confounding and causality. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
+- **method:** AI frameworks for hypothesis‑generating causal discovery to prioritize microbiota‑AD relationships for experimental validation *(Artificial intelligence in gut-brain axis research for Alzheimer’s disease: From associative insight)*
+- **method:** Multi‑modal fusion networks with regularization and validation to build cross‑scale molecular maps of microbiota, metabolites, and the brain *(Artificial intelligence in gut-brain axis research for Alzheimer’s disease: From associative insight)*
 
 ## Hypoteskandidat
 
@@ -45,11 +43,20 @@ Pipelinen: delvis slutförd.
 
 **Hypotes:** The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested.
 
-Underlag: 3 artiklar, 0 rapporterade begränsningar att granska. Status: overifierad, inget experiment kört.
+Underlag: 3 artiklar, 1 rapporterade begränsningar att granska. Status: overifierad, inget experiment kört.
 
 ## Granskningskö (agentisk trädsökning)
 
-Status: kräver verifiering.
+Status: granskningskö skapad.
+
+| # | Gren | Hypotes |
+| --- | --- | --- |
+| 1 | candidate | The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested. |
+| 2 | null-test | Test whether the candidate intervention fails to improve the primary outcome over a matched baseline under pre-registered held-out conditions. |
+| 3 | replication | Test whether the candidate intervention changes the primary outcome relative to a matched baseline on independent held-out data. |
+| 4 | candidate | The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested. |
+| 5 | null-test | Test whether the candidate intervention fails to improve the primary outcome over a matched baseline under pre-registered held-out conditions. |
+| 6 | replication | Test whether the candidate intervention changes the primary outcome relative to a matched baseline on independent held-out data. |
 
 ## Nyhetskontroll (citeringsgraf)
 
@@ -63,7 +70,7 @@ möjlig överlappning hittad; 9 senare verk att granska. Att inget hittas inom b
 
 ## Problem Bank
 
-- `oraklet-dowhy-backdoor-001` → `dowhy-backdoor`: redan registrerad. Litteratur: Does adjusting for an identified confounder recover a causal effect that the unadjusted association misstates? (3 artiklar)
+- `oraklet-dowhy-backdoor-001` → `dowhy-backdoor`: redan registrerad. Litteratur: Does adjusting for an identified confounder recover a causal effect that the unadjusted association misstates? (1 artiklar)
 
 Registrerade problem erbjuds den dagliga labbkörningen, som kan välja att arbeta på dem.
 
