@@ -93,13 +93,14 @@ export function articleMessages(sheet, date, feedback = '') {
 const OVERCLAIM = /(?<![\p{L}])(bevis\p{L}*|bekräft\p{L}*|genombrott\p{L}*|upptäck\p{L}*|banbrytande|fastställ\p{L}*|säkerställ\p{L}*|revolution\p{L}*|definitivt)/giu;
 const NEGATED = /(?:^|[^\p{L}])(?:inte|ej|ingen|inget|inga|aldrig)((?:\s+\p{L}+){0,2})\s+$/iu;
 const QUALIFIER = /^(en|ett|någon|något|några|ny|nya|nytt|egen|eget|egna|sådan|sådant|sådana|verklig\p{L}*|vetenskaplig\p{L}*|egentlig\p{L}*|slutgiltig\p{L}*|formell\p{L}*|fullständig\p{L}*|heller|ännu)$/iu;
-// "kausal upptäckt" (causal discovery) names a family of methods, not a claim of a discovery, when
-// the clause speaks of the methods ("ramverk för … kausal upptäckt", "inom kausal upptäckt"):
-// "Oraklet gjorde en kausal upptäckt" stays refused.
-const METHOD_NAME = /(?:^|[^\p{L}])(?:för|inom|metod\p{L}*|ramverk\p{L}*|algoritm\p{L}*|verktyg\p{L}*|fältet|området)(?:\s+[\p{L}-]+){0,2}\s+kausal[at]?[\s-]+$/iu;
+// "kausal upptäckt" (causal discovery) names a family of methods, not a claim of a discovery, only in
+// the fixed forms "<metod|ramverk|algoritm|verktyg|teknik…> för [ett ord] kausal upptäckt" and "inom
+// kausal upptäckt". "Metoden gav en kausal upptäckt", "beröm för sin kausala upptäckt" and
+// "Oraklet gjorde en kausal upptäckt" stay refused.
+const METHOD_NAME = /(?:(?:metod|ramverk|algoritm|verktyg|teknik)\p{L}*\s+för(?:\s+(?!(?:sin|sina|sitt|hans|hennes|dess|deras|en|ett|egen|eget|egna)(?![\p{L}]))\p{L}+)?|(?:^|[^\p{L}])inom)\s+kausal\s+$/iu;
 function overclaimTerm(text) {
   for (const m of text.matchAll(OVERCLAIM)) {
-    if (/^upptäckt/i.test(m[1]) && METHOD_NAME.test(text.slice(Math.max(0, m.index - 80), m.index))) continue;
+    if (m[1].toLowerCase() === 'upptäckt' && METHOD_NAME.test(text.slice(Math.max(0, m.index - 80), m.index))) continue;
     const before = text.slice(Math.max(0, m.index - 60), m.index).match(NEGATED);
     if (!before || !before[1].trim().split(/\s+/).filter(Boolean).every(w => QUALIFIER.test(w))) return m[1].toLowerCase().slice(0, 30);
   }
