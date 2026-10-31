@@ -1,38 +1,47 @@
-# Professor Oraklets dag – 2026-10-30
+# Professor Oraklets dag – 2026-10-31
 
 *Skriven automatiskt av Oraklets dagliga litteraturforskning. Siffrorna kommer från sparade rapporter, inte från en modells egen sammanfattning. Kandidater och hypoteser är overifierade; inget här påstår en ny vetenskaplig upptäckt.*
 
 ## Sammanfattning
 
-- **Fält i dag:** AI för vetenskaplig upptäckt (sökfråga: AI agents scientific discovery)
-- **Litteratur:** 30 träffar hittade, 6 sammanfattningar arkiverade, 3 sammanfattningar analyserade, 4 citerade fynd. Modellanrop: 3 av 12.
+- **Fält i dag:** Kausal inferens (sökfråga: causal inference machine learning)
+- **Litteratur:** 30 träffar hittade, 8 sammanfattningar arkiverade, 9 sammanfattningar analyserade, 23 citerade fynd. Modellanrop: 4 av 12.
 - **Ny hypoteskandidat:** 1
 - **Problem Bank:** 0 nya problem registrerade automatiskt, 0 väntar på ditt godkännande
 - **Experiment senaste dygnet:** 1 körningar, 0 av 0 fall godkända
-- **Dagens artikel:** ingen i dag (texten överdrev vad verifieringen visar, ordet "upptäckter"; även första utkastet avvisades: texten överdrev vad verifieringen visar, ordet "upptäckt")
+- **Dagens artikel:** ingen i dag (en siffra fanns inte i det hänvisade underlaget; även första utkastet avvisades: texten överdrev vad verifieringen visar, ordet "bekräftades")
 
 ## Litteratur
 
-Pipelinen: inga tillräckligt relevanta uppföljningsträffar.
+Pipelinen: delvis slutförd.
 
 | Artikel | Status | Fynd |
 | --- | --- | --- |
-| Towards Scientific Discovery with Generative AI: Progress, Opportunities, and Challenges | summarized | 1 |
-| Agentic AI systems for scientific discovery | unavailable | 0 |
-| Software Engineering for AI-Driven Science | summarized | 2 |
-| Semantic Representation for Agentic Self-Play in Automated Laboratories | summarized | 1 |
-| Empowering Biomedical Discovery with AI Agents | unavailable | 0 |
+| Alpha-TCM: A Nine-Layer Framework for TCM-Guided Multimodal Inference and Structured-Prior Auditing | error | 0 |
+| Causal ML: Python package for causal inference machine learning | summarized | 1 |
+| Deep Learning for Causal Inference | summarized | 2 |
+| Evaluating Causal Reasoning in LLMs: A Case Study in the Challenges of Procedural Generation | summarized | 2 |
+| Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound | summarized | 3 |
+| Integrated machine learning and causal inference reveal CHRDL1 as a diagnostic and functional biomarker in NSCLC | summarized | 3 |
+| Machine learning-causal inference based on multi-omics data reveals the association of altered gut bacteria and bile acid metabolism with neonatal jaundice | summarized | 3 |
+| Machine Learning in Causal Inference: Application in Pharmacovigilance | summarized | 3 |
+| Machine learning and causal inference applied to the gut metagenome-metabolome axis reveals a link between neonatal jaundice and autism spectrum disorder | summarized | 3 |
+| Explainable machine learning and causal inference reveal habitat-specific environmental and functional-trait drivers of zooplankton biodiversity in a karst rive | summarized | 3 |
 
 ### Utdrag ur fynden
 
-- **limitation:** Integrated AI systems capable of autonomous long-term scientific research are currently lacking. *(Towards Scientific Discovery with Generative AI: Progress, Opportunities, and Challenges)*
-- **method:** Introduce SE4AI4Sci framework and Scientific Assurance Chain to address AI-driven science reliability. *(Software Engineering for AI-Driven Science)*
-- **result:** Analyze six recent AI-for-science failures to identify break points in the Scientific Assurance Chain and shortcomings of current assurance mechanisms. *(Software Engineering for AI-Driven Science)*
-- **limitation:** Reliable physical execution of experimental designs is limited by static automation and unmodeled variability. *(Semantic Representation for Agentic Self-Play in Automated Laboratories)*
+- **method:** Causal ML provides uplift modeling and causal inference methods using machine learning algorithms. *(Causal ML: Python package for causal inference machine learning)*
+- **method:** Provides an introduction to building and optimizing custom deep learning models for heterogeneous treatment effect estimation. *(Deep Learning for Causal Inference)*
+- **limitation:** Current causal inference methods do not yet handle non-linear, time‑varying, or text/network/image confounding. *(Deep Learning for Causal Inference)*
+- **result:** Simple models such as random forests achieve high performance on CLadder-generated data after training on a sample. *(Evaluating Causal Reasoning in LLMs: A Case Study in the Challenges of Procedural Generation)*
+- **result:** Commercial LLMs are extremely brittle on CLadder tests, and removing critical text sections has little impact on their performance. *(Evaluating Causal Reasoning in LLMs: A Case Study in the Challenges of Procedural Generation)*
+- **method:** Used integrated analysis of monitoring, satellite, and reanalysis data with explainable machine learning and causal inference. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
+- **result:** Elevated temperature and solar radiation explained 57% of the ozone increase. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
+- **limitation:** Chemical transport models are computationally intensive, and machine learning struggles with confounding and causality. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
 
 ## Hypoteskandidat
 
-**Fråga:** Which reported method remains robust under a matched, independent replication?
+**Fråga:** Does adjusting for an identified confounder recover a causal effect that the unadjusted association misstates?
 
 **Hypotes:** The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested.
 
@@ -44,17 +53,17 @@ Status: kräver verifiering.
 
 ## Nyhetskontroll (citeringsgraf)
 
-ingen överlappning hittad inom budgeten; 10 senare verk att granska. Att inget hittas inom budgeten bevisar inte att idén är ny.
+möjlig överlappning hittad; 9 senare verk att granska. Att inget hittas inom budgeten bevisar inte att idén är ny.
 
-- Artificial intelligence integration in materials science (2026)
-- For Factors of AI Integration in Research: Case Study of Russian Laboratories (2026)
-- Progress and ongoing conceptual challenges “on the way to integrative human neuroscience”–ten years after (2026)
-- Transforming mental health research and care through artificial intelligence (2026)
-- Generative artificial intelligence in fifth-generation education systems: A systematic review (2026)
+- A Comprehensive Review and Tutorial on Confounding Adjustment Methods for Estimating Treatment Effects Using Observational Data (2024)
+- Covariate selection and adjustment for efficacy and safety endpoints in indirect comparative effectiveness analyses of CAR-T-cell therapies for large B-cell lymphoma: a systematic review (2026)
+- Causal effects of unintended pregnancy on adverse birth outcomes: A target trial emulation analysis (2026)
+- A Systematic Literature Review of the Effectiveness of CDK 4/6 Inhibitors for First-Line Treatment of HR+/HER2− Advanced/Metastatic Breast Cancer: A Comparison of Real-World Evidence (2026)
+- Application of Causal Inference to Establish Assay Effect in the Absence of a Bridging Study: A Case Study of MenACWY ‐ CRM Conjugate Vaccine Data (2026)
 
 ## Problem Bank
 
-- `oraklet-dowhy-backdoor-001` → `dowhy-backdoor`: redan registrerad. Litteratur: Does adjusting for an identified confounder recover a causal effect that the unadjusted association misstates? (2 artiklar)
+- `oraklet-dowhy-backdoor-001` → `dowhy-backdoor`: redan registrerad. Litteratur: Does adjusting for an identified confounder recover a causal effect that the unadjusted association misstates? (3 artiklar)
 
 Registrerade problem erbjuds den dagliga labbkörningen, som kan välja att arbeta på dem.
 
@@ -62,11 +71,11 @@ Registrerade problem erbjuds den dagliga labbkörningen, som kan välja att arbe
 
 | Experiment | Seed | Status | Godkända fall | Rak fråga (labbet/rak) |
 | --- | --- | --- | --- | --- |
-| act-map-tree | 20261030 | driftfel | 0 av 0 | – |
+| Oraklets experiment kunde inte slutföras | 20261031 | driftfel | 0 av 0 | – |
 
 ## Kunskapsminne (VEM-Sci)
 
-Från de senaste 19 körningarna med register (högst 200): 29 preliminärt stödda, 2 avvisade och 6 olösta påståenden. Labbets planering ser samma register och prioriterar där påståenden inte höll eller belägg saknas.
+Från de senaste 20 körningarna med register (högst 200): 29 preliminärt stödda, 2 avvisade och 6 olösta påståenden. Labbets planering ser samma register och prioriterar där påståenden inte höll eller belägg saknas.
 
 | Experiment | Stödda | Avvisade | Olösta (avstått / utan svar) | Vanligaste felorsaker | Lärprioritet |
 | --- | --- | --- | --- | --- | --- |
@@ -82,7 +91,7 @@ Från de senaste 19 körningarna med register (högst 200): 29 preliminärt stö
 
 ## DeepRAP-mått
 
-Från 19 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experimentens egna oberoende verifierare avgör; varje siffra visas med sitt underlag. Få fall ger stor osäkerhet.
+Från 20 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experimentens egna oberoende verifierare avgör; varje siffra visas med sitt underlag. Få fall ger stor osäkerhet.
 
 | Förmåga | Mått | Värde | Underlag |
 | --- | --- | --- | --- |
