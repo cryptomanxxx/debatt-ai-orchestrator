@@ -43,6 +43,14 @@ test('does not leak upstream credentials, response bodies, or untrusted IDs',asy
   }
 });
 
+test('a rejected key, an exhausted quota and a rate limit are told apart from an outage',async()=>{
+  for(const [status,code] of [[401,'model_catalog_auth_rejected'],[403,'model_catalog_auth_rejected'],[402,'model_catalog_quota_exhausted'],
+    [429,'model_catalog_rate_limited'],[500,'model_catalog_upstream_failed'],[503,'model_catalog_upstream_failed']] as const){
+    const result=await discoverResearchModels('blablador',keys,(async()=>new Response('secret upstream text',{status})) as typeof fetch);
+    assert.deepEqual(result,{status:502,data:{error:code}});
+  }
+});
+
 test('mixed catalogs retain valid models and discard invalid entries without leaks',async()=>{
   const response=Response.json({data:[
     {id:'alias-kimi-k3-1m'},null,{id:'bad\\nheader'}, {id:keys.BLABLADOR_API_KEY},

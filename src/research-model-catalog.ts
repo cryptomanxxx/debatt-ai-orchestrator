@@ -30,7 +30,10 @@ export async function discoverResearchModels(provider: string, keys: ResearchKey
   }catch {return {status:502,data:{error:'model_catalog_transport_failed'}};}
   if(!response.ok) {
     await response.body?.cancel().catch(()=>{});
-    return {status:502,data:{error:'model_catalog_upstream_failed'}};
+    // Distinct fixed codes tell a rejected key or an exhausted quota from an outage; no upstream text.
+    const s=response.status;
+    return {status:502,data:{error:s===401||s===403?'model_catalog_auth_rejected':s===402?'model_catalog_quota_exhausted':
+      s===429?'model_catalog_rate_limited':'model_catalog_upstream_failed'}};
   }
   if(Number(response.headers.get('content-length')||0)>MAX_BYTES){
     await response.body?.cancel().catch(()=>{});

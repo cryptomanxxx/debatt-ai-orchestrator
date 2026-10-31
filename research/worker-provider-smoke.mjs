@@ -14,7 +14,9 @@ const SAFE_ERRORS = new Set([
   'benchmark_invalid_response','benchmark_token_budget_exceeded','benchmark_missing_answer','benchmark_output_truncated',
   'benchmark_response_too_large','benchmark_model_identity_mismatch',
   'benchmark_invalid_finish_reason','benchmark_invalid_upstream_json',
-  'research_provider_not_configured','benchmark_alias_unresolved'
+  'research_provider_not_configured','benchmark_alias_unresolved',
+  'model_catalog_auth_rejected','model_catalog_quota_exhausted','model_catalog_rate_limited',
+  'model_catalog_upstream_failed','model_catalog_transport_failed','model_catalog_invalid_response'
 ]);
 async function boundedJson(response, max) {
   const length=Number(response.headers.get('content-length')||0);
@@ -69,7 +71,9 @@ export async function probe(provider, {key, fetchImpl=fetch}={}) {
   let model;
   try {
     const catalog=(await call(fetchImpl,'/v1/research/models',key))?.providers?.[provider];
-    if(catalog?.status!=='catalog_unverified'||!Array.isArray(catalog.models)) return failed('catalog_failed');
+    // The Worker's own fixed code says why the catalog failed (a rejected key, an outage …).
+    if(catalog?.status!=='catalog_unverified'||!Array.isArray(catalog.models))
+      return failed(typeof catalog?.error==='string'&&SAFE_ERRORS.has(catalog.error)?catalog.error:'catalog_failed');
     const explicit=explicitModels(catalog.models);
     model=explicit.includes(PREFERRED[provider]) ? PREFERRED[provider] : explicit[0];
     if(!model) return failed('no_explicit_chat_model');

@@ -79,3 +79,9 @@ test('reports only allowlisted diagnostic values from a bounded Worker error bod
   },{status:502}))});
   assert.equal(large.error,'http_502');
 });
+test('a failed catalog names the Worker\'s own reason, and only a known one',async()=>{
+  const failing=error=>worker(()=>assert.fail('no benchmark call'),{...catalog,providers:{...catalog.providers,blablador:{error}}});
+  for(const code of ['model_catalog_auth_rejected','model_catalog_quota_exhausted','model_catalog_upstream_failed'])
+    assert.deepEqual(await probe('blablador',{key,fetchImpl:failing(code)}),{provider:'blablador',model:null,status:'failed',error:code});
+  assert.equal((await probe('blablador',{key,fetchImpl:failing('secret upstream text')})).error,'catalog_failed');
+});
