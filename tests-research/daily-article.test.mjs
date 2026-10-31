@@ -118,6 +118,14 @@ test('an article is published only when every citation, number and wording holds
     assert.ok(checkArticle(article({ limitations: ok + ' ' + filler('F1').repeat(3) }), sheet).article, `a direct negation states the opposite: ${ok}`);
   for (const claim of ['Detta är inte bara ett genombrott [F1].', 'Det är inget annat än en upptäckt [F1].', 'Det råder ingen tvekan om att detta bevisar allt [F1].', 'Ingen kan förneka genombrottet [F1].', 'Resultatet bekräftar modellen [F1].', 'Oraklet gjorde en kausal upptäckt [F1].', 'Metoden gav en kausal upptäckt [F1].', 'Oraklet får beröm för sin kausala upptäckt [F1].', 'Ramverket för sin kausal upptäckt fick pris [F1].', 'Inom kausal upptäckten finns ett genombrott [F1].', 'Det är en kausalt viktig upptäckt [F1].', 'Detta är inte ett preliminärt resultat utan ett genombrott [F1].', 'Detta är inte resultat utan genombrott [F1].', 'Resultatet är inte utan bevis [F1].', 'Utan tvekan ett genombrott [F1].', 'Resultatet är inte preliminärt och bevisar hypotesen [F1].', 'Detta är inte längre en hypotes, det bevisar [F1].'])
     assert.equal(problem({ limitations: claim + ' ' + filler('F1').repeat(3) }), 'overclaim', `a claim stays refused: ${claim}`);
+  const labelled = buildFactSheet({ ...day, memory: { ...day.memory, deeprap: { ...day.memory.deeprap, abstraction: { ...day.memory.deeprap.abstraction,
+    protocols: [...day.memory.deeprap.abstraction.protocols, { protocol: 'act-map-budget-v1', label: 'två ingrepp', cases: 2, passed: 2, rate: 1 }] } } } });
+  const budgetFact = labelled.facts.find(f => f.text.includes('två ingrepp')).id;
+  assert.ok(checkArticle(article({ results: `Två\u2011ingrepps\u2011varianten gav rätt beslut i 2 av 2 fall [${budgetFact}]. ` + filler('F1').repeat(3) }), labelled).article,
+    'a number word the cited fact uses itself, as in a label, passes');
+  const spelled = checkArticle(article({ results: `Två\u2011ingrepps\u2011varianten gav rätt beslut i 2 av 2 fall [F1]. ` + filler('F1').repeat(3) }), labelled);
+  assert.deepEqual([spelled.problem, spelled.number], ['unsupported_number', '"två" (skriv talet med siffror)'], 'elsewhere it is refused, and the rewrite is told the word and the sentence');
+  assert.match(spelled.sentence, /Två.ingrepps.varianten/);
   for (const link of ['https://evil.example/path', 'www.evil.example', 'ftp://x.y', 'oraklet@evil.example'])
     assert.equal(problem({ results: `Se ${link} [F1]. ` + filler('F1').repeat(3) }), 'markup', `no autolinked ${link}`);
   assert.ok(checkArticle(article({ results: 'Det gäller t.ex. syntetiska fall, bl.a. små mekanismer [F1]. ' + filler('F1').repeat(3) }), sheet).article,

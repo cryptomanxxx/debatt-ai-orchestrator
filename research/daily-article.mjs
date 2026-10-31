@@ -147,7 +147,9 @@ function inFactOrder(found, facts) {
 }
 
 // Spelled-out quantities cannot be checked against the facts ("en"/"ett" are also articles and stay).
-const NUMBER_WORDS = /(?<![\p{L}])(noll|två|tre|fyra|fem|sex|sju|åtta|nio|tio|elva|tolv|tretton|fjorton|femton|sexton|sjutton|arton|nitton|tjugo\p{L}*|trettio\p{L}*|fyrtio\p{L}*|femtio\p{L}*|sextio\p{L}*|sjuttio\p{L}*|åttio\p{L}*|nittio\p{L}*|hundra\p{L}*|tusen\p{L}*|miljon\p{L}*|miljard\p{L}*|hälften|halva|dubbelt|tredjedel\p{L}*|fjärdedel\p{L}*|procent\p{L}*)(?![\p{L}])/iu;
+// A number word passes only where a cited fact uses the same word, as in a label the lab wrote
+// itself ("ACT-MAP två ingrepp"); anywhere else it stands for a number that cannot be checked.
+const NUMBER_WORDS = /(?<![\p{L}])(noll|två|tre|fyra|fem|sex|sju|åtta|nio|tio|elva|tolv|tretton|fjorton|femton|sexton|sjutton|arton|nitton|tjugo\p{L}*|trettio\p{L}*|fyrtio\p{L}*|femtio\p{L}*|sextio\p{L}*|sjuttio\p{L}*|åttio\p{L}*|nittio\p{L}*|hundra\p{L}*|tusen\p{L}*|miljon\p{L}*|miljard\p{L}*|hälften|halva|dubbelt|tredjedel\p{L}*|fjärdedel\p{L}*|procent\p{L}*)(?![\p{L}])/giu;
 
 // GitHub turns bare URLs, www. hosts and e-mail addresses into links; an article has none.
 const LINKLIKE = /[a-z][a-z0-9+.-]*:\/\/|\bwww\.|\bmailto:|[\w.+-]+@[\w-]+\.[a-z]/i;
@@ -179,7 +181,7 @@ export function checkArticle(text, sheet) {
   const term = overclaimTerm(body);
   if (term) return { problem: 'overclaim', term };
   // Only ASCII digits are checked against the facts, so no other numeral or number word may stand in for one.
-  if (/(?![0-9])\p{N}/u.test(body) || NUMBER_WORDS.test(body)) return { problem: 'unsupported_number' };
+  if (/(?![0-9])\p{N}/u.test(body)) return { problem: 'unsupported_number' };
   const known = new Map([...sheet.facts.map(f => [f.id, f.text]), ...sheet.references.map(r => [r.id, r.title])]);
   if (tags(body).some(id => !known.has(id))) return { problem: 'unknown_citation' };
   if (!tags(body).some(id => id.startsWith('F'))) return { problem: 'no_fact_cited' };
@@ -191,6 +193,10 @@ export function checkArticle(text, sheet) {
   for (const s of SECTIONS.flatMap(([k]) => sentences(a[k]))) {
     // Every sentence states something, so every sentence cites its basis.
     if (!tags(s).length) return { problem: 'uncited_sentence', sentence: s };
+    const factText = tags(s).filter(id => id.startsWith('F')).map(id => known.get(id).toLowerCase()).join(' ');
+    const word = [...s.matchAll(NUMBER_WORDS)].map(m => m[1].toLowerCase())
+      .find(w => !new RegExp(`(?<![\\p{L}])${w}(?![\\p{L}])`, 'u').test(factText));
+    if (word) return { problem: 'unsupported_number', sentence: s, number: `"${word}" (skriv talet med siffror)` };
     const found = numberRoles(s);
     if (!found.length) continue;
     const cited = tags(s).filter(id => id.startsWith('F'));
