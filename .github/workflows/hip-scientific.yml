@@ -13,7 +13,6 @@ on:
           - "hip / alla"
           - "hip / gemma-4-31B-it"
           - "hip / GLM-5.2-AWQ-INT4"
-          - "hip / Kimi-K2.6"
           - "hip / leo-hessianai-13b-chat"
           - "hip / Ministral-3-14B-Instruct-2512"
           - "hip / Mistral-Medium-3.5-128B"
