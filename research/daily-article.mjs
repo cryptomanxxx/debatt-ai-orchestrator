@@ -8,8 +8,8 @@ import { readdir, readFile } from 'node:fs/promises';
 // every number and every wording that would overstate a result; an article that fails is not
 // published and the day's report says why. Nothing here is peer-reviewed.
 
-// One draft and, when the lab rejects it, one rewrite told which rule it broke.
-export const ARTICLE_MODEL_CALLS = 2;
+// One draft and, when the lab rejects it, up to two rewrites, each told what it broke.
+export const ARTICLE_MODEL_CALLS = 3;
 export const ARTICLE_SCHEMA = 'oraklet-article-1';
 const MAX_FACTS = 40, MAX_REFERENCES = 8;
 // /v1/query takes 8,000 characters including the lab's wrapper; the request stays below this.
@@ -71,7 +71,7 @@ export function buildFactSheet(day) {
 export const worthWriting = sheet => sheet.facts.some(f => f.verified);
 
 // Room kept in the request for the rewrite's note on why the draft was rejected.
-const FEEDBACK_RESERVE = 400;
+const FEEDBACK_RESERVE = 900;
 export function articleMessages(sheet, date, feedback = '') {
   return [
     { role: 'system', content: 'Du är Professor Oraklet och skriver dagens korta vetenskapliga artikel på svenska, 300–700 ord: mer en utförlig sammanfattning än en hel artikel. '
@@ -150,6 +150,9 @@ const LINKLIKE = /[a-z][a-z0-9+.-]*:\/\/|\bwww\.|\bmailto:|[\w.+-]+@[\w-]+\.[a-z
 const TOPIC_TITLES = Object.freeze({ lab: 'Dagens labbkörningar', design: 'En mekanism som Oraklet utformade själv',
   memory: 'Vad kunskapsminnet har avgjort', deeprap: 'Hur väl Oraklets resonemang håller' });
 
+// "3 fall" stays as written; "7 <seed" (a number followed by punctuation) reads "7 (efter "seed")".
+const showRole = role => { const [n, w = ''] = role.split(' '); return w.startsWith('<') ? `${n} (efter "${w.slice(1)}")` : `${n} ${w}`.trim(); };
+
 export function checkArticle(text, sheet) {
   let a;
   try {
@@ -181,13 +184,18 @@ export function checkArticle(text, sheet) {
   // the next section's citation.
   for (const s of SECTIONS.flatMap(([k]) => sentences(a[k]))) {
     // Every sentence states something, so every sentence cites its basis.
-    if (!tags(s).length) return { problem: 'uncited_sentence' };
+    if (!tags(s).length) return { problem: 'uncited_sentence', sentence: s };
     const found = numberRoles(s);
     if (!found.length) continue;
     const cited = tags(s).filter(id => id.startsWith('F'));
-    if (!cited.length) return { problem: 'uncited_number' };
+    if (!cited.length) return { problem: 'uncited_number', sentence: s };
     // Every number must come, with its role, from a fact the same sentence cites.
-    if (!inFactOrder(found, [...new Set(cited)].map(id => numberRoles(known.get(id))))) return { problem: 'unsupported_number' };
+    const roles = [...new Set(cited)].map(id => numberRoles(known.get(id)));
+    if (!inFactOrder(found, roles)) {
+      // The first number no cited fact has with that role; otherwise the order or a repeat is wrong.
+      const missing = found.find(n => !roles.some(r => r.includes(n)));
+      return { problem: 'unsupported_number', sentence: s, number: missing ? showRole(missing) : 'ordningen eller en upprepning av siffrorna' };
+    }
   }
   return { article: { title: TOPIC_TITLES[verified.topic], ...Object.fromEntries(keys.map(k => [k, a[k].replace(/\s+/g, ' ').trim()])) }, words };
 }
@@ -240,30 +248,38 @@ export async function writeDailyArticle(day, propose, { field }) {
     sheet.facts.splice(sheet.facts.findLastIndex(f => !f.verified) >= 0 ? sheet.facts.findLastIndex(f => !f.verified) : sheet.facts.length - 1, 1);
   sheet.references = sheet.references.filter(r => sheet.facts.some(f => f.ref === r.id));
   if (!worthWriting(sheet)) return { record: { status: 'skipped', reason: 'no_verified_results', facts: sheet.facts.length } };
-  // Every call made is counted (calls), whatever its outcome. A rejected draft gets one rewrite,
-  // told only the lab's fixed reason; the rewrite passes the same checks or nothing is published.
-  let answer, checked, calls = 0, first;
-  for (const feedback of ['', null]) {
-    const note = feedback ?? rewriteNote(checked);
+  // Every call made is counted (calls), whatever its outcome. A rejected draft gets a rewrite, told
+  // the lab's reason, the word or number and the sentence it refused (the model's own text). Every
+  // rewrite passes the same checks, or nothing is published. The record (day.json, ai-bus) keeps
+  // only fixed reasons and words; the drafts go to the run's artifact (drafts), never to ai-bus.
+  let answer, checked, calls = 0;
+  const earlier = [], drafts = [];
+  const result = record => ({ record, ...(drafts.length ? { drafts } : {}) });
+  for (let attempt = 0; attempt < ARTICLE_MODEL_CALLS; attempt++) {
+    const note = attempt ? rewriteNote(checked) : '';
     calls++;
     try { answer = await propose(articleMessages(sheet, day.date, note), { deep: true }); }
-    catch (error) { return { record: { status: 'error', reason: /^[a-z_]{3,60}$/.test(error?.message ?? '') ? error.message : 'model_failed', facts: sheet.facts.length, calls, ...(first ? { first } : {}) } }; }
+    catch (error) { return result({ status: 'error', reason: /^[a-z_]{3,60}$/.test(error?.message ?? '') ? error.message : 'model_failed', facts: sheet.facts.length, calls, ...(earlier.length ? { earlier } : {}) }); }
     checked = checkArticle(answer.text, sheet);
     if (!checked.problem) break;
-    first ??= problemRecord(checked);
+    drafts.push({ attempt: attempt + 1, ...problemRecord(checked), ...(checked.sentence ? { sentence: clip(checked.sentence, 600) } : {}),
+      ...(checked.number ? { number: clip(checked.number, 80) } : {}), text: String(answer.text).slice(0, 20000) });
+    if (attempt < ARTICLE_MODEL_CALLS - 1) earlier.push(problemRecord(checked));
   }
-  if (checked.problem) return { record: { status: 'rejected', ...problemRecord(checked), facts: sheet.facts.length, model: answer.model ?? null, calls, first } };
+  if (checked.problem) return result({ status: 'rejected', ...problemRecord(checked), facts: sheet.facts.length, model: answer.model ?? null, calls, ...(earlier.length ? { earlier } : {}) });
   // One stable file per date: a rerun the same day replaces the day's article instead of adding one.
   const file = `${day.date}.md`;
-  return { record: { status: 'published', file, title: checked.article.title, words: checked.words, facts: sheet.facts.length, calls, ...(first ? { first } : {}),
+  return { ...(drafts.length ? { drafts } : {}), record: { status: 'published', file, title: checked.article.title, words: checked.words, facts: sheet.facts.length, calls, ...(earlier.length ? { earlier } : {}),
     cited: [...new Set(SECTIONS.flatMap(([k]) => tags(checked.article[k])))].sort(), model: answer.model ?? null },
   file, markdown: renderArticle(checked.article, sheet, { date: day.date, field, model: `${answer.provider ?? ''} ${answer.model ?? ''}`.trim() }) };
 }
 
 const problemRecord = c => ({ reason: c.problem, ...(c.term ? { term: c.term } : {}) });
-// The rewrite is told the rule in the lab's own words, never any model text.
+// The rewrite is told the rule in the lab's own words, the refused word or number, and the sentence
+// it refused (the model's own text, bounded) so it can mend that sentence.
 function rewriteNote(c) {
-  return `${ARTICLE_REASONS[c.problem] ?? 'en kontroll misslyckades'}${c.term ? ` (ordet "${c.term}")` : ''}.`;
+  return `${ARTICLE_REASONS[c.problem] ?? 'en kontroll misslyckades'}${c.term ? ` (ordet "${c.term}")` : ''}${c.number ? ` (siffran ${clip(c.number, 80)})` : ''}.`
+    + (c.sentence ? ` Meningen som avvisades: "${clip(c.sentence, 300)}"` : '');
 }
 
 export const ARTICLE_REASONS = Object.freeze({

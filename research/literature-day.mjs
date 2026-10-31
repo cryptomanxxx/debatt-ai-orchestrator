@@ -102,8 +102,8 @@ const articleCalls = a => !a || a.status === 'skipped' ? 0 : Number.isInteger(a.
 const fail = error => ({ status: 'error', code: /^[a-z_]{3,60}$/.test(error?.message ?? '') ? error.message : 'stage_failed' });
 // Each stage has a deadline inside the 60-minute job, so the report is always written even when a
 // provider or database stalls. The CLI exits after writing, so a stage still pending cannot hold the job.
-export const STAGE_DEADLINES_MS = Object.freeze({ pipeline: 35 * 60_000, tree: 3 * 60_000, novelty: 3 * 60_000,
-  problem_bank: 3 * 60_000, lab: 2 * 60_000, memory: 2 * 60_000, article: 6 * 60_000 });
+export const STAGE_DEADLINES_MS = Object.freeze({ pipeline: 33 * 60_000, tree: 3 * 60_000, novelty: 3 * 60_000,
+  problem_bank: 3 * 60_000, lab: 2 * 60_000, memory: 2 * 60_000, article: 8 * 60_000 });
 const within = (name, promise, deadlines) => {
   let timer;
   return Promise.race([promise, new Promise((_, reject) => {
@@ -143,6 +143,7 @@ export async function runLiteratureDay(env, { date, now = new Date().toISOString
       const publication = await within('article', article(env, day), deadlines);
       day.article = publication.record;
       if (publication.file) Object.defineProperty(day, 'publication', { value: publication, enumerable: false });
+      if (publication.drafts) Object.defineProperty(day, 'articleDrafts', { value: publication.drafts, enumerable: false });
     } catch (error) { day.article = { ...fail(error), reason: fail(error).code }; }
   }
   day.errors = ['pipeline', 'tree', 'novelty', 'problem_bank', 'lab', 'memory', 'article'].filter(k => day[k]?.status === 'error');
@@ -184,7 +185,7 @@ export function renderAiBus(day, { articles = 'artiklar/' } = {}) {
     `- **Experiment ${labScope}:** ${lab.length} körningar, ${lab.reduce((n, r) => n + r.passed, 0)} av ${lab.reduce((n, r) => n + r.cases, 0)} fall godkända`,
     ...(day.article ? [day.article.status === 'published'
       ? `- **Dagens artikel:** [${md(day.article.title, 140)}](${articles}${day.article.file})`
-      : `- **Dagens artikel:** ingen i dag (${md(ARTICLE_REASONS[day.article.reason] ?? day.article.reason ?? day.article.code, 80)}${day.article.term ? `, ordet "${md(day.article.term, 30)}"` : ''}${day.article.first ? `; även första utkastet avvisades: ${md(ARTICLE_REASONS[day.article.first.reason] ?? day.article.first.reason, 80)}${day.article.first.term ? `, ordet "${md(day.article.first.term, 30)}"` : ''}` : ''})`] : []),
+      : `- **Dagens artikel:** ingen i dag (${md(ARTICLE_REASONS[day.article.reason] ?? day.article.reason ?? day.article.code, 80)}${day.article.term ? `, ordet "${md(day.article.term, 30)}"` : ''}${Array.isArray(day.article.earlier) && day.article.earlier.length ? `; tidigare utkast avvisades: ${day.article.earlier.slice(0, 3).map(e => `${md(ARTICLE_REASONS[e?.reason] ?? e?.reason, 80)}${e?.term ? `, ordet "${md(e.term, 30)}"` : ''}`).join('; ')}` : ''})`] : []),
     ...(day.errors?.length ? [`- **Driftfel:** ${day.errors.map(e => md(e, 30)).join(', ')} (se nedan)`] : []), ''];
 
   L.push('## Litteratur', '', `Pipelinen: ${status(p.status)}.`, '');
@@ -307,6 +308,8 @@ export async function main(env = process.env, { now = new Date().toISOString(), 
   await mkdir('ai-bus/rapporter', { recursive: true });
   await writeFile(`ai-bus/rapporter/${date}.md`, renderAiBus(day, { articles: '../artiklar/' }));
   await writeFile('ai-bus/senaste.md', markdown);
+  // Rejected drafts go to the run's artifact only, for reading why; never to ai-bus.
+  if (day.articleDrafts) await writeFile('reports/literature-day/article-drafts.json', JSON.stringify(day.articleDrafts, null, 2) + '\n');
   if (day.publication) {
     await mkdir('ai-bus/artiklar', { recursive: true });
     await writeFile(`ai-bus/artiklar/${day.publication.file}`, day.publication.markdown);

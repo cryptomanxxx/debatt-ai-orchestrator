@@ -161,23 +161,34 @@ test('the daily article: one deep call, skipped without verified results, reject
   assert.deepEqual([failed.record.status, failed.record.reason, failed.record.calls], ['error', 'model_output_truncated', 1]);
 });
 
-test('a rejected draft gets one rewrite, told only the lab\'s reason; a second rejection is reported with both', async () => {
+test('a rejected draft gets up to two rewrites, each told what it broke; the drafts go to the artifact, not the record', async () => {
   const sent = [];
   const answers = texts => async messages => { sent.push(messages[0].content); return { text: texts.shift(), provider: 'hip', model: 'glm' }; };
-  const negated = article({ limitations: 'Resultatet bekräftar inget utöver fallen, enligt någon granskare [F1]. ' + filler('F1').repeat(3) });
-  const rewritten = await writeDailyArticle(day, answers([negated, article()]), { field: 'x' });
+  const claim = article({ limitations: 'Resultatet bekräftar inget utöver fallen, enligt någon granskare [F1]. ' + filler('F1').repeat(3) });
+  const wrongNumber = article({ results: 'Labbkörningen godkände 4 av 3 fall [F1]. ' + filler('F1').repeat(3) });
+  const rewritten = await writeDailyArticle(day, answers([claim, article()]), { field: 'x' });
   assert.equal(rewritten.record.status, 'published');
-  assert.deepEqual([rewritten.record.calls, rewritten.record.first], [2, { reason: 'overclaim', term: 'bekräftar' }]);
+  assert.deepEqual([rewritten.record.calls, rewritten.record.earlier], [2, [{ reason: 'overclaim', term: 'bekräftar' }]]);
   assert.doesNotMatch(sent[0], /förra utkast/);
   assert.match(sent[0], /får bara stå direkt nekade/, 'the prompt names the words and the one exception');
   assert.match(sent[1], /Ditt förra utkast avvisades av labbet: texten överdrev vad verifieringen visar \(ordet "bekräftar"\)\. Skriv om hela artikeln/);
-  assert.doesNotMatch(sent[1], /granskare/, 'no model text goes back into the request');
+  assert.deepEqual(rewritten.drafts.map(d => [d.attempt, d.reason, d.term]), [[1, 'overclaim', 'bekräftar']]);
+  assert.match(rewritten.drafts[0].text, /granskare/, 'the rejected draft is kept whole for the artifact');
   sent.length = 0;
-  const twice = await writeDailyArticle(day, answers([negated, article({ results: 'Labbkörningen godkände 4 av 3 fall [F1]. ' + filler('F1').repeat(3) })]), { field: 'x' });
-  assert.deepEqual(twice.record, { status: 'rejected', reason: 'unsupported_number', facts: twice.record.facts, model: 'glm', calls: 2, first: { reason: 'overclaim', term: 'bekräftar' } });
-  assert.equal(sent.length, 2, 'never a third call');
-  const md = renderAiBus({ date: day.date, field: 'Causal inference', model_budget: 12, pipeline: {}, article: twice.record });
-  assert.match(md, /Dagens artikel:\*\* ingen i dag \(en siffra fanns inte i det hänvisade underlaget; även första utkastet avvisades: texten överdrev vad verifieringen visar, ordet "bekräftar"\)/);
+  const third = await writeDailyArticle(day, answers([claim, wrongNumber, article()]), { field: 'x' });
+  assert.equal(third.record.status, 'published', 'a second rewrite can still publish');
+  assert.equal(third.record.calls, 3);
+  assert.match(sent[2], /en siffra fanns inte i det hänvisade underlaget \(siffran 4 av\)\. Meningen som avvisades: "Labbkörningen godkände 4 av 3 fall \[F1\]\."/,
+    'the rewrite is told the number and the sentence it must mend');
+  sent.length = 0;
+  const rejected = await writeDailyArticle(day, answers([claim, wrongNumber, wrongNumber]), { field: 'x' });
+  assert.deepEqual(rejected.record, { status: 'rejected', reason: 'unsupported_number', facts: rejected.record.facts, model: 'glm', calls: 3,
+    earlier: [{ reason: 'overclaim', term: 'bekräftar' }, { reason: 'unsupported_number' }] });
+  assert.equal(sent.length, 3, 'never a fourth call');
+  assert.equal(rejected.drafts.length, 3);
+  assert.doesNotMatch(JSON.stringify(rejected.record), /Labbkörningen|granskare/, 'no model text in the record that reaches ai-bus');
+  const md = renderAiBus({ date: day.date, field: 'Causal inference', model_budget: 13, pipeline: {}, article: rejected.record });
+  assert.match(md, /Dagens artikel:\*\* ingen i dag \(en siffra fanns inte i det hänvisade underlaget; tidigare utkast avvisades: texten överdrev vad verifieringen visar, ordet "bekräftar"; en siffra fanns inte i det hänvisade underlaget\)/);
 });
 
 test('the literature day publishes the article, its index and a link, or says why there is none', async () => {
@@ -191,7 +202,7 @@ test('the literature day publishes the article, its index and a link, or says wh
   try {
     const published = await main({}, { now: '2026-10-24T09:41:00.000Z', deps: deps(article()) });
     assert.deepEqual(published.errors, []);
-    assert.deepEqual([budgets[0], published.model_budget], ['10', 12], 'the pipeline keeps a budget it accepts; the article\'s two calls come on top');
+    assert.deepEqual([budgets[0], published.model_budget], ['10', 13], 'the pipeline keeps a budget it accepts; the article\'s three calls come on top');
     assert.equal(published.article.status, 'published');
     assert.deepEqual(await readdir('ai-bus/artiklar'), ['2026-10-24.md', 'README.md']);
     assert.match(await readFile('ai-bus/artiklar/2026-10-24.md', 'utf8'), /## Faktaunderlag/);
@@ -209,7 +220,10 @@ test('the literature day publishes the article, its index and a link, or says wh
     const rejected = await main({}, { now: '2026-10-25T09:41:00.000Z', deps: deps(article({ results: 'Detta är ett genombrott [F1]. ' + filler('F1').repeat(3) })) });
     assert.equal(rejected.article.reason, 'overclaim');
     await assert.rejects(readdir('ai-bus/artiklar'));
-    assert.match(await readFile('ai-bus/rapporter/2026-10-25.md', 'utf8'), /Dagens artikel:\*\* ingen i dag \(texten överdrev vad verifieringen visar, ordet "genombrott"; även första utkastet avvisades/);
+    assert.match(await readFile('ai-bus/rapporter/2026-10-25.md', 'utf8'), /Dagens artikel:\*\* ingen i dag \(texten överdrev vad verifieringen visar, ordet "genombrott"; tidigare utkast avvisades/);
+    const drafts = JSON.parse(await readFile('reports/literature-day/article-drafts.json', 'utf8'));
+    assert.deepEqual(drafts.map(d => d.reason), ['overclaim', 'overclaim', 'overclaim'], 'the rejected drafts are kept for the artifact');
+    assert.doesNotMatch(await readFile('reports/literature-day/day.json', 'utf8'), /Detta är ett genombrott/, 'not in day.json');
     assert.match(await articleIndex('nowhere'), /Inga artiklar ännu\./);
   } finally { process.chdir(cwd); await rm(dir, { recursive: true, force: true }); }
 });
