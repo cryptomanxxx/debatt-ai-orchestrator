@@ -86,18 +86,17 @@ export function articleMessages(sheet, date, feedback = '') {
 }
 
 // Words that would overstate what a verifier recorded. A direct negation ("ingen ny upptäckt",
-// "inte bekräftat") states the opposite and is allowed: a negator at most two words before, with
-// nothing between that turns it back into a claim ("inte bara", "inget annat än", "ingen tvekan",
-// "inte … utan").
+// "inte bekräftat") states the opposite and is allowed: a negator at most two words before, and
+// only words that qualify the noun between ("ny", "vetenskaplig", "någon", "ett" …). Any other word
+// could start a new claim ("inte preliminärt och bevisar", "inte … utan ett genombrott", "inte
+// bara"), so it is refused. "utan" is no negator: "inte … utan" affirms.
 const OVERCLAIM = /(?<![\p{L}])(bevis\p{L}*|bekräft\p{L}*|genombrott\p{L}*|upptäck\p{L}*|banbrytande|fastställ\p{L}*|säkerställ\p{L}*|revolution\p{L}*|definitivt)/giu;
-// "utan" is no negator: "inte … utan ett genombrott" affirms. A second negator between is a double
-// negation ("inte utan bevis") and affirms too.
 const NEGATED = /(?:^|[^\p{L}])(?:inte|ej|ingen|inget|inga|aldrig)((?:\s+\p{L}+){0,2})\s+$/iu;
-const UNNEGATES = /(?<![\p{L}])(bara|endast|enbart|blott|än|annat|annan|mindre|tvekan|tvivel|tvivla\p{L}*|förneka\p{L}*|ifrågasätt\p{L}*|kan|går|utan|inte|ej|ingen|inget|inga|aldrig)(?![\p{L}])/iu;
+const QUALIFIER = /^(en|ett|någon|något|några|ny|nya|nytt|egen|eget|egna|sådan|sådant|sådana|verklig\p{L}*|vetenskaplig\p{L}*|egentlig\p{L}*|slutgiltig\p{L}*|formell\p{L}*|fullständig\p{L}*|heller|ännu)$/iu;
 function overclaimTerm(text) {
   for (const m of text.matchAll(OVERCLAIM)) {
     const before = text.slice(Math.max(0, m.index - 60), m.index).match(NEGATED);
-    if (!before || UNNEGATES.test(before[1])) return m[1].toLowerCase().slice(0, 30);
+    if (!before || !before[1].trim().split(/\s+/).filter(Boolean).every(w => QUALIFIER.test(w))) return m[1].toLowerCase().slice(0, 30);
   }
   return null;
 }

@@ -114,9 +114,9 @@ test('an article is published only when every citation, number and wording holds
   const started = Date.now();
   assert.equal(checkArticle(article({ results: `Labbet godkände ${'3 av 3 fall, '.repeat(6)}och 999 fall ${cites}. ` + filler('F1').repeat(3) }), many).problem, 'unsupported_number');
   assert.ok(Date.now() - started < 500, 'the number check is linear, not an exhaustive search');
-  for (const ok of ['Allt är syntetiskt och ingen ny vetenskaplig upptäckt görs [F1].', 'Resultatet är inte bekräftat av någon granskare [F1].', 'Inga bevis utöver fallen finns här [F1].'])
+  for (const ok of ['Allt är syntetiskt och ingen ny vetenskaplig upptäckt görs [F1].', 'Resultatet är inte bekräftat av någon granskare [F1].', 'Inga bevis utöver fallen finns här [F1].', 'Det är inte heller bekräftat [F1].', 'Detta är ingen egentlig upptäckt [F1].'])
     assert.ok(checkArticle(article({ limitations: ok + ' ' + filler('F1').repeat(3) }), sheet).article, `a direct negation states the opposite: ${ok}`);
-  for (const claim of ['Detta är inte bara ett genombrott [F1].', 'Det är inget annat än en upptäckt [F1].', 'Det råder ingen tvekan om att detta bevisar allt [F1].', 'Ingen kan förneka genombrottet [F1].', 'Resultatet bekräftar modellen [F1].', 'Detta är inte ett preliminärt resultat utan ett genombrott [F1].', 'Detta är inte resultat utan genombrott [F1].', 'Resultatet är inte utan bevis [F1].', 'Utan tvekan ett genombrott [F1].'])
+  for (const claim of ['Detta är inte bara ett genombrott [F1].', 'Det är inget annat än en upptäckt [F1].', 'Det råder ingen tvekan om att detta bevisar allt [F1].', 'Ingen kan förneka genombrottet [F1].', 'Resultatet bekräftar modellen [F1].', 'Detta är inte ett preliminärt resultat utan ett genombrott [F1].', 'Detta är inte resultat utan genombrott [F1].', 'Resultatet är inte utan bevis [F1].', 'Utan tvekan ett genombrott [F1].', 'Resultatet är inte preliminärt och bevisar hypotesen [F1].', 'Detta är inte längre en hypotes, det bevisar [F1].'])
     assert.equal(problem({ limitations: claim + ' ' + filler('F1').repeat(3) }), 'overclaim', `a claim stays refused: ${claim}`);
   for (const link of ['https://evil.example/path', 'www.evil.example', 'ftp://x.y', 'oraklet@evil.example'])
     assert.equal(problem({ results: `Se ${link} [F1]. ` + filler('F1').repeat(3) }), 'markup', `no autolinked ${link}`);
