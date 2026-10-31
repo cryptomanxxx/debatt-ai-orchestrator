@@ -29,17 +29,19 @@ for(const name of ['hip','blablador']){
      result.providers[name]={status:'catalog_unverified',models:p.models,explicitChatModels:explicitModels(p.models),
        aliases:Object.fromEntries(Object.entries(aliases).filter(([alias])=>p.models.includes(alias)))};
  }else{
-     result.providers[name]={status:'failed'};
+     // The Worker's fixed error code says why (no upstream text): an outage, a rejected key…
+     const error=typeof p?.error==='string'&&/^[a-z_]{3,60}$/.test(p.error)?p.error:'invalid_provider_entry';
+     result.providers[name]={status:'failed',error};
  }
 }
 await mkdir('reports/provider-catalog',{recursive:true});
 await writeFile('reports/provider-catalog/catalog.json',JSON.stringify(result,null,2)+'\n');
-for(const [name,p] of Object.entries(result.providers))console.log(name,p.status,p.models?.length??0,'models');
+for(const [name,p] of Object.entries(result.providers))console.log(name,p.status,p.models?.length??0,'models',p.error??'');
 // Catalog IDs are character-validated above, so they are safe inside Markdown code spans.
 const summary=['# Research model catalog','','Chat model IDs offered in the workflow menus; an alias shows the model it runs. Catalog presence is not proof of chat capability.',''];
 for(const [name,p] of Object.entries(result.providers)){
  summary.push('## '+name,'');
- summary.push(p.status==='failed'?'Discovery failed.':([...p.explicitChatModels.map(id=>'- `'+id+'`'),
+ summary.push(p.status==='failed'?'Discovery failed (`'+p.error+'`); the last committed models are kept.':([...p.explicitChatModels.map(id=>'- `'+id+'`'),
   ...Object.entries(p.aliases).map(([alias,root])=>'- `'+alias+'` = `'+rootLabel(root)+'`')].join('\n')||'No chat model IDs.'),'');
 }
 if(process.env.GITHUB_STEP_SUMMARY)await appendFile(process.env.GITHUB_STEP_SUMMARY,summary.join('\n')+'\n');

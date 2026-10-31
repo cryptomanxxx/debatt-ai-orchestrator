@@ -78,16 +78,28 @@ export function articleMessages(sheet, date, feedback = '') {
       + 'Välj ett sammanhållet ämne bland faktaunderlaget, helst ett verifierat labbresultat, och skriv bara det underlaget säger. '
       + 'Varje mening med ett påstående eller en siffra ska hänvisa till sitt underlag med [F1], [F2] … och litteratur med [R1], [R2] …; hitta aldrig på siffror, källor eller resultat. '
       + 'Skriv alla tal med siffror, aldrig med ord som "tre" eller "hälften". Varje mening ska ha minst en hänvisning. En siffra får bara stå i en mening som hänvisar till ett faktum där just den siffran finns, med samma ord eller tecken efter sig som i faktumet (till exempel "3 av 5 fall", "88 %"); skriv inga datum och ingen annan numrering. Ingen Markdown, inga listor, inga webbadresser. Står flera siffror ur samma faktum i en mening, behåll faktumets ordning. '
-      + `Använd aldrig orden ${BANNED_WORDS}, inte ens nekade ("inte bekräftat", "ingen upptäckt" avvisas också); skriv i stället "preliminärt stött", "overifierat" eller "inte granskat". Begränsningar ska nämna att allt är syntetiskt eller bygger på sammanfattningar och att inget är granskat. `
+      + `Använd inte orden ${BANNED_WORDS}; de får bara stå direkt nekade, som "ingen ny upptäckt" eller "inte bekräftat". Skriv hellre "preliminärt stött", "overifierat" eller "inte granskat". Begränsningar ska nämna att allt är syntetiskt eller bygger på sammanfattningar och att inget är granskat. `
       + 'Labbet sätter rubriken. Svara endast JSON: {"abstract":"…","background":"…","method":"…","results":"…","limitations":"…"}.'
       + (feedback ? ` Ditt förra utkast avvisades av labbet: ${feedback} Skriv om hela artikeln så att den följer alla regler.` : '') },
     { role: 'user', content: JSON.stringify({ date, facts: sheet.facts.map(({ id, text }) => ({ id, text })), references: sheet.references.map(({ id, title }) => ({ id, title })) }) },
   ];
 }
 
-// Words that would overstate what a verifier recorded. They are refused even negated: the prompt
-// names them, and a rejected draft gets one rewrite told which word it used.
-const OVERCLAIM = /(?<![\p{L}])(bevis\p{L}*|bekräft\p{L}*|genombrott\p{L}*|upptäck\p{L}*|banbrytande|fastställ\p{L}*|säkerställ\p{L}*|revolution\p{L}*|definitivt)/iu;
+// Words that would overstate what a verifier recorded. A direct negation ("ingen ny upptäckt",
+// "inte bekräftat") states the opposite and is allowed: a negator at most two words before, and
+// only words that qualify the noun between ("ny", "vetenskaplig", "någon", "ett" …). Any other word
+// could start a new claim ("inte preliminärt och bevisar", "inte … utan ett genombrott", "inte
+// bara"), so it is refused. "utan" is no negator: "inte … utan" affirms.
+const OVERCLAIM = /(?<![\p{L}])(bevis\p{L}*|bekräft\p{L}*|genombrott\p{L}*|upptäck\p{L}*|banbrytande|fastställ\p{L}*|säkerställ\p{L}*|revolution\p{L}*|definitivt)/giu;
+const NEGATED = /(?:^|[^\p{L}])(?:inte|ej|ingen|inget|inga|aldrig)((?:\s+\p{L}+){0,2})\s+$/iu;
+const QUALIFIER = /^(en|ett|någon|något|några|ny|nya|nytt|egen|eget|egna|sådan|sådant|sådana|verklig\p{L}*|vetenskaplig\p{L}*|egentlig\p{L}*|slutgiltig\p{L}*|formell\p{L}*|fullständig\p{L}*|heller|ännu)$/iu;
+function overclaimTerm(text) {
+  for (const m of text.matchAll(OVERCLAIM)) {
+    const before = text.slice(Math.max(0, m.index - 60), m.index).match(NEGATED);
+    if (!before || !before[1].trim().split(/\s+/).filter(Boolean).every(w => QUALIFIER.test(w))) return m[1].toLowerCase().slice(0, 30);
+  }
+  return null;
+}
 const BANNED_WORDS = '"bevis", "bevisa", "bekräfta", "bekräftelse", "genombrott", "upptäcka", "upptäckt", "banbrytande", "fastställa", "säkerställa", "revolutionerande" och "definitivt"';
 const tags = text => [...text.matchAll(/\[([FR]\d{1,2})\]/g)].map(m => m[1]);
 // A sign written directly before a number belongs to it ("-3*s_1"), so a sign cannot be dropped.
@@ -154,9 +166,9 @@ export function checkArticle(text, sheet) {
   if (words < 250 || words > 900) return { problem: 'invalid_length' };
   // Each section is rendered as one paragraph, so a list or heading marker can only open it.
   if (/[`<>|#]|\]\(/.test(body) || SECTIONS.some(([k]) => /^\s*([-*+]|\d+[.)])\s/.test(a[k]))) return { problem: 'markup' };
-  const overclaim = body.match(OVERCLAIM);
   // The word is one of the fixed stems above, so it may be named in the report and the rewrite.
-  if (overclaim) return { problem: 'overclaim', term: overclaim[1].toLowerCase().slice(0, 30) };
+  const term = overclaimTerm(body);
+  if (term) return { problem: 'overclaim', term };
   // Only ASCII digits are checked against the facts, so no other numeral or number word may stand in for one.
   if (/(?![0-9])\p{N}/u.test(body) || NUMBER_WORDS.test(body)) return { problem: 'unsupported_number' };
   const known = new Map([...sheet.facts.map(f => [f.id, f.text]), ...sheet.references.map(r => [r.id, r.title])]);

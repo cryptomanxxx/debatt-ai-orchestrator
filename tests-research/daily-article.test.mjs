@@ -114,6 +114,10 @@ test('an article is published only when every citation, number and wording holds
   const started = Date.now();
   assert.equal(checkArticle(article({ results: `Labbet godkände ${'3 av 3 fall, '.repeat(6)}och 999 fall ${cites}. ` + filler('F1').repeat(3) }), many).problem, 'unsupported_number');
   assert.ok(Date.now() - started < 500, 'the number check is linear, not an exhaustive search');
+  for (const ok of ['Allt är syntetiskt och ingen ny vetenskaplig upptäckt görs [F1].', 'Resultatet är inte bekräftat av någon granskare [F1].', 'Inga bevis utöver fallen finns här [F1].', 'Det är inte heller bekräftat [F1].', 'Detta är ingen egentlig upptäckt [F1].'])
+    assert.ok(checkArticle(article({ limitations: ok + ' ' + filler('F1').repeat(3) }), sheet).article, `a direct negation states the opposite: ${ok}`);
+  for (const claim of ['Detta är inte bara ett genombrott [F1].', 'Det är inget annat än en upptäckt [F1].', 'Det råder ingen tvekan om att detta bevisar allt [F1].', 'Ingen kan förneka genombrottet [F1].', 'Resultatet bekräftar modellen [F1].', 'Detta är inte ett preliminärt resultat utan ett genombrott [F1].', 'Detta är inte resultat utan genombrott [F1].', 'Resultatet är inte utan bevis [F1].', 'Utan tvekan ett genombrott [F1].', 'Resultatet är inte preliminärt och bevisar hypotesen [F1].', 'Detta är inte längre en hypotes, det bevisar [F1].'])
+    assert.equal(problem({ limitations: claim + ' ' + filler('F1').repeat(3) }), 'overclaim', `a claim stays refused: ${claim}`);
   for (const link of ['https://evil.example/path', 'www.evil.example', 'ftp://x.y', 'oraklet@evil.example'])
     assert.equal(problem({ results: `Se ${link} [F1]. ` + filler('F1').repeat(3) }), 'markup', `no autolinked ${link}`);
   assert.ok(checkArticle(article({ results: 'Det gäller t.ex. syntetiska fall, bl.a. små mekanismer [F1]. ' + filler('F1').repeat(3) }), sheet).article,
@@ -160,20 +164,20 @@ test('the daily article: one deep call, skipped without verified results, reject
 test('a rejected draft gets one rewrite, told only the lab\'s reason; a second rejection is reported with both', async () => {
   const sent = [];
   const answers = texts => async messages => { sent.push(messages[0].content); return { text: texts.shift(), provider: 'hip', model: 'glm' }; };
-  const negated = article({ limitations: 'Resultatet är inte bekräftat av någon granskare [F1]. ' + filler('F1').repeat(3) });
+  const negated = article({ limitations: 'Resultatet bekräftar inget utöver fallen, enligt någon granskare [F1]. ' + filler('F1').repeat(3) });
   const rewritten = await writeDailyArticle(day, answers([negated, article()]), { field: 'x' });
   assert.equal(rewritten.record.status, 'published');
-  assert.deepEqual([rewritten.record.calls, rewritten.record.first], [2, { reason: 'overclaim', term: 'bekräftat' }]);
+  assert.deepEqual([rewritten.record.calls, rewritten.record.first], [2, { reason: 'overclaim', term: 'bekräftar' }]);
   assert.doesNotMatch(sent[0], /förra utkast/);
-  assert.match(sent[0], /inte ens nekade/, 'the prompt names the words and says negation is refused too');
-  assert.match(sent[1], /Ditt förra utkast avvisades av labbet: texten överdrev vad verifieringen visar \(ordet "bekräftat"\)\. Skriv om hela artikeln/);
+  assert.match(sent[0], /får bara stå direkt nekade/, 'the prompt names the words and the one exception');
+  assert.match(sent[1], /Ditt förra utkast avvisades av labbet: texten överdrev vad verifieringen visar \(ordet "bekräftar"\)\. Skriv om hela artikeln/);
   assert.doesNotMatch(sent[1], /granskare/, 'no model text goes back into the request');
   sent.length = 0;
   const twice = await writeDailyArticle(day, answers([negated, article({ results: 'Labbkörningen godkände 4 av 3 fall [F1]. ' + filler('F1').repeat(3) })]), { field: 'x' });
-  assert.deepEqual(twice.record, { status: 'rejected', reason: 'unsupported_number', facts: twice.record.facts, model: 'glm', calls: 2, first: { reason: 'overclaim', term: 'bekräftat' } });
+  assert.deepEqual(twice.record, { status: 'rejected', reason: 'unsupported_number', facts: twice.record.facts, model: 'glm', calls: 2, first: { reason: 'overclaim', term: 'bekräftar' } });
   assert.equal(sent.length, 2, 'never a third call');
   const md = renderAiBus({ date: day.date, field: 'Causal inference', model_budget: 12, pipeline: {}, article: twice.record });
-  assert.match(md, /Dagens artikel:\*\* ingen i dag \(en siffra fanns inte i det hänvisade underlaget; även första utkastet avvisades: texten överdrev vad verifieringen visar, ordet "bekräftat"\)/);
+  assert.match(md, /Dagens artikel:\*\* ingen i dag \(en siffra fanns inte i det hänvisade underlaget; även första utkastet avvisades: texten överdrev vad verifieringen visar, ordet "bekräftar"\)/);
 });
 
 test('the literature day publishes the article, its index and a link, or says why there is none', async () => {
