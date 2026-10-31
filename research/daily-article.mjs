@@ -92,7 +92,7 @@ export function articleMessages(sheet, date, feedback = '') {
 // bara"), so it is refused. "utan" is no negator: "inte … utan" affirms.
 const OVERCLAIM = /(?<![\p{L}])(bevis\p{L}*|bekräft\p{L}*|genombrott\p{L}*|upptäck\p{L}*|banbrytande|fastställ\p{L}*|säkerställ\p{L}*|revolution\p{L}*|definitivt)/giu;
 const NEGATED = /(?:^|[^\p{L}])(?:inte|ej|ingen|inget|inga|aldrig)((?:\s+\p{L}+){0,2})\s+$/iu;
-const QUALIFIER = /^(en|ett|någon|något|några|ny|nya|nytt|egen|eget|egna|sådan|sådant|sådana|verklig\p{L}*|vetenskaplig\p{L}*|egentlig\p{L}*|slutgiltig\p{L}*|formell\p{L}*|fullständig\p{L}*|heller|ännu)$/iu;
+const QUALIFIER = /^(en|ett|någon|något|några|ny|nya|nytt|egen|eget|egna|sådan|sådant|sådana|verklig\p{L}*|vetenskaplig\p{L}*|egentlig\p{L}*|slutgiltig\p{L}*|formell\p{L}*|fullständig\p{L}*|empirisk\p{L}*|statistisk\p{L}*|oberoende|extern\p{L}*|direkt\p{L}*|tydlig\p{L}*|heller|ännu)$/iu;
 // "kausal upptäckt" (causal discovery) names a family of methods, not a claim of a discovery, only in
 // the fixed forms "<metod|ramverk|algoritm|verktyg|teknik…> för [ett ord] kausal upptäckt" and "inom
 // kausal upptäckt". "Metoden gav en kausal upptäckt", "beröm för sin kausala upptäckt" and
@@ -102,6 +102,9 @@ function overclaimTerm(text) {
   for (const m of text.matchAll(OVERCLAIM)) {
     if (m[1].toLowerCase() === 'upptäckt' && METHOD_NAME.test(text.slice(Math.max(0, m.index - 80), m.index))) continue;
     const before = text.slice(Math.max(0, m.index - 60), m.index).match(NEGATED);
+    // Only qualifying adjectives may stand between the negator and the term, also after "ingen": a
+    // noun or verb there means the negator belongs to something else ("Ingen forskare ifrågasätter
+    // genombrottet", "Ingen förnekar upptäckten" affirm the claim).
     if (!before || !before[1].trim().split(/\s+/).filter(Boolean).every(w => QUALIFIER.test(w))) return m[1].toLowerCase().slice(0, 30);
   }
   return null;
