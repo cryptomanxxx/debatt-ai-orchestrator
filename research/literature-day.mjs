@@ -18,6 +18,7 @@ import { readDeepRapRows, deepRapScoreboard, deepRapMarkdown } from './deeprap.m
 import { writeDailyArticle, ARTICLE_MODEL_CALLS, ARTICLE_REASONS } from './daily-article.mjs';
 import { writeAiBusIndexes } from './ai-bus-index.mjs';
 import { createLabClient } from './lab-client.mjs';
+import { readOpenAiMath, loadCatalog, READING_MODEL_CALLS, READING_REASONS } from './openai-math-reading.mjs';
 
 // The fields Oraklet reads, one per day in turn.
 export const LITERATURE_FIELDS = Object.freeze(['AI for scientific discovery', 'Causal inference']);
@@ -99,6 +100,8 @@ export function designLines(r) {
 
 // The article's calls as made; a stage that timed out or failed before saying is counted in full.
 const articleCalls = a => !a || a.status === 'skipped' ? 0 : Number.isInteger(a.calls) ? a.calls : ARTICLE_MODEL_CALLS;
+// The reading's call as made; a stage that failed before saying is counted in full.
+const readingCalls = r => !r ? 0 : Number.isInteger(r.calls) ? r.calls : READING_MODEL_CALLS;
 const fail = error => ({ status: 'error', code: /^[a-z_]{3,60}$/.test(error?.message ?? '') ? error.message : 'stage_failed' });
 // Each stage has a deadline inside the 60-minute job, so the report is always written even when a
 // provider or database stalls. The CLI exits after writing, so a stage still pending cannot hold the job.
@@ -106,7 +109,7 @@ const fail = error => ({ status: 'error', code: /^[a-z_]{3,60}$/.test(error?.mes
 // back-to-back calls, and a repeat right after a 429 fails again.
 export const ARTICLE_SPACING_MS = 10_000, ARTICLE_RETRY_DELAY_MS = 45_000;
 export const STAGE_DEADLINES_MS = Object.freeze({ pipeline: 31 * 60_000, tree: 3 * 60_000, novelty: 3 * 60_000,
-  problem_bank: 3 * 60_000, lab: 2 * 60_000, memory: 2 * 60_000, article: 10 * 60_000 });
+  problem_bank: 3 * 60_000, lab: 2 * 60_000, memory: 2 * 60_000, article: 10 * 60_000, openai_math: 5 * 60_000 });
 const within = (name, promise, deadlines) => {
   let timer;
   return Promise.race([promise, new Promise((_, reject) => {
@@ -115,10 +118,11 @@ const within = (name, promise, deadlines) => {
 };
 const stage = (p, name) => p?.stages?.find(s => s.name === name) ?? null;
 
-export async function runLiteratureDay(env, { date, now = new Date().toISOString(), pipeline, tree, novelty, register, labReports, memory, article, deadlines = STAGE_DEADLINES_MS }) {
+export async function runLiteratureDay(env, { date, now = new Date().toISOString(), pipeline, tree, novelty, register, labReports, memory, article, openaiMath, deadlines = STAGE_DEADLINES_MS }) {
   const field = fieldForDate(date);
   // The pipeline keeps its own budget (it accepts 5 or 10); the article's one call comes on top.
-  const day = { schema_version: 'oraklet-literature-day-1', date, field, model_budget: DAILY_MODEL_BUDGET + (article ? ARTICLE_MODEL_CALLS : 0) };
+  const day = { schema_version: 'oraklet-literature-day-1', date, field,
+    model_budget: DAILY_MODEL_BUDGET + (article ? ARTICLE_MODEL_CALLS : 0) + (openaiMath ? READING_MODEL_CALLS : 0) };
   try {
     day.pipeline = await within('pipeline', pipeline({ ...env, RESEARCH_AREA: field, PIPELINE_MODEL_BUDGET: String(DAILY_MODEL_BUDGET),
       PIPELINE_REQUEST_ID: '', RESEARCH_DASHBOARD_ENABLED: 'false' }), deadlines);
@@ -149,7 +153,12 @@ export async function runLiteratureDay(env, { date, now = new Date().toISOString
       if (publication.drafts) Object.defineProperty(day, 'articleDrafts', { value: publication.drafts, enumerable: false });
     } catch (error) { day.article = { ...fail(error), reason: fail(error).code }; }
   }
-  day.errors = ['pipeline', 'tree', 'novelty', 'problem_bank', 'lab', 'memory', 'article'].filter(k => day[k]?.status === 'error');
+  // Oraklet reads three families of OpenAI's mathematics collection, after the article so its calls stay paced.
+  if (openaiMath) {
+    try { day.openai_math = await within('openai_math', openaiMath(env, day), deadlines); }
+    catch (error) { day.openai_math = { ...fail(error), reason: fail(error).code }; }
+  }
+  day.errors = ['pipeline', 'tree', 'novelty', 'problem_bank', 'lab', 'memory', 'article', 'openai_math'].filter(k => day[k]?.status === 'error');
   return day;
 }
 
@@ -162,6 +171,34 @@ const STATUS = { completed: 'slutförd', partial: 'delvis slutförd', insufficie
   error: 'fel', review_required: 'granskningskö skapad', verification_required: 'kräver verifiering', invalid_evidence: 'underlaget avvisades',
   possible_overlap_found: 'möjlig överlappning hittad', no_overlap_found_within_budget: 'ingen överlappning hittad inom budgeten' };
 const status = s => STATUS[s] ?? md(s ?? 'okänd', 60);
+
+const readingReason = code => md(READING_REASONS[code] ?? code ?? 'okänt fel', 80);
+const families = r => (Array.isArray(r.families) ? r.families : []);
+function readingSummary(r) {
+  const nrs = families(r).map(f => md(f.nr, 3)).join(', ');
+  if (r.status === 'error' && !nrs) return `okänt; läsningen misslyckades (${readingReason(r.reason ?? r.code)})`;
+  const read = Array.isArray(r.notes) ? r.notes.length : 0;
+  return `familj ${nrs} (plats ${num(r.position) + 1} av ${num(r.total)}, varv ${num(r.round)}); ${r.status === 'read' ? `${read} av ${families(r).length} läsningar godkända` : `ingen läsning godkänd (${readingReason(r.reason)})`}`;
+}
+// The families come from the pinned catalog; Oraklet's notes are model text, rendered inert.
+function readingLines(r) {
+  const L = ['## OpenAI:s matematiksamling', '',
+    'Oraklet läser tre resultatfamiljer om dagen ur [openai/math](https://github.com/openai/math), i katalogens ordning ([research/openai-math/katalog.json](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/openai-math/katalog.json)). Samlingen är rådata från en ej släppt modell; resultaten är ogranskade påståenden. Citaten är kontrollerade ordagrant mot familjens sammanfattning, men resten är Oraklets tolkning och inte granskad.', ''];
+  if (r.status === 'error' && !families(r).length) return [...L, `Läsningen misslyckades (${readingReason(r.reason ?? r.code)}).`, ''];
+  L.push('| Familj | Ämne | Lean | Kod |', '| --- | --- | --- | --- |');
+  for (const f of families(r)) L.push(`| ${md(f.nr, 3)}. ${f.url && /^https:\/\/github\.com\/openai\/math\//.test(f.url) ? `[${md(f.titel, 140)}](${f.url})` : md(f.titel, 140)} | ${md(f.amne, 60)} | ${md(f.lean, 20)} | ${f.kod ? (f.omkorning ? `ja; omkörd: ${md(f.omkorning, 60)}` : 'ja') : 'nej'} |`);
+  L.push('');
+  if (r.status === 'error') L.push(`Läsningen misslyckades (${readingReason(r.reason ?? r.code)}${r.model ? `, ${md(r.provider, 30)}/${md(r.model, 80)}` : ''}).`, '');
+  else if (r.status === 'rejected' && !Array.isArray(r.notes)) L.push(`Läsningen avvisades: ${readingReason(r.reason)}.`, '');
+  for (const n of Array.isArray(r.notes) ? r.notes : []) {
+    const f = families(r).find(x => x.nr === n.nr);
+    L.push(`### ${md(n.nr, 3)}. ${md(f?.titel ?? '', 140)}`, '', `- **Citat:** "${md(n.citat, 300)}"`, `- **Metod:** ${md(n.metod, 300)}`,
+      `- **Öppen fråga:** ${md(n.oppen_fraga, 300)}`, `- **Labbförslag:** ${md(n.labbforslag, 300)}`, '');
+  }
+  for (const x of Array.isArray(r.rejected) ? r.rejected : []) L.push(`- Familj ${md(x.nr, 3)}: läsningen avvisades (${readingReason(x.reason)}).`);
+  if (r.rejected?.length) L.push('');
+  return L;
+}
 
 // `articles` is the path from the file being written to ai-bus/artiklar/: the dated report sits in
 // ai-bus/rapporter/, senaste.md in ai-bus/.
@@ -180,7 +217,7 @@ export function renderAiBus(day, { articles = 'artiklar/' } = {}) {
     '## Sammanfattning', '',
     `- **Fält i dag:** ${FIELD_NAMES[day.field] ?? md(day.field)}${p.query ? ` (sökfråga: ${md(p.query, 120)})` : ''}`,
     !Array.isArray(p.stages) ? '- **Litteratur:** okänt; pipelinen misslyckades innan något sparades.' :
-    `- **Litteratur:**${p.status === 'error' ? ' (pipelinen avbröts; siffrorna gäller det som hann sparas)' : ''} ${num(collection?.metadata?.returned_records)} träffar hittade, ${num(collection?.abstracts?.available)} sammanfattningar arkiverade, ${analyzed} sammanfattningar analyserade, ${findings} citerade fynd. Modellanrop: ${num(p.budget?.known_model_calls) + articleCalls(day.article)} av ${day.model_budget}.`,
+    `- **Litteratur:**${p.status === 'error' ? ' (pipelinen avbröts; siffrorna gäller det som hann sparas)' : ''} ${num(collection?.metadata?.returned_records)} träffar hittade, ${num(collection?.abstracts?.available)} sammanfattningar arkiverade, ${analyzed} sammanfattningar analyserade, ${findings} citerade fynd. Modellanrop: ${num(p.budget?.known_model_calls) + articleCalls(day.article) + readingCalls(day.openai_math)} av ${day.model_budget}.`,
     `- **Ny hypoteskandidat:** ${p.candidate ? '1' : 'ingen'}${queue.length ? `; granskningskö med ${queue.length} förslag till studier` : ''}`,
     day.problem_bank?.status === 'error' ? '- **Problem Bank:** okänt; registreringen misslyckades.' :
     `- **Problem Bank:** ${bank.filter(b => b.action === 'registered').length} nya problem registrerade automatiskt, ${bank.filter(b => b.action === 'requires_human_approval').length} väntar på ditt godkännande`,
@@ -189,6 +226,7 @@ export function renderAiBus(day, { articles = 'artiklar/' } = {}) {
     ...(day.article ? [day.article.status === 'published'
       ? `- **Dagens artikel:** [${md(day.article.title, 140)}](${articles}${day.article.file})`
       : `- **Dagens artikel:** ingen i dag (${md(ARTICLE_REASONS[day.article.reason] ?? day.article.reason ?? day.article.code, 80)}${day.article.term ? `, ordet "${md(day.article.term, 30)}"` : ''}${day.article.status === 'error' && day.article.model ? `, ${md(day.article.provider, 30)}/${md(day.article.model, 80)}${Number.isInteger(day.article.upstreamStatus) ? ` svarade HTTP ${day.article.upstreamStatus}` : ''}` : ''}${Array.isArray(day.article.earlier) && day.article.earlier.length ? `; tidigare utkast avvisades: ${day.article.earlier.slice(0, 3).map(e => `${md(ARTICLE_REASONS[e?.reason] ?? e?.reason, 80)}${e?.term ? `, ordet "${md(e.term, 30)}"` : ''}`).join('; ')}` : ''})`] : []),
+    ...(day.openai_math ? [`- **OpenAI:s matematiksamling:** ${readingSummary(day.openai_math)}`] : []),
     ...(day.errors?.length ? [`- **Driftfel:** ${day.errors.map(e => md(e, 30)).join(', ')} (se nedan)`] : []), ''];
 
   L.push('## Litteratur', '', `Pipelinen: ${status(p.status)}.`, '');
@@ -276,6 +314,8 @@ export function renderAiBus(day, { articles = 'artiklar/' } = {}) {
     if (day.memory.deeprap) L.push(deepRapMarkdown(day.memory.deeprap, { heading: '##' }));
   }
 
+  if (day.openai_math) L.push(...readingLines(day.openai_math));
+
   L.push('## Begränsningar', '',
     '- Oraklet läser bara sammanfattningar, inte hela artiklar, och högst tio per dag i den nuvarande budgeten.',
     '- Fynd är modellens tolkning med ordagranna citat; citaten kontrolleras, men tolkningen är inte granskad av en människa.',
@@ -304,7 +344,11 @@ export async function main(env = process.env, { now = new Date().toISOString(), 
   const article = deps.article ?? ((e, d) => writeDailyArticle(d,
     createLabClient({ key: e.ORCHESTRATOR_API_KEY, maxModelCalls: ARTICLE_MODEL_CALLS, spacingMs: ARTICLE_SPACING_MS, retryDelayMs: ARTICLE_RETRY_DELAY_MS })
       .proposer('default'), { field: FIELD_NAMES[d.field] ?? d.field }));
-  const day = await runLiteratureDay(env, { date, now, pipeline, register, labReports, memory, article,
+  // One call through its own client; it waits the lab's spacing when the article called just before.
+  const openaiMath = deps.openaiMath ?? (async (e, d) => readOpenAiMath(d.date,
+    createLabClient({ key: e.ORCHESTRATOR_API_KEY, maxModelCalls: READING_MODEL_CALLS, retryDelayMs: ARTICLE_RETRY_DELAY_MS }).proposer('default'),
+    { catalog: await loadCatalog(), before: () => articleCalls(d.article) ? new Promise(r => setTimeout(r, ARTICLE_SPACING_MS)) : Promise.resolve() }));
+  const day = await runLiteratureDay(env, { date, now, pipeline, register, labReports, memory, article, openaiMath,
     tree: deps.tree ?? treeMain, novelty: deps.novelty ?? (e => noveltyMain(e)) });
   const markdown = renderAiBus(day);
   await mkdir('reports/literature-day', { recursive: true });
