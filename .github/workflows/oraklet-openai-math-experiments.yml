@@ -12,7 +12,7 @@ concurrency:
 jobs:
   experiments:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -22,11 +22,24 @@ jobs:
         with:
           python-version: '3.12'
       - run: python3 -m pip install -r research/openai-math/requirements.lock
-      - name: Kör E1–E3 med kalibreringar
+      # E6: only the replicated packages' directories of the latest openai/math, not the whole 3.7 GB repository.
+      - name: Hämta openai/math (gles klon)
+        id: clone
+        continue-on-error: true
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/openai/math.git "$RUNNER_TEMP/openai-math"
+          python3 research/openai-math/replication.py --list-directories > "$RUNNER_TEMP/dirs.txt"
+          git -C "$RUNNER_TEMP/openai-math" sparse-checkout set $(cat "$RUNNER_TEMP/dirs.txt")
+      - name: E6, omkörning av openai/math:s kontroller
+        if: ${{ steps.clone.outcome == 'success' }}
+        continue-on-error: true
+        run: python3 research/openai-math/replication.py --repo "$RUNNER_TEMP/openai-math" --out reports/openai-math-replication/result.json --jobs 4
+      - name: Kör E1–E4 med kalibreringar
         id: run
         continue-on-error: true
         run: |
-          python3 research/openai-math/experiments.py --out reports/openai-math-experiments --ai-bus ai-bus > "$RUNNER_TEMP/report.md"
+          python3 research/openai-math/experiments.py --out reports/openai-math-experiments --ai-bus ai-bus \
+            --replication reports/openai-math-replication/result.json > "$RUNNER_TEMP/report.md"
           cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
@@ -34,6 +47,7 @@ jobs:
           name: oraklet-openai-math-experiments-${{ github.run_id }}
           path: |
             reports/openai-math-experiments/
+            reports/openai-math-replication/
             ai-bus/berakningar/
           retention-days: 30
           if-no-files-found: warn
