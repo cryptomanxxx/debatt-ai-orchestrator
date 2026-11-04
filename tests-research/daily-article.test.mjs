@@ -4,7 +4,7 @@ import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { buildFactSheet, worthWriting, checkArticle, renderArticle, articleMessages, writeDailyArticle, articleIndex,
-  MAX_ARTICLE_REQUEST_CHARS } from '../research/daily-article.mjs';
+  MAX_ARTICLE_REQUEST_CHARS, prepareArticle, softenText, strikeUncheckable } from '../research/daily-article.mjs';
 import { main, renderAiBus } from '../research/literature-day.mjs';
 import { deepRapScoreboard } from '../research/deeprap.mjs';
 
@@ -161,8 +161,13 @@ test('the daily article: one deep call, skipped without verified results, reject
   assert.equal(published.record.status, 'published');
   assert.equal(published.file, '2026-10-24.md', 'one stable file per date');
   assert.deepEqual(published.record.cited, ['F1', 'F3', 'F4', 'F5', 'F6', 'R1']);
-  const rejected = await writeDailyArticle(day, propose(article({ results: 'Detta bevisar allt [F1]. ' + filler('F1').repeat(3) })), { field: 'x' });
-  assert.deepEqual([rejected.record.status, rejected.record.reason, rejected.file], ['rejected', 'overclaim', undefined]);
+  const softened = await writeDailyArticle(day, propose(article({ results: 'Detta bevisar allt [F1]. ' + filler('F1').repeat(3) })), { field: 'x' });
+  assert.deepEqual([softened.record.status, softened.record.softened, softened.record.struck], ['published', [{ from: 'bevisar', to: 'ger belägg för' }], 0],
+    'an overstating word is toned down and listed, not a reason to reject');
+  assert.match(softened.markdown, /Detta ger belägg för allt \[F1\]\./);
+  assert.match(softened.markdown, /\*Labbet tonade ned 1 ordval: "bevisar" → "ger belägg för"\.\*/);
+  const rejected = await writeDailyArticle(day, propose(article({ results: '- Detta gäller [F1]. ' + filler('F1').repeat(3) })), { field: 'x' });
+  assert.deepEqual([rejected.record.status, rejected.record.reason, rejected.file], ['rejected', 'markup', undefined]);
   const skipped = await writeDailyArticle({ date: day.date, pipeline: day.pipeline }, () => assert.fail('no model call'), { field: 'x' });
   assert.deepEqual(skipped.record, { status: 'skipped', reason: 'no_verified_results', facts: 1 });
   const { ResearchError } = await import('../research/errors.mjs');
@@ -176,33 +181,82 @@ test('the daily article: one deep call, skipped without verified results, reject
 test('a rejected draft gets up to two rewrites, each told what it broke; the drafts go to the artifact, not the record', async () => {
   const sent = [];
   const answers = texts => async messages => { sent.push(messages[0].content); return { text: texts.shift(), provider: 'hip', model: 'glm' }; };
-  const claim = article({ limitations: 'Resultatet bekräftar inget utöver fallen, enligt någon granskare [F1]. ' + filler('F1').repeat(3) });
-  const wrongNumber = article({ results: 'Labbkörningen godkände 4 av 3 fall [F1]. ' + filler('F1').repeat(3) });
-  const rewritten = await writeDailyArticle(day, answers([claim, article()]), { field: 'x' });
+  // Markup and a too short text cannot be repaired by the lab, so they still cost a rewrite.
+  const markup = article({ limitations: '- Resultatet gäller bara fallen, enligt någon granskare [F1]. ' + filler('F1').repeat(3) });
+  const short = JSON.stringify({ abstract: 'Kort [F3].', background: 'Kort [F3].', method: 'Kort [F4].', results: 'Kort [F1].', limitations: 'Kort [F1].' });
+  const rewritten = await writeDailyArticle(day, answers([markup, article()]), { field: 'x' });
   assert.equal(rewritten.record.status, 'published');
-  assert.deepEqual([rewritten.record.calls, rewritten.record.earlier], [2, [{ reason: 'overclaim', term: 'bekräftar' }]]);
+  assert.deepEqual([rewritten.record.calls, rewritten.record.earlier], [2, [{ reason: 'markup' }]]);
   assert.doesNotMatch(sent[0], /förra utkast/);
   assert.match(sent[0], /får bara stå direkt nekade/, 'the prompt names the words and the one exception');
-  assert.match(sent[1], /Ditt förra utkast avvisades av labbet: texten överdrev vad verifieringen visar \(ordet "bekräftar"\)\. Ta bort ordet helt, även i nekad form, och skriv till exempel "overifierat"[^.]*\. Skriv om hela artikeln/);
-  assert.deepEqual(rewritten.drafts.map(d => [d.attempt, d.reason, d.term]), [[1, 'overclaim', 'bekräftar']]);
+  assert.match(sent[0], /skriv \{F3\} \(faktumets nummer inom klammer\)/, 'the prompt asks for placeholders instead of numbers');
+  assert.match(sent[1], /Ditt förra utkast avvisades av labbet: texten innehöll otillåten formatering\. Skriv om hela artikeln/);
+  assert.deepEqual(rewritten.drafts.map(d => [d.attempt, d.reason]), [[1, 'markup']]);
   assert.match(rewritten.drafts[0].text, /granskare/, 'the rejected draft is kept whole for the artifact');
   sent.length = 0;
-  const third = await writeDailyArticle(day, answers([claim, wrongNumber, article()]), { field: 'x' });
+  const third = await writeDailyArticle(day, answers([markup, short, article()]), { field: 'x' });
   assert.equal(third.record.status, 'published', 'a second rewrite can still publish');
   assert.equal(third.record.calls, 3);
-  assert.match(sent[2], /en siffra fanns inte i det hänvisade underlaget \(siffran 4 av\)\. Meningen som avvisades: "Labbkörningen godkände 4 av 3 fall \[F1\]\."/,
-    'the rewrite is told the number and the sentence it must mend');
+  assert.match(sent[2], /texten var inte 250–900 ord \(siffran 10 ord; skriv 300–700\)\./, 'the rewrite is told the length it wrote');
   sent.length = 0;
-  const rejected = await writeDailyArticle(day, answers([claim, wrongNumber, wrongNumber]), { field: 'x' });
-  assert.deepEqual(rejected.record, { status: 'rejected', reason: 'unsupported_number', facts: rejected.record.facts, model: 'glm', calls: 3,
-    earlier: [{ reason: 'overclaim', term: 'bekräftar' }, { reason: 'unsupported_number' }] });
+  const rejected = await writeDailyArticle(day, answers([markup, short, short]), { field: 'x' });
+  assert.deepEqual(rejected.record, { status: 'rejected', reason: 'invalid_length', facts: rejected.record.facts, model: 'glm', calls: 3,
+    earlier: [{ reason: 'markup' }, { reason: 'invalid_length' }] });
   assert.equal(sent.length, 3, 'never a fourth call');
-  const short = checkArticle(article({ abstract: 'Kort [F3].', background: 'Kort [F3].', method: 'Kort [F4].', results: 'Kort [F1].', limitations: 'Kort [F1].' }), buildFactSheet(day));
-  assert.deepEqual([short.problem, short.number], ['invalid_length', '10 ord; skriv 300–700'], 'the rewrite is told the length it wrote');
   assert.equal(rejected.drafts.length, 3);
-  assert.doesNotMatch(JSON.stringify(rejected.record), /Labbkörningen|granskare/, 'no model text in the record that reaches ai-bus');
+  assert.doesNotMatch(JSON.stringify(rejected.record), /Kort|granskare/, 'no model text in the record that reaches ai-bus');
   const md = renderAiBus({ date: day.date, field: 'Causal inference', model_budget: 13, pipeline: {}, article: rejected.record });
-  assert.match(md, /Dagens artikel:\*\* ingen i dag \(en siffra fanns inte i det hänvisade underlaget; tidigare utkast avvisades: texten överdrev vad verifieringen visar, ordet "bekräftar"; en siffra fanns inte i det hänvisade underlaget\)/);
+  assert.match(md, /Dagens artikel:\*\* ingen i dag \(texten var inte 250–900 ord; tidigare utkast avvisades: texten innehöll otillåten formatering; texten var inte 250–900 ord\)/);
+});
+
+test('the lab writes the numbers from placeholders, tones down overstating words and strikes sentences it cannot check', async () => {
+  const sheet = buildFactSheet(day);
+  // {F1} becomes the fact's own text, so its numbers are the fact's.
+  const filled = prepareArticle(article({ results: 'Resultatet blev att {F1} [F1]. ' + filler('F1').repeat(3) }), sheet);
+  assert.equal(filled.expanded, 1);
+  const ok = checkArticle(filled.text, sheet);
+  assert.ok(ok.article, JSON.stringify(ok));
+  assert.match(ok.article.results, /Resultatet blev att Labbkörningen act-map-design \(seed 7\) godkände 3 av 3 fall av experimentets egen oberoende verifierare \[F1\]\./);
+  const literature = sheet.facts.find(f => f.topic === 'literature').id;
+  for (const id of ['F99', literature])
+    assert.equal(checkArticle(prepareArticle(article({ results: `Se {${id}} [F1]. ` + filler('F1').repeat(3) }), sheet).text, sheet).problem, 'unknown_citation',
+      `{${id}} names no fact of the lab's own, so it stays and is refused`);
+  // Toning down weakens a claim and leaves a direct negation as it is.
+  const soft = softenText('Detta bekräftade hypotesen och Oraklet har upptäckt ett genombrott. Ingen ny upptäckt görs, och det är inte bekräftat. Bevisen räcker.');
+  assert.equal(soft.text, 'Detta stödde preliminärt hypotesen och Oraklet har iakttagit ett framsteg. Ingen ny upptäckt görs, och det är inte bekräftat. Beläggen räcker.');
+  assert.deepEqual(soft.changes.map(c => c.from), ['bekräftade', 'upptäckt', 'genombrott', 'Bevisen']);
+  assert.equal(softenText('Säkerställandet av allt').text, 'Kontroll av allt', 'an unknown form takes its stem\'s noun');
+  // Where the sentence speaks of absence or doubt, a weaker word would strengthen the negative claim: left as written.
+  for (const negative of ['Studien saknar bevis för hypotesen [F1].', 'Bevis saknas för hypotesen [F1].', 'Ingen forskare ifrågasätter genombrottet [F1].', 'Det råder brist på bekräftelse [F1].', 'Det är svårt att få fullständiga bevis [F1].']) {
+    assert.equal(softenText(negative).changes.length, 0, `not toned down: ${negative}`);
+    assert.equal(checkArticle(prepareArticle(article({ limitations: negative + ' ' + filler('F1').repeat(3) }), sheet).text, sheet).problem, 'overclaim', `still refused for a rewrite: ${negative}`);
+  }
+  assert.equal(softenText('Studien saknar data. Detta bevisar allt.').text, 'Studien saknar data. Detta ger belägg för allt.', 'a cue in another sentence does not count');
+  for (const claim of ['Resultatet är ett genombrott för metoden [F1].', 'Oraklet har upptäckt en mekanism [F1].', 'Labbet fastställde regeln [F1].'])
+    assert.equal(checkArticle(prepareArticle(article({ limitations: claim + ' ' + filler('F1').repeat(3) }), sheet).text, sheet).problem, undefined, `toned down: ${claim}`);
+  // Every edit is listed in the article, however many; the record keeps 20 and the total.
+  const many = Array.from({ length: 21 }, () => 'Detta bevisar allt [F1].').join(' ');
+  const listed = await writeDailyArticle(day, async () => ({ text: article({ results: many + ' ' + filler('F1').repeat(3) }), provider: 'hip', model: 'glm' }), { field: 'x' });
+  assert.deepEqual([listed.record.status, listed.record.softened.length, listed.record.softenedTotal], ['published', 20, 21]);
+  assert.match(listed.markdown, /\*Labbet tonade ned 21 ordval: /);
+  assert.equal((listed.markdown.match(/"bevisar" → "ger belägg för"/g) ?? []).length, 21);
+  // A sentence with a number no cited fact holds is struck, and the rest still passes.
+  const struck = strikeUncheckable(prepareArticle(article({ results: 'Labbkörningen godkände 4 av 3 fall [F1]. ' + filler('F1').repeat(3) }), sheet).text, sheet);
+  assert.deepEqual([struck.checked.problem, struck.struck], [undefined, 1]);
+  assert.doesNotMatch(struck.checked.article.results, /4 av 3/);
+  // Striking never publishes an article that falls below the length: then the length is the problem.
+  const bad = 'Labbkörningen godkände 4 av 3 fall i alla de syntetiska testerna [F1].';
+  const count = o => Object.values(o).join(' ').split(/\s+/).filter(Boolean).length;
+  // 249 words without the bad sentence, padded inside a citing sentence; with it, above 250.
+  const base = { abstract: filler('F1'), background: filler('F1'), method: filler('F1'), results: filler('F1').repeat(6), limitations: filler('F1') };
+  const pad = 249 - count(base);
+  const thin = { ...base, abstract: filler('F1').replace('verifierare', 'mycket '.repeat(pad) + 'verifierare'), results: base.results + ' ' + bad };
+  assert.ok(count(thin) >= 250 && count(thin) - bad.split(' ').length < 250, 'the fixture sits just above the length with the bad sentence');
+  assert.deepEqual([strikeUncheckable(JSON.stringify(thin), sheet).checked.problem, strikeUncheckable(JSON.stringify(thin), sheet).struck], ['invalid_length', 1]);
+  const published = await writeDailyArticle(day, async () => ({ text: article({ results: 'Labbkörningen godkände 4 av 3 fall [F1]. Resultatet blev {F1} [F1]. ' + filler('F1').repeat(3) }), provider: 'hip', model: 'glm' }), { field: 'x' });
+  assert.deepEqual([published.record.status, published.record.struck, published.record.expanded], ['published', 1, 1]);
+  assert.match(published.markdown, /\*Labbet satte in 1 faktum ordagrant från faktaunderlaget där Oraklet skrev en platshållare\.\*/);
+  assert.match(published.markdown, /\*Labbet strök 1 mening som inte gick att kontrollera mot faktaunderlaget\.\*/);
 });
 
 test('the literature day publishes the article, its index and a link, or says why there is none', async () => {
@@ -227,17 +281,17 @@ test('the literature day publishes the article, its index and a link, or says wh
     const saved = JSON.parse(await readFile('reports/literature-day/day.json', 'utf8'));
     assert.equal(saved.article.file, '2026-10-24.md');
     assert.equal(saved.publication, undefined, 'the article text is not duplicated in day.json');
-    const rerun = await main({}, { now: '2026-10-24T15:00:00.000Z', deps: deps(article({ results: 'Detta är ett genombrott [F1]. ' + filler('F1').repeat(3) })) });
+    const rerun = await main({}, { now: '2026-10-24T15:00:00.000Z', deps: deps(article({ results: '- Detta är ett genombrott [F1]. ' + filler('F1').repeat(3) })) });
     assert.equal(rerun.article.status, 'rejected');
     assert.deepEqual(await readdir('ai-bus/artiklar'), ['README.md'], 'a rerun the same day without an article withdraws the earlier one');
     assert.match(await readFile('ai-bus/artiklar/README.md', 'utf8'), /Inga artiklar ännu\./);
     await rm('ai-bus', { recursive: true });
-    const rejected = await main({}, { now: '2026-10-25T09:41:00.000Z', deps: deps(article({ results: 'Detta är ett genombrott [F1]. ' + filler('F1').repeat(3) })) });
-    assert.equal(rejected.article.reason, 'overclaim');
+    const rejected = await main({}, { now: '2026-10-25T09:41:00.000Z', deps: deps(article({ results: '- Detta är ett genombrott [F1]. ' + filler('F1').repeat(3) })) });
+    assert.equal(rejected.article.reason, 'markup');
     await assert.rejects(readdir('ai-bus/artiklar'));
-    assert.match(await readFile('ai-bus/rapporter/2026-10-25.md', 'utf8'), /Dagens artikel:\*\* ingen i dag \(texten överdrev vad verifieringen visar, ordet "genombrott"; tidigare utkast avvisades/);
+    assert.match(await readFile('ai-bus/rapporter/2026-10-25.md', 'utf8'), /Dagens artikel:\*\* ingen i dag \(texten innehöll otillåten formatering; tidigare utkast avvisades/);
     const drafts = JSON.parse(await readFile('reports/literature-day/article-drafts.json', 'utf8'));
-    assert.deepEqual(drafts.map(d => d.reason), ['overclaim', 'overclaim', 'overclaim'], 'the rejected drafts are kept for the artifact');
+    assert.deepEqual(drafts.map(d => d.reason), ['markup', 'markup', 'markup'], 'the rejected drafts are kept for the artifact');
     assert.doesNotMatch(await readFile('reports/literature-day/day.json', 'utf8'), /Detta är ett genombrott/, 'not in day.json');
     assert.match(await articleIndex('nowhere'), /Inga artiklar ännu\./);
   } finally { process.chdir(cwd); await rm(dir, { recursive: true, force: true }); }

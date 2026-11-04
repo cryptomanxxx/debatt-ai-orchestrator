@@ -77,8 +77,8 @@ export function articleMessages(sheet, date, feedback = '') {
     { role: 'system', content: 'Du är Professor Oraklet och skriver dagens korta vetenskapliga artikel på svenska, 300–700 ord: mer en utförlig sammanfattning än en hel artikel. '
       + 'Välj ett sammanhållet ämne bland faktaunderlaget, helst ett verifierat labbresultat, och skriv bara det underlaget säger. '
       + 'Varje mening med ett påstående eller en siffra ska hänvisa till sitt underlag med [F1], [F2] … och litteratur med [R1], [R2] …; hitta aldrig på siffror, källor eller resultat. '
-      + 'Skriv alla tal med siffror, aldrig med ord som "tre" eller "hälften". Varje mening ska ha minst en hänvisning. En siffra får bara stå i en mening som hänvisar till ett faktum där just den siffran finns, med samma ord eller tecken efter sig som i faktumet (till exempel "3 av 5 fall", "88 %"); skriv inga datum och ingen annan numrering. Ingen Markdown, inga listor, inga webbadresser. Står flera siffror ur samma faktum i en mening, behåll faktumets ordning. '
-      + `Använd inte orden ${BANNED_WORDS}; de får bara stå direkt nekade, som "ingen ny upptäckt", och "metoder för kausal upptäckt" går bra som namn på en metodfamilj. Undvik helst alla ord som börjar på "bekräft", även nekade: skriv "overifierat", "inte prövat", "saknar experimentellt stöd", "preliminärt stött" eller "inte granskat". Begränsningar ska nämna att allt är syntetiskt eller bygger på sammanfattningar och att inget är granskat. `
+      + 'Skriv inga siffror själv: där ett av labbets fakta ska ge siffrorna, skriv {F3} (faktumets nummer inom klammer) med hänvisningen [F3] efter, så sätter labbet in faktumets text ordagrant, till exempel "Resultatet blev {F3} [F3]." Skriv aldrig tal med ord som "tre" eller "hälften". Varje mening ska ha minst en hänvisning. En siffra får bara stå i en mening som hänvisar till ett faktum där just den siffran finns, med samma ord eller tecken efter sig som i faktumet (till exempel "3 av 5 fall", "88 %"); skriv inga datum och ingen annan numrering. Ingen Markdown, inga listor, inga webbadresser. Står flera siffror ur samma faktum i en mening, behåll faktumets ordning. '
+      + `Använd inte orden ${BANNED_WORDS} (labbet tonar ned dem och redovisar det i artikeln); de får bara stå direkt nekade, som "ingen ny upptäckt", och "metoder för kausal upptäckt" går bra som namn på en metodfamilj. Undvik helst alla ord som börjar på "bekräft", även nekade: skriv "overifierat", "inte prövat", "saknar experimentellt stöd", "preliminärt stött" eller "inte granskat". Begränsningar ska nämna att allt är syntetiskt eller bygger på sammanfattningar och att inget är granskat. `
       + 'Labbet sätter rubriken. Svara endast JSON: {"abstract":"…","background":"…","method":"…","results":"…","limitations":"…"}.'
       + (feedback ? ` Ditt förra utkast avvisades av labbet: ${feedback} Skriv om hela artikeln så att den följer alla regler.` : '') },
     { role: 'user', content: JSON.stringify({ date, facts: sheet.facts.map(({ id, text }) => ({ id, text })), references: sheet.references.map(({ id, title }) => ({ id, title })) }) },
@@ -104,21 +104,128 @@ const QUALIFIER = /^(en|ett|någon|något|några|ny|nya|nytt|egen|eget|egna|såd
 // kausal upptäckt". "Metoden gav en kausal upptäckt", "beröm för sin kausala upptäckt" and
 // "Oraklet gjorde en kausal upptäckt" stay refused.
 const METHOD_NAME = /(?:(?:metod|ramverk|framework|algoritm|verktyg|teknik)\p{L}*\s+för(?:\s+(?!(?:sin|sina|sitt|hans|hennes|dess|deras|en|ett|egen|eget|egna)(?![\p{L}]))\p{L}+)?|(?:^|[^\p{L}])inom)\s+kausal\s+$/iu;
-function overclaimTerm(text) {
+// The first wording that overstates, with its place in the text, or null.
+function overclaimMatch(text) {
   for (const m of text.matchAll(OVERCLAIM)) {
     if (m[1].toLowerCase() === 'upptäckt' && METHOD_NAME.test(text.slice(Math.max(0, m.index - 80), m.index))) continue;
     const before = text.slice(Math.max(0, m.index - 60), m.index).match(NEGATED);
     // Only qualifying adjectives may stand between the negator and the term, also after "ingen": a
     // noun or verb there means the negator belongs to something else ("Ingen forskare ifrågasätter
     // genombrottet", "Ingen förnekar upptäckten" affirm the claim).
-    if (!before || !before[2].trim().split(/\s+/).filter(Boolean).every(w => QUALIFIER.test(w))) return m[1].toLowerCase().slice(0, 30);
+    if (!before || !before[2].trim().split(/\s+/).filter(Boolean).every(w => QUALIFIER.test(w))) return { word: m[1], index: m.index };
     // "utan" after an earlier negator in the sentence is contrastive ("inte resultat utan genombrott").
     if (before[1].toLowerCase() === 'utan') {
       const head = sentenceBefore(text, m.index);
-      if (NEGATOR.test(head.slice(0, head.toLowerCase().lastIndexOf('utan')))) return m[1].toLowerCase().slice(0, 30);
+      if (NEGATOR.test(head.slice(0, head.toLowerCase().lastIndexOf('utan')))) return { word: m[1], index: m.index };
     }
   }
   return null;
+}
+const overclaimTerm = text => overclaimMatch(text)?.word.toLowerCase().slice(0, 30) ?? null;
+
+// The lab tones an overstating word down to a weaker one before the checks: the change only ever
+// weakens a claim, and every change is listed in the article. Known forms map to a matching form;
+// any other form of a stem gets the stem's noun.
+const SOFTER = Object.freeze({
+  bekräfta: 'stödja preliminärt', bekräftar: 'stöder preliminärt', bekräftade: 'stödde preliminärt', bekräftat: 'gett preliminärt stöd åt',
+  bekräftats: 'fått preliminärt stöd', bekräftas: 'får preliminärt stöd', bekräftades: 'fick preliminärt stöd', bekräftad: 'preliminärt stödd',
+  bekräftelse: 'preliminärt stöd', bekräftelsen: 'det preliminära stödet', bekräftelser: 'preliminära stöd',
+  bevis: 'belägg', beviset: 'belägget', bevisen: 'beläggen', bevisning: 'belägg', bevisningen: 'beläggen', bevisa: 'ge belägg för',
+  bevisar: 'ger belägg för', bevisade: 'gav belägg för', bevisat: 'gett belägg för', bevisats: 'fått belägg', bevisas: 'får belägg',
+  genombrott: 'framsteg', genombrottet: 'framsteget', genombrotten: 'framstegen',
+  upptäckt: 'iakttagelse', upptäckten: 'iakttagelsen', upptäckter: 'iakttagelser', upptäckterna: 'iakttagelserna', upptäcka: 'iaktta',
+  upptäcker: 'iakttar', upptäckte: 'iakttog', upptäckts: 'iakttagits', upptäcks: 'iakttas',
+  banbrytande: 'ny', fastställa: 'uppskatta', fastställer: 'uppskattar', fastställde: 'uppskattade', fastställt: 'uppskattat',
+  fastställts: 'uppskattats', fastställs: 'uppskattas', fastställd: 'uppskattad', fastställda: 'uppskattade',
+  säkerställa: 'kontrollera', säkerställer: 'kontrollerar', säkerställde: 'kontrollerade', säkerställt: 'kontrollerat',
+  säkerställts: 'kontrollerats', säkerställs: 'kontrolleras', revolution: 'förändring', revolutionen: 'förändringen',
+  revolutionerande: 'ny', revolutionerar: 'förändrar', definitivt: 'preliminärt',
+});
+const STEM_NOUNS = [['bekräft', 'preliminärt stöd'], ['bevis', 'belägg'], ['genombrott', 'framsteg'], ['upptäck', 'iakttagelse'],
+  ['fastställ', 'uppskattning'], ['säkerställ', 'kontroll'], ['revolution', 'förändring']];
+function softer(word, before) {
+  const w = word.toLowerCase();
+  // "har upptäckt" is the verb: "har iakttagit".
+  const plain = w === 'upptäckt' && /(?:^|[^\p{L}])(har|hade|ha|blivit)\s+$/iu.test(before) ? 'iakttagit'
+    : SOFTER[w] ?? STEM_NOUNS.find(([stem]) => w.startsWith(stem))?.[1] ?? 'preliminärt';
+  return word[0] === word[0].toUpperCase() && word[0] !== word[0].toLowerCase() ? plain[0].toUpperCase() + plain.slice(1) : plain;
+}
+// In a sentence that speaks of absence, doubt or negation ("saknar bevis", "bevis saknas", "ingen
+// förnekar genombrottet"), a weaker word would make a negative claim stronger: "saknar belägg" says
+// more than "saknar bevis". Such a sentence is left as written, so the check refuses it as before.
+const NEGATIVE_CUE = /(?<![\p{L}])(inte|ej|ingen|inget|inga|aldrig|varken|utan|knappast|sakna\p{L}*|brist\p{L}*|avsaknad\p{L}*|otillräcklig\p{L}*|ifrågasätt\p{L}*|motsä\p{L}*|förneka\p{L}*|tvivel\p{L}*|tvek\p{L}*|osäker\p{L}*|svår\p{L}*)(?![\p{L}])/iu;
+// The sentence the term stands in: from the last sentence end before it to the next one after it.
+const sentenceAround = (text, at) => {
+  const head = text.slice(0, at);
+  return (/[.!?]["'\u201D\u2019\u00BB)\]]*\s+$/.test(head) ? '' : sentenceBefore(text, at)) + (text.slice(at).match(/^[\s\S]*?(?:[.!?](?=\s|$)|$)/)?.[0] ?? '');
+};
+export function softenText(text) {
+  const changes = [], kept = [];
+  for (let n = 0; n < 50; n++) {
+    const m = overclaimMatch(text);
+    if (!m) break;
+    if (NEGATIVE_CUE.test(sentenceAround(text, m.index))) {
+      // Kept as written, and hidden from the search until the end so later sentences are still toned down.
+      kept.push(m.word);
+      text = text.slice(0, m.index) + `\uE000${kept.length - 1}\uE001` + text.slice(m.index + m.word.length);
+      continue;
+    }
+    const to = softer(m.word, text.slice(Math.max(0, m.index - 20), m.index));
+    changes.push({ from: m.word, to });
+    text = text.slice(0, m.index) + to + text.slice(m.index + m.word.length);
+  }
+  return { text: text.replace(/\uE000(\d+)\uE001/g, (_, i) => kept[Number(i)]), changes };
+}
+
+// Before the checks the lab writes the numbers itself: {F3} becomes the text of fact F3 (without
+// its full stop), so a number can only be the fact's own. Literature facts carry quotes, whose full
+// stops would split sentences, so only the lab's own facts expand; any other {…} stays and is refused.
+// Then each section's overstating words are toned down. A draft that is not JSON is left for the check.
+export function prepareArticle(text, sheet) {
+  let a;
+  try {
+    const t = String(text).trim().replace(/^<think>[\s\S]*?<\/think>\s*/, ''), fenced = t.match(/^```(?:json)?\s*\n([\s\S]*?)\n?```$/);
+    a = JSON.parse(fenced ? fenced[1] : t);
+  } catch { return { text, softened: [], expanded: 0 }; }
+  if (!a || typeof a !== 'object' || Array.isArray(a)) return { text, softened: [], expanded: 0 };
+  const own = new Map(sheet.facts.filter(f => f.topic !== 'literature').map(f => [f.id, f.text.replace(/\.\s*$/, '')]));
+  const softened = [];
+  let expanded = 0;
+  for (const [k] of SECTIONS) {
+    if (typeof a[k] !== 'string') continue;
+    let t = a[k].replace(/\{(F\d{1,2})\}/g, (all, id) => own.has(id) ? (expanded++, own.get(id)) : all).replace(/\s+/g, ' ');
+    const soft = softenText(t);
+    softened.push(...soft.changes);
+    a[k] = soft.text;
+  }
+  return { text: JSON.stringify(a), softened, expanded };
+}
+
+// A sentence the lab cannot check against the fact sheet (a number it does not hold, a number or a
+// sentence without a citation) is struck, and the rest is checked again; striking never adds a claim.
+// At most MAX_STRUCK sentences go, and the article must still pass every check, its length included.
+const MAX_STRUCK = 6;
+const STRIKABLE = new Set(['unsupported_number', 'uncited_number', 'uncited_sentence']);
+export function strikeUncheckable(text, sheet) {
+  let a, checked = checkArticle(text, sheet), struck = 0;
+  while (checked.problem && STRIKABLE.has(checked.problem) && checked.sentence && struck < MAX_STRUCK) {
+    try { a = JSON.parse(text); } catch { break; }
+    let hit = false;
+    for (const [k] of SECTIONS) {
+      if (typeof a[k] !== 'string' || hit) continue;
+      const parts = sentences(a[k]);
+      const i = parts.indexOf(checked.sentence);
+      if (i < 0) continue;
+      parts.splice(i, 1);
+      a[k] = parts.join(' ').replace(/\u2024/g, '.');
+      hit = true;
+    }
+    if (!hit) break;
+    struck++;
+    text = JSON.stringify(a);
+    checked = checkArticle(text, sheet);
+  }
+  return { text, checked, struck };
 }
 const BANNED_WORDS = '"bevis", "bevisa", "bekräfta", "bekräftelse", "genombrott", "upptäcka", "upptäckt", "banbrytande", "fastställa", "säkerställa", "revolutionerande" och "definitivt"';
 const tags = text => [...text.matchAll(/\[([FR]\d{1,2})\]/g)].map(m => m[1]);
@@ -186,6 +293,8 @@ export function checkArticle(text, sheet) {
   if (!a || typeof a !== 'object' || Object.keys(a).filter(k => k !== 'title').sort().join() !== [...keys].sort().join() || keys.some(k => typeof a[k] !== 'string' || !a[k].trim()))
     return { problem: 'invalid_shape' };
   if (SECTIONS.some(([k]) => LINKLIKE.test(a[k]))) return { problem: 'markup' };
+  // A placeholder the lab could not fill names no fact of its own.
+  if (SECTIONS.some(([k]) => /\{[^{}]*\}/.test(a[k]))) return { problem: 'unknown_citation' };
   const body = SECTIONS.map(([k]) => a[k]).join('\n');
   const words = body.split(/\s+/).filter(Boolean).length;
   if (words < 250 || words > 900) return { problem: 'invalid_length', number: `${words} ord; skriv 300–700` };
@@ -235,7 +344,7 @@ const inert = v => String(v ?? '').replace(/\s+/g, ' ').trim().replace(/[\\`*_[\
   .replace(/:\/\//g, ':\u200B//').replace(/\b(www)\./gi, '$1\u200B.').replace(/@/g, '\u200B@');
 const escapeText = v => inert(v).replace(/\\\[([FR]\d{1,2})\\\]/g, '[$1]');
 const FOOTER = '*Skriven av Professor Oraklet, en AI, utifrån faktaunderlaget nedan. Underlaget kommer från sparade, oberoende verifierade körningar och från sammanfattningar med kontrollerade citat; texten är inte granskad av en människa eller av vetenskapliga granskare. "Preliminärt stött" gäller bara det testade fallet, aldrig etablerad vetenskap.*';
-export function renderArticle(article, sheet, { date, field, model }) {
+export function renderArticle(article, sheet, { date, field, model, softened = [], expanded = 0, struck = 0 }) {
   const cited = new Set(SECTIONS.flatMap(([k]) => tags(article[k])));
   const L = [`# ${article.title}`, '', `*Professor Oraklet, ${date}. Fält: ${field}. Modell: ${clip(model, 80)}.*`, ''];
   for (const [k, heading] of SECTIONS) L.push(`## ${heading}`, '', escapeText(article[k]), '');
@@ -249,6 +358,11 @@ export function renderArticle(article, sheet, { date, field, model }) {
     for (const r of refs) L.push(`- **[${r.id}]** ${inert(r.title)}${r.url ? ` <${r.url}>` : ''}`);
   }
   L.push('', '---', '', FOOTER, '');
+  // The lab's own edits of the model's text are listed, so a reader knows what was changed.
+  if (expanded) L.push('', `*Labbet satte in ${expanded} ${expanded === 1 ? 'faktum' : 'fakta'} ordagrant från faktaunderlaget där Oraklet skrev en platshållare.*`);
+  if (softened.length) L.push('', `*Labbet tonade ned ${softened.length} ordval: ${softened.map(c => `"${inert(c.from)}" → "${inert(c.to)}"`).join(', ')}.*`);
+  if (struck) L.push('', `*Labbet strök ${struck} ${struck === 1 ? 'mening' : 'meningar'} som inte gick att kontrollera mot faktaunderlaget.*`);
+  if (expanded || softened.length || struck) L.push('');
   return L.join('\n');
 }
 
@@ -280,7 +394,7 @@ export async function writeDailyArticle(day, propose, { field }) {
   // the lab's reason, the word or number and the sentence it refused (the model's own text). Every
   // rewrite passes the same checks, or nothing is published. The record (day.json, ai-bus) keeps
   // only fixed reasons and words; the drafts go to the run's artifact (drafts), never to ai-bus.
-  let answer, checked, calls = 0;
+  let answer, checked, prepared, calls = 0;
   const earlier = [], drafts = [];
   const result = record => ({ record, ...(drafts.length ? { drafts } : {}) });
   for (let attempt = 0; attempt < ARTICLE_MODEL_CALLS; attempt++) {
@@ -294,7 +408,10 @@ export async function writeDailyArticle(day, propose, { field }) {
         ...(Number.isInteger(upstreamStatus) ? { upstreamStatus } : {}), ...(Number.isInteger(httpStatus) ? { httpStatus } : {}),
         ...(provider && model ? { provider, model } : {}), ...(earlier.length ? { earlier } : {}) });
     }
-    checked = checkArticle(answer.text, sheet);
+    prepared = prepareArticle(answer.text, sheet);
+    const repaired = strikeUncheckable(prepared.text, sheet);
+    checked = repaired.checked;
+    prepared.struck = checked.problem ? 0 : repaired.struck;
     if (!checked.problem) break;
     drafts.push({ attempt: attempt + 1, ...problemRecord(checked), ...(checked.sentence ? { sentence: clip(checked.sentence, 600) } : {}),
       ...(checked.number ? { number: clip(checked.number, 80) } : {}), text: String(answer.text).slice(0, 20000) });
@@ -303,9 +420,12 @@ export async function writeDailyArticle(day, propose, { field }) {
   if (checked.problem) return result({ status: 'rejected', ...problemRecord(checked), facts: sheet.facts.length, model: answer.model ?? null, calls, ...(earlier.length ? { earlier } : {}) });
   // One stable file per date: a rerun the same day replaces the day's article instead of adding one.
   const file = `${day.date}.md`;
+  // The article lists every edit; the record keeps the counts and at most 20 of the changes.
+  const edits = { softened: prepared.softened, expanded: prepared.expanded, struck: prepared.struck };
   return { ...(drafts.length ? { drafts } : {}), record: { status: 'published', file, title: checked.article.title, words: checked.words, facts: sheet.facts.length, calls, ...(earlier.length ? { earlier } : {}),
-    cited: [...new Set(SECTIONS.flatMap(([k]) => tags(checked.article[k])))].sort(), model: answer.model ?? null },
-  file, markdown: renderArticle(checked.article, sheet, { date: day.date, field, model: `${answer.provider ?? ''} ${answer.model ?? ''}`.trim() }) };
+    cited: [...new Set(SECTIONS.flatMap(([k]) => tags(checked.article[k])))].sort(), model: answer.model ?? null,
+    softened: prepared.softened.slice(0, 20), softenedTotal: prepared.softened.length, expanded: prepared.expanded, struck: prepared.struck },
+  file, markdown: renderArticle(checked.article, sheet, { date: day.date, field, model: `${answer.provider ?? ''} ${answer.model ?? ''}`.trim(), ...edits }) };
 }
 
 const problemRecord = c => ({ reason: c.problem, ...(c.term ? { term: c.term } : {}) });
