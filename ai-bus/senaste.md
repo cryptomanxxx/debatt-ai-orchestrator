@@ -1,41 +1,52 @@
-# Professor Oraklets dag – 2026-11-03
+# Professor Oraklets dag – 2026-11-04
 
 *Skriven automatiskt av Oraklets dagliga litteraturforskning. Siffrorna kommer från sparade rapporter, inte från en modells egen sammanfattning. Kandidater och hypoteser är overifierade; inget här påstår en ny vetenskaplig upptäckt.*
 
 ## Sammanfattning
 
-- **Fält i dag:** AI för vetenskaplig upptäckt (sökfråga: AI agents scientific discovery)
-- **Litteratur:** 40 träffar hittade, 5 sammanfattningar arkiverade, 2 sammanfattningar analyserade, 3 citerade fynd. Modellanrop: 4 av 13.
+- **Fält i dag:** Kausal inferens (sökfråga: causal inference machine learning)
+- **Litteratur:** 40 träffar hittade, 7 sammanfattningar arkiverade, 9 sammanfattningar analyserade, 22 citerade fynd. Modellanrop: 7 av 14.
 - **Ny hypoteskandidat:** 1
 - **Problem Bank:** 0 nya problem registrerade automatiskt, 0 väntar på ditt godkännande
-- **Experiment senaste dygnet:** 1 körningar, 2 av 3 fall godkända
-- **Dagens artikel:** ingen i dag (texten överdrev vad verifieringen visar, ordet "bekräftade"; tidigare utkast avvisades: texten överdrev vad verifieringen visar, ordet "upptäckt"; en siffra fanns inte i det hänvisade underlaget)
+- **Experiment senaste dygnet:** 1 körningar, 1 av 3 fall godkända
+- **Dagens artikel:** [Hur väl Oraklets resonemang håller](artiklar/2026-11-04.md)
+- **OpenAI:s matematiksamling:** familj 376, 377, 378 (plats 371 av 373, varv 0); ingen läsning godkänd (ingen läsning godkändes)
 
 ## Litteratur
 
-Pipelinen: inga tillräckligt relevanta uppföljningsträffar.
+Pipelinen: delvis slutförd.
 
 | Artikel | Status | Fynd |
 | --- | --- | --- |
-| The Discovery Gap: Why Artificial Intelligence Must Learn to Change Its Mind "Rethinking Human–AI Collaboration from Molecule to Market" | error | 0 |
-| From FAIR to AI-FAIR Metadata-First Infrastructure for AI-Enabled Science | summarized | 2 |
-| Towards Scientific Discovery with Generative AI: Progress, Opportunities, and Challenges | summarized | 1 |
-| Agentic AI systems for scientific discovery | unavailable | 0 |
-| Empowering Biomedical Discovery with AI Agents | unavailable | 0 |
+| Applied Statistics and Machine Learning for Social Science Research | insufficient\_evidence | 0 |
+| Causal ML: Python package for causal inference machine learning | summarized | 1 |
+| What Remains in Sight? Autoregressive Video Decoding as Representation-Guided Context Rewriting | summarized | 1 |
+| Deep Learning for Causal Inference | summarized | 2 |
+| Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound | summarized | 3 |
+| Integrated machine learning and causal inference reveal CHRDL1 as a diagnostic and functional biomarker in NSCLC | summarized | 3 |
+| Machine learning-causal inference based on multi-omics data reveals the association of altered gut bacteria and bile acid metabolism with neonatal jaundice | summarized | 3 |
+| Beyond Prediction: Explaining Health Disparities in Diabetes Risk Through Fairness-Aware Machine Learning and Causal Inference | summarized | 3 |
+| Machine Learning in Causal Inference: Application in Pharmacovigilance | summarized | 3 |
+| Exploratory brain-wide analyses predicting binge drinking: A machine learning and targeted causal inference pipeline in two adolescent cohorts | summarized | 3 |
 
 ### Utdrag ur fynden
 
-- **method:** Proposes AI-FAIR metadata criteria extending original FAIR principles for AI-ready infrastructure. *(From FAIR to AI-FAIR Metadata-First Infrastructure for AI-Enabled Science)*
-- **limitation:** Current data infrastructure and computational resources for AI workflows in ecology and biodiversity science are fragmented. *(From FAIR to AI-FAIR Metadata-First Infrastructure for AI-Enabled Science)*
-- **limitation:** Integrated AI systems capable of autonomous long-term scientific research are currently lacking. *(Towards Scientific Discovery with Generative AI: Progress, Opportunities, and Challenges)*
+- **method:** Causal ML provides uplift modeling and causal inference methods using machine learning algorithms. *(Causal ML: Python package for causal inference machine learning)*
+- **limitation:** Previous inference pipelines decide the visible past implicitly via recent windows, compressed caches, or external memory. *(What Remains in Sight? Autoregressive Video Decoding as Representation-Guided Context Rewriting)*
+- **method:** Provides an introduction to building and optimizing custom deep learning models for heterogeneous treatment effect estimation. *(Deep Learning for Causal Inference)*
+- **limitation:** Current causal inference methods do not yet handle non-linear, time‑varying, or text/network/image confounding. *(Deep Learning for Causal Inference)*
+- **method:** Used integrated analysis of monitoring, satellite, and reanalysis data with explainable machine learning and causal inference. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
+- **result:** Elevated temperature and solar radiation explained 57% of the ozone increase. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
+- **limitation:** Chemical transport models are computationally intensive, and machine learning struggles with confounding and causality. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
+- **method:** Constructed 114 machine learning models with diverse feature selection and classification algorithms and evaluated performance using AUC. *(Integrated machine learning and causal inference reveal CHRDL1 as a diagnostic and functional biomar)*
 
 ## Hypoteskandidat
 
-**Fråga:** Which reported method remains robust under a matched, independent replication?
+**Fråga:** Does adjusting for an identified confounder recover a causal effect that the unadjusted association misstates?
 
 **Hypotes:** The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested.
 
-Underlag: 2 artiklar, 0 rapporterade begränsningar att granska. Status: overifierad, inget experiment kört.
+Underlag: 3 artiklar, 0 rapporterade begränsningar att granska. Status: overifierad, inget experiment kört.
 
 ## Granskningskö (agentisk trädsökning)
 
@@ -43,13 +54,13 @@ Status: kräver verifiering.
 
 ## Nyhetskontroll (citeringsgraf)
 
-ingen överlappning hittad inom budgeten; 10 senare verk att granska. Att inget hittas inom budgeten bevisar inte att idén är ny.
+möjlig överlappning hittad; 9 senare verk att granska. Att inget hittas inom budgeten bevisar inte att idén är ny.
 
-- The metadata ecosystem and AI: Enabling FAIR and AI‐ready data (2026)
-- Simulating the Future of Innovation: A Data-Grounded, Multi-Agent LLM Framework for R&D Collaboration Planning in Urban Mobility (2026)
-- Leveraging explicit priors for guided learning under data scarcity (2026)
-- NeuroFAIR curator: an AI-assisted framework for metadata enrichment, quality screening, curation prioritization, and FAIR readiness of brain tumor MRI data (2026)
-- Transforming mental health research and care through artificial intelligence (2026)
+- A Comprehensive Review and Tutorial on Confounding Adjustment Methods for Estimating Treatment Effects Using Observational Data (2024)
+- Covariate selection and adjustment for efficacy and safety endpoints in indirect comparative effectiveness analyses of CAR-T-cell therapies for large B-cell lymphoma: a systematic review (2026)
+- DeepLearningCausal: R Package for Estimating Treatment Effects Using Deep Neural Networks and Ensemble Learning (2026)
+- Causal effects of unintended pregnancy on adverse birth outcomes: A target trial emulation analysis (2026)
+- A Systematic Literature Review of the Effectiveness of CDK 4/6 Inhibitors for First-Line Treatment of HR+/HER2− Advanced/Metastatic Breast Cancer: A Comparison of Real-World Evidence (2026)
 
 ## Problem Bank
 
@@ -61,35 +72,18 @@ Registrerade problem erbjuds den dagliga labbkörningen, som kan välja att arbe
 
 | Experiment | Seed | Status | Godkända fall | Rak fråga (labbet/rak) |
 | --- | --- | --- | --- | --- |
-| act-map-design | 20261103 | failed | 2 av 3 | – |
-
-## Oraklets egna experiment
-
-Experiment som Oraklet själv utformade (`act-map-design`): en egen orsaksmekanism som deklarativ specifikation, en förregistrerad förutsägelse om dess identifierbarhet, och undersökningen när labbet gömt mekanismen i okända system. Förutsägelsen avgörs av labbets uppräkning, undersökningen av evidensgrinden; inget av det är Oraklets eget omdöme.
-
-### act-map-design, seed 20261103
-
-Mekanism: `s_1 = 2*s_0`, `s_2 = 3*s_0`.
-
-Förutsägelse: identifierbar med minst 1 ingrepp. Labbets uppräkning: identifierbar med minst 2 ingrepp. Förutsägelsen stämde inte.
-
-| Fall | Ingrepp | Oraklets beslut | Facit | Grinden | Baslinjen | Godkänt |
-| --- | --- | --- | --- | --- | --- | --- |
-| 2 | 3 | full | full | provisionally\_supported | full | ja |
-| 3 | 3 | ingen | ingen | unresolved | ingen | ja |
-
-Oraklets motivering: `Stjärnstruktur med unika koefficienter gör att en enda intervention på roten ger ett unikt värdemönster (1,2,3) som entydigt identifierar både variabelnamn och kanter.`
+| rankscreen-consistency | 20261104 | failed | 1 av 3 | – |
 
 ## Kunskapsminne (VEM-Sci)
 
-Från de senaste 23 körningarna med register (högst 200): 31 preliminärt stödda, 4 avvisade och 8 olösta påståenden. Labbets planering ser samma register och prioriterar där påståenden inte höll eller belägg saknas.
+Från de senaste 24 körningarna med register (högst 200): 32 preliminärt stödda, 6 avvisade och 8 olösta påståenden. Labbets planering ser samma register och prioriterar där påståenden inte höll eller belägg saknas.
 
 | Experiment | Stödda | Avvisade | Olösta (avstått / utan svar) | Vanligaste felorsaker | Lärprioritet |
 | --- | --- | --- | --- | --- | --- |
 | act-map-design | 1 | 1 | 2 (1 / 1) | fel minsta antal ingrepp ×1; svaret klipptes vid tokengränsen ×1 | 0.67 |
 | act-map-tree | 4 | 0 | 3 (1 / 2) | svaret klipptes vid tokengränsen (nivå 4) ×2 | 0.44 |
+| rankscreen-consistency | 7 | 4 | 0 (0 / 0) | avvisat av verifieraren ×4 | 0.38 |
 | act-map-transfer | 9 | 1 | 3 (2 / 1) | ingreppen täckte inte roten och mediatorn ×1; interventions angav inte en egen målvariabel för vart och ett av de tre ingreppen (nivå 3) ×1 | 0.33 |
-| rankscreen-consistency | 6 | 2 | 0 (0 / 0) | avvisat av verifieraren ×2 | 0.30 |
 | act-map-budget | 2 | 0 | 0 (0 / 0) | – | 0.25 |
 | dowhy-backdoor | 3 | 0 | 0 (0 / 0) | – | 0.20 |
 | rankscreen-rank-deficit | 3 | 0 | 0 (0 / 0) | – | 0.20 |
@@ -99,13 +93,13 @@ Från de senaste 23 körningarna med register (högst 200): 31 preliminärt stö
 
 ## DeepRAP-mått
 
-Från 23 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experimentens egna oberoende verifierare avgör; varje siffra visas med sitt underlag. Få fall ger stor osäkerhet.
+Från 24 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experimentens egna oberoende verifierare avgör; varje siffra visas med sitt underlag. Få fall ger stor osäkerhet.
 
 | Förmåga | Mått | Värde | Underlag |
 | --- | --- | --- | --- |
-| Resonemang | Påståenden som höll vid verifiering | 89 % | 31 stödda, 4 avvisade |
-| Resonemang | Olösta (avstått / utan svar) | 8 (4 / 4) | 43 påståenden |
-| Resonemang | Kalibrering: angiven säkerhet mot andel rätt (Brier) | 98 % mot 88 % (0.1222) | 40 fall |
+| Resonemang | Påståenden som höll vid verifiering | 84 % | 32 stödda, 6 avvisade |
+| Resonemang | Olösta (avstått / utan svar) | 8 (4 / 4) | 46 påståenden |
+| Resonemang | Kalibrering: angiven säkerhet mot andel rätt (Brier) | 99 % mot 84 % (0.1602) | 43 fall |
 | Abstraktion | ACT-MAP direkt: rätt beslut | 88 % | 7 av 8; per nivå 2: 3/3, 3: 2/3, 4: 2/2 |
 | Abstraktion | ACT-MAP trädsökning v1: rätt beslut | 50 % | 1 av 2; per nivå 3: 1/1, 4: 0/1 |
 | Abstraktion | ACT-MAP trädsökning: rätt beslut | 80 % | 4 av 5; per nivå 3: 3/3, 4: 1/2 |
@@ -114,7 +108,21 @@ Från 23 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experime
 | Abstraktion | Felaktigt godkända överföringar | 0 | alla ACT-MAP-fall |
 | Planering | Ingrepp per rätt fall: Oraklet mot uppräkningsbaslinjen | 2.875 mot 2.6875 | 16 fall där båda hade rätt |
 | Planering | Två ingrepp: det andra fullbordade täckningen | 100 % | 2 av 2 fall där det var möjligt |
-| Planering | Planeringen valde högsta lärprioritet | 8 av 15 | körningar planerade med minnet; relativ placering i snitt 0.3569 (0 = högst), 6 val av obeprövat experiment |
+| Planering | Planeringen valde högsta lärprioritet | 8 av 16 | körningar planerade med minnet; relativ placering i snitt 0.3824 (0 = högst), 6 val av obeprövat experiment |
+
+## OpenAI:s matematiksamling
+
+Oraklet läser tre resultatfamiljer om dagen ur [openai/math](https://github.com/openai/math), i katalogens ordning ([research/openai-math/katalog.json](https://github.com/cryptomanxxx/debatt-ai-orchestrator/blob/main/research/openai-math/katalog.json)). Samlingen är rådata från en ej släppt modell; resultaten är ogranskade påståenden. Citaten är kontrollerade ordagrant mot familjens sammanfattning, men resten är Oraklets tolkning och inte granskad.
+
+| Familj | Ämne | Lean | Kod |
+| --- | --- | --- | --- |
+| 376. [Universal computation in forced Navier–Stokes flows](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/A-Fixed-Particle-Test-for-Computation-in-a-Forced-Viscous-Flow-September-27-2026) | Partial differential equations | delvis | nej |
+| 377. [Interior $\`C^{1,\\alpha}\`$ regularity for infinity-harmonic functions](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/Uniform-Interior-C1alpha-Estimates-for-Infinity-Harmonic-Functions-October-4-2026) | Partial differential equations | nej | nej |
+| 378. [Disproof of the Exponential Time Hypothesis](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/The-Exponential-Time-Hypothesis-is-False-October-25-2026) | Theoretical computer science | huvudresultat | nej |
+
+- Familj 376: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
+- Familj 377: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
+- Familj 378: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
 
 ## Begränsningar
 
