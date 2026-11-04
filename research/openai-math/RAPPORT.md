@@ -12,7 +12,7 @@ OpenAI kallar själva materialet för rådata, inte färdiga artiklar. Tre manus
 
 - **Alla sammanfattningar lästa.** Jag har läst sammanfattningarna för alla 373 familjer och innehållsförteckningen med de 721 abstrakten. De 21 familjer som har körbar kod har jag gått igenom i detalj.
 - **Omkörning.** Jag körde om verifieringen för 20 paket i 17 av de 21 kodfamiljerna. Alla gick igenom inom sin dokumenterade omfattning. Ett paket (Mahler, familj 087) går inte att köra som beskrivet, eftersom en fil saknas.
-- **Pilotexperiment.** Ett eget pilotexperiment bygger på dimensionsformeln i familj 148. Det återger det kända värdet 0,995713 för Bernoulli-faltningen med det gyllene snittet, med alla sex decimaler. Formeln används sedan på ett nytt fall: en Salem-parameter, där resultatet antyder full dimension trots att faltningen enligt familj 153 är singulär.
+- **Pilotexperiment.** Ett eget pilotexperiment bygger på dimensionsformeln i familj 148. Det återger det kända värdet 0,995713 för Bernoulli-faltningen med det gyllene snittet, med alla sex decimaler. Formeln används sedan på ett nytt fall, en Salem-parameter, där familj 153 påstår att faltningen är singulär. Där är frågan om dimensionen är exakt 1 eller strikt mindre; den ändliga uppskattningen har ännu inte konvergerat.
 - **Störst potential.** Mest att bygga vidare på finns i fem områden:
   - matrismultiplikation (107);
   - sampling och räkning för statistik: perfekta matchningar, kontingenstabeller, grafbyten och log-konkav sampling (113, 115, 131, 139);
@@ -152,9 +152,9 @@ Experimenten är utformade för labbet: små, deterministiska, med en förutsäg
 
 - **Idé:** beräkna h/χ (entropitakt delad med Lyapunov-exponent) exakt för algebraiska parametrar. Enligt formeln är dimensionen min(1, h/χ).
 - **Kalibrering:** för det gyllene snittet ger [garsia_entropy.py](garsia_entropy.py) h/χ = **0,995713**. Det kända värdet (Alexander–Zagier) är 0,99571…, så alla sex decimaler stämmer från n ≈ 20.
-- **Nytt fall:** λ = 1/τ, där τ ≈ 1,72208 är det minsta kvartiska Salem-talet (x⁴ − x³ − x² − x + 1). Familj 153 påstår att faltningen är singulär här. Piloten ger h/χ ≈ 1,124 vid n = 15, 1,103 vid n = 20 och 1,091 vid n = 24. Kvoten sjunker långsamt och har inte konvergerat.
-- **Förutsägelse (registrerad här):** gränsvärdet av h/χ är större än 1. Dimensionen är då 1, trots att måttet är singulärt.
-- **Kontroll:** exakt räkning i ℤ[λ]. Entropin är subadditiv, så h = inf H_n/n och varje H_n/n är en övre gräns för h. Förutsägelsen förkastas alltså om H_n/(nχ) < 1 för något n. Att bekräfta den kräver i stället en undre gräns för h, som uppräkningen inte ger; det är experimentets svåra del. Större n kräver en kompilerad implementation.
+- **Nytt fall:** λ = 1/τ, där τ ≈ 1,72208 är det minsta kvartiska Salem-talet (x⁴ − x³ − x² − x + 1). Familj 153 påstår att faltningen är singulär här. Piloten ger skattningen (H_n − H_{n−1})/χ ≈ 1,124 vid n = 15, 1,103 vid n = 20 och 1,091 vid n = 24. Den sjunker långsamt och har inte konvergerat. Gränsvärdet kan inte överstiga 1: Mahler-måttet för λ är τ, så log M(λ) = χ, och Breuillard–Varjús olikhet h ≤ log M(λ) ger h/χ ≤ 1. Värden över 1 visar alltså bara att n är för litet.
+- **Förutsägelse (registrerad här):** h/χ < 1, alltså dimension strikt under 1, som för Pisot-parametrar (gyllene snittet: 0,9957). Alternativet är h = log M(λ), alltså full dimension trots att måttet är singulärt.
+- **Kontroll:** exakt räkning i ℤ[λ]. Entropin är subadditiv, så h = inf H_n/n och varje H_n/n är en övre gräns för h. Förutsägelsen bekräftas alltså rigoröst om H_n/(nχ) < 1 för något n. Vid n = 24 ligger både H_n/(nχ) och differensskattningen fortfarande över 1, så det krävs betydligt större n och en kompilerad implementation. Att förkasta förutsägelsen, alltså visa h = log M(λ), kräver i stället en undre gräns för h, som uppräkningen inte ger.
 
 ### E2. Rekonstruktionströsklar för Potts-modellen med q ≥ 5 (familj 229)
 
