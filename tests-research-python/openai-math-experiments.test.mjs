@@ -86,7 +86,7 @@ test('E6: a package passes on its own success text, and a missing directory, a f
   }
   const r = JSON.parse(execFileSync('python3', ['-c', `import sys, json; sys.path.insert(0, 'research/openai-math')
 import replication as rp
-rp.KNOWN_DEFECTS['defect'] = r'SOURCE-MANIFEST\\.json'
+rp.KNOWN_DEFECTS['defect'] = {'absent': 'verification/SOURCE-MANIFEST.json', 'pattern': r'SOURCE-MANIFEST\\.json'}
 rows = [rp.run_package(sys.argv[1], ('1', n, d, 'python3 check.py', [r'ALL GOOD'])) for n, d in [('a', 'ok'), ('b', 'bad'), ('c', 'defect'), ('d', 'gone')]]
 print(json.dumps([[x['status'], x['tail']] for x in rows]))`, repo], { encoding: 'utf8' }));
   assert.deepEqual(r.map(x => x[0]), ['pass', 'fail', 'known_defect', 'missing']);
@@ -99,4 +99,30 @@ import experiments as x
 print('\\n'.join(x.replication_lines({'commit': '4eaee87548250b26', 'packages': [{'family': '189', 'id': 'Ramsey', 'status': 'pass', 'seconds': 177.0}, {'family': '087', 'id': 'Mahler', 'status': 'known_defect', 'seconds': 4.0}]})))`], { encoding: 'utf8' });
   assert.match(md, /openai\/math vid commit `4eaee8754825`: 1 av 2 paket godkända, 1 känt fel kvar\./);
   assert.match(md, /\| 087 \| Mahler \| känt fel kvarstår \| 4 s \|/);
+});
+
+test('E6: a failing post-check, a timeout and a present manifest stay package failures, and a timeout ends the whole command', async () => {
+  const repo = await mkdtemp(join(tmpdir(), 'replication-'));
+  const marker = join(repo, 'late-marker');
+  await mkdir(join(repo, 'preprints', 'post', 'verification'), { recursive: true });
+  await writeFile(join(repo, 'preprints', 'post', 'check.py'), 'print("ALL GOOD")');
+  await mkdir(join(repo, 'preprints', 'slow'), { recursive: true });
+  // The verifier is a child of bash; it must not outlive the timeout.
+  await writeFile(join(repo, 'preprints', 'slow', 'check.py'), `import time, pathlib\ntime.sleep(3)\npathlib.Path(${JSON.stringify(marker)}).write_text("x")`);
+  await mkdir(join(repo, 'preprints', 'manifest', 'verification'), { recursive: true });
+  await writeFile(join(repo, 'preprints', 'manifest', 'verification', 'SOURCE-MANIFEST.json'), '{}');
+  await writeFile(join(repo, 'preprints', 'manifest', 'check.py'), 'import sys; print("SOURCE-MANIFEST.json: checksum mismatch"); sys.exit(1)');
+  const r = JSON.parse(execFileSync('python3', ['-c', `import sys, json; sys.path.insert(0, 'research/openai-math')
+import replication as rp
+def boom(work, original): raise FileNotFoundError('RESULTS.json')
+rp.KNOWN_DEFECTS['manifest'] = {'absent': 'verification/SOURCE-MANIFEST.json', 'pattern': r'SOURCE-MANIFEST\\.json'}
+rows = [rp.run_package(sys.argv[1], ('1', 'post', 'post', 'python3 check.py', [r'ALL GOOD'], boom)),
+        rp.run_package(sys.argv[1], ('1', 'slow', 'slow', 'true && python3 check.py', [r'never']), timeout=1),
+        rp.run_package(sys.argv[1], ('1', 'manifest', 'manifest', 'python3 check.py', [r'never']))]
+print(json.dumps([[x['status'], x['tail']] for x in rows]))`, repo], { encoding: 'utf8' }));
+  assert.deepEqual(r[0], ['fail', ['ALL GOOD', 'post-check failed: FileNotFoundError']]);
+  assert.equal(r[1][0], 'timeout');
+  assert.equal(r[2][0], 'fail', 'with the manifest present the failure is new, not the known defect');
+  await new Promise(done => setTimeout(done, 3500));
+  assert.equal(await readFile(marker, 'utf8').catch(() => null), null, 'the verifier was ended with its command');
 });

@@ -17,6 +17,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -97,8 +98,10 @@ PACKAGES = [
     ('107', 'matrismultiplikation, indata och rektangulära kontroller', 'Complex-Matrix-Multiplication-Below-2.258-and-Rectangular-Bounds-September-24-2026',
      'python3 -B verification/scripts/check_certificate.py && python3 -B verification/certificates/checks/run_checks.py', [r'"status": "passed"']),
 ]
-# A defect found on 2026-11-04: the documented command fails because the manifest file is missing.
-KNOWN_DEFECTS = {'The-Mahler-Conjecture-for-General-Convex-Bodies-September-22-2026': r'SOURCE-MANIFEST\.json'}
+# A defect found on 2026-11-04: the documented command fails because the manifest file is missing. It
+# still stands only while that file is absent and the failure names it; any other failure is a failure.
+KNOWN_DEFECTS = {'The-Mahler-Conjecture-for-General-Convex-Bodies-September-22-2026':
+                 {'absent': 'verification/SOURCE-MANIFEST.json', 'pattern': r'No such file or directory: .*SOURCE-MANIFEST\.json'}}
 PACKAGES.append(('087', 'Mahler-förmodan', 'The-Mahler-Conjecture-for-General-Convex-Bodies-September-22-2026',
                  'python3 verification/reproduce.py --output ../out', [r'PASS segment-large-tail-audit\.py']))
 
@@ -119,21 +122,30 @@ def run_package(repo, package, timeout=TIMEOUT):
         env = {k: v for k, v in os.environ.items() if k != 'PYTHONOPTIMIZE'}
         env['ORIG'] = str(original.resolve())
         start = time.monotonic()
+        # Its own session, so a timeout ends the whole command (bash and the verifiers it started).
+        proc = subprocess.Popen(['bash', '-c', command], cwd=work, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, start_new_session=True)
         try:
-            done = subprocess.run(['bash', '-c', command], cwd=work, env=env, capture_output=True, text=True, timeout=timeout)
-            output = done.stdout + done.stderr
-            passed = done.returncode == 0 and all(re.search(p, output) for p in patterns)
+            output = proc.communicate(timeout=timeout)[0]
+            passed = proc.returncode == 0 and all(re.search(p, output) for p in patterns)
             if passed and post:
-                passed = post[0](work, original)
+                # A comparison that cannot even read its inputs is this package's failure, not the run's.
+                try:
+                    passed = bool(post[0](work, original))
+                except Exception as error:   # noqa: BLE001
+                    passed, output = False, output + f'\npost-check failed: {type(error).__name__}'
             status = 'pass' if passed else 'fail'
         except subprocess.TimeoutExpired:
-            status, output = 'timeout', ''
+            os.killpg(proc.pid, signal.SIGKILL)
+            output = (proc.communicate()[0] or '') + '\ntimeout'
+            status = 'timeout'
         row['seconds'] = round(time.monotonic() - start, 1)
     defect = KNOWN_DEFECTS.get(directory)
     if defect:
-        status = 'defect_fixed' if status == 'pass' else 'known_defect' if re.search(defect, output) else status
+        standing = not (original / defect['absent']).exists() and re.search(defect['pattern'], output)
+        status = 'defect_fixed' if status == 'pass' else 'known_defect' if status == 'fail' and standing else status
     # Only the last lines of output are kept, for reading a failure; they are the package's own text.
-    return {**row, 'status': status, 'tail': output.strip().splitlines()[-3:] if status not in ('pass', 'defect_fixed') else []}
+    return {**row, 'status': status, 'tail': [l for l in output.splitlines() if l.strip()][-3:] if status not in ('pass', 'defect_fixed') else []}
 
 
 def commit_of(repo):
@@ -153,8 +165,15 @@ def main(argv=None):
     if a.list_directories:
         print('\n'.join(f'preprints/{d}' for d in directories()))
         return 0
+    def safe(pkg):
+        # Whatever one package does, the others' results are still written.
+        try:
+            return run_package(a.repo, pkg)
+        except Exception as error:   # noqa: BLE001
+            return {'family': pkg[0], 'id': pkg[1], 'directory': pkg[2], 'seconds': 0.0, 'status': 'fail',
+                    'tail': [f'replication error: {type(error).__name__}']}
     with ThreadPoolExecutor(max_workers=max(1, a.jobs)) as pool:
-        rows = list(pool.map(lambda pkg: run_package(a.repo, pkg), PACKAGES))
+        rows = list(pool.map(safe, PACKAGES))
     result = {'schema': 'oraklet-openai-math-replication-1', 'commit': commit_of(a.repo), 'packages': rows}
     if a.out:
         Path(a.out).parent.mkdir(parents=True, exist_ok=True)
