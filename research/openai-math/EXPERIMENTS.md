@@ -35,33 +35,34 @@ Breuillard–Varjús olikhet h ≤ log M(λ) = χ för Salem-parametrarna betyde
 
 Experimentet beräknar populationsdynamik för trosfortplantning på ett träd där varje nod har d barn, med q-tillstånds Potts-kanalen M = λI + (1 − λ)/q. Starten är full information i löven.
 
-- **Parametrar:** 20 000 meddelanden, 80 nivåer, med frö efter veckan.
-- **Rekonstruktion:** gäller om medelöverlappet efter 80 nivåer överstiger 0,05.
+- **Parametrar:** 20 000 meddelanden, 80 och 160 nivåer, med frö efter veckan.
+- **Rekonstruktion (regel 2, från 2026-11-09):** gäller om medelöverlappet efter 160 nivåer är över 0,01 och minst 0,8 gånger överlappet efter 80 nivåer, alltså om det har stabiliserats på ett positivt värde i stället för att avta. Regeln sattes på Ising-kalibreringarna, utan att något nytt fall kördes.
 - **Tröskeln λ\*:** bestäms med nio halveringar, vilket ger upplösningen 1/512.
 
 | | Fall | Förutsägelse |
 |---|---|---|
-| Kalibrering | Ising, q = 2 och d = 2, där tröskeln är exakt Kesten–Stigum, λ_KS = 1/√d | — |
+| Kalibreringar | Ising, q = 2, med d = 2 och d = 3: där är tröskeln exakt Kesten–Stigum, λ_KS = 1/√d | — |
 | Nya fall | (q, d) = (3,2), (4,2), (5,2), (5,3), (6,2), (7,2), (8,2), (5,4), (6,3), (8,3) | q ≤ 4: lika med Kesten–Stigum (familj 229 påstår det för q = 3 och 4). q ≥ 5: under Kesten–Stigum. |
 
 **Beslutsregel:**
 
 - **"lika med Kesten–Stigum"** om |λ\*/λ_KS − 1| ≤ 0,03.
 - **"under Kesten–Stigum"** om kvoten är under 0,97.
+- **"metodfel"** om kvoten är över 1,03. Ovanför Kesten–Stigum går rekonstruktion alltid att göra, så den sanna tröskeln kan inte ligga där. Ett sådant utfall bedöms inte.
 
 ## E3. Spektralgap för spinn-1-ringar (familj 268)
 
-Experimentet diagonaliserar exakt den bilinjär–bikvadratiska kedjan H = Σ cos θ (S·S) + sin θ (S·S)² på ringar med L = 6, 8, 10 och 12 platser, i sektorn Sz = 0.
+Experimentet diagonaliserar exakt den bilinjär–bikvadratiska kedjan H = Σ cos θ (S·S) + sin θ (S·S)² på ringar med L = 6, 8, 10 och 12 platser, i sektorn Sz = 0. För θ ≥ π/4 används i stället L = 6, 9 och 12. Där har kedjan mjuka moder med period 3, så bara längder delbara med 3 går att jämföra (från 2026-11-09).
 
 | | Fall | Förutsägelse |
 |---|---|---|
-| Kalibreringar | Heisenberg (θ = 0, gap) och Takhtajan–Babujian (θ = −π/4, gaplös) | — |
+| Kalibreringar | Heisenberg (θ = 0, gap), Takhtajan–Babujian (θ = −π/4, gaplös) och Uimin–Lai–Sutherland (θ = π/4, gaplös, med L = 6, 9, 12) | — |
 | Nya fall | θ/π = AKLT-punkten (arctan(1/3)/π), 0,05; 0,15; 0,2; −0,1; −0,2; 0,3; 0,4 | gap för −π/4 < θ < π/4 (Haldane-fasen), gaplös-lik för θ ≥ π/4 |
 
 **Beslutsregel:** den sattes på kalibreringarna innan något nytt fall kördes.
 
-- **"gap"** om L·Δ växer med mer än 5 % i vart och ett av de två sista stegen, och Δ(12) > 0,05.
-- **"gaplös-lik"** om L·Δ ändras mindre än 5 % i båda stegen.
+- **"gap"** om L·Δ växer med mer än 5 % i vart och ett av de sista stegen (två steg med L = 6–12, ett med L = 6, 9, 12), och Δ(12) > 0,05.
+- **"gaplös-lik"** om L·Δ ändras mindre än 5 % i varje sådant steg.
 - **"oavgjort"** annars.
 
 ## E4. Matrismultiplikation i litet format (familj 107)
@@ -94,6 +95,11 @@ Experimentet söker scheman för att multiplicera en n×m-matris med en m×p-mat
 - för det kända felet i Mahler-paketet (087), där `SOURCE-MANIFEST.json` saknas: **känt fel kvarstår** eller **känt fel åtgärdat**.
 
 Ett misslyckat paket markerar inte körningen som misslyckad, eftersom felet ligger i samlingen och inte i labbet. Det syns däremot i rapporten, med de sista raderna av paketets utdata i artefakten.
+
+## Rättelser
+
+- **2026-11-04, E2, q = 5 och d = 3:** regel 1 gav tröskeln 1,118 gånger Kesten–Stigum. Det är omöjligt, eftersom rekonstruktion alltid går att göra ovanför gränsen. Regeln, ett överlapp över 0,05 efter 80 nivåer, missade rekonstruktion strax över gränsen, där det stabiliserade överlappet är litet för q = 5. Bedömningen "stämmer inte" var därför ogiltig, och fallet räknas inte. Regel 2 och metodfelsutfallet gäller från och med 2026-11-09.
+- **2026-11-04, E3, θ = 0,4π:** storleksserien 6, 8, 10, 12 gav gapen 0,43, 0,14, 0,05 och 0,21. Den blandar ringlängder som är delbara med 3 med sådana som inte är det, och utfallet blev oavgjort. Från och med 2026-11-09 används L = 6, 9, 12 för θ ≥ π/4.
 
 ## Förbehåll
 

@@ -65,19 +65,31 @@ def e1_case(case):
 
 
 # ---------------------------------------------------------------- E2
-E2_CALIBRATION = [{'id': 'q2-d2', 'q': 2, 'd': 2}]
+# Ising (q = 2) has its threshold exactly at Kesten-Stigum for every d (Evans, Kenyon, Peres and Schulman).
+E2_CALIBRATION = [{'id': 'q2-d2', 'q': 2, 'd': 2}, {'id': 'q2-d3', 'q': 2, 'd': 3}]
 E2_CASES = [{'id': f'q{q}-d{d}', 'q': q, 'd': d} for q, d in
             [(3, 2), (4, 2), (5, 2), (5, 3), (6, 2), (7, 2), (8, 2), (5, 4), (6, 3), (8, 3)]]
-E2_POPULATION, E2_DEPTH, E2_OVERLAP, E2_STEPS = 20000, 80, 0.05, 9
+E2_POPULATION, E2_DEPTHS, E2_STEPS = 20000, (80, 160), 9
+# Rule 2 (from 2026-11-09, set on the Ising calibrations only): reconstruction when the overlap at
+# depth 160 is above the noise floor 0.01 and at least 0.8 times the overlap at depth 80, so it has
+# settled at a positive value instead of decaying. Rule 1 (an overlap above 0.05 at depth 80) missed
+# reconstruction just above Kesten-Stigum for q = 5, where the settled overlap is small.
+E2_FLOOR, E2_SETTLED = 0.01, 0.8
 
 
-def potts_overlap(q, d, lam, rng, population=E2_POPULATION, depth=E2_DEPTH):
+def potts_overlap(q, d, lam, rng, population=E2_POPULATION, depth=E2_DEPTHS[0]):
     """Mean overlap (q m(true) - 1)/(q - 1) of the root posterior after `depth` levels."""
+    return potts_overlaps(q, d, lam, rng, population, (depth,))[0]
+
+
+def potts_overlaps(q, d, lam, rng, population=E2_POPULATION, depths=E2_DEPTHS):
+    """The mean overlap after each of `depths` levels, from one run of the population dynamics."""
     import numpy as np
     M = lam * np.eye(q) + (1 - lam) / q
     pop = np.zeros((population, q))
     pop[:, 0] = 1.0                                           # perfect information at the leaves
-    for _ in range(depth):
+    out = []
+    for level in range(1, max(depths) + 1):
         colours = rng.choice(q, size=(population, d), p=M[0])
         msgs = pop[rng.integers(population, size=(population, d))]       # (P, d, q), each given colour 0
         perm = np.broadcast_to(np.arange(q), msgs.shape).copy()
@@ -88,7 +100,13 @@ def potts_overlap(q, d, lam, rng, population=E2_POPULATION, depth=E2_DEPTH):
         up = msgs @ M.T
         new = np.prod(up, axis=1)
         pop = new / new.sum(axis=1, keepdims=True)
-    return float(((q * pop[:, 0] - 1) / (q - 1)).mean())
+        if level in depths:
+            out.append(float(((q * pop[:, 0] - 1) / (q - 1)).mean()))
+    return out
+
+
+def reconstructs(early, late):
+    return late > E2_FLOOR and late >= E2_SETTLED * early
 
 
 def e2_case(case, seed):
@@ -98,25 +116,31 @@ def e2_case(case, seed):
     lo, hi = 0.0, 1.0                                         # reconstruction at hi, not at lo
     for step in range(E2_STEPS):
         mid = (lo + hi) / 2
-        overlap = potts_overlap(q, d, mid, np.random.default_rng(seed + step))
-        if overlap > E2_OVERLAP:
+        early, late = potts_overlaps(q, d, mid, np.random.default_rng(seed + step))
+        if reconstructs(early, late):
             hi = mid
         else:
             lo = mid
     threshold = (lo + hi) / 2
     ratio = threshold / ks
-    # Decision rule: within 3 % of Kesten-Stigum counts as equal; below 0.97 as below.
-    outcome = 'equal_to_ks' if abs(ratio - 1) <= 0.03 else 'below_ks' if ratio < 0.97 else 'above_ks'
+    # Decision rule: within 3 % of Kesten-Stigum counts as equal; below 0.97 as below. Above 1.03 is
+    # impossible (reconstruction always holds above Kesten-Stigum), so it is a method error, not judged.
+    outcome = 'equal_to_ks' if abs(ratio - 1) <= 0.03 else 'below_ks' if ratio < 0.97 else 'method_error'
     return {'id': case['id'], 'q': q, 'd': d, 'threshold': threshold, 'kesten_stigum': ks, 'ratio': ratio,
             'resolution': 1 / 2 ** E2_STEPS, 'outcome': outcome}
 
 
 # ---------------------------------------------------------------- E3
 E3_CALIBRATION = [{'id': 'heisenberg', 'theta_pi': 0.0, 'expect': 'gapped'},
-                  {'id': 'takhtajan-babujian', 'theta_pi': -0.25, 'expect': 'gapless_like'}]
+                  {'id': 'takhtajan-babujian', 'theta_pi': -0.25, 'expect': 'gapless_like'},
+                  # The integrable SU(3) point, gapless; it calibrates the period-3 ring lengths.
+                  {'id': 'uimin-lai-sutherland', 'theta_pi': 0.25, 'expect': 'gapless_like'}]
 E3_CASES = [{'id': f'theta{t:+.4f}', 'theta_pi': t} for t in
             [math.atan(1 / 3) / math.pi, 0.05, 0.15, 0.2, -0.1, -0.2, 0.3, 0.4]]
 E3_SIZES = (6, 8, 10, 12)
+# For theta >= pi/4 (the critical phase with soft modes at momentum 2 pi / 3) only ring lengths
+# divisible by 3 are comparable: 6 and 12 behave unlike 8 and 10 there (seen on 2026-11-04).
+E3_SIZES_PERIOD3 = (6, 9, 12)
 
 
 def spin1_bond():
@@ -161,16 +185,17 @@ def ring_gap(L, theta):
 
 def e3_case(case):
     theta = case['theta_pi'] * math.pi
-    gaps = {L: ring_gap(L, theta) for L in E3_SIZES}
-    g = [gaps[L] for L in E3_SIZES]
-    scaled = [L * gaps[L] for L in E3_SIZES]
+    sizes = E3_SIZES_PERIOD3 if case['theta_pi'] >= 0.25 else E3_SIZES
+    gaps = {L: ring_gap(L, theta) for L in sizes}
+    g = [gaps[L] for L in sizes]
+    scaled = [L * gaps[L] for L in sizes]
     growth = [scaled[i + 1] / scaled[i] - 1 for i in range(1, len(scaled) - 1)]
     # Decision rule, set on the calibrations before any new case ran: a gap closing like 1/L keeps
     # L * gap constant. Gapped when L * gap grows by more than 5 % at each of the last size steps and
     # the largest ring keeps a gap above 0.05; gapless-like when it changes by less than 5 % at each.
     outcome = ('gapped' if min(growth) > 0.05 and g[-1] > 0.05 else
                'gapless_like' if max(abs(x) for x in growth) < 0.05 else 'undecided')
-    return {'id': case['id'], 'theta_pi': case['theta_pi'], 'gaps': {str(L): gaps[L] for L in E3_SIZES},
+    return {'id': case['id'], 'theta_pi': case['theta_pi'], 'gaps': {str(L): gaps[L] for L in sizes},
             'scaled_growth': growth, 'outcome': outcome}
 
 
@@ -220,7 +245,7 @@ def e4_prediction(case):
 
 
 def agrees(prediction, outcome):
-    if outcome in ('undecided',):
+    if outcome in ('undecided', 'method_error'):
         return None
     if prediction == 'below_one':
         return outcome.startswith('below_one')
@@ -278,7 +303,8 @@ def run(date, e1=True, e2=True, e3=True, e4=True, e3_sizes=None):
 
 # ---------------------------------------------------------------- report
 OUTCOMES = {'below_one_rigorous': 'under 1 (rigoröst)', 'below_one_numerical': 'under 1 (numeriskt)', 'undecided': 'oavgjort',
-            'equal_to_ks': 'lika med Kesten–Stigum', 'below_ks': 'under Kesten–Stigum', 'above_ks': 'över Kesten–Stigum',
+            'equal_to_ks': 'lika med Kesten–Stigum', 'below_ks': 'under Kesten–Stigum',
+            'above_ks': 'över Kesten–Stigum', 'method_error': 'över Kesten–Stigum, vilket är omöjligt: metodfel, bedöms inte',
             'gapped': 'gap', 'gapless_like': 'gaplös-lik', 'below_one': 'under 1',
             'reached_reference': 'nådde referensrangen', 'above_reference': 'stannade över referensrangen',
             'below_reference': 'UNDER referensrangen (exakt kontrollerat; jämför med litteraturen innan något påstås)',
@@ -307,7 +333,7 @@ def render(r):
               f"- Utfall: {OUTCOMES[c['outcome']]}. Förutsägelse: {OUTCOMES[c['prediction']]}. Bedömning: {VERDICT[c['agrees']]}.", '']
     if 'E2' in ex:
         e = ex['E2']
-        L += ['## E2. Rekonstruktionströsklar för Potts-kanalen på träd', '', 'Kalibrering (Ising, q = 2, där tröskeln är exakt Kesten–Stigum):', '']
+        L += ['## E2. Rekonstruktionströsklar för Potts-kanalen på träd', '', 'Kalibrering (Ising, q = 2, där tröskeln är exakt Kesten–Stigum för varje d):', '']
         for c in e['calibration']:
             L.append(f"- q = {c['q']}, d = {c['d']}: λ* ≈ {f6(c['threshold'])}, λ*/λ_KS = {f6(c['ratio'])}, {ok(c['calibration_passed'])}")
         c = e['case']
