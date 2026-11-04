@@ -22,18 +22,21 @@ test('E1 calibration reproduces the golden-ratio dimension 0.995713; every case 
 test('E2: a perfect channel keeps full information, a useless one none, and the Ising calibration lands on Kesten-Stigum', () => {
   const r = py(`import numpy as np
 print(json.dumps([x.potts_overlap(5, 2, 1.0, np.random.default_rng(1), 2000, 10), x.potts_overlap(5, 2, 0.0, np.random.default_rng(1), 2000, 10),
-  x.e2_case(x.E2_CALIBRATION[0], 20261104)]))`);
+  [x.e2_case(c, 20261104) for c in x.E2_CALIBRATION], x.reconstructs(0.08, 0.079), x.reconstructs(0.025, 0.009), x.reconstructs(0.02, 0.012),
+  x.agrees('below_ks', 'method_error')]))`);
   assert.ok(Math.abs(r[0] - 1) < 1e-12);
   assert.ok(Math.abs(r[1]) < 1e-12);
-  assert.equal(r[2].outcome, 'equal_to_ks');
-  assert.ok(Math.abs(r[2].ratio - 1) <= 0.03);
+  assert.deepEqual(r[2].map(c => [c.d, c.outcome]), [[2, 'equal_to_ks'], [3, 'equal_to_ks']], 'Ising at d = 2 and d = 3');
+  assert.ok(r[2].every(c => Math.abs(c.ratio - 1) <= 0.03));
+  assert.deepEqual(r.slice(3), [true, false, false, null], 'settled above the floor reconstructs; decaying or below the floor does not; a method error is not judged');
   const p = py("print(json.dumps([[c['q'], x.e2_prediction(c)] for c in x.E2_CASES]))");
   assert.ok(p.every(([q, pr]) => pr === (q <= 4 ? 'equal_to_ks' : 'below_ks')));
 });
 
 test('E3: exact diagonalisation separates the Haldane gap from the gapless Takhtajan-Babujian point', () => {
   const r = py("print(json.dumps([x.e3_case(c) for c in x.E3_CALIBRATION]))");
-  assert.deepEqual(r.map(c => c.outcome), ['gapped', 'gapless_like']);
+  assert.deepEqual(r.map(c => c.outcome), ['gapped', 'gapless_like', 'gapless_like']);
+  assert.deepEqual(Object.keys(r[2].gaps), ['6', '9', '12'], 'from theta = pi/4 only ring lengths divisible by 3');
   // Two-site check: S·S on two spin-1 sites has eigenvalues -2 (singlet), -1 (triplet), 1 (quintet).
   const ev = py("import numpy as np\nP, _ = x.spin1_bond(); print(json.dumps(sorted(set(round(v, 9) for v in np.linalg.eigvalsh(P)))))");
   assert.deepEqual(ev, [-2, -1, 1]);
