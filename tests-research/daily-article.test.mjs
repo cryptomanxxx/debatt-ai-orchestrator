@@ -226,8 +226,20 @@ test('the lab writes the numbers from placeholders, tones down overstating words
   assert.equal(soft.text, 'Detta stödde preliminärt hypotesen och Oraklet har iakttagit ett framsteg. Ingen ny upptäckt görs, och det är inte bekräftat. Beläggen räcker.');
   assert.deepEqual(soft.changes.map(c => c.from), ['bekräftade', 'upptäckt', 'genombrott', 'Bevisen']);
   assert.equal(softenText('Säkerställandet av allt').text, 'Kontroll av allt', 'an unknown form takes its stem\'s noun');
-  for (const claim of ['Det är inget annat än en upptäckt [F1].', 'Ingen forskare ifrågasätter genombrottet [F1].', 'Detta är inte ett preliminärt resultat utan ett genombrott [F1].'])
+  // Where the sentence speaks of absence or doubt, a weaker word would strengthen the negative claim: left as written.
+  for (const negative of ['Studien saknar bevis för hypotesen [F1].', 'Bevis saknas för hypotesen [F1].', 'Ingen forskare ifrågasätter genombrottet [F1].', 'Det råder brist på bekräftelse [F1].', 'Det är svårt att få fullständiga bevis [F1].']) {
+    assert.equal(softenText(negative).changes.length, 0, `not toned down: ${negative}`);
+    assert.equal(checkArticle(prepareArticle(article({ limitations: negative + ' ' + filler('F1').repeat(3) }), sheet).text, sheet).problem, 'overclaim', `still refused for a rewrite: ${negative}`);
+  }
+  assert.equal(softenText('Studien saknar data. Detta bevisar allt.').text, 'Studien saknar data. Detta ger belägg för allt.', 'a cue in another sentence does not count');
+  for (const claim of ['Resultatet är ett genombrott för metoden [F1].', 'Oraklet har upptäckt en mekanism [F1].', 'Labbet fastställde regeln [F1].'])
     assert.equal(checkArticle(prepareArticle(article({ limitations: claim + ' ' + filler('F1').repeat(3) }), sheet).text, sheet).problem, undefined, `toned down: ${claim}`);
+  // Every edit is listed in the article, however many; the record keeps 20 and the total.
+  const many = Array.from({ length: 21 }, () => 'Detta bevisar allt [F1].').join(' ');
+  const listed = await writeDailyArticle(day, async () => ({ text: article({ results: many + ' ' + filler('F1').repeat(3) }), provider: 'hip', model: 'glm' }), { field: 'x' });
+  assert.deepEqual([listed.record.status, listed.record.softened.length, listed.record.softenedTotal], ['published', 20, 21]);
+  assert.match(listed.markdown, /\*Labbet tonade ned 21 ordval: /);
+  assert.equal((listed.markdown.match(/"bevisar" → "ger belägg för"/g) ?? []).length, 21);
   // A sentence with a number no cited fact holds is struck, and the rest still passes.
   const struck = strikeUncheckable(prepareArticle(article({ results: 'Labbkörningen godkände 4 av 3 fall [F1]. ' + filler('F1').repeat(3) }), sheet).text, sheet);
   assert.deepEqual([struck.checked.problem, struck.struck], [undefined, 1]);

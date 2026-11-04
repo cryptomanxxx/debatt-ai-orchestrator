@@ -150,16 +150,31 @@ function softer(word, before) {
     : SOFTER[w] ?? STEM_NOUNS.find(([stem]) => w.startsWith(stem))?.[1] ?? 'preliminärt';
   return word[0] === word[0].toUpperCase() && word[0] !== word[0].toLowerCase() ? plain[0].toUpperCase() + plain.slice(1) : plain;
 }
+// In a sentence that speaks of absence, doubt or negation ("saknar bevis", "bevis saknas", "ingen
+// förnekar genombrottet"), a weaker word would make a negative claim stronger: "saknar belägg" says
+// more than "saknar bevis". Such a sentence is left as written, so the check refuses it as before.
+const NEGATIVE_CUE = /(?<![\p{L}])(inte|ej|ingen|inget|inga|aldrig|varken|utan|knappast|sakna\p{L}*|brist\p{L}*|avsaknad\p{L}*|otillräcklig\p{L}*|ifrågasätt\p{L}*|motsä\p{L}*|förneka\p{L}*|tvivel\p{L}*|tvek\p{L}*|osäker\p{L}*|svår\p{L}*)(?![\p{L}])/iu;
+// The sentence the term stands in: from the last sentence end before it to the next one after it.
+const sentenceAround = (text, at) => {
+  const head = text.slice(0, at);
+  return (/[.!?]["'\u201D\u2019\u00BB)\]]*\s+$/.test(head) ? '' : sentenceBefore(text, at)) + (text.slice(at).match(/^[\s\S]*?(?:[.!?](?=\s|$)|$)/)?.[0] ?? '');
+};
 export function softenText(text) {
-  const changes = [];
+  const changes = [], kept = [];
   for (let n = 0; n < 50; n++) {
     const m = overclaimMatch(text);
     if (!m) break;
+    if (NEGATIVE_CUE.test(sentenceAround(text, m.index))) {
+      // Kept as written, and hidden from the search until the end so later sentences are still toned down.
+      kept.push(m.word);
+      text = text.slice(0, m.index) + `\uE000${kept.length - 1}\uE001` + text.slice(m.index + m.word.length);
+      continue;
+    }
     const to = softer(m.word, text.slice(Math.max(0, m.index - 20), m.index));
     changes.push({ from: m.word, to });
     text = text.slice(0, m.index) + to + text.slice(m.index + m.word.length);
   }
-  return { text, changes };
+  return { text: text.replace(/\uE000(\d+)\uE001/g, (_, i) => kept[Number(i)]), changes };
 }
 
 // Before the checks the lab writes the numbers itself: {F3} becomes the text of fact F3 (without
@@ -405,9 +420,11 @@ export async function writeDailyArticle(day, propose, { field }) {
   if (checked.problem) return result({ status: 'rejected', ...problemRecord(checked), facts: sheet.facts.length, model: answer.model ?? null, calls, ...(earlier.length ? { earlier } : {}) });
   // One stable file per date: a rerun the same day replaces the day's article instead of adding one.
   const file = `${day.date}.md`;
-  const edits = { softened: prepared.softened.slice(0, 20), expanded: prepared.expanded, struck: prepared.struck };
+  // The article lists every edit; the record keeps the counts and at most 20 of the changes.
+  const edits = { softened: prepared.softened, expanded: prepared.expanded, struck: prepared.struck };
   return { ...(drafts.length ? { drafts } : {}), record: { status: 'published', file, title: checked.article.title, words: checked.words, facts: sheet.facts.length, calls, ...(earlier.length ? { earlier } : {}),
-    cited: [...new Set(SECTIONS.flatMap(([k]) => tags(checked.article[k])))].sort(), model: answer.model ?? null, ...edits },
+    cited: [...new Set(SECTIONS.flatMap(([k]) => tags(checked.article[k])))].sort(), model: answer.model ?? null,
+    softened: prepared.softened.slice(0, 20), softenedTotal: prepared.softened.length, expanded: prepared.expanded, struck: prepared.struck },
   file, markdown: renderArticle(checked.article, sheet, { date: day.date, field, model: `${answer.provider ?? ''} ${answer.model ?? ''}`.trim(), ...edits }) };
 }
 
