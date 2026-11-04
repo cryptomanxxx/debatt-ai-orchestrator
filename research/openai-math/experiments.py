@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Weekly computational experiments E1-E3 from research/openai-math/RAPPORT.md.
+"""Weekly computational experiments E1-E4 and the E6 replication report, from research/openai-math/RAPPORT.md.
 
 No model calls. Each week runs, per experiment, its calibration cases (known answers) and one new
 case from a fixed list, chosen by the ISO week. Every new case carries a prediction registered in
@@ -13,6 +13,8 @@ E1 Garsia entropy of Bernoulli convolutions (families 148, 153): exact enumerati
 E2 Reconstruction thresholds for the q-state Potts channel on d-ary trees (family 229): population
    dynamics of belief propagation, started from perfect information.
 E3 Spectral gap of spin-1 bilinear-biquadratic rings (family 268): exact diagonalisation.
+E4 Small matrix multiplication schemes over GF(2) (family 107): flip-graph search, exact check.
+E6 The replication of openai/math's own verification packages (replication.py), read with --replication.
 """
 import argparse
 import datetime
@@ -24,6 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from garsia_entropy import entropy_profile, root_in_unit_interval  # noqa: E402
+import matmul_flip  # noqa: E402
 
 SCHEMA = 'oraklet-openai-math-experiments-1'
 
@@ -171,6 +174,34 @@ def e3_case(case):
             'scaled_growth': growth, 'outcome': outcome}
 
 
+# ---------------------------------------------------------------- E4
+# Reference ranks over GF(2): the best ranks known from the literature (Kauers and Moosbauer's flip
+# graphs, Fawzi et al.'s AlphaTensor table). Calibrations are optimal ranks (Strassen; <2,2,3> = 11).
+E4_CALIBRATION = [{'id': '2x2x2', 'format': (2, 2, 2), 'reference': 7, 'steps': 20000},
+                  {'id': '2x2x3', 'format': (2, 2, 3), 'reference': 11, 'steps': 200000}]
+E4_CASES = [{'id': f'{n}x{m}x{p}', 'format': (n, m, p), 'reference': ref, 'steps': 6_000_000} for n, m, p, ref in
+            [(2, 2, 4, 14), (2, 3, 3, 15), (2, 2, 5, 18), (2, 3, 4, 20), (3, 3, 3, 23), (2, 3, 5, 25), (2, 4, 4, 26),
+             (3, 3, 4, 29), (3, 3, 5, 36)]]
+E4_SEEDS = 3
+
+
+def e4_case(case, seed):
+    n, m, p = case['format']
+    runs = []
+    for k in range(E4_SEEDS):
+        rank, scheme, _ = matmul_flip.search(n, m, p, case['steps'], seed + k)
+        runs.append({'seed': seed + k, 'rank': rank, 'checked': matmul_flip.check(scheme, n, m, p), 'scheme': scheme})
+    checked = [x for x in runs if x['checked']]
+    best = min(checked, key=lambda x: x['rank']) if checked else None
+    found = best['rank'] if best else None
+    # Decision rule: the lowest exactly checked rank against the reference rank.
+    outcome = ('unchecked' if found is None else 'below_reference' if found < case['reference']
+               else 'reached_reference' if found == case['reference'] else 'above_reference')
+    return {'id': case['id'], 'format': list(case['format']), 'reference': case['reference'], 'steps': case['steps'],
+            'ranks': [x['rank'] for x in runs], 'all_checked': all(x['checked'] for x in runs), 'found': found,
+            'outcome': outcome, 'scheme': [list(t) for t in best['scheme']] if best else None}
+
+
 # ---------------------------------------------------------------- predictions, registered before any new case ran
 def e1_prediction(case):
     return 'below_one'      # h/chi < 1 for every case: dimension strictly below 1 (for Pisot already known)
@@ -184,11 +215,17 @@ def e3_prediction(case):
     return 'gapped' if -0.25 < case['theta_pi'] < 0.25 else 'gapless_like'
 
 
+def e4_prediction(case):
+    return 'not_below_reference'   # a plain flip-graph walk does not beat the best known rank
+
+
 def agrees(prediction, outcome):
     if outcome in ('undecided',):
         return None
     if prediction == 'below_one':
         return outcome.startswith('below_one')
+    if prediction == 'not_below_reference':
+        return None if outcome == 'unchecked' else outcome != 'below_reference'
     return prediction == outcome
 
 
@@ -196,7 +233,7 @@ def week_of(date):
     return datetime.date.fromisoformat(date).toordinal() // 7
 
 
-def run(date, e1=True, e2=True, e3=True, e3_sizes=None):
+def run(date, e1=True, e2=True, e3=True, e4=True, e3_sizes=None):
     week = week_of(date)
     out = {'schema': SCHEMA, 'date': date, 'week': week, 'experiments': {}}
     if e1:
@@ -227,13 +264,25 @@ def run(date, e1=True, e2=True, e3=True, e3_sizes=None):
         new = e3_case(case)
         new.update(prediction=e3_prediction(case), agrees=agrees(e3_prediction(case), new['outcome']))
         out['experiments']['E3'] = {'calibration': cal, 'case': new}
+    if e4:
+        seed = 20261104 + week
+        cal = [e4_case(c, seed) for c in E4_CALIBRATION]
+        for c in cal:
+            c['calibration_passed'] = c['outcome'] == 'reached_reference' and c['all_checked']
+        case = E4_CASES[week % len(E4_CASES)]
+        new = e4_case(case, seed)
+        new.update(prediction=e4_prediction(case), agrees=agrees(e4_prediction(case), new['outcome']), seed=seed)
+        out['experiments']['E4'] = {'calibration': cal, 'case': new}
     return out
 
 
 # ---------------------------------------------------------------- report
 OUTCOMES = {'below_one_rigorous': 'under 1 (rigoröst)', 'below_one_numerical': 'under 1 (numeriskt)', 'undecided': 'oavgjort',
             'equal_to_ks': 'lika med Kesten–Stigum', 'below_ks': 'under Kesten–Stigum', 'above_ks': 'över Kesten–Stigum',
-            'gapped': 'gap', 'gapless_like': 'gaplös-lik', 'below_one': 'under 1'}
+            'gapped': 'gap', 'gapless_like': 'gaplös-lik', 'below_one': 'under 1',
+            'reached_reference': 'nådde referensrangen', 'above_reference': 'stannade över referensrangen',
+            'below_reference': 'UNDER referensrangen (exakt kontrollerat; jämför med litteraturen innan något påstås)',
+            'unchecked': 'inget schema klarade kontrollen', 'not_below_reference': 'inte under referensrangen'}
 VERDICT = {True: 'stämmer', False: 'stämmer inte', None: 'oavgjort'}
 f6 = lambda x: f'{x:.6f}'.replace('.', ',')
 ok = lambda b: 'godkänd' if b else 'MISSLYCKADES'
@@ -275,19 +324,50 @@ def render(r):
         g = ', '.join(f"L={k}: {f6(v)}" for k, v in c['gaps'].items())
         L += ['', f"Nytt fall: θ = {c['theta_pi']:+.4f}π.", '', f'- Gap: {g}',
               f"- Utfall: {OUTCOMES[c['outcome']]}. Förutsägelse: {OUTCOMES[c['prediction']]}. Bedömning: {VERDICT[c['agrees']]}.", '']
+    if 'E4' in ex:
+        e = ex['E4']
+        fmt = lambda c: '⟨' + ','.join(map(str, c['format'])) + '⟩'
+        L += ['## E4. Matrismultiplikation i litet format över GF(2)', '', 'Kalibrering (kända optimala ranger):', '']
+        for c in e['calibration']:
+            L.append(f"- {fmt(c)}: rang {c['found']} (referens {c['reference']}), {ok(c['calibration_passed'])}")
+        c = e['case']
+        steps = f"{c['steps']:,}".replace(',', ' ')
+        L += ['', f"Nytt fall: {fmt(c)}, referensrang {c['reference']}, {E4_SEEDS} frön från {c['seed']} med {steps} steg vardera.", '',
+              f"- Ranger per frö: {', '.join(map(str, c['ranks']))}; lägsta exakt kontrollerade: {c['found']}",
+              f"- Utfall: {OUTCOMES[c['outcome']]}. Förutsägelse: {OUTCOMES[c['prediction']]}. Bedömning: {VERDICT[c['agrees']]}.",
+              '- Det bästa schemat finns i körningens artefakt (result.json).', '']
+    if r.get('replication'):
+        L += replication_lines(r['replication'])
     calib = [c for e in ex.values() for c in e['calibration']]
     L += ['## Begränsningar', '',
           f"- Kalibreringar: {sum(c['calibration_passed'] for c in calib)} av {len(calib)} godkända. Ett nytt fall bedöms bara när dess experiments kalibrering är godkänd.",
           '- E2 och E3 är numeriska uppskattningar med ändlig population, djup och storlek. E1:s övre gräns är rigorös; skattningen är det inte.',
+          '- E4:s scheman är exakt kontrollerade över GF(2), inte över heltalen; att ett schema saknas säger inget om att det inte finns.',
           '- Inget här verifierar en sats i openai/math.', '']
     return '\n'.join(L)
+
+
+REPLICATION_STATUS = {'pass': 'godkänd', 'fail': 'MISSLYCKADES', 'known_defect': 'känt fel kvarstår', 'defect_fixed': 'känt fel åtgärdat, godkänd',
+                      'missing': 'paketet saknas', 'timeout': 'tidsgränsen överskreds'}
+
+
+def replication_lines(rep):
+    rows = rep.get('packages', [])
+    L = ['## E6. Omkörning av openai/math:s egna kontroller', '',
+         f"openai/math vid commit `{str(rep.get('commit', '?'))[:12]}`: {sum(x['status'] in ('pass', 'defect_fixed') for x in rows)} av {len(rows)} paket godkända"
+         f"{', ' + str(sum(x['status'] == 'known_defect' for x in rows)) + ' känt fel kvar' if any(x['status'] == 'known_defect' for x in rows) else ''}. "
+         'En godkänd kontroll visar att samlingens ändliga beräkning går att återskapa, inte att satsen är bevisad.', '',
+         '| Familj | Paket | Status | Tid |', '| --- | --- | --- | --- |']
+    for x in rows:
+        L.append(f"| {x['family']} | {x['id']} | {REPLICATION_STATUS.get(x['status'], x['status'])} | {x['seconds']:.0f} s |")
+    return L + ['']
 
 
 def index(ai_bus):
     d = Path(ai_bus) / 'berakningar'
     files = sorted((f.name for f in d.glob('*.md') if f.name != 'README.md' and len(f.stem) == 10), reverse=True) if d.exists() else []
     text = '\n'.join(['# Oraklets beräkningsexperiment', '',
-                      'Veckovisa beräkningar (E1–E3) utan modellanrop, från [research/openai-math/RAPPORT.md](../../research/openai-math/RAPPORT.md). '
+                      'Veckovisa beräkningar (E1–E4) och omkörningar (E6) utan modellanrop, från [research/openai-math/RAPPORT.md](../../research/openai-math/RAPPORT.md). '
                       'Förutsägelserna registrerades i [experiments.py](../../research/openai-math/experiments.py) innan något nytt fall kördes.', '',
                       *([f'- [{f[:10]}]({f})' for f in files] or ['Inga körningar ännu.']), ''])
     d.mkdir(parents=True, exist_ok=True)
@@ -300,11 +380,14 @@ def main(argv=None):
     p.add_argument('--out')
     p.add_argument('--ai-bus')
     p.add_argument('--index', metavar='AI_BUS')
+    p.add_argument('--replication', metavar='RESULT_JSON', help='include the E6 replication report written by replication.py')
     a = p.parse_args(argv)
     if a.index:
         index(a.index)
         return 0
     r = run(a.date)
+    if a.replication and Path(a.replication).exists():
+        r['replication'] = json.loads(Path(a.replication).read_text(encoding='utf-8'))
     # A new case is judged only when its experiment's calibration passed.
     for e in r['experiments'].values():
         if not all(c['calibration_passed'] for c in e['calibration']):

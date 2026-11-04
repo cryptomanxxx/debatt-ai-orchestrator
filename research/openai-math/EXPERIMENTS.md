@@ -1,13 +1,13 @@
 # Oraklets beräkningsexperiment från openai/math
 
-Arbetsflödet **Oraklets beräkningsexperiment (openai/math)** (`.github/workflows/oraklet-openai-math-experiments.yml`) kör experimenten E1–E3 från [RAPPORT.md](RAPPORT.md) varje måndag kl. 05:23 UTC, och kan också startas för hand. Det gör inga modellanrop.
+Arbetsflödet **Oraklets beräkningsexperiment (openai/math)** (`.github/workflows/oraklet-openai-math-experiments.yml`) kör experimenten E1–E4 och omkörningen E6 från [RAPPORT.md](RAPPORT.md) varje måndag kl. 05:23 UTC, och kan också startas för hand. Det gör inga modellanrop.
 
 Varje körning består av två delar:
 
 - **Kalibreringar:** fall med kända svar, som visar att beräkningen fungerar.
 - **Ett nytt fall per experiment:** fallet väljs ur en fast lista efter veckonumret.
 
-Förutsägelserna för de nya fallen står i [experiments.py](experiments.py) (`e1_prediction`, `e2_prediction`, `e3_prediction`) och registrerades innan något nytt fall kördes. Testerna kör bara kalibreringar.
+Förutsägelserna för de nya fallen står i [experiments.py](experiments.py) (`e1_prediction` till `e4_prediction`) och registrerades innan något nytt fall kördes. Testerna kör bara kalibreringar.
 
 Utfallet hamnar i `ai-bus/berakningar/ÅÅÅÅ-MM-DD.md`, med ett register i `ai-bus/berakningar/README.md`, och i körningens artefakt (`reports/openai-math-experiments/result.json`). Ett nytt fall bedöms bara när dess experiments kalibrering är godkänd. En misslyckad kalibrering markerar körningen som misslyckad efter att rapporten har sparats.
 
@@ -64,8 +64,41 @@ Experimentet diagonaliserar exakt den bilinjär–bikvadratiska kedjan H = Σ co
 - **"gaplös-lik"** om L·Δ ändras mindre än 5 % i båda stegen.
 - **"oavgjort"** annars.
 
+## E4. Matrismultiplikation i litet format (familj 107)
+
+Experimentet söker scheman för att multiplicera en n×m-matris med en m×p-matris över GF(2), med Kauers–Moosbauers flip-grafvandring i [matmul_flip.py](matmul_flip.py).
+
+- **Start och sökning:** sökningen börjar i standardalgoritmen, med rang n·m·p. Den gör sedan slumpvisa byten, tar bort nolltermer, slår ihop termer som delar två faktorer och tar ett "plussteg" för att lämna en platå.
+- **Kontroll:** varje schema kontrolleras exakt mot matrismultiplikationstensorn över GF(2), genom att varje indextrippel räknas modulo 2.
+- **Körning:** tre frön per fall, med 6 miljoner steg var.
+
+| | Fall | Förutsägelse |
+|---|---|---|
+| Kalibreringar | ⟨2,2,2⟩ ska nå rang 7 (Strassen) och ⟨2,2,3⟩ rang 11, båda kända optimum | — |
+| Nya fall, med referensrang | ⟨2,2,4⟩ 14, ⟨2,3,3⟩ 15, ⟨2,2,5⟩ 18, ⟨2,3,4⟩ 20, ⟨3,3,3⟩ 23, ⟨2,3,5⟩ 25, ⟨2,4,4⟩ 26, ⟨3,3,4⟩ 29, ⟨3,3,5⟩ 36 | inte under referensrangen. Referensrangerna är de bästa kända över GF(2) enligt litteraturen (Kauers–Moosbauer, Fawzi m.fl.). |
+
+**Beslutsregel:**
+
+- Den lägsta exakt kontrollerade rangen jämförs med referensen: under, lika eller över.
+- **Ett utfall under referensen** är ett schema som klarar den exakta kontrollen. Det ska jämföras med litteraturen innan något påstås. Det bästa schemat sparas i artefakten.
+
+## E6. Omkörning av openai/math:s egna kontroller
+
+[replication.py](replication.py) kör varje vecka om 18 av de verifieringspaket som rapporten körde om, på den senaste versionen av openai/math. Det hämtar bara paketens kataloger, med en gles klon på cirka 240 MB. Varje paket körs med sitt dokumenterade kommando och bedöms efter sin egen text för godkänt.
+
+**Status per paket:**
+
+- **godkänd** eller **misslyckades**;
+- **tidsgränsen överskreds**, efter 15 minuter;
+- **paketet saknas**, om katalogen inte längre finns;
+- för det kända felet i Mahler-paketet (087), där `SOURCE-MANIFEST.json` saknas: **känt fel kvarstår** eller **känt fel åtgärdat**.
+
+Ett misslyckat paket markerar inte körningen som misslyckad, eftersom felet ligger i samlingen och inte i labbet. Det syns däremot i rapporten, med de sista raderna av paketets utdata i artefakten.
+
 ## Förbehåll
 
+- **E4:s scheman** är exakt kontrollerade, men bara över GF(2). Att sökningen inte hittar ett schema säger inget om att det inte finns.
+- **E6** visar att samlingens ändliga beräkningar går att återskapa, inte att satserna är bevisade.
 - **E2 och E3** ger numeriska uppskattningar med ändlig population, ändligt djup och ändlig storlek.
 - **E1:s övre gräns** är rigorös, men den räcker i praktiken bara till att avgöra fall långt under 1. Skattningen är inte rigorös.
 - **Inget experiment** verifierar en sats i openai/math. De prövar förutsägelser i närliggande, beräkningsbara frågor.

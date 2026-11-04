@@ -65,3 +65,38 @@ test('the index lists every dated run, newest first', async () => {
   assert.ok(index.indexOf('[2026-11-16]') < index.indexOf('[2026-11-09]'));
   assert.doesNotMatch(index, /README/);
 });
+
+test('E4: the exact check accepts Strassen and refuses a corrupted scheme; the calibrations reach ranks 7 and 11', () => {
+  const r = py(`import matmul_flip as f
+bad = f.strassen(); bad[0] = (bad[0][0] ^ 1,) + bad[0][1:]
+print(json.dumps([f.check(f.strassen(), 2, 2, 2), f.check(bad, 2, 2, 2), f.check(f.standard(2, 3, 4), 2, 3, 4), len(f.strassen()),
+  [x.e4_case(c, 20261104) for c in x.E4_CALIBRATION]]))`);
+  assert.deepEqual(r.slice(0, 4), [true, false, true, 7]);
+  for (const c of r[4]) { assert.equal(c.outcome, 'reached_reference'); assert.ok(c.all_checked); assert.equal(c.found, c.reference); }
+  const p = py("print(json.dumps([[c['id'], c['reference'], x.e4_prediction(c)] for c in x.E4_CASES] + [x.agrees('not_below_reference', 'above_reference'), x.agrees('not_below_reference', 'below_reference'), x.agrees('not_below_reference', 'unchecked')]))");
+  assert.ok(p.slice(0, -3).every(([, ref, pr]) => ref > 0 && pr === 'not_below_reference'));
+  assert.deepEqual(p.slice(-3), [true, false, null]);
+});
+
+test('E6: a package passes on its own success text, and a missing directory, a failure and the known defect are told apart', async () => {
+  const repo = await mkdtemp(join(tmpdir(), 'replication-'));
+  for (const [d, script] of [['ok', 'print("ALL GOOD")'], ['bad', 'import sys; print("nope"); sys.exit(1)'], ['defect', 'import sys; print("missing SOURCE-MANIFEST.json"); sys.exit(1)']]) {
+    await mkdir(join(repo, 'preprints', d), { recursive: true });
+    await writeFile(join(repo, 'preprints', d, 'check.py'), script);
+  }
+  const r = JSON.parse(execFileSync('python3', ['-c', `import sys, json; sys.path.insert(0, 'research/openai-math')
+import replication as rp
+rp.KNOWN_DEFECTS['defect'] = r'SOURCE-MANIFEST\\.json'
+rows = [rp.run_package(sys.argv[1], ('1', n, d, 'python3 check.py', [r'ALL GOOD'])) for n, d in [('a', 'ok'), ('b', 'bad'), ('c', 'defect'), ('d', 'gone')]]
+print(json.dumps([[x['status'], x['tail']] for x in rows]))`, repo], { encoding: 'utf8' }));
+  assert.deepEqual(r.map(x => x[0]), ['pass', 'fail', 'known_defect', 'missing']);
+  assert.deepEqual(r[1][1], ['nope'], 'a failure keeps its last lines for reading');
+  const dirs = execFileSync('python3', ['research/openai-math/replication.py', '--list-directories'], { encoding: 'utf8' }).trim().split('\n');
+  assert.equal(dirs.length, 18);
+  assert.ok(dirs.every(d => d.startsWith('preprints/')) && dirs.includes('preprints/The-Mahler-Conjecture-for-General-Convex-Bodies-September-22-2026'));
+  const md = execFileSync('python3', ['-c', `import sys; sys.path.insert(0, 'research/openai-math')
+import experiments as x
+print('\\n'.join(x.replication_lines({'commit': '4eaee87548250b26', 'packages': [{'family': '189', 'id': 'Ramsey', 'status': 'pass', 'seconds': 177.0}, {'family': '087', 'id': 'Mahler', 'status': 'known_defect', 'seconds': 4.0}]})))`], { encoding: 'utf8' });
+  assert.match(md, /openai\/math vid commit `4eaee8754825`: 1 av 2 paket godkända, 1 känt fel kvar\./);
+  assert.match(md, /\| 087 \| Mahler \| känt fel kvarstår \| 4 s \|/);
+});

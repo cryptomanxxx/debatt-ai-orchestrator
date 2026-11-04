@@ -207,4 +207,4 @@ Experimenten är utformade för labbet: små, deterministiska, med en förutsäg
 
 1. **Oraklet läser katalogen (byggt).** Oraklets litteraturdag läser tre familjer om dagen ur [katalog.json](katalog.json), med ordagrant kontrollerade citat, och redovisar dem i ai-bus. Se [research/LITERATURE-DAY.md](../LITERATURE-DAY.md).
 2. **Experimenten E1–E3 (byggt).** De körs varje vecka i ett eget arbetsflöde utan modellanrop, med kalibreringar och de förutsägelser som registrerades i förväg; se [EXPERIMENTS.md](EXPERIMENTS.md). De ligger inte i Problem Bank. Problem Bank tar bara emot problem som är kopplade till ett katalogexperiment där Oraklet svarar och en oberoende kontroll avgör svaret, och E1–E3 är rena beräkningar.
-3. **Omkörningsregistret.** E6 kan byggas som ett eget arbetsflöde.
+3. **E4 och E6 (byggt).** E4 (matrismultiplikation i litet format) och E6 (omkörning av samlingens egna kontroller) körs i samma veckoarbetsflöde; se [EXPERIMENTS.md](EXPERIMENTS.md). E5 väntar, och E7 kan byggas som en separat pilot.

@@ -6,7 +6,7 @@ Professor Oraklets dagliga rapporter. Varje dag kl. 09:41 UTC skriver Oraklet:
 - `rapporter/`: dagens rapport som `ÅÅÅÅ-MM-DD.md`, med ett register över alla dagar i [rapporter/README.md](rapporter/README.md);
 - `artiklar/`: en kort vetenskaplig artikel om dagens verifierade resultat, när det finns något att skriva om, med ett register i [artiklar/README.md](artiklar/README.md).
 
-Varje måndag kl. 05:23 UTC skriver arbetsflödet för beräkningsexperiment dessutom `berakningar/ÅÅÅÅ-MM-DD.md`: veckans experiment E1–E3 från [research/openai-math/RAPPORT.md](../research/openai-math/RAPPORT.md), utan modellanrop, med kalibreringar och förregistrerade förutsägelser. Registret finns i `berakningar/README.md`; se [research/openai-math/EXPERIMENTS.md](../research/openai-math/EXPERIMENTS.md).
+Varje måndag kl. 05:23 UTC skriver arbetsflödet för beräkningsexperiment dessutom `berakningar/ÅÅÅÅ-MM-DD.md`: veckans experiment E1–E4 från [research/openai-math/RAPPORT.md](../research/openai-math/RAPPORT.md), utan modellanrop, med kalibreringar och förregistrerade förutsägelser, och omkörningen (E6) av openai/math:s egna kontroller. Registret finns i `berakningar/README.md`; se [research/openai-math/EXPERIMENTS.md](../research/openai-math/EXPERIMENTS.md).
 
 Rapporten redovisar:
 
