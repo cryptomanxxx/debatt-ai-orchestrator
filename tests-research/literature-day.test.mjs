@@ -120,6 +120,8 @@ test('main writes the dated and latest ai-bus files and the day record', async (
       tree: async () => ({ status: 'insufficient_evidence', review_queue: [] }), novelty: () => assert.fail(),
       register: async () => [], labReports: async () => ({ runs: [], truncated: false }),
       article: async () => ({ record: { status: 'skipped', reason: 'no_verified_results', facts: 0 } }),
+      openaiMath: async () => ({ status: 'read', position: 3, round: 1, total: 373, calls: 1, families: [{ nr: '004', titel: 'Hilbert’s tenth problem over ℚ', amne: 'Number theory', lean: 'nej', kod: false, url: 'https://github.com/openai/math/tree/x/preprints/y' }],
+        notes: [{ nr: '004', citat: 'resolving Hilbert\'s tenth problem over ℚ negatively', metod: 'Definierbarhet', oppen_fraga: 'Vilka delringar?', labbforslag: 'inget' }], rejected: [] }),
       memory: async () => ({ runs: 3, totals: { provisionally_supported: 4, rejected: 1, unresolved: 1 },
         experiments: [{ experimentId: 'act-map-transfer', provisionally_supported: 4, rejected: 1, unresolved: 1, abstentions: 0, noAnswers: 1 },
           { experimentId: 'sympy-quadratic', provisionally_supported: 0, rejected: 2, unresolved: 0, abstentions: 0, noAnswers: 0, failures: { verifier_rejected: 2 } }] }) } });

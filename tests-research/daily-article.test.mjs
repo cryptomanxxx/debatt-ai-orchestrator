@@ -212,11 +212,12 @@ test('the literature day publishes the article, its index and a link, or says wh
   const deps = text => ({
     pipeline: async e => { budgets.push(e.PIPELINE_MODEL_BUDGET); return { status: 'completed', stages: day.pipeline.stages }; }, tree: async () => ({ status: 'insufficient_evidence', review_queue: [] }),
     novelty: async () => ({}), register: async () => [], labReports: async () => day.lab, memory: async () => day.memory,
-    article: (e, d) => writeDailyArticle(d, async () => ({ text, provider: 'hip', model: 'glm' }), { field: 'Kausal inferens' }) });
+    article: (e, d) => writeDailyArticle(d, async () => ({ text, provider: 'hip', model: 'glm' }), { field: 'Kausal inferens' }),
+    openaiMath: async () => ({ status: 'read', families: [], notes: [], rejected: [], calls: 1 }) });
   try {
     const published = await main({}, { now: '2026-10-24T09:41:00.000Z', deps: deps(article()) });
     assert.deepEqual(published.errors, []);
-    assert.deepEqual([budgets[0], published.model_budget], ['10', 13], 'the pipeline keeps a budget it accepts; the article\'s three calls come on top');
+    assert.deepEqual([budgets[0], published.model_budget], ['10', 14], 'the pipeline keeps a budget it accepts; the article\'s three calls and the reading\'s one come on top');
     assert.equal(published.article.status, 'published');
     assert.deepEqual(await readdir('ai-bus/artiklar'), ['2026-10-24.md', 'README.md']);
     assert.match(await readFile('ai-bus/artiklar/2026-10-24.md', 'utf8'), /## Faktaunderlag/);
