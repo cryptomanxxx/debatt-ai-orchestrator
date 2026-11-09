@@ -19,7 +19,6 @@
       "trustllm-v2-8b-sft-8k",
       "trustllm-v2-8b-sft-mixb2-exp",
       "alias-aleph-kolibri-1",
-      "alias-apertus-70b",
       "alias-deepseek-v41-flash-booster",
       "alias-eve",
       "alias-fast",
@@ -37,6 +36,7 @@
       "alias-qwen3.8-flash-next",
       "alias-qwen38-27b",
       "alias-qwen38-quick",
+      "alias-science",
       "alias-voice-drama3"
     ]
   },
@@ -44,7 +44,6 @@
     "hip": {},
     "blablador": {
       "alias-aleph-kolibri-1": "/p/scratch/chpsadm/strube1/models/Kolibri-1",
-      "alias-apertus-70b": "/p/scratch/chpsadm/strube1/models/Apertus-v1.5-70B",
       "alias-deepseek-v41-flash-booster": "/p/scratch/chpsadm/strube1/models/DeepSeek-V4.1-Flash-1017",
       "alias-eve": "eve-esa/EVE-Instruct",
       "alias-fast": "openai/gpt-oss-120b",
@@ -62,6 +61,7 @@
       "alias-qwen3.8-flash-next": "nvidia/Qwen3.8-Flash-Next-NVFP4",
       "alias-qwen38-27b": "Qwen/Qwen3.8-27B-FP8",
       "alias-qwen38-quick": "/p/scratch/chpsadm/strube1/models/Swift-1.5-Qwen3.8-27b",
+      "alias-science": "/p/scratch/chpsadm/strube1/models/Hydrogen-1.0-NVFP4",
       "alias-voice-drama3": "/p/scratch/chpsadm/strube1/drama3-a100-20261014/models/drama-3"
     }
   }
