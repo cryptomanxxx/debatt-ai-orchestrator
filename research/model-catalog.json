@@ -19,6 +19,7 @@
       "trustllm-v2-8b-sft-8k",
       "trustllm-v2-8b-sft-mixb2-exp",
       "alias-aleph-kolibri-1",
+      "alias-apertus-70b",
       "alias-deepseek-v41-flash-booster",
       "alias-eve",
       "alias-fast",
@@ -44,6 +45,7 @@
     "hip": {},
     "blablador": {
       "alias-aleph-kolibri-1": "/p/scratch/chpsadm/strube1/models/Kolibri-1",
+      "alias-apertus-70b": "/p/scratch/chpsadm/strube1/models/Apertus-v1.5-70B",
       "alias-deepseek-v41-flash-booster": "/p/scratch/chpsadm/strube1/models/DeepSeek-V4.1-Flash-1017",
       "alias-eve": "eve-esa/EVE-Instruct",
       "alias-fast": "openai/gpt-oss-120b",

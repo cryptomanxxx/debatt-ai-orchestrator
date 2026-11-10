@@ -26,6 +26,7 @@ on:
           - "blablador / trustllm-v2-8b-sft-8k"
           - "blablador / trustllm-v2-8b-sft-mixb2-exp"
           - "blablador / alias-aleph-kolibri-1 = Kolibri-1"
+          - "blablador / alias-apertus-70b = Apertus-v1.5-70B"
           - "blablador / alias-deepseek-v41-flash-booster = DeepSeek-V4.1-Flash-1017"
           - "blablador / alias-eve = EVE-Instruct"
           - "blablador / alias-fast = gpt-oss-120b"
