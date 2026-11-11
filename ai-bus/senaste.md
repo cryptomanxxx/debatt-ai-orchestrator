@@ -1,52 +1,35 @@
-# Professor Oraklets dag – 2026-11-10
+# Professor Oraklets dag – 2026-11-11
 
 *Skriven automatiskt av Oraklets dagliga litteraturforskning. Siffrorna kommer från sparade rapporter, inte från en modells egen sammanfattning. Kandidater och hypoteser är overifierade; inget här påstår en ny vetenskaplig upptäckt.*
 
 ## Sammanfattning
 
-- **Fält i dag:** Kausal inferens (sökfråga: causal inference machine learning)
-- **Litteratur:** 30 träffar hittade, 8 sammanfattningar arkiverade, 3 sammanfattningar analyserade, 5 citerade fynd. Modellanrop: 6 av 14.
-- **Ny hypoteskandidat:** 1
+- **Fält i dag:** AI för vetenskaplig upptäckt (sökfråga: AI agents scientific discovery)
+- **Litteratur:** (pipelinen avbröts; siffrorna gäller det som hann sparas) 0 träffar hittade, 0 sammanfattningar arkiverade, 0 sammanfattningar analyserade, 0 citerade fynd. Modellanrop: 4 av 14.
+- **Ny hypoteskandidat:** ingen
 - **Problem Bank:** 0 nya problem registrerade automatiskt, 0 väntar på ditt godkännande
-- **Experiment senaste dygnet:** 1 körningar, 1 av 1 fall godkända
-- **Dagens artikel:** [Vad kunskapsminnet har avgjort](artiklar/2026-11-10.md)
-- **OpenAI:s matematiksamling:** familj 016, 017, 018 (plats 16 av 373, varv 1); ingen läsning godkänd (ingen läsning godkändes)
+- **Experiment senaste dygnet:** 1 körningar, 0 av 0 fall godkända
+- **Dagens artikel:** ingen i dag (texten var inte 250–900 ord; tidigare utkast avvisades: texten var inte 250–900 ord; en siffra fanns inte i det hänvisade underlaget)
+- **OpenAI:s matematiksamling:** familj 019, 020, 021 (plats 19 av 373, varv 1); 1 av 3 läsningar godkända
+- **Driftfel:** pipeline (se nedan)
 
 ## Litteratur
 
-Pipelinen: inga tillräckligt relevanta uppföljningsträffar.
+Pipelinen: fel.
 
-| Artikel | Status | Fynd |
-| --- | --- | --- |
-| Inversion-Free High-Dimensional Counterfactual Inference | summarized | 2 |
-| Applied Statistics and Machine Learning for Social Science Research | insufficient\_evidence | 0 |
-| Causal ML: Python package for causal inference machine learning | summarized | 1 |
-| From Granger causality to causal structure in dynamical systems | insufficient\_evidence | 0 |
-| Beyond Chemical Fingerprinting: Raman Photonics, Molecular Spectroscopy and Explainable Artificial Intelligence for Palm Oil Authentication, Quality Assessment  | summarized | 2 |
-
-### Utdrag ur fynden
-
-- **result:** The approach is benchmarked on CelebA and ADNI datasets using effectiveness and identity‑preservation measures. *(Inversion-Free High-Dimensional Counterfactual Inference)*
-- **limitation:** Extending counterfactual inference from scalar to high‑dimensional nodes remains challenging. *(Inversion-Free High-Dimensional Counterfactual Inference)*
-- **method:** Causal ML provides uplift modeling and causal inference methods using machine learning algorithms. *(Causal ML: Python package for causal inference machine learning)*
-- **result:** Machine‑learning‑assisted Raman analysis can predict key quality metrics such as peroxide, iodine, and acid values. *(Beyond Chemical Fingerprinting: Raman Photonics, Molecular Spectroscopy and Explainable Artificial I)*
-- **limitation:** High within‑study accuracy does not guarantee causal provenance markers, robustness across refining states, or transferability to new instruments and regions. *(Beyond Chemical Fingerprinting: Raman Photonics, Molecular Spectroscopy and Explainable Artificial I)*
+Inga sammanfattningar analyserades i dag.
 
 ## Hypoteskandidat
 
-**Fråga:** Which reported method remains robust under a matched, independent replication?
-
-**Hypotes:** The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested.
-
-Underlag: 1 artiklar, 1 rapporterade begränsningar att granska. Status: overifierad, inget experiment kört.
+Ingen kandidat med tillräckligt underlag i dag.
 
 ## Granskningskö (agentisk trädsökning)
 
-Status: kräver verifiering.
+Ingen evidensrapport att söka i.
 
 ## Nyhetskontroll (citeringsgraf)
 
-ingen överlappning hittad inom budgeten; 0 senare verk att granska. Att inget hittas inom budgeten bevisar inte att idén är ny.
+Ingen kandidat att kontrollera.
 
 ## Problem Bank
 
@@ -58,11 +41,11 @@ Registrerade problem erbjuds den dagliga labbkörningen, som kan välja att arbe
 
 | Experiment | Seed | Status | Godkända fall | Rak fråga (labbet/rak) |
 | --- | --- | --- | --- | --- |
-| rankscreen-consistency | 20261110 | driftfel | 1 av 1 | – |
+| Oraklets experiment kunde inte slutföras | 20261111 | driftfel | 0 av 0 | – |
 
 ## Kunskapsminne (VEM-Sci)
 
-Från de senaste 30 körningarna med register (högst 200): 37 preliminärt stödda, 9 avvisade och 10 olösta påståenden. Labbets planering ser samma register och prioriterar där påståenden inte höll eller belägg saknas.
+Från de senaste 31 körningarna med register (högst 200): 37 preliminärt stödda, 9 avvisade och 10 olösta påståenden. Labbets planering ser samma register och prioriterar där påståenden inte höll eller belägg saknas.
 
 | Experiment | Stödda | Avvisade | Olösta (avstått / utan svar) | Vanligaste felorsaker | Lärprioritet |
 | --- | --- | --- | --- | --- | --- |
@@ -79,7 +62,7 @@ Från de senaste 30 körningarna med register (högst 200): 37 preliminärt stö
 
 ## DeepRAP-mått
 
-Från 30 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experimentens egna oberoende verifierare avgör; varje siffra visas med sitt underlag. Få fall ger stor osäkerhet.
+Från 31 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experimentens egna oberoende verifierare avgör; varje siffra visas med sitt underlag. Få fall ger stor osäkerhet.
 
 | Förmåga | Mått | Värde | Underlag |
 | --- | --- | --- | --- |
@@ -102,13 +85,19 @@ Oraklet läser tre resultatfamiljer om dagen ur [openai/math](https://github.com
 
 | Familj | Ämne | Lean | Kod |
 | --- | --- | --- | --- |
-| 016. [Zilber–Pink in abelian varieties and the Siegel threefold](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/Elliptic-Squares-and-Zilber-Pink-for-Curves-in-A2-September-24-2026) | Number theory | nej | nej |
-| 017. [The irrationality exponent of π is 2](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/The-irrationality-exponent-of-pi-is-2-September-24-2026) | Number theory | delvis | nej |
-| 018. [The Margulis–Platonov conjecture over global fields](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/The-Margulis-Platonov-conjecture-over-global-function-fields-October-5-2026) | Number theory | nej | nej |
+| 019. [The local p-adic section conjecture and global consequences](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/Etale-covers-with-a-prescribed-exterior-sheet-September-24-2026) | Number theory | nej | nej |
+| 020. [Squarefree quartics and power-free polynomial values](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/Squarefree-values-of-quartics-and-power-free-values-of-polynomials-September-24-2026) | Number theory | huvudresultat | nej |
+| 021. [A quadratic bound for Jacobsthal’s function](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/A-quadratic-bound-for-Jacobsthals-function-September-25-2026) | Number theory | huvudresultat | nej |
 
-- Familj 016: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
-- Familj 017: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
-- Familj 018: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
+### 019. The local p-adic section conjecture and global consequences
+
+- **Citat:** "rational points on every smooth proper geometrically connected curve of genus at least two over a finite extension of ℚp correspond bijectively to conjugacy classes of sections of its full arithmetic étale fundamental group"
+- **Metod:** studier av lokala p‑adiska sektioner, global gluing‑teknik och användning av det fulla aritmetiska étale fundamentala gruppen
+- **Öppen fråga:** Gäller liknande sektioner för andra typer av kurvor, t.ex. hyperelliptiska kurvor över allmänna talfält?
+- **Labbförslag:** Implementera i SageMath beräkning av sektioner för en liten p‑adisk kurva (t.ex. y^2 = x^3 + px + 1) och jämför med de faktiska rationella punkterna.
+
+- Familj 020: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
+- Familj 021: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
 
 ## Begränsningar
 
