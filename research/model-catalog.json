@@ -60,7 +60,7 @@
       "alias-muse-spark": "/p/scratch/chpsadm/strube1/models/Muse-Spark-Open-816B-A42B",
       "alias-ocr": "/p/haicluster/llama/FastChat/models/LightOnOCR-3-4B",
       "alias-qwen3.8-27b": "/p/scratch/chpsadm/strube1/models/Qwen3.8-27B",
-      "alias-qwen3.8-flash-next": "nvidia/Qwen3.8-Flash-Next-NVFP4",
+      "alias-qwen3.8-flash-next": "/p/scratch/chpsadm/strube1/models/Qwen3.8-Flash-Next-AWQ-W4A16",
       "alias-qwen38-27b": "Qwen/Qwen3.8-27B-FP8",
       "alias-qwen38-quick": "/p/scratch/chpsadm/strube1/models/Swift-1.5-Qwen3.8-27b",
       "alias-science": "/p/scratch/chpsadm/strube1/models/Hydrogen-1.0-NVFP4",
