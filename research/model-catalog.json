@@ -18,11 +18,13 @@
       "trustllm-v2-8b-sft",
       "trustllm-v2-8b-sft-8k",
       "trustllm-v2-8b-sft-mixb2-exp",
+      "vggt-omega-1b",
       "alias-aleph-kolibri-1",
       "alias-apertus-70b",
       "alias-deepseek-v41-flash-booster",
       "alias-eve",
       "alias-fast",
+      "alias-flux2",
       "alias-glm-5.3-flash",
       "alias-hyper-arete",
       "alias-hyperqwen-27b",
@@ -30,7 +32,6 @@
       "alias-medgemma",
       "alias-mimo-v2.6-flash",
       "alias-mimo-v2.6-pro",
-      "alias-mistral-large",
       "alias-muse-spark",
       "alias-ocr",
       "alias-qwen3.8-27b",
@@ -38,6 +39,7 @@
       "alias-qwen38-27b",
       "alias-qwen38-quick",
       "alias-science",
+      "alias-visual-geometry",
       "alias-voice-drama3"
     ]
   },
@@ -49,6 +51,7 @@
       "alias-deepseek-v41-flash-booster": "/p/scratch/chpsadm/strube1/models/DeepSeek-V4.1-Flash-1017",
       "alias-eve": "eve-esa/EVE-Instruct",
       "alias-fast": "openai/gpt-oss-120b",
+      "alias-flux2": "/p/scratch/chpsadm/strube1/models/FLUX.2-dev",
       "alias-glm-5.3-flash": "/p/scratch/chpsadm/strube1/models/GLM-5.3-Flash-AWQ-W4A16",
       "alias-hyper-arete": "/p/haicluster/llama/FastChat/models/HyperArete-27B-W4A16",
       "alias-hyperqwen-27b": "/p/haicluster/llama/FastChat/models/HyperQwen/models/Qwen3.8-27B-W4A16-AutoRound",
@@ -56,7 +59,6 @@
       "alias-medgemma": "/p/scratch/chpsadm/strube1/models/medgemma-27b-it",
       "alias-mimo-v2.6-flash": "/p/scratch/chpsadm/strube1/models/MiMo-V2.6-Flash-RL",
       "alias-mimo-v2.6-pro": "/p/scratch/chpsadm/strube1/models/MiMo-V2.6-Pro-RL",
-      "alias-mistral-large": "alias-mistral-large",
       "alias-muse-spark": "/p/scratch/chpsadm/strube1/models/Muse-Spark-Open-816B-A42B",
       "alias-ocr": "/p/haicluster/llama/FastChat/models/LightOnOCR-3-4B",
       "alias-qwen3.8-27b": "/p/scratch/chpsadm/strube1/models/Qwen3.8-27B",
@@ -64,6 +66,7 @@
       "alias-qwen38-27b": "Qwen/Qwen3.8-27B-FP8",
       "alias-qwen38-quick": "/p/scratch/chpsadm/strube1/models/Swift-1.5-Qwen3.8-27b",
       "alias-science": "/p/scratch/chpsadm/strube1/models/Hydrogen-1.0-NVFP4",
+      "alias-visual-geometry": "alias-visual-geometry",
       "alias-voice-drama3": "/p/scratch/chpsadm/strube1/drama3-a100-20261014/models/drama-3"
     }
   }
