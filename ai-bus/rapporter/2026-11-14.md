@@ -5,25 +5,29 @@
 ## Sammanfattning
 
 - **Fält i dag:** Kausal inferens (sökfråga: causal inference machine learning)
-- **Litteratur:** 30 träffar hittade, 8 sammanfattningar arkiverade, 4 sammanfattningar analyserade, 9 citerade fynd. Modellanrop: 6 av 14.
-- **Ny hypoteskandidat:** 1
+- **Litteratur:** 20 träffar hittade, 10 sammanfattningar arkiverade, 10 sammanfattningar analyserade, 27 citerade fynd. Modellanrop: 6 av 14.
+- **Ny hypoteskandidat:** 1; granskningskö med 6 förslag till studier
 - **Problem Bank:** 0 nya problem registrerade automatiskt, 0 väntar på ditt godkännande
 - **Experiment senaste dygnet:** 1 körningar, 0 av 1 fall godkända
-- **Dagens artikel:** ingen i dag (texten hänvisade till underlag som inte finns; tidigare utkast avvisades: svaret saknade avsnitt; texten hänvisade till underlag som inte finns)
+- **Dagens artikel:** ingen i dag (texten överdrev vad verifieringen visar, ordet "upptäckt"; tidigare utkast avvisades: texten hänvisade till underlag som inte finns; texten hänvisade till underlag som inte finns)
 - **OpenAI:s matematiksamling:** familj 028, 029, 030 (plats 28 av 373, varv 1); ingen läsning godkänd (ingen läsning godkändes)
-- **Driftfel:** novelty (se nedan)
 
 ## Litteratur
 
-Pipelinen: inga tillräckligt relevanta uppföljningsträffar.
+Pipelinen: delvis slutförd.
 
 | Artikel | Status | Fynd |
 | --- | --- | --- |
 | A Sensitivity Framework for Assessing External Validity | summarized | 3 |
-| Applied Statistics and Machine Learning for Social Science Research | insufficient\_evidence | 0 |
 | Causal ML: Python package for causal inference machine learning | summarized | 1 |
-| Learning Mixtures of Exponential Family | summarized | 2 |
+| Learning Mixtures of Exponential Family | summarized | 3 |
 | Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound | summarized | 3 |
+| FADO: Learning Causal Explanations with Prior-Fitted Networks | summarized | 2 |
+| Integrated machine learning and causal inference reveal CHRDL1 as a diagnostic and functional biomarker in NSCLC | summarized | 3 |
+| Machine learning-causal inference based on multi-omics data reveals the association of altered gut bacteria and bile acid metabolism with neonatal jaundice | summarized | 3 |
+| Machine Learning in Causal Inference: Application in Pharmacovigilance | summarized | 3 |
+| Machine learning and causal inference applied to the gut metagenome-metabolome axis reveals a link between neonatal jaundice and autism spectrum disorder | summarized | 3 |
+| Beyond Prediction: Explaining Health Disparities in Diabetes Risk Through Fairness-Aware Machine Learning and Causal Inference | summarized | 3 |
 
 ### Utdrag ur fynden
 
@@ -31,26 +35,41 @@ Pipelinen: inga tillräckligt relevanta uppföljningsträffar.
 - **method:** Proposes a novel debiasing approach yielding semiparametrically efficient estimators for constrained optimization estimands. *(A Sensitivity Framework for Assessing External Validity)*
 - **result:** Demonstrates construction of external‑validity intervals for a held‑out country using multi‑site microcredit data. *(A Sensitivity Framework for Assessing External Validity)*
 - **method:** Causal ML provides uplift modeling and causal inference methods using machine learning algorithms. *(Causal ML: Python package for causal inference machine learning)*
-- **method:** Proposes an estimator using a convex loss that bypasses the log-partition function, with estimation reduced to a convex optimization for each fixed label assignment. *(Learning Mixtures of Exponential Family)*
-- **limitation:** Component and label recovery are guaranteed only under additional occupancy and separation conditions. *(Learning Mixtures of Exponential Family)*
+- **method:** The authors introduce a convex-loss estimator that sidesteps the log-partition function, solving a convex program for each fixed label assignment. *(Learning Mixtures of Exponential Family)*
+- **result:** The conditional population loss uniquely determines both the interaction matrix and each sample’s linear parameter. *(Learning Mixtures of Exponential Family)*
+- **result:** Finite‑sample bounds are proven for the global empirical minimizer on interaction error (Frobenius norm) and average squared linear‑parameter error. *(Learning Mixtures of Exponential Family)*
 - **method:** Used integrated analysis of monitoring, satellite, and reanalysis data with explainable machine learning and causal inference. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
-- **result:** Elevated temperature and solar radiation explained 57% of the ozone increase. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
 
 ## Hypoteskandidat
 
-**Fråga:** Which reported method remains robust under a matched, independent replication?
+**Fråga:** Does adjusting for an identified confounder recover a causal effect that the unadjusted association misstates?
 
 **Hypotes:** The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested.
 
-Underlag: 2 artiklar, 1 rapporterade begränsningar att granska. Status: overifierad, inget experiment kört.
+Underlag: 3 artiklar, 0 rapporterade begränsningar att granska. Status: overifierad, inget experiment kört.
 
 ## Granskningskö (agentisk trädsökning)
 
-Status: kräver verifiering.
+Status: granskningskö skapad.
+
+| # | Gren | Hypotes |
+| --- | --- | --- |
+| 1 | candidate | The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested. |
+| 2 | null-test | Test whether the candidate intervention fails to improve the primary outcome over a matched baseline under pre-registered held-out conditions. |
+| 3 | replication | Test whether the candidate intervention changes the primary outcome relative to a matched baseline on independent held-out data. |
+| 4 | candidate | The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested. |
+| 5 | null-test | Test whether the candidate intervention fails to improve the primary outcome over a matched baseline under pre-registered held-out conditions. |
+| 6 | replication | Test whether the candidate intervention changes the primary outcome relative to a matched baseline on independent held-out data. |
 
 ## Nyhetskontroll (citeringsgraf)
 
-Nyhetskontrollen misslyckades (no\_openalex\_seed).
+möjlig överlappning hittad; 10 senare verk att granska. Att inget hittas inom budgeten bevisar inte att idén är ny.
+
+- A Comprehensive Review and Tutorial on Confounding Adjustment Methods for Estimating Treatment Effects Using Observational Data (2024)
+- Covariate selection and adjustment for efficacy and safety endpoints in indirect comparative effectiveness analyses of CAR-T-cell therapies for large B-cell lymphoma: a systematic review (2026)
+- DeepLearningCausal: R Package for Estimating Treatment Effects Using Deep Neural Networks and Ensemble Learning (2026)
+- Causal effects of unintended pregnancy on adverse birth outcomes: A target trial emulation analysis (2026)
+- A Systematic Literature Review of the Effectiveness of CDK 4/6 Inhibitors for First-Line Treatment of HR+/HER2− Advanced/Metastatic Breast Cancer: A Comparison of Real-World Evidence (2026)
 
 ## Problem Bank
 
