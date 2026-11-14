@@ -21,7 +21,8 @@ const AFTER = {
   '20261012160000_literature_abstract_archive.sql': ['abstract-archive.sql'],
   '20261012183000_literature_evidence_registry.sql': ['evidence-registry.sql'],
   '20261012200000_literature_follow_up.sql': ['follow-up.sql'],
-  '20261013000000_research_dashboard.sql': ['research-dashboard.sql', 'planner-reports.sql']
+  '20261013000000_research_dashboard.sql': ['research-dashboard.sql', 'planner-reports.sql'],
+  '20261114180000_literature_identifier_drift.sql': ['identifier-drift.sql', 'strict-dates.sql', 'publication-precedence.sql']
 };
 
 // Supabase CLI applies migrations in filename order, so every version must be a full

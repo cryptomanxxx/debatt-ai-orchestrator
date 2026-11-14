@@ -76,4 +76,9 @@ test('writes one atomic RPC with backend secret only in header and no arbitrary 
  assert.equal(calls,1);assert.equal(result.replayed,false);
  await assert.rejects(()=>persistLiteratureReport(report(),{url:'https://test.supabase.co',secretKey:'sb_secret_test',runKey:'test',fetchImpl:async()=>{throw Error('sb_secret_test');}}),/^Error: literature_database_transport_failed$/);
  await assert.rejects(()=>persistLiteratureReport(report(),{url:'https://test.supabase.co',secretKey:'sb_secret_test',runKey:'test',fetchImpl:async()=>({ok:false,status:403})}),/write_failed:403/);
+ await assert.rejects(()=>persistLiteratureReport(report(),{url:'https://test.supabase.co',secretKey:'sb_secret_test',runKey:'test',
+   fetchImpl:async()=>({ok:false,status:400,json:async()=>({code:'P0001',message:'literature_identifier_conflict'})})}),/^Error: literature_database_write_failed:400:literature_identifier_conflict$/);
+ // Free text from the database is never carried into the error.
+ await assert.rejects(()=>persistLiteratureReport(report(),{url:'https://test.supabase.co',secretKey:'sb_secret_test',runKey:'test',
+   fetchImpl:async()=>({ok:false,status:400,json:async()=>({message:'duplicate key value violates "x"'})})}),/^Error: literature_database_write_failed:400$/);
 });
