@@ -58,6 +58,23 @@ begin
    or (select count(*) from public.literature_article where doi='10.99999/merge' or arxiv_id='2699.00002')<>1
    then raise exception 'consistent bridge not merged'; end if;
 
+ -- An out-of-order recovery import of an older observation keeps its hit but does not move the link back.
+ perform public.ingest_literature_run('{"runKey":"fresh-seed","contentHash":"8888888888888888888888888888888888888888888888888888888888888888","searches":[{"queryIndex":0,"query":"AI","source":"openalex","status":"ok","fetchedAt":"2026-11-01T12:00:00Z","papers":[
+   {"sourceId":"https://openalex.org/W9000000010","title":"Older identity","doi":"10.99999/fresh-a"},
+   {"sourceId":"https://openalex.org/W9000000011","title":"Other work","doi":"10.99999/fresh-b"}]}]}');
+ result:=public.ingest_literature_run('{"runKey":"fresh-newer","contentHash":"9999999999999999999999999999999999999999999999999999999999999999","searches":[{"queryIndex":0,"query":"AI","source":"openalex","status":"ok","fetchedAt":"2026-11-10T12:00:00Z","papers":[
+   {"sourceId":"https://openalex.org/W9000000010","title":"Newer identity","doi":"10.99999/fresh-b"}]}]}');
+ if (select a.doi from public.literature_source_record s join public.literature_article a on a.id=s.article_id
+     where s.source='openalex' and s.source_id='https://openalex.org/W9000000010') is distinct from '10.99999/fresh-b'
+   then raise exception 'newer observation did not move the link'; end if;
+ result:=public.ingest_literature_run('{"runKey":"fresh-older-recovery","contentHash":"aaaa999999999999999999999999999999999999999999999999999999999999","searches":[{"queryIndex":0,"query":"AI","source":"openalex","status":"ok","fetchedAt":"2026-11-05T12:00:00Z","papers":[
+   {"sourceId":"https://openalex.org/W9000000010","title":"Older identity","doi":"10.99999/fresh-a"}]}]}');
+ if (result->>'hits')::integer<>1 then raise exception 'older observation hit not retained'; end if;
+ if (select a.doi from public.literature_source_record s join public.literature_article a on a.id=s.article_id
+     where s.source='openalex' and s.source_id='https://openalex.org/W9000000010') is distinct from '10.99999/fresh-b'
+   or (select metadata->>'doi' from public.literature_source_record where source='openalex' and source_id='https://openalex.org/W9000000010') is distinct from '10.99999/fresh-b'
+   then raise exception 'older recovery import moved the link back'; end if;
+
  -- Invalid input still rolls back the whole import.
  begin
    perform public.ingest_literature_run('{"runKey":"drift-fulltext","contentHash":"7777777777777777777777777777777777777777777777777777777777777777","searches":[{"queryIndex":0,"query":"AI","source":"core","status":"ok","papers":[{"sourceId":"drift-new","title":"Ok"},{"sourceId":"drift-bad","title":"Bad","fullText":"x"}]}]}');

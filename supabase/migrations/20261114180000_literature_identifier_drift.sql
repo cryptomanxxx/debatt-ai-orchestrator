@@ -10,7 +10,7 @@ declare
   existing_hash text; item jsonb; paper jsonb; candidate_ids uuid[]; other_id uuid;
   kept public.literature_article; other public.literature_article;
   doi_value text; arxiv_value text; hit_count integer := 0; rank_value integer;
-  doi_article uuid; arxiv_article uuid; source_article uuid; conflict_count integer := 0;
+  doi_article uuid; arxiv_article uuid; source_article uuid; source_fetched timestamptz; conflict_count integer := 0;
 begin
   if jsonb_typeof(p_payload->'searches') is distinct from 'array'
     or jsonb_array_length(p_payload->'searches') not between 1 and 80
@@ -64,7 +64,7 @@ begin
         then raise exception 'invalid_literature_arxiv_id'; end if;
       select a.id into doi_article from public.literature_article a where doi_value is not null and a.doi=doi_value;
       select a.id into arxiv_article from public.literature_article a where arxiv_value is not null and a.arxiv_id=arxiv_value;
-      select s.article_id into source_article from public.literature_source_record s
+      select s.article_id,s.metadata_fetched_at into source_article,source_fetched from public.literature_source_record s
         where s.source=item->>'source' and s.source_id=paper->>'sourceId';
       select array_agg(distinct c order by c) into candidate_ids
         from unnest(array[doi_article,arxiv_article,source_article]) c where c is not null;
@@ -72,7 +72,9 @@ begin
       -- identifiers disagree with the articles they reach, the identifier wins: the source record moves to
       -- the article holding the incoming DOI (else arXiv ID), or to a new article, and nothing is merged.
       -- The earlier article is kept unchanged, so references to it stay valid. One drifted record no longer
-      -- aborts the whole run; the count is returned as identifierConflicts.
+      -- aborts the whole run; the count is returned as identifierConflicts. An observation older than the
+      -- record's current metadata (the freshness rule of the metadata upsert below) never moves the link:
+      -- an out-of-order recovery import keeps the hit but not its outdated identity.
       if candidate_ids is not null and (
         (select count(distinct v) from (select doi_value v union all
           select a.doi from public.literature_article a where a.id=any(candidate_ids)) d where v is not null)>1
@@ -81,7 +83,12 @@ begin
       ) then
         conflict_count:=conflict_count+1;
         article_id:=coalesce(doi_article,arxiv_article);
-        if article_id is null then
+        if source_article is not null and not (
+          ((item->>'fetchedAt') is not null and (source_fetched is null or (item->>'fetchedAt')::timestamptz>=source_fetched))
+          or ((item->>'fetchedAt') is null and source_fetched is null)
+        ) then
+          article_id:=source_article;
+        elsif article_id is null then
           insert into public.literature_article(doi,arxiv_id,title,year,published)
             values(doi_value,arxiv_value,paper->>'title',(paper->>'year')::integer,paper->>'published') returning id into article_id;
         else
