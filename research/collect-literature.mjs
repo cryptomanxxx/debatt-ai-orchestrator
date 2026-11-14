@@ -13,7 +13,7 @@ const SAFE=new Set(['collection_metadata_storage_unavailable','collection_no_usa
   'invalid_literature_database_response','response_too_large','invalid_json_response','invalid_literature_search_response',
   'invalid_canonical_article_response','invalid_literature_hit_response','inconsistent_canonical_article_response']);
 const reason=e=>SAFE.has(e?.message)||/^(?:abstract_archive_http_|literature_http_)\d{3}$/.test(e?.message??'')
-  ||/^literature_database_write_failed:\d{3}$/.test(e?.message??'')?e.message:'collection_operation_failed';
+  ||/^literature_database_write_failed:\d{3}(?::[a-z_]{3,60})?$/.test(e?.message??'')?e.message:'collection_operation_failed';
 export function validateCollectionLimit(value=50) {
   if (!Number.isInteger(value)||value<1||value>50) throw new Error('invalid_collection_limit');
   return value;

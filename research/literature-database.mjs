@@ -53,7 +53,12 @@ export async function persistLiteratureReport(report,{url,secretKey,runKey,origi
     response=await fetchImpl(new URL('/rest/v1/rpc/ingest_literature_run',url),{method:'POST',
       headers:{apikey:secretKey,'content-type':'application/json'},body:JSON.stringify({p_payload:payload}),signal:AbortSignal.timeout(30000)});
   } catch { throw Error('literature_database_transport_failed'); }
-  if (!response.ok) throw Error('literature_database_write_failed:'+response.status);
+  if (!response.ok) {
+    // The function raises fixed snake_case codes (e.g. literature_identifier_conflict); keep only such a code.
+    let code='';
+    try { const body=await response.json(); if (/^[a-z_]{3,60}$/.test(body?.message??'')) code=':'+body.message; } catch {}
+    throw Error('literature_database_write_failed:'+response.status+code);
+  }
   let result;
   try { result=await response.json(); } catch { throw Error('invalid_literature_database_response'); }
   if (!result || typeof result.runId!=='string' || typeof result.replayed!=='boolean') throw Error('invalid_literature_database_response');

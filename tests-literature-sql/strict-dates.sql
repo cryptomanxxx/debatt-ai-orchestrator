@@ -1,8 +1,11 @@
 begin;
 set local role service_role;
 do $$
-declare p jsonb; v text; field text; n integer:=0;
+declare p jsonb; v text; field text; n integer:=0; runs bigint; articles bigint; hits bigint;
 begin
+ -- Counts before the test, so it also holds after fixtures committed by earlier steps.
+ select (select count(*) from public.literature_run),(select count(*) from public.literature_article),(select count(*) from public.literature_hit)
+   into runs,articles,hits;
  foreach v in array array['unknown','2023-02-29','1900-02-29','2026-04-31','0000-01-01','2026-13-01',
    '2026-01-01T24:00:00Z','2026-01-01T12:60:00Z','2026-01-01T12:00:60Z',
    '2026-01-01T12:00:00+16:00','2026-01-01T12:00:00','01/02/2026'] loop
@@ -35,8 +38,8 @@ begin
      if sqlerrm<>'invalid_literature_timestamp' then raise; end if;
    end;
  end loop;
- if (select count(*) from public.literature_run)<>0 or (select count(*) from public.literature_article)<>0
-   or (select count(*) from public.literature_hit)<>0 then raise exception 'invalid timestamps partially committed'; end if;
+ if (select count(*) from public.literature_run)<>runs or (select count(*) from public.literature_article)<>articles
+   or (select count(*) from public.literature_hit)<>hits then raise exception 'invalid timestamps partially committed'; end if;
  foreach v in array array['2024-02-29','2000-02-29','2026-01-01T12:00:00Z','2024-02-29T23:59:59.123+02:00'] loop
    n:=n+1;
    p:=jsonb_build_object('runKey','valid-date-'||n,'contentHash',repeat('b',64),'searches',jsonb_build_array(
