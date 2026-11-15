@@ -71,7 +71,7 @@
       "alias-ocr": "/p/haicluster/llama/FastChat/models/LightOnOCR-3-4B",
       "alias-proteina-complexa": "/p/scratch/chpsadm/strube1/molecular/src/proteina-complexa",
       "alias-qwen3.8-27b": "/p/scratch/chpsadm/strube1/models/Qwen3.8-27B",
-      "alias-qwen3.8-flash-next": "/p/scratch/chpsadm/strube1/models/Qwen3.8-Flash-Next-AWQ-W4A16",
+      "alias-qwen3.8-flash-next": "nvidia/Qwen3.8-Flash-Next-NVFP4",
       "alias-qwen38-27b": "Qwen/Qwen3.8-27B-FP8",
       "alias-qwen38-quick": "/p/scratch/chpsadm/strube1/models/Swift-1.5-Qwen3.8-27b",
       "alias-rfdiffusion3": "/p/scratch/chpsadm/strube1/molecular/src/rfdiffusion3",
