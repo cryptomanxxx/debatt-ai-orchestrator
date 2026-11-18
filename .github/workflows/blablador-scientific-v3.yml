@@ -42,6 +42,7 @@ on:
           - "blablador / alias-medgemma = medgemma-27b-it"
           - "blablador / alias-mimo-v2.6-flash = MiMo-V2.6-Flash-RL"
           - "blablador / alias-mimo-v2.6-pro = MiMo-V2.6-Pro-RL"
+          - "blablador / alias-mistral-large = alias-mistral-large"
           - "blablador / alias-muse-spark = Muse-Spark-Open-816B-A42B"
           - "blablador / alias-ocr = LightOnOCR-3-4B"
           - "blablador / alias-proteina-complexa = proteina-complexa"
