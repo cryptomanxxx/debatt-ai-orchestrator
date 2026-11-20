@@ -1,41 +1,40 @@
-# Professor Oraklets dag – 2026-11-19
+# Professor Oraklets dag – 2026-11-20
 
 *Skriven automatiskt av Oraklets dagliga litteraturforskning. Siffrorna kommer från sparade rapporter, inte från en modells egen sammanfattning. Kandidater och hypoteser är overifierade; inget här påstår en ny vetenskaplig upptäckt.*
 
 ## Sammanfattning
 
-- **Fält i dag:** AI för vetenskaplig upptäckt (sökfråga: AI agents scientific discovery)
-- **Litteratur:** 30 träffar hittade, 8 sammanfattningar arkiverade, 5 sammanfattningar analyserade, 12 citerade fynd. Modellanrop: 6 av 14.
-- **Ny hypoteskandidat:** 1; granskningskö med 3 förslag till studier
+- **Fält i dag:** Kausal inferens (sökfråga: causal inference machine learning)
+- **Litteratur:** 30 träffar hittade, 10 sammanfattningar arkiverade, 4 sammanfattningar analyserade, 9 citerade fynd. Modellanrop: 6 av 14.
+- **Ny hypoteskandidat:** 1
 - **Problem Bank:** 0 nya problem registrerade automatiskt, 0 väntar på ditt godkännande
-- **Experiment senaste dygnet:** 1 körningar, 2 av 3 fall godkända
-- **Dagens artikel:** [Hur väl Oraklets resonemang håller](artiklar/2026-11-19.md)
-- **OpenAI:s matematiksamling:** familj 043, 044, 046 (plats 43 av 373, varv 1); ingen läsning godkänd (svaret var inte giltig JSON)
+- **Experiment senaste dygnet:** 1 körningar, 0 av 0 fall godkända
+- **Dagens artikel:** [Hur väl Oraklets resonemang håller](artiklar/2026-11-20.md)
+- **OpenAI:s matematiksamling:** familj 047, 048, 049 (plats 46 av 373, varv 1); ingen läsning godkänd (ingen läsning godkändes)
+- **Driftfel:** novelty (se nedan)
 
 ## Litteratur
 
-Pipelinen: delvis slutförd.
+Pipelinen: inga tillräckligt relevanta uppföljningsträffar.
 
 | Artikel | Status | Fynd |
 | --- | --- | --- |
-| automodel: A Skill for Agentic Model Discovery | summarized | 2 |
-| Agentic AI for Scientific Discovery: A Survey of Progress, Challenges, and Future Directions | summarized | 1 |
-| PDBe in 2027: integrating literature annotations, molecular dynamics data, and AI-ready access. | summarized | 3 |
-| Embodied Science Agents: Making Embodied Experimental Design Learnable | error | 0 |
-| Agentic AI systems for scientific discovery | unavailable | 0 |
-| Requirements Engineering with Generative AI: A Systematic Literature Review of Using AI Agents for Requirements Engineering Automation | summarized | 3 |
-| System for systematic literature review using multiple AI agents: Concept and an empirical evaluation | summarized | 3 |
+| Time Series Structure Learning with Local Causal Parent Discovery | summarized | 2 |
+| Applied Statistics and Machine Learning for Social Science Research | insufficient\_evidence | 0 |
+| Causal ML: Python package for causal inference machine learning | summarized | 1 |
+| Verifiable Logic in Medical LLMs: A Critical Review of Agentic Clinical Reasoning Optimization and Neuro-Symbolic Grounding | summarized | 3 |
+| Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound | summarized | 3 |
 
 ### Utdrag ur fynden
 
-- **method:** The authors introduce automodel, an agent skill for general model discovery. *(automodel: A Skill for Agentic Model Discovery)*
-- **result:** Commercial agents equipped with automodel can successfully identify novel, scientifically-relevant models across multiple domains. *(automodel: A Skill for Agentic Model Discovery)*
-- **limitation:** Literature review automation, system reliability, and ethical concerns are critical challenges that remain unresolved. *(Agentic AI for Scientific Discovery: A Survey of Progress, Challenges, and Future Directions)*
-- **method:** Established cross-links to molecular dynamics simulations in MDposit. *(PDBe in 2027: integrating literature annotations, molecular dynamics data, and AI-ready access.)*
-- **result:** Extended literature integration increased residue‑level annotations from open‑access publications. *(PDBe in 2027: integrating literature annotations, molecular dynamics data, and AI-ready access.)*
-- **method:** Incorporated MOLE‑generated channel, tunnel, and pore analyses into weekly releases for download. *(PDBe in 2027: integrating literature annotations, molecular dynamics data, and AI-ready access.)*
-- **method:** The authors performed a systematic literature review of LLM-supported agent-based RE automation. *(Requirements Engineering with Generative AI: A Systematic Literature Review of Using AI Agents for R)*
-- **result:** They identified 50 relevant studies, with 24 describing agent-based architectures and 26 providing benchmarks or evaluation resources. *(Requirements Engineering with Generative AI: A Systematic Literature Review of Using AI Agents for R)*
+- **method:** ITPD is a sound and complete constraint-based procedure for causal structure learning on multivariate time series with causal nonstationarity, using a local-to-global approach. *(Time Series Structure Learning with Local Causal Parent Discovery)*
+- **result:** With an exact oracle, ITPD performed the fewest conditional independence tests and used the smallest average conditioning set sizes compared to baseline methods. *(Time Series Structure Learning with Local Causal Parent Discovery)*
+- **method:** Causal ML provides uplift modeling and causal inference methods using machine learning algorithms. *(Causal ML: Python package for causal inference machine learning)*
+- **method:** Neuro-symbolic grounding uses formal logic engines, ontology reasoners, and knowledge graphs to add verifiable constraints to neural outputs. *(Verifiable Logic in Medical LLMs: A Critical Review of Agentic Clinical Reasoning Optimization and N)*
+- **result:** Systems with symbolic veto layers achieve large gains on safety measures. *(Verifiable Logic in Medical LLMs: A Critical Review of Agentic Clinical Reasoning Optimization and N)*
+- **limitation:** Results are based on single, simulated or small‑sample studies and are not directly comparable with neural baselines. *(Verifiable Logic in Medical LLMs: A Critical Review of Agentic Clinical Reasoning Optimization and N)*
+- **method:** Used integrated analysis of monitoring, satellite, and reanalysis data with explainable machine learning and causal inference. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
+- **result:** Elevated temperature and solar radiation explained 57% of the ozone increase. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
 
 ## Hypoteskandidat
 
@@ -43,31 +42,19 @@ Pipelinen: delvis slutförd.
 
 **Hypotes:** The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested.
 
-Underlag: 3 artiklar, 0 rapporterade begränsningar att granska. Status: overifierad, inget experiment kört.
+Underlag: 2 artiklar, 1 rapporterade begränsningar att granska. Status: overifierad, inget experiment kört.
 
 ## Granskningskö (agentisk trädsökning)
 
-Status: granskningskö skapad.
-
-| # | Gren | Hypotes |
-| --- | --- | --- |
-| 1 | candidate | The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested. |
-| 2 | null-test | Test whether the candidate intervention fails to improve the primary outcome over a matched baseline under pre-registered held-out conditions. |
-| 3 | replication | Test whether the candidate intervention changes the primary outcome relative to a matched baseline on independent held-out data. |
+Status: kräver verifiering.
 
 ## Nyhetskontroll (citeringsgraf)
 
-ingen överlappning hittad inom budgeten; 10 senare verk att granska. Att inget hittas inom budgeten bevisar inte att idén är ny.
-
-- Interaction-finder: automated literature-based discovery of biological entity associations with quote-level provenance (2026)
-- What Makes AI Research Replicable? Executable Knowledge Graphs as Scientific Knowledge Representations (2026)
-- FlowPIE: Test-Time Scientific Idea Evolution with Flow-Guided Literature Exploration (2026)
-- From Literature to Hypotheses: An AI Co-Scientist System for Biomarker-Guided Drug Combination Hypothesis Generation (2026)
-- Who Annotates in NLP? A Large-scale Assessment of Human Annotation Reporting between 2018 and 2025 (2026)
+Nyhetskontrollen misslyckades (no\_openalex\_seed).
 
 ## Problem Bank
 
-- `oraklet-dowhy-backdoor-001` → `dowhy-backdoor`: redan registrerad. Litteratur: Does adjusting for an identified confounder recover a causal effect that the unadjusted association misstates? (3 artiklar)
+- `oraklet-dowhy-backdoor-001` → `dowhy-backdoor`: redan registrerad. Litteratur: Does adjusting for an identified confounder recover a causal effect that the unadjusted association misstates? (2 artiklar)
 
 Registrerade problem erbjuds den dagliga labbkörningen, som kan välja att arbeta på dem.
 
@@ -75,11 +62,11 @@ Registrerade problem erbjuds den dagliga labbkörningen, som kan välja att arbe
 
 | Experiment | Seed | Status | Godkända fall | Rak fråga (labbet/rak) |
 | --- | --- | --- | --- | --- |
-| rankscreen-consistency | 20261120 | failed | 2 av 3 | – |
+| rankscreen-consistency | 20261121 | driftfel | 0 av 0 | – |
 
 ## Kunskapsminne (VEM-Sci)
 
-Från de senaste 39 körningarna med register (högst 200): 45 preliminärt stödda, 12 avvisade och 12 olösta påståenden. Labbets planering ser samma register och prioriterar där påståenden inte höll eller belägg saknas.
+Från de senaste 40 körningarna med register (högst 200): 45 preliminärt stödda, 12 avvisade och 12 olösta påståenden. Labbets planering ser samma register och prioriterar där påståenden inte höll eller belägg saknas.
 
 | Experiment | Stödda | Avvisade | Olösta (avstått / utan svar) | Vanligaste felorsaker | Lärprioritet |
 | --- | --- | --- | --- | --- | --- |
@@ -96,7 +83,7 @@ Från de senaste 39 körningarna med register (högst 200): 45 preliminärt stö
 
 ## DeepRAP-mått
 
-Från 39 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experimentens egna oberoende verifierare avgör; varje siffra visas med sitt underlag. Få fall ger stor osäkerhet.
+Från 40 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experimentens egna oberoende verifierare avgör; varje siffra visas med sitt underlag. Få fall ger stor osäkerhet.
 
 | Förmåga | Mått | Värde | Underlag |
 | --- | --- | --- | --- |
@@ -111,7 +98,7 @@ Från 39 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experime
 | Abstraktion | Felaktigt godkända överföringar | 0 | alla ACT-MAP-fall |
 | Planering | Ingrepp per rätt fall: Oraklet mot uppräkningsbaslinjen | 2.8947 mot 2.7368 | 19 fall där båda hade rätt |
 | Planering | Två ingrepp: det andra fullbordade täckningen | 100 % | 2 av 2 fall där det var möjligt |
-| Planering | Planeringen valde högsta lärprioritet | 12 av 29 | körningar planerade med minnet; relativ placering i snitt 0.43 (0 = högst), 6 val av obeprövat experiment |
+| Planering | Planeringen valde högsta lärprioritet | 12 av 30 | körningar planerade med minnet; relativ placering i snitt 0.4392 (0 = högst), 6 val av obeprövat experiment |
 
 ## OpenAI:s matematiksamling
 
@@ -119,11 +106,13 @@ Oraklet läser tre resultatfamiljer om dagen ur [openai/math](https://github.com
 
 | Familj | Ämne | Lean | Kod |
 | --- | --- | --- | --- |
-| 043. [P = W for fixed-determinant SLn moduli spaces](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/P-equals-W-in-composite-rank-for-fixed-determinant-September-24-2026) | Algebraic and complex geometry | nej | nej |
-| 044. [The equivariant cohomological Hikita conjecture](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/The-equivariant-cohomological-Hikita-conjecture-for-arbitrary-quivers-September-24-2026) | Algebraic and complex geometry | nej | nej |
-| 046. [Shafarevich counterexamples in dimension two and with large fundamental group](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/A-projective-fourfold-with-large-fundamental-group-and-non-Stein-universal-cover-October-5-2026) | Algebraic and complex geometry | nej | nej |
+| 047. [Zariski cancellation and affine fibrations over the complex numbers](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/An-explicit-failure-of-complex-affine-space-cancellation-September-23-2026) | Algebraic and complex geometry | huvudresultat | nej |
+| 048. [A characteristic-zero counterexample to Lipman–Zariski](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/A-singular-normal-affine-surface-with-free-tangent-sheaf-September-23-2026) | Algebraic and complex geometry | nej | nej |
+| 049. [A stable-coordinate counterexample in four variables](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/A-stable-coordinate-that-is-not-a-coordinate-in-four-variables-October-5-2026) | Algebraic and complex geometry | huvudresultat | nej |
 
-Läsningen avvisades: svaret var inte giltig JSON.
+- Familj 047: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
+- Familj 048: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
+- Familj 049: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
 
 ## Begränsningar
 
