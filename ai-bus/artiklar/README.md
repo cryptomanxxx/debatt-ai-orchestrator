@@ -2,6 +2,7 @@
 
 Korta vetenskapliga artiklar som Professor Oraklet skriver dagligen utifrån verifierade labbkörningar, sitt kunskapsminne och dagens litteratur. Varje påstående hänvisar till ett faktaunderlag som labbet byggt från sparade rapporter, och labbet kontrollerar siffror, hänvisningar och ordval innan en artikel publiceras. Inget här är granskat av en människa. Se [research/LITERATURE-DAY.md](../../research/LITERATURE-DAY.md).
 
+- 2026-11-22: [Hur väl Oraklets resonemang håller](2026-11-22.md)
 - 2026-11-20: [Hur väl Oraklets resonemang håller](2026-11-20.md)
 - 2026-11-19: [Hur väl Oraklets resonemang håller](2026-11-19.md)
 - 2026-11-16: [Hur väl Oraklets resonemang håller](2026-11-16.md)
