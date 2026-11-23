@@ -1,40 +1,41 @@
-# Professor Oraklets dag – 2026-11-22
+# Professor Oraklets dag – 2026-11-23
 
 *Skriven automatiskt av Oraklets dagliga litteraturforskning. Siffrorna kommer från sparade rapporter, inte från en modells egen sammanfattning. Kandidater och hypoteser är overifierade; inget här påstår en ny vetenskaplig upptäckt.*
 
 ## Sammanfattning
 
-- **Fält i dag:** Kausal inferens (sökfråga: causal inference machine learning)
-- **Litteratur:** 30 träffar hittade, 10 sammanfattningar arkiverade, 4 sammanfattningar analyserade, 8 citerade fynd. Modellanrop: 4 av 14.
-- **Ny hypoteskandidat:** 1
+- **Fält i dag:** AI för vetenskaplig upptäckt (sökfråga: AI agents scientific discovery)
+- **Litteratur:** 30 träffar hittade, 9 sammanfattningar arkiverade, 6 sammanfattningar analyserade, 16 citerade fynd. Modellanrop: 7 av 14.
+- **Ny hypoteskandidat:** 1; granskningskö med 6 förslag till studier
 - **Problem Bank:** 0 nya problem registrerade automatiskt, 0 väntar på ditt godkännande
 - **Experiment senaste dygnet:** 1 körningar, 1 av 1 fall godkända
-- **Dagens artikel:** [Hur väl Oraklets resonemang håller](artiklar/2026-11-22.md)
-- **OpenAI:s matematiksamling:** familj 053, 054, 055 (plats 52 av 373, varv 1); 2 av 3 läsningar godkända
-- **Driftfel:** novelty (se nedan)
+- **Dagens artikel:** ingen i dag (texten hänvisade till underlag som inte finns; tidigare utkast avvisades: texten hänvisade till underlag som inte finns; texten var inte 250–900 ord)
+- **OpenAI:s matematiksamling:** familj 056, 057, 058 (plats 55 av 373, varv 1); ingen läsning godkänd (ingen läsning godkändes)
 
 ## Litteratur
 
-Pipelinen: inga tillräckligt relevanta uppföljningsträffar.
+Pipelinen: delvis slutförd.
 
 | Artikel | Status | Fynd |
 | --- | --- | --- |
-| Time Series Structure Learning with Local Causal Parent Discovery | summarized | 1 |
-| Applied Statistics and Machine Learning for Social Science Research | insufficient\_evidence | 0 |
-| Causal ML: Python package for causal inference machine learning | summarized | 1 |
-| Verifiable Logic in Medical LLMs: A Critical Review of Agentic Clinical Reasoning Optimization and Neuro-Symbolic Grounding | summarized | 3 |
-| Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound | summarized | 3 |
+| Agentic AI for Scientific Discovery: A Survey of Progress, Challenges, and Future Directions | summarized | 1 |
+| Do Alice and Bob Dream of the Oracle? Wishful Cryptanalysis | summarized | 3 |
+| CASCADE is an agentic AI framework for trustworthy biomarker discovery in precision oncology. | summarized | 3 |
+| DeepQuest: From Knowledge Gaps to Scientific Discovery in Alzheimer's Disease | summarized | 3 |
+| Agentic AI systems for scientific discovery | unavailable | 0 |
+| Requirements Engineering with Generative AI: A Systematic Literature Review of Using AI Agents for Requirements Engineering Automation | summarized | 3 |
+| System for systematic literature review using multiple AI agents: Concept and an empirical evaluation | summarized | 3 |
 
 ### Utdrag ur fynden
 
-- **result:** With an exact oracle, ITPD performed the fewest conditional independence tests and the smallest average conditioning set sizes compared to baselines. *(Time Series Structure Learning with Local Causal Parent Discovery)*
-- **method:** Causal ML provides uplift modeling and causal inference methods using machine learning algorithms. *(Causal ML: Python package for causal inference machine learning)*
-- **method:** Neuro-symbolic grounding uses formal logic engines, ontology reasoners, and knowledge graphs to add verifiable constraints to neural outputs. *(Verifiable Logic in Medical LLMs: A Critical Review of Agentic Clinical Reasoning Optimization and N)*
-- **result:** Systems with symbolic veto layers achieve large gains on safety measures. *(Verifiable Logic in Medical LLMs: A Critical Review of Agentic Clinical Reasoning Optimization and N)*
-- **limitation:** Results are based on single, simulated or small‑sample studies and are not directly comparable with neural baselines. *(Verifiable Logic in Medical LLMs: A Critical Review of Agentic Clinical Reasoning Optimization and N)*
-- **method:** Used integrated analysis of monitoring, satellite, and reanalysis data with explainable machine learning and causal inference. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
-- **result:** Elevated temperature and solar radiation explained 57% of the ozone increase. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
-- **limitation:** Chemical transport models are computationally intensive, and machine learning struggles with confounding and causality. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
+- **limitation:** Literature review automation, system reliability, and ethical concerns are critical challenges that remain unresolved. *(Agentic AI for Scientific Discovery: A Survey of Progress, Challenges, and Future Directions)*
+- **method:** Introduced a harness‑agnostic “wishful cryptanalysis” methodology that compresses reduced‑scale theory and uses live witnesses to certify mathematics automatically. *(Do Alice and Bob Dream of the Oracle? Wishful Cryptanalysis)*
+- **result:** Achieved thirteen verifiable practical attacks on Keccak (SHA‑3) and AES, including breaking a 15‑year‑old public challenge and closing long‑standing practical gaps. *(Do Alice and Bob Dream of the Oracle? Wishful Cryptanalysis)*
+- **limitation:** Closed platforms and generic agent loops hinder sustained open inquiry in prior approaches. *(Do Alice and Bob Dream of the Oracle? Wishful Cryptanalysis)*
+- **method:** CASCADE is an agentic validation framework that uses mandatory, quantitatively gated analytical steps. *(CASCADE is an agentic AI framework for trustworthy biomarker discovery in precision oncology.)*
+- **result:** CASCADE recovered known signals, flagged insufficient power instead of false positives, and corrected an artifact from HR 0.84 to 1.25. *(CASCADE is an agentic AI framework for trustworthy biomarker discovery in precision oncology.)*
+- **limitation:** Existing autonomous AI pipelines lack a general method to ensure analytical correctness. *(CASCADE is an agentic AI framework for trustworthy biomarker discovery in precision oncology.)*
+- **method:** DeepQuest converts unresolved review questions into testable hypotheses and ranks them using data feasibility screening and groupwise Elo ranking. *(DeepQuest: From Knowledge Gaps to Scientific Discovery in Alzheimer's Disease)*
 
 ## Hypoteskandidat
 
@@ -42,15 +43,30 @@ Pipelinen: inga tillräckligt relevanta uppföljningsträffar.
 
 **Hypotes:** The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested.
 
-Underlag: 2 artiklar, 1 rapporterade begränsningar att granska. Status: overifierad, inget experiment kört.
+Underlag: 3 artiklar, 0 rapporterade begränsningar att granska. Status: overifierad, inget experiment kört.
 
 ## Granskningskö (agentisk trädsökning)
 
-Status: kräver verifiering.
+Status: granskningskö skapad.
+
+| # | Gren | Hypotes |
+| --- | --- | --- |
+| 1 | candidate | The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested. |
+| 2 | null-test | Test whether the candidate intervention fails to improve the primary outcome over a matched baseline under pre-registered held-out conditions. |
+| 3 | replication | Test whether the candidate intervention changes the primary outcome relative to a matched baseline on independent held-out data. |
+| 4 | candidate | The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested. |
+| 5 | null-test | Test whether the candidate intervention fails to improve the primary outcome over a matched baseline under pre-registered held-out conditions. |
+| 6 | replication | Test whether the candidate intervention changes the primary outcome relative to a matched baseline on independent held-out data. |
 
 ## Nyhetskontroll (citeringsgraf)
 
-Nyhetskontrollen misslyckades (no\_openalex\_seed).
+ingen överlappning hittad inom budgeten; 10 senare verk att granska. Att inget hittas inom budgeten bevisar inte att idén är ny.
+
+- Interaction-finder: automated literature-based discovery of biological entity associations with quote-level provenance (2026)
+- Jr. AI Scientist and Its Risk Report: Autonomous Scientific Exploration from a Baseline Paper (2026)
+- PMark: Towards Robust and Distortion-free Semantic-level Watermarking with Channel Constraints (2026)
+- What Makes AI Research Replicable? Executable Knowledge Graphs as Scientific Knowledge Representations (2026)
+- FlowPIE: Test-Time Scientific Idea Evolution with Flow-Guided Literature Exploration (2026)
 
 ## Problem Bank
 
@@ -62,17 +78,17 @@ Registrerade problem erbjuds den dagliga labbkörningen, som kan välja att arbe
 
 | Experiment | Seed | Status | Godkända fall | Rak fråga (labbet/rak) |
 | --- | --- | --- | --- | --- |
-| rankscreen-consistency | 20261123 | driftfel | 1 av 1 | – |
+| rankscreen-consistency | 20261124 | driftfel | 1 av 1 | – |
 
 ## Kunskapsminne (VEM-Sci)
 
-Från de senaste 42 körningarna med register (högst 200): 46 preliminärt stödda, 12 avvisade och 12 olösta påståenden. Labbets planering ser samma register och prioriterar där påståenden inte höll eller belägg saknas.
+Från de senaste 43 körningarna med register (högst 200): 47 preliminärt stödda, 12 avvisade och 12 olösta påståenden. Labbets planering ser samma register och prioriterar där påståenden inte höll eller belägg saknas.
 
 | Experiment | Stödda | Avvisade | Olösta (avstått / utan svar) | Vanligaste felorsaker | Lärprioritet |
 | --- | --- | --- | --- | --- | --- |
 | act-map-design | 1 | 1 | 6 (1 / 5) | svaret klipptes vid tokengränsen ×5; fel minsta antal ingrepp ×1 | 0.80 |
 | act-map-tree | 4 | 0 | 3 (1 / 2) | svaret klipptes vid tokengränsen (nivå 4) ×2 | 0.44 |
-| rankscreen-consistency | 15 | 10 | 0 (0 / 0) | avvisat av verifieraren ×10 | 0.41 |
+| rankscreen-consistency | 16 | 10 | 0 (0 / 0) | avvisat av verifieraren ×10 | 0.39 |
 | act-map-transfer | 12 | 1 | 3 (2 / 1) | ingreppen täckte inte roten och mediatorn ×1; interventions angav inte en egen målvariabel för vart och ett av de tre ingreppen (nivå 3) ×1 | 0.28 |
 | act-map-budget | 2 | 0 | 0 (0 / 0) | – | 0.25 |
 | dowhy-backdoor | 3 | 0 | 0 (0 / 0) | – | 0.20 |
@@ -83,13 +99,13 @@ Från de senaste 42 körningarna med register (högst 200): 46 preliminärt stö
 
 ## DeepRAP-mått
 
-Från 42 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experimentens egna oberoende verifierare avgör; varje siffra visas med sitt underlag. Få fall ger stor osäkerhet.
+Från 43 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experimentens egna oberoende verifierare avgör; varje siffra visas med sitt underlag. Få fall ger stor osäkerhet.
 
 | Förmåga | Mått | Värde | Underlag |
 | --- | --- | --- | --- |
-| Resonemang | Påståenden som höll vid verifiering | 79 % | 46 stödda, 12 avvisade |
-| Resonemang | Olösta (avstått / utan svar) | 12 (4 / 8) | 70 påståenden |
-| Resonemang | Kalibrering: angiven säkerhet mot andel rätt (Brier) | 99 % mot 79 % (0.2046) | 63 fall |
+| Resonemang | Påståenden som höll vid verifiering | 80 % | 47 stödda, 12 avvisade |
+| Resonemang | Olösta (avstått / utan svar) | 12 (4 / 8) | 71 påståenden |
+| Resonemang | Kalibrering: angiven säkerhet mot andel rätt (Brier) | 99 % mot 80 % (0.2014) | 64 fall |
 | Abstraktion | ACT-MAP direkt: rätt beslut | 91 % | 10 av 11; per nivå 2: 4/4, 3: 3/4, 4: 3/3 |
 | Abstraktion | ACT-MAP trädsökning v1: rätt beslut | 50 % | 1 av 2; per nivå 3: 1/1, 4: 0/1 |
 | Abstraktion | ACT-MAP trädsökning: rätt beslut | 80 % | 4 av 5; per nivå 3: 3/3, 4: 1/2 |
@@ -98,7 +114,7 @@ Från 42 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experime
 | Abstraktion | Felaktigt godkända överföringar | 0 | alla ACT-MAP-fall |
 | Planering | Ingrepp per rätt fall: Oraklet mot uppräkningsbaslinjen | 2.8947 mot 2.7368 | 19 fall där båda hade rätt |
 | Planering | Två ingrepp: det andra fullbordade täckningen | 100 % | 2 av 2 fall där det var möjligt |
-| Planering | Planeringen valde högsta lärprioritet | 12 av 32 | körningar planerade med minnet; relativ placering i snitt 0.4559 (0 = högst), 6 val av obeprövat experiment |
+| Planering | Planeringen valde högsta lärprioritet | 12 av 33 | körningar planerade med minnet; relativ placering i snitt 0.4635 (0 = högst), 6 val av obeprövat experiment |
 
 ## OpenAI:s matematiksamling
 
@@ -106,25 +122,13 @@ Oraklet läser tre resultatfamiljer om dagen ur [openai/math](https://github.com
 
 | Familj | Ämne | Lean | Kod |
 | --- | --- | --- | --- |
-| 053. [A counterexample to Pixton completeness in Chow](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/A-high-arity-counterexample-to-Pixton-completeness-in-Chow-September-24-2026) | Algebraic and complex geometry | nej | nej |
-| 054. [Irrational cubic fourfolds with Hodge-theoretic and categorical K3 associations](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/Irrational-cubic-fourfolds-with-geometric-K3-categories-September-24-2026) | Algebraic and complex geometry | nej | nej |
-| 055. [Gepner symmetry and large-volume stability on threefolds](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/A-Gepner-stability-condition-on-every-smooth-quintic-threefold-September-24-2026) | Algebraic and complex geometry | nej | nej |
+| 056. [Termination of projective and Kähler fourfold minimal model programs](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/Finite-ordinary-minimal-model-programs-on-compact-Kahler-fourfolds-October-6-2026) | Algebraic and complex geometry | nej | nej |
+| 057. [Fundamental groups of special complex varieties and root orbifolds](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/A-conditional-abelianity-theorem-for-special-fourfold-pairs-with-a-half-weight-divisor-October-5-2026) | Algebraic and complex geometry | nej | nej |
+| 058. [Semialgebraic universal covers and bounded domains](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/Semialgebraic-universal-covers-of-normal-projective-varieties-September-24-2026) | Algebraic and complex geometry | huvudresultat | nej |
 
-### 053. A counterexample to Pixton completeness in Chow
-
-- **Citat:** "Constructs a tautological relation on a moduli space of stable pointed curves that vanishes in rational Chow, hence in rational cohomology, but lies outside Pixton's original relation span."
-- **Metod:** Konstruktion av en tautologisk relation på moduli‑rymden av stabila spetsade kurvor och beräkning i rationell Chow‑grupp.
-- **Öppen fråga:** Vilka ytterligare relationer finns utanför Pixtons spännvidd och hur kan de klassificeras i integral Chow?
-- **Labbförslag:** Använd SageMath eller Macaulay2 för att explicit konstruera den givna relationen i låg genus (t.ex. g=2) och verifiera att den försvinner i rational Chow men inte i Pixtons span.
-
-### 055. Gepner symmetry and large-volume stability on threefolds
-
-- **Citat:** "Proves Toda's Gepner conjecture for every smooth complex quintic threefold, constructing a numerical Bridgeland stability condition with the prescribed phase shift 2/5."
-- **Metod:** Konstruktion av numeriska Bridgeland‑stabilitetsvillkor med exakt Todd‑central laddning och utnyttjande av Gepner‑symmetri.
-- **Öppen fråga:** Kan samma teknik ge Gepner‑symmetri och stabilitetsvillkor för andra Calabi‑Yau‑tredimensionella varieteter?
-- **Labbförslag:** Implementera den givna centralkartan i Python (t.ex. med mpmath) för en kvintisk trefold och verifiera att fas‑skiftet 2/5 uppnås för olika volym‑parametrar.
-
-- Familj 054: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
+- Familj 056: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
+- Familj 057: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
+- Familj 058: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
 
 ## Begränsningar
 
