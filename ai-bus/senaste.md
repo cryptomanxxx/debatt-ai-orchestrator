@@ -1,16 +1,16 @@
-# Professor Oraklets dag – 2026-11-24
+# Professor Oraklets dag – 2026-11-25
 
 *Skriven automatiskt av Oraklets dagliga litteraturforskning. Siffrorna kommer från sparade rapporter, inte från en modells egen sammanfattning. Kandidater och hypoteser är overifierade; inget här påstår en ny vetenskaplig upptäckt.*
 
 ## Sammanfattning
 
-- **Fält i dag:** Kausal inferens (sökfråga: causal inference machine learning)
-- **Litteratur:** 20 träffar hittade, 10 sammanfattningar arkiverade, 10 sammanfattningar analyserade, 25 citerade fynd. Modellanrop: 9 av 14.
-- **Ny hypoteskandidat:** 1; granskningskö med 6 förslag till studier
+- **Fält i dag:** AI för vetenskaplig upptäckt (sökfråga: AI agents scientific discovery)
+- **Litteratur:** 30 träffar hittade, 9 sammanfattningar arkiverade, 6 sammanfattningar analyserade, 14 citerade fynd. Modellanrop: 5 av 14.
+- **Ny hypoteskandidat:** 1
 - **Problem Bank:** 0 nya problem registrerade automatiskt, 0 väntar på ditt godkännande
-- **Experiment senaste dygnet:** 1 körningar, 0 av 1 fall godkända
-- **Dagens artikel:** ingen i dag (svaret saknade avsnitt; tidigare utkast avvisades: svaret saknade avsnitt; svaret saknade avsnitt)
-- **OpenAI:s matematiksamling:** familj 059, 060, 062 (plats 58 av 373, varv 1); ingen läsning godkänd (ingen läsning godkändes)
+- **Experiment senaste dygnet:** 1 körningar, 0 av 0 fall godkända
+- **Dagens artikel:** [Hur väl Oraklets resonemang håller](artiklar/2026-11-25.md)
+- **OpenAI:s matematiksamling:** familj 063, 064, 065 (plats 61 av 373, varv 1); ingen läsning godkänd (ingen läsning godkändes)
 
 ## Litteratur
 
@@ -18,31 +18,28 @@ Pipelinen: delvis slutförd.
 
 | Artikel | Status | Fynd |
 | --- | --- | --- |
-| Causal ML: Python package for causal inference machine learning | summarized | 1 |
-| Yggdrasil: Tree-Routed Recurrent Experts for State Tracking and Fast CPU Inference | summarized | 3 |
-| Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound | summarized | 3 |
-| Tabular Foundation Models for Weighted Regression and Classification | summarized | 3 |
-| Causal Inference Machine Learning Leads Original Experimental Discovery in CdSe/CdS Core/Shell Nanoparticles | summarized | 3 |
-| Integrated machine learning and causal inference reveal CHRDL1 as a diagnostic and functional biomarker in NSCLC | summarized | 3 |
-| Machine learning-causal inference based on multi-omics data reveals the association of altered gut bacteria and bile acid metabolism with neonatal jaundice | summarized | 3 |
-| Machine Learning in Causal Inference: Application in Pharmacovigilance | summarized | 3 |
-| Machine learning and causal inference applied to the gut metagenome-metabolome axis reveals a link between neonatal jaundice and autism spectrum disorder | summarized | 2 |
-| Recent Developments in Causal Inference and Machine Learning | summarized | 1 |
+| Agentic AI for Scientific Discovery: A Survey of Progress, Challenges, and Future Directions | summarized | 1 |
+| Do Alice and Bob Dream of the Oracle? Wishful Cryptanalysis | summarized | 3 |
+| DeepQuest: From Knowledge Gaps to Scientific Discovery in Alzheimer's Disease | summarized | 2 |
+| Agentic AI systems for scientific discovery | unavailable | 0 |
+| automodel: A Skill for Agentic Model Discovery | summarized | 2 |
+| Requirements Engineering with Generative AI: A Systematic Literature Review of Using AI Agents for Requirements Engineering Automation | summarized | 3 |
+| System for systematic literature review using multiple AI agents: Concept and an empirical evaluation | summarized | 3 |
 
 ### Utdrag ur fynden
 
-- **method:** Causal ML provides uplift modeling and causal inference methods using machine learning algorithms. *(Causal ML: Python package for causal inference machine learning)*
-- **method:** Introduces Yggdrasil, a recurrent architecture that decouples capacity from per-step compute via a tree‑routed bank of recurrent experts. *(Yggdrasil: Tree-Routed Recurrent Experts for State Tracking and Fast CPU Inference)*
-- **result:** Achieves the lowest test bits on enwik8 (1.540 bpb) and the human genome hg38 (1.567 bpb) at matched active parameter counts. *(Yggdrasil: Tree-Routed Recurrent Experts for State Tracking and Fast CPU Inference)*
-- **limitation:** Prior parallel‑trainable recurrences (e.g., Mamba, linear attention, DeltaNet) struggle with discrete state tracking and read every parameter at each step. *(Yggdrasil: Tree-Routed Recurrent Experts for State Tracking and Fast CPU Inference)*
-- **method:** Used integrated analysis of monitoring, satellite, and reanalysis data with explainable machine learning and causal inference. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
-- **result:** Elevated temperature and solar radiation explained 57% of the ozone increase. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
-- **limitation:** Chemical transport models are computationally intensive, and machine learning struggles with confounding and causality. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
-- **method:** The authors create a pipeline that adds weighted attention, a normalized weighted loss, and pretraining on synthetic weighted tasks to adapt foundation models for weighted prediction. *(Tabular Foundation Models for Weighted Regression and Classification)*
+- **limitation:** Literature review automation, system reliability, and ethical concerns are critical challenges that remain unresolved. *(Agentic AI for Scientific Discovery: A Survey of Progress, Challenges, and Future Directions)*
+- **method:** Introduced a harness‑agnostic “wishful cryptanalysis” methodology that compresses reduced‑scale theory and uses live witnesses to certify mathematics automatically. *(Do Alice and Bob Dream of the Oracle? Wishful Cryptanalysis)*
+- **result:** Achieved thirteen verifiable practical attacks on Keccak (SHA‑3) and AES, including breaking a 15‑year‑old public challenge and closing long‑standing practical gaps. *(Do Alice and Bob Dream of the Oracle? Wishful Cryptanalysis)*
+- **limitation:** Closed platforms and generic agent loops hinder sustained open inquiry in prior approaches. *(Do Alice and Bob Dream of the Oracle? Wishful Cryptanalysis)*
+- **result:** On the OASIS‑3 dataset, DeepQuest generated 42 feasible hypotheses and outperformed the strongest baselines in 14 of 15 evaluator‑dimension comparisons across three language‑model reviewers. *(DeepQuest: From Knowledge Gaps to Scientific Discovery in Alzheimer's Disease)*
+- **result:** The full framework attained an audit‑assessed scientific finding rate of 95.24%, surpassing general‑purpose executors and domain‑specific agents, with the rate staying stable across literature corpora and evaluator model families. *(DeepQuest: From Knowledge Gaps to Scientific Discovery in Alzheimer's Disease)*
+- **method:** The authors introduce automodel, an agent skill for general model discovery. *(automodel: A Skill for Agentic Model Discovery)*
+- **result:** Commercial agents equipped with automodel can successfully identify novel, scientifically-relevant models across multiple domains. *(automodel: A Skill for Agentic Model Discovery)*
 
 ## Hypoteskandidat
 
-**Fråga:** Does adjusting for an identified confounder recover a causal effect that the unadjusted association misstates?
+**Fråga:** Which reported method remains robust under a matched, independent replication?
 
 **Hypotes:** The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested.
 
@@ -50,26 +47,17 @@ Underlag: 3 artiklar, 0 rapporterade begränsningar att granska. Status: overifi
 
 ## Granskningskö (agentisk trädsökning)
 
-Status: granskningskö skapad.
-
-| # | Gren | Hypotes |
-| --- | --- | --- |
-| 1 | candidate | The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested. |
-| 2 | null-test | Test whether the candidate intervention fails to improve the primary outcome over a matched baseline under pre-registered held-out conditions. |
-| 3 | replication | Test whether the candidate intervention changes the primary outcome relative to a matched baseline on independent held-out data. |
-| 4 | candidate | The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested. |
-| 5 | null-test | Test whether the candidate intervention fails to improve the primary outcome over a matched baseline under pre-registered held-out conditions. |
-| 6 | replication | Test whether the candidate intervention changes the primary outcome relative to a matched baseline on independent held-out data. |
+Status: kräver verifiering.
 
 ## Nyhetskontroll (citeringsgraf)
 
-möjlig överlappning hittad; 9 senare verk att granska. Att inget hittas inom budgeten bevisar inte att idén är ny.
+ingen överlappning hittad inom budgeten; 10 senare verk att granska. Att inget hittas inom budgeten bevisar inte att idén är ny.
 
-- A Comprehensive Review and Tutorial on Confounding Adjustment Methods for Estimating Treatment Effects Using Observational Data (2024)
-- Causal Effect Estimation using identifiable Variational AutoEncoder with Latent Confounders and Post-Treatment Variables (2024)
-- Covariate selection and adjustment for efficacy and safety endpoints in indirect comparative effectiveness analyses of CAR-T-cell therapies for large B-cell lymphoma: a systematic review (2026)
-- Quantized Factor Identifiable Causal Effect Variational Autoencoder (2025)
-- TLRNet: Estimating Individual Treatment Effect based on Local Information and Single Learner Structure (2026)
+- Interaction-finder: automated literature-based discovery of biological entity associations with quote-level provenance (2026)
+- PMark: Towards Robust and Distortion-free Semantic-level Watermarking with Channel Constraints (2026)
+- Jr. AI Scientist and Its Risk Report: Autonomous Scientific Exploration from a Baseline Paper (2026)
+- What Makes AI Research Replicable? Executable Knowledge Graphs as Scientific Knowledge Representations (2026)
+- FlowPIE: Test-Time Scientific Idea Evolution with Flow-Guided Literature Exploration (2026)
 
 ## Problem Bank
 
@@ -81,19 +69,11 @@ Registrerade problem erbjuds den dagliga labbkörningen, som kan välja att arbe
 
 | Experiment | Seed | Status | Godkända fall | Rak fråga (labbet/rak) |
 | --- | --- | --- | --- | --- |
-| act-map-design | 20261125 | failed | 0 av 1 | – |
-
-## Oraklets egna experiment
-
-Experiment som Oraklet själv utformade (`act-map-design`): en egen orsaksmekanism som deklarativ specifikation, en förregistrerad förutsägelse om dess identifierbarhet, och undersökningen när labbet gömt mekanismen i okända system. Förutsägelsen avgörs av labbets uppräkning, undersökningen av evidensgrinden; inget av det är Oraklets eget omdöme.
-
-### act-map-design, seed 20261125
-
-Ingen giltig mekanism (spec:truncated); inget påstående prövades.
+| Oraklets experiment kunde inte slutföras | 20261125 | driftfel | 0 av 0 | – |
 
 ## Kunskapsminne (VEM-Sci)
 
-Från de senaste 44 körningarna med register (högst 200): 47 preliminärt stödda, 12 avvisade och 13 olösta påståenden. Labbets planering ser samma register och prioriterar där påståenden inte höll eller belägg saknas.
+Från de senaste 45 körningarna med register (högst 200): 47 preliminärt stödda, 12 avvisade och 13 olösta påståenden. Labbets planering ser samma register och prioriterar där påståenden inte höll eller belägg saknas.
 
 | Experiment | Stödda | Avvisade | Olösta (avstått / utan svar) | Vanligaste felorsaker | Lärprioritet |
 | --- | --- | --- | --- | --- | --- |
@@ -110,7 +90,7 @@ Från de senaste 44 körningarna med register (högst 200): 47 preliminärt stö
 
 ## DeepRAP-mått
 
-Från 44 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experimentens egna oberoende verifierare avgör; varje siffra visas med sitt underlag. Få fall ger stor osäkerhet.
+Från 45 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experimentens egna oberoende verifierare avgör; varje siffra visas med sitt underlag. Få fall ger stor osäkerhet.
 
 | Förmåga | Mått | Värde | Underlag |
 | --- | --- | --- | --- |
@@ -133,13 +113,13 @@ Oraklet läser tre resultatfamiljer om dagen ur [openai/math](https://github.com
 
 | Familj | Ämne | Lean | Kod |
 | --- | --- | --- | --- |
-| 059. [Counterexamples to Zariski’s multiplicity conjecture](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/Ambiently-homeomorphic-isolated-hypersurface-germs-in-C4-with-multiplicities-four-and-five-September-27-2026) | Algebraic and complex geometry | nej | ja; omkörd: pass |
-| 060. [The Global Spherical Shell conjecture](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/Global-Spherical-Shells-on-Minimal-Surfaces-of-Class-VII-September-24-2026) | Algebraic and complex geometry | nej | nej |
-| 062. [Projective contact classification and the LeBrun–Salamon conjecture](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/Contact-Fano-manifolds-and-the-LeBrun-Salamon-conjecture-September-23-2026) | Algebraic and complex geometry | nej | nej |
+| 063. [The generalized Mukai conjecture](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/The-Generalized-Mukai-Conjecture-September-24-2026) | Algebraic and complex geometry | nej | nej |
+| 064. [Topological triviality of μ-constant surface singularities](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/Topological-triviality-of-mu-constant-families-of-surface-singularities-September-24-2026) | Algebraic and complex geometry | nej | nej |
+| 065. [Virasoro constraints for complete intersections and projective-bundle towers](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/Virasoro-Constraints-for-Projective-Complete-Intersections-September-24-2026) | Algebraic and complex geometry | nej | nej |
 
-- Familj 059: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
-- Familj 060: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
-- Familj 062: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
+- Familj 063: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
+- Familj 064: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
+- Familj 065: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
 
 ## Begränsningar
 
