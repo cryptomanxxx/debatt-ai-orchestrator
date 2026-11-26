@@ -1,45 +1,43 @@
-# Professor Oraklets dag – 2026-11-25
+# Professor Oraklets dag – 2026-11-26
 
 *Skriven automatiskt av Oraklets dagliga litteraturforskning. Siffrorna kommer från sparade rapporter, inte från en modells egen sammanfattning. Kandidater och hypoteser är overifierade; inget här påstår en ny vetenskaplig upptäckt.*
 
 ## Sammanfattning
 
-- **Fält i dag:** AI för vetenskaplig upptäckt (sökfråga: AI agents scientific discovery)
-- **Litteratur:** 30 träffar hittade, 9 sammanfattningar arkiverade, 6 sammanfattningar analyserade, 14 citerade fynd. Modellanrop: 5 av 14.
+- **Fält i dag:** Kausal inferens (sökfråga: causal inference machine learning)
+- **Litteratur:** 20 träffar hittade, 10 sammanfattningar arkiverade, 5 sammanfattningar analyserade, 12 citerade fynd. Modellanrop: 7 av 14.
 - **Ny hypoteskandidat:** 1
 - **Problem Bank:** 0 nya problem registrerade automatiskt, 0 väntar på ditt godkännande
-- **Experiment senaste dygnet:** 1 körningar, 0 av 0 fall godkända
-- **Dagens artikel:** [Hur väl Oraklets resonemang håller](artiklar/2026-11-25.md)
-- **OpenAI:s matematiksamling:** familj 063, 064, 065 (plats 61 av 373, varv 1); ingen läsning godkänd (ingen läsning godkändes)
+- **Experiment senaste dygnet:** 1 körningar, 2 av 3 fall godkända
+- **Dagens artikel:** [Hur väl Oraklets resonemang håller](artiklar/2026-11-26.md)
+- **OpenAI:s matematiksamling:** familj 066, 067, 068 (plats 64 av 373, varv 1); ingen läsning godkänd (ingen läsning godkändes)
 
 ## Litteratur
 
-Pipelinen: delvis slutförd.
+Pipelinen: inga tillräckligt relevanta uppföljningsträffar.
 
 | Artikel | Status | Fynd |
 | --- | --- | --- |
-| Agentic AI for Scientific Discovery: A Survey of Progress, Challenges, and Future Directions | summarized | 1 |
-| Do Alice and Bob Dream of the Oracle? Wishful Cryptanalysis | summarized | 3 |
-| DeepQuest: From Knowledge Gaps to Scientific Discovery in Alzheimer's Disease | summarized | 2 |
-| Agentic AI systems for scientific discovery | unavailable | 0 |
-| automodel: A Skill for Agentic Model Discovery | summarized | 2 |
-| Requirements Engineering with Generative AI: A Systematic Literature Review of Using AI Agents for Requirements Engineering Automation | summarized | 3 |
-| System for systematic literature review using multiple AI agents: Concept and an empirical evaluation | summarized | 3 |
+| Beat This! Live - Online Beat and Downbeat Tracking by Predicting the Future | summarized | 3 |
+| Causal ML: Python package for causal inference machine learning | summarized | 1 |
+| FlashProve-Next: Verifiable Inference for Production LLM APIs | summarized | 2 |
+| Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound | summarized | 3 |
+| B-SLIM: BART Sparse Linear Interactions Model for Heterogeneous Treatment Effects | summarized | 3 |
 
 ### Utdrag ur fynden
 
-- **limitation:** Literature review automation, system reliability, and ethical concerns are critical challenges that remain unresolved. *(Agentic AI for Scientific Discovery: A Survey of Progress, Challenges, and Future Directions)*
-- **method:** Introduced a harness‑agnostic “wishful cryptanalysis” methodology that compresses reduced‑scale theory and uses live witnesses to certify mathematics automatically. *(Do Alice and Bob Dream of the Oracle? Wishful Cryptanalysis)*
-- **result:** Achieved thirteen verifiable practical attacks on Keccak (SHA‑3) and AES, including breaking a 15‑year‑old public challenge and closing long‑standing practical gaps. *(Do Alice and Bob Dream of the Oracle? Wishful Cryptanalysis)*
-- **limitation:** Closed platforms and generic agent loops hinder sustained open inquiry in prior approaches. *(Do Alice and Bob Dream of the Oracle? Wishful Cryptanalysis)*
-- **result:** On the OASIS‑3 dataset, DeepQuest generated 42 feasible hypotheses and outperformed the strongest baselines in 14 of 15 evaluator‑dimension comparisons across three language‑model reviewers. *(DeepQuest: From Knowledge Gaps to Scientific Discovery in Alzheimer's Disease)*
-- **result:** The full framework attained an audit‑assessed scientific finding rate of 95.24%, surpassing general‑purpose executors and domain‑specific agents, with the rate staying stable across literature corpora and evaluator model families. *(DeepQuest: From Knowledge Gaps to Scientific Discovery in Alzheimer's Disease)*
-- **method:** The authors introduce automodel, an agent skill for general model discovery. *(automodel: A Skill for Agentic Model Discovery)*
-- **result:** Commercial agents equipped with automodel can successfully identify novel, scientifically-relevant models across multiple domains. *(automodel: A Skill for Agentic Model Discovery)*
+- **method:** Adapted the offline Beat This model into a causal, low‑latency online version named Beat This! Live. *(Beat This! Live - Online Beat and Downbeat Tracking by Predicting the Future)*
+- **method:** Trained the model with temporally shifted labels to predict slightly ahead of the current frame, reducing latency and improving peak‑picking. *(Beat This! Live - Online Beat and Downbeat Tracking by Predicting the Future)*
+- **result:** On GTZAN, the beat F1 increased from 80.6 to 86.7 and downbeat F1 from 56.5 to 74.1 versus BeatNet+. *(Beat This! Live - Online Beat and Downbeat Tracking by Predicting the Future)*
+- **method:** Causal ML provides uplift modeling and causal inference methods using machine learning algorithms. *(Causal ML: Python package for causal inference machine learning)*
+- **result:** Calibration across five models showed zero false rejections over millions of GEMM/MoE and non‑GEMM blocks. *(FlashProve-Next: Verifiable Inference for Production LLM APIs)*
+- **limitation:** Cross‑architecture hiding is not yet supported and is deferred to future work. *(FlashProve-Next: Verifiable Inference for Production LLM APIs)*
+- **method:** Used integrated analysis of monitoring, satellite, and reanalysis data with explainable machine learning and causal inference. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
+- **result:** Elevated temperature and solar radiation explained 57% of the ozone increase. *(Causal-inference machine learning reveals the drivers of China's 2022 ozone rebound)*
 
 ## Hypoteskandidat
 
-**Fråga:** Which reported method remains robust under a matched, independent replication?
+**Fråga:** Does adjusting for an identified confounder recover a causal effect that the unadjusted association misstates?
 
 **Hypotes:** The proposed intervention changes the measured outcome relative to a matched baseline; the direction and magnitude remain to be tested.
 
@@ -51,13 +49,13 @@ Status: kräver verifiering.
 
 ## Nyhetskontroll (citeringsgraf)
 
-ingen överlappning hittad inom budgeten; 10 senare verk att granska. Att inget hittas inom budgeten bevisar inte att idén är ny.
+möjlig överlappning hittad; 10 senare verk att granska. Att inget hittas inom budgeten bevisar inte att idén är ny.
 
-- Interaction-finder: automated literature-based discovery of biological entity associations with quote-level provenance (2026)
-- PMark: Towards Robust and Distortion-free Semantic-level Watermarking with Channel Constraints (2026)
-- Jr. AI Scientist and Its Risk Report: Autonomous Scientific Exploration from a Baseline Paper (2026)
-- What Makes AI Research Replicable? Executable Knowledge Graphs as Scientific Knowledge Representations (2026)
-- FlowPIE: Test-Time Scientific Idea Evolution with Flow-Guided Literature Exploration (2026)
+- A Comprehensive Review and Tutorial on Confounding Adjustment Methods for Estimating Treatment Effects Using Observational Data (2024)
+- Causal Effect Estimation using identifiable Variational AutoEncoder with Latent Confounders and Post-Treatment Variables (2024)
+- Covariate selection and adjustment for efficacy and safety endpoints in indirect comparative effectiveness analyses of CAR-T-cell therapies for large B-cell lymphoma: a systematic review (2026)
+- Quantized Factor Identifiable Causal Effect Variational Autoencoder (2025)
+- TLRNet: Estimating Individual Treatment Effect based on Local Information and Single Learner Structure (2026)
 
 ## Problem Bank
 
@@ -69,17 +67,17 @@ Registrerade problem erbjuds den dagliga labbkörningen, som kan välja att arbe
 
 | Experiment | Seed | Status | Godkända fall | Rak fråga (labbet/rak) |
 | --- | --- | --- | --- | --- |
-| Oraklets experiment kunde inte slutföras | 20261125 | driftfel | 0 av 0 | – |
+| rankscreen-consistency | 20261126 | failed | 2 av 3 | – |
 
 ## Kunskapsminne (VEM-Sci)
 
-Från de senaste 45 körningarna med register (högst 200): 47 preliminärt stödda, 12 avvisade och 13 olösta påståenden. Labbets planering ser samma register och prioriterar där påståenden inte höll eller belägg saknas.
+Från de senaste 46 körningarna med register (högst 200): 49 preliminärt stödda, 13 avvisade och 13 olösta påståenden. Labbets planering ser samma register och prioriterar där påståenden inte höll eller belägg saknas.
 
 | Experiment | Stödda | Avvisade | Olösta (avstått / utan svar) | Vanligaste felorsaker | Lärprioritet |
 | --- | --- | --- | --- | --- | --- |
 | act-map-design | 1 | 1 | 7 (1 / 6) | svaret klipptes vid tokengränsen ×6; fel minsta antal ingrepp ×1 | 0.82 |
 | act-map-tree | 4 | 0 | 3 (1 / 2) | svaret klipptes vid tokengränsen (nivå 4) ×2 | 0.44 |
-| rankscreen-consistency | 16 | 10 | 0 (0 / 0) | avvisat av verifieraren ×10 | 0.39 |
+| rankscreen-consistency | 18 | 11 | 0 (0 / 0) | avvisat av verifieraren ×11 | 0.39 |
 | act-map-transfer | 12 | 1 | 3 (2 / 1) | ingreppen täckte inte roten och mediatorn ×1; interventions angav inte en egen målvariabel för vart och ett av de tre ingreppen (nivå 3) ×1 | 0.28 |
 | act-map-budget | 2 | 0 | 0 (0 / 0) | – | 0.25 |
 | dowhy-backdoor | 3 | 0 | 0 (0 / 0) | – | 0.20 |
@@ -90,13 +88,13 @@ Från de senaste 45 körningarna med register (högst 200): 47 preliminärt stö
 
 ## DeepRAP-mått
 
-Från 45 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experimentens egna oberoende verifierare avgör; varje siffra visas med sitt underlag. Få fall ger stor osäkerhet.
+Från 46 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experimentens egna oberoende verifierare avgör; varje siffra visas med sitt underlag. Få fall ger stor osäkerhet.
 
 | Förmåga | Mått | Värde | Underlag |
 | --- | --- | --- | --- |
-| Resonemang | Påståenden som höll vid verifiering | 80 % | 47 stödda, 12 avvisade |
-| Resonemang | Olösta (avstått / utan svar) | 13 (4 / 9) | 72 påståenden |
-| Resonemang | Kalibrering: angiven säkerhet mot andel rätt (Brier) | 99 % mot 80 % (0.2014) | 64 fall |
+| Resonemang | Påståenden som höll vid verifiering | 79 % | 49 stödda, 13 avvisade |
+| Resonemang | Olösta (avstått / utan svar) | 13 (4 / 9) | 75 påståenden |
+| Resonemang | Kalibrering: angiven säkerhet mot andel rätt (Brier) | 99 % mot 79 % (0.2073) | 67 fall |
 | Abstraktion | ACT-MAP direkt: rätt beslut | 91 % | 10 av 11; per nivå 2: 4/4, 3: 3/4, 4: 3/3 |
 | Abstraktion | ACT-MAP trädsökning v1: rätt beslut | 50 % | 1 av 2; per nivå 3: 1/1, 4: 0/1 |
 | Abstraktion | ACT-MAP trädsökning: rätt beslut | 80 % | 4 av 5; per nivå 3: 3/3, 4: 1/2 |
@@ -105,7 +103,7 @@ Från 45 sparade labbkörningar med VEM-Sci-register (högst 200). Bara experime
 | Abstraktion | Felaktigt godkända överföringar | 0 | alla ACT-MAP-fall |
 | Planering | Ingrepp per rätt fall: Oraklet mot uppräkningsbaslinjen | 2.8947 mot 2.7368 | 19 fall där båda hade rätt |
 | Planering | Två ingrepp: det andra fullbordade täckningen | 100 % | 2 av 2 fall där det var möjligt |
-| Planering | Planeringen valde högsta lärprioritet | 13 av 34 | körningar planerade med minnet; relativ placering i snitt 0.4498 (0 = högst), 6 val av obeprövat experiment |
+| Planering | Planeringen valde högsta lärprioritet | 13 av 35 | körningar planerade med minnet; relativ placering i snitt 0.4571 (0 = högst), 6 val av obeprövat experiment |
 
 ## OpenAI:s matematiksamling
 
@@ -113,13 +111,13 @@ Oraklet läser tre resultatfamiljer om dagen ur [openai/math](https://github.com
 
 | Familj | Ämne | Lean | Kod |
 | --- | --- | --- | --- |
-| 063. [The generalized Mukai conjecture](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/The-Generalized-Mukai-Conjecture-September-24-2026) | Algebraic and complex geometry | nej | nej |
-| 064. [Topological triviality of μ-constant surface singularities](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/Topological-triviality-of-mu-constant-families-of-surface-singularities-September-24-2026) | Algebraic and complex geometry | nej | nej |
-| 065. [Virasoro constraints for complete intersections and projective-bundle towers](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/Virasoro-Constraints-for-Projective-Complete-Intersections-September-24-2026) | Algebraic and complex geometry | nej | nej |
+| 066. [Bounded klt complements for Fano contractions](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/Bounded-klt-complements-for-Fano-contractions-September-25-2026) | Algebraic and complex geometry | huvudresultat | nej |
+| 067. [The Campana–Peternell conjecture in dimension six](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/The-Campana-Peternell-conjecture-in-dimension-six-September-25-2026) | Algebraic and complex geometry | nej | ja; omkörd: pass |
+| 068. [Anticanonical nonvanishing in every dimension](https://github.com/openai/math/tree/4eaee87548250b2682affda7d05d947c05554bae/preprints/Anticanonical-nonvanishing-from-smooth-semipositivity-September-26-2026) | Algebraic and complex geometry | nej | nej |
 
-- Familj 063: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
-- Familj 064: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
-- Familj 065: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
+- Familj 066: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
+- Familj 067: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
+- Familj 068: läsningen avvisades (citatet fanns inte ordagrant i sammanfattningen).
 
 ## Begränsningar
 
